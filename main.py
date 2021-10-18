@@ -10,12 +10,12 @@ import aicspylibczi
 from gputools.transforms import affine as affineGPU
 from gputools.transforms import rotate as rotate_gputools
 
+
 import napari
-from napari.types import ImageData,ShapesData
+from napari.types import ImageData, LayerDataTuple,ShapesData
 from magicgui import magicgui
 from napari import Viewer
 from napari.layers import Layer
-
 
 #DASK imports
 from dask_image import ndinterp
@@ -30,6 +30,8 @@ from llsz.transformations import deskew_zeiss
 from llsz.array_processing import get_deskew_arr
 from llsz.io import read_czi
 from llsz.crop_utils import crop_deskew_roi
+#from llsz.ui import start_llsz_ui
+
 
 img_location="C:\\WTB6-02-Create Image Subset-02.czi"#C:\\RAPA_treated-01_resaved_c02_t_100.czi" #Z://LLS//LLSZ//Lung-Yu//20210730//WTB6-02_decon_deskew.czi"
 
@@ -123,6 +125,9 @@ deskew_shape=tuple((nz,deskewed_y,nx))
 channel_range=range(channels)
 raw_data_dask=stack.get_image_dask_data("TCZYX",C=channel_range,S=0)
 
+#TODO: Move UI to ui.py function
+#start_llsz_ui(stack.dask_data,deskew_shape,vol_shape,time=time,channel=0,scene=0, angle, translation, skew_dir=skew_direction)
+
 @magicgui(
         title=dict(
             widget_type="Label",
@@ -148,15 +153,12 @@ def run_deskew(title,layer:ImageData,viewer:Viewer) -> ImageData:
         title=dict(
             widget_type="Label",
             label="<h3>Cropping and deskewing</h3>"),
-        reference_title=dict(
-            widget_type="Label",
-            label="<h3>Reference Image to draw ROI</h3>"),
-        crop_title=dict(
-            widget_type="Label",
-            label="<h3>Image to crop from:</h3>"),
         crop_roi_title=dict(
             widget_type="Label",
-            label="<h3>Use ROIs from layer:</h3>"),
+            label="<h3>Use ROIs drawn on this shapes layer:</h3>"),
+        crop_title=dict(
+            widget_type="Label",
+            label="<h3>Image to crop from (NOT implemented; uses original stack):</h3>"),
         timepoint=dict(
             min=0,
             max=time,
@@ -170,25 +172,31 @@ def run_deskew(title,layer:ImageData,viewer:Viewer) -> ImageData:
         layout='vertical')
 def crop_image(title,
                 crop_roi_title,
-                roi_layer:Layer,
-                reference_title,
-                img_layer:ImageData,
+                roi_layer:ShapesData,
                 crop_title,
                 crop_img:ImageData,
                 timepoint:int,
                 chan:int,
-                viewer:Viewer) -> ImageData:
+                viewer:Viewer) -> LayerDataTuple:
     #viewer.add_shapes(shape_type='polygon', edge_width=5,edge_color='white',face_color=[1,1,1,0],text="BBOX")
     #crop_rois=[roi[idx] for idx, roi in enumerate(roi_data)]
-    if not roi_layer.data:
+    if not roi_layer:
         print("No coordinates found. Draw or Import ROI layer.")
     else:
         #print(roi_layer)
-        print(roi_layer.data)
-        print(chan,timepoint)
-        crop_roi_vol=crop_deskew_roi(roi_layer.data[0],vol_shape,raw_data_dask,angle,dy,dz,z_start,z_end,timepoint,chan,skew_direction,reverse=True)
+        #print(roi_layer)
+        #roi_layer
+        print("Using channel and time", chan,timepoint)
+        #print(crop_img.shape)
+        #if passsing roi layer as layer, use roi.data
+        crop_roi_vol=crop_deskew_roi(roi_layer[0],vol_shape,raw_data_dask,angle,dy,dz,z_start,z_end,timepoint,chan,skew_direction,reverse=True)
+        #print((0, roi_layer[0][2][0], roi_layer[0][0][0]))
+        #print(roi_layer[0])
+        translate_x=int(roi_layer[0][0][0])
+        translate_y=int(roi_layer[0][0][1])
+        crop_img_layer= (crop_roi_vol , {'translate' : [0,translate_x,translate_y] })
     #CROP ROI and return? how to deal with multiple roi images?
-    return crop_roi_vol
+    return crop_img_layer
     
 #SHIFT Z_ROI by TRANSLATE Y WHEN CROPPING FROM CROP_DASK_STACL
 
