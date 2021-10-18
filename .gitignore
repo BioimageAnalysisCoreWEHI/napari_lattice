@@ -136,6 +136,8 @@ dmypy.json
 
 # Cython debug symbols
 cython_debug/
-.pyc
+
+*.pyc
+
 llsz/__pycache__/crop_utils.cpython-39.pyc
 llsz/__pycache__/utils.cpython-39.pyc

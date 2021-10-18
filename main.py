@@ -1,4 +1,5 @@
-from os import read
+import os 
+
 import numpy as np
 from pprint import pprint #pretty print!
 from tqdm.dask import TqdmCallback
@@ -32,8 +33,12 @@ from llsz.io import read_czi
 from llsz.crop_utils import crop_deskew_roi
 #from llsz.ui import start_llsz_ui
 
+img_location = input("Enter czi file path:")
+assert os.path.isfile(img_location), "Not a file"
+name,ext=os.path.splitext(img_location)
+assert ext == ".czi", "Not a czi file"
 
-img_location="C:\\WTB6-02-Create Image Subset-02.czi"#C:\\RAPA_treated-01_resaved_c02_t_100.czi" #Z://LLS//LLSZ//Lung-Yu//20210730//WTB6-02_decon_deskew.czi"
+#img_location="C:\\WTB6-02-Create Image Subset-02.czi"#C:\\RAPA_treated-01_resaved_c02_t_100.czi" #Z://LLS//LLSZ//Lung-Yu//20210730//WTB6-02_decon_deskew.czi"
 
 #Read lattice file
 stack=read_czi(img_location)
