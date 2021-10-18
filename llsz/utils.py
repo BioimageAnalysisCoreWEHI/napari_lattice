@@ -135,8 +135,8 @@ def transform_dim(vol_shape,shape_coord,angle:float,dx_y:float,dz:float, skew_di
     Returns:
         deskewed dimension [int]: New dimension after deskewing
     """    
-    shear_factor=get_shear_factor(angle)
-    scale_factor=get_scale_factor(angle,dx_y,dz)
+    #shear_factor=get_shear_factor(angle)
+    #scale_factor=get_scale_factor(angle,dx_y,dz)
     translation=0 #no translation of the volume yet
     #get coordinates without translation
     transformed_coordinates=get_new_coordinates(vol_shape,shape_coord,angle,dx_y,dz,translation,skew_dir,reverse)
