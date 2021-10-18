@@ -1,4 +1,7 @@
 """
+ADD UI elements here
+
+
 import napari
 from napari.types import ImageData, LayerDataTuple,ShapesData
 from magicgui import magicgui

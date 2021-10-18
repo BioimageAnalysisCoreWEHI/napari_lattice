@@ -87,7 +87,8 @@ def crop_deskew_roi(crop_roi,vol_shape,vol,angle,dx_y,dz,z_start,z_end,time,chan
     print("Transformed ROI intended shape",transformed_roi_depth,transformed_roi_height,transformed_roi_width)
 
     #Confirm the cropped volume depth matches that of the transformed roi depth we calculated above
-    #It may not match if the crop is close to the ends of the image
+    #It may not match if the crop is close to the ends of the image or if its a very small volume that doesn't
+    #span whole z volume
 
     if crop_dask_stack.shape[0]!= transformed_roi_depth:
         z_diff = max_roi_shape[0] - crop_dask_stack.shape[0] #transformed_roi_depth
@@ -96,7 +97,6 @@ def crop_deskew_roi(crop_roi,vol_shape,vol,angle,dx_y,dz,z_start,z_end,time,chan
         print("New ROI shape extracted from raw volume:",max_roi_shape)
     else:
         z_diff=0
-
 
     #create empty dask array with same size as the transformed roi from above
     deskew_roi_img=da.zeros(max_roi_shape,dtype=vol.dtype,chunks=tuple(max_roi_shape))

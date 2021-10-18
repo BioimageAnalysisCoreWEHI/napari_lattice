@@ -6,7 +6,7 @@ from tqdm.dask import TqdmCallback
 #Reading metadata of czi file
 import aicspylibczi
 
-#RTX 3080: Use pyopencl-2021.2.8+cl21-cp39-cp39-win_amd64.whl
+#For NVIDIA RTX 3080: Use pyopencl-2021.2.8+cl21-cp39-cp39-win_amd64.whl
 from gputools.transforms import affine as affineGPU
 from gputools.transforms import rotate as rotate_gputools
 
