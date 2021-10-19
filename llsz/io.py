@@ -15,7 +15,14 @@ from tqdm.notebook import trange, tqdm
 #add options for configuring dask scheduler
 
 def read_czi(img_path):
-    
+    """Return AICSimage object from image path
+
+    Args:
+        img_path ([type]): [description]
+
+    Returns:
+        AICImage: [description]
+    """    
     #Error handling for czi file
     try:
         #stack=aicsimageio.imread_dask(img_location)

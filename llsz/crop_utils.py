@@ -1,7 +1,7 @@
 #File to add utilities to enable cropping
 #ROIs must be in (z,y,x format)
-from napari import Viewer
-from napari.types import ImageData
+
+
 import numpy as np
 from .utils import get_new_coordinates, get_scale_factor, get_shear_factor, get_vertices_volume, transform_dim,get_translation_y
 from .transformations import deskew_zeiss
