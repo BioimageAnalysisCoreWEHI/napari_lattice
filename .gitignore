@@ -145,5 +145,4 @@ llsz/__pycache__/crop_utils.cpython-39.pyc
 
 .vscode/
 /dask-worker-space/
-llsz/__pycache__/crop_utils.cpython-39.pyc
-llsz/__pycache__/io.cpython-39.pyc
+llsz/__pycache__/

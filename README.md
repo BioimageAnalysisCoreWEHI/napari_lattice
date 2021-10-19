@@ -1,10 +1,19 @@
-# Napari interface for processing Zeiss lattice data
+# Napari to process Zeiss lattice data
 
-Create conda environment using
+Please clone or download the repo. The conda environment required for running the llsz package can be installed using the environment.yml file. 
 
-    conda create --name <env> --file requirements.txt
+To enable fast configuration of conda environments, it is recommended to install [mamba](https://github.com/mamba-org/mamba) into your base environment.
 
-The gputools and pyopencl packages need to be installed separately.
+    conda install mamba -n base -c conda-forge
+
+Once this is installed, you can create a conda environment by replacing "conda" with "mamba"
+
+Create the conda environment using .yml file
+
+    conda create env create -f environment.yml
+
+
+Due to potential configuration issues with gputools and pyopencl, they are to be installed separately.
 
 Try installing gputools first:
 
@@ -12,15 +21,18 @@ Try installing gputools first:
 
 If it works, then pypopencl should have been installed and you can start using the environment. 
 
-**If not**, then install pyopencl using [pre-built wheels](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl) here.
+****
+**If gputools installation does not work**, then install pyopencl using [pre-built wheels](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl) here.
 
-For Python 3.9 get files with cp39 in their name. Download the file and then run 
+For Python 3.9 use files with cp39 in their name. Download a file with name cl21 first, if that doesn't work, then try cl12. Download the file and then run 
 
     pip install pyopencl_file_name
-Try a file with name cl21 first, if that doesn't work, then try cl12. Install gputools after this using pip. 
+ 
+Install gputools after successful pyopencl installation.
+*****
+## **Running llsz**
 
-Clone the repo or download the package. Open a terminal from within.
-Run the package:
+Once the environment is configured, you can open a terminal within the package folder and run:
 
     python main.py
 
