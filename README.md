@@ -31,5 +31,3 @@ The worfklow currently is:
 * Use the deskewed stack and max projection for previewing and cropping an area of interest
 
 ![Preview of widget](resources\preview_video.gif)
-
-
