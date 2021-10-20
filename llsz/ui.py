@@ -21,7 +21,7 @@ from llsz.crop_utils import crop_deskew_roi
 
 @magicgui(File_Path={'mode': 'r'},
            call_button='Open')
-def Open_czi_file(viewer:Viewer, File_Path:pathlib.Path.home):
+def Open_czi_file(viewer:Viewer, File_Path:pathlib.Path):
     """Widget to open czi file
 
     Args:
