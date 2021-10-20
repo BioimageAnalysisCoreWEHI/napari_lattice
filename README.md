@@ -44,6 +44,16 @@ Once you have successfully configured pyopencl, you can then install gputools.
 
     pip install gputools
 
+To test if everything is working, run
+
+    python -m gputools
+
+If everything is working, you will see something like this:
+
+![gputools](resources/gputool_success.png)
+
+If not, it could be that you installed the wrong pyopencl version. If you installed cl21, then download and install pyopenl with cl12 in the name.
+
 *****
 ## **Running llsz**
 
