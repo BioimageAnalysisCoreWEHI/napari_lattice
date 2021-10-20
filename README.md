@@ -31,16 +31,19 @@ Try installing gputools first:
 
     pip install gputools
 
-If it works, then pypopencl should have been installed and you can start using the environment. 
+If it works, luck you!. pypopencl should have been installed and you can start using the environment. 
 
 ****
-**If gputools installation does not work**, then install pyopencl using [pre-built wheels](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl) here.
+**If gputools installation does not work** -> You will get an error when building wheels for pyopencl. This means you will have to manually install pyopencl. To do this, use [pre-built wheels](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl) here.
 
-For Python 3.9 use files with cp39 in their name. Download a file with name cl21 first, if that doesn't work, then try cl12. Download the file and then run 
+For Python 3.9 use files with cp39 in their name. Download a file with name [cl21](https://download.lfd.uci.edu/pythonlibs/y2rycu7g/pyopencl-2021.2.8+cl21-cp39-cp39-win_amd64.whl) , if that doesn't work, then try [cl12](https://download.lfd.uci.edu/pythonlibs/y2rycu7g/pyopencl-2021.2.8+cl12-cp39-cp39-win_amd64.whl). Download the file and then run 
 
     pip install pyopencl_file_name
- 
-Install gputools after successful pyopencl installation.
+
+Once you have successfully configured pyopencl, you can then install gputools.
+
+    pip install gputools
+
 *****
 ## **Running llsz**
 
