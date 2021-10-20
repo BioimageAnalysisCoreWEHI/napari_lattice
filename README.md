@@ -10,8 +10,12 @@ Once this is installed, you can create a conda environment by replacing "conda" 
 
 Create the conda environment using .yml file
 
-    conda create env create -f environment.yml
+    conda env create -f environment.yml
 
+    #if you have mamba use,
+    mamba env create -f environment.yml
+
+The above may take a while as a few files need to be downloaded.
 
 Due to potential configuration issues with gputools and pyopencl, they are to be installed separately.
 
