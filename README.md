@@ -1,19 +1,27 @@
 # Napari to process Zeiss lattice data
 
-Please clone or download the repo. The conda environment required for running the llsz package can be installed using the environment.yml file. 
+You will need Anaconda Navigator or Miniconda installed.
+Install git into your conda environment and then clone the repo. 
+Alternatively, you can just download it and open a terminal within the directory
+
+The conda environment required for running the llsz package can be installed using the environment.yml file. 
 
 To enable fast configuration of conda environments, it is recommended to install [mamba](https://github.com/mamba-org/mamba) into your base environment.
 
     conda install mamba -n base -c conda-forge
+
+If you are having trouble with Anaconda, use Miniconda instead. 
 
 Once this is installed, you can create a conda environment by replacing "conda" with "mamba"
 
 Create the conda environment using .yml file
 
     conda env create -f environment.yml
+ 
+If you have **mamba** use,
 
-    #if you have mamba use,
     mamba env create -f environment.yml
+
 
 The above may take a while as a few files need to be downloaded.
 
