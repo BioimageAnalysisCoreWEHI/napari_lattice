@@ -245,14 +245,14 @@ def get_transformed_roi_coord(vol_shape,roi_coord,angle,dx_y,dz,translation,skew
     print("Non rounded Z positions are: ",roi_transformed_coordinates[:,0][0],roi_transformed_coordinates[:,0][6])
     #roi_transformed_coordinates.min(axis=0)[0],roi_transformed_coordinates.max(axis=0)[0])
 
-    y_roi_1=int((roi_transformed_coordinates.min(axis=0)[1]))
-    y_roi_2=int(np.ceil(roi_transformed_coordinates.max(axis=0)[1]))
+    y_roi_1=int(roi_transformed_coordinates.min(axis=0)[1])
+    y_roi_2=int(roi_transformed_coordinates.max(axis=0)[1])
 
     print("Start and end Y positions are: ",y_roi_1, y_roi_2)
     print("Non rounded Y positions are: ",roi_transformed_coordinates.min(axis=0)[1],roi_transformed_coordinates.max(axis=0)[1])
 
-    x_roi_1=int((roi_transformed_coordinates.min(axis=0)[2]))
-    x_roi_2=int(round(roi_transformed_coordinates.max(axis=0)[2]))
+    x_roi_1=int(roi_transformed_coordinates.min(axis=0)[2])
+    x_roi_2=int(roi_transformed_coordinates.max(axis=0)[2])
 
     print("Start and end X positions are: ",x_roi_1, x_roi_2)
     print("Non rounded X positions are: ",roi_transformed_coordinates.min(axis=0)[2], roi_transformed_coordinates.max(axis=0)[2])
