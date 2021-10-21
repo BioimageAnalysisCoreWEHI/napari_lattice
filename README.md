@@ -1,8 +1,13 @@
 # Napari to process Zeiss lattice data
 
-You will need Anaconda Navigator or Miniconda installed.
+You will need [Anaconda Navigator](https://www.anaconda.com/products/individual) or a lighter version [Miniconda](https://docs.conda.io/en/latest/miniconda.html) installed.
+
 Install git into your conda environment and then clone the repo. 
-Alternatively, you can just download it and open a terminal within the directory
+
+    conda install -c anaconda git
+    git clone https://github.com/pr4deepr/llsz_napari.git
+
+Alternatively, you can just download the whole folder, unzip and open a terminal within the directory
 
 The conda environment required for running the llsz package can be installed using the environment.yml file. 
 
