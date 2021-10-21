@@ -139,10 +139,11 @@ cython_debug/
 
 *.pyc
 
-llsz/__pycache__/crop_utils.cpython-39.pyc
-llsz/__pycache__/utils.cpython-39.pyc
-llsz/__pycache__/crop_utils.cpython-39.pyc
+llsz/__pycache__/
+__pycache__/
 
 .vscode/
 /dask-worker-space/
-__pycache__/
+
+#all pycache directories
+/**/__pycache__
