@@ -12,7 +12,7 @@ To enable fast configuration of conda environments, it is recommended to install
 
 If you are having trouble with Anaconda, use Miniconda instead. 
 
-Once this is installed, you can create a conda environment by replacing "conda" with "mamba"
+Once mamba is installed, you can create a conda environment by replacing "conda" with "mamba"
 
 Create the conda environment using .yml file
 
@@ -23,15 +23,16 @@ If you have **mamba** use,
     mamba env create -f environment.yml
 
 
-The above may take a while as a few files need to be downloaded.
+Creating this environment may take a while as a few files need to be downloaded (cudatoolkit is a large file).
 
-Due to potential configuration issues with gputools and pyopencl, they are to be installed separately.
+Due to potential configuration issues with gputools and pyopencl, they are to be installed manually.
 
-Try installing gputools first:
+After the environment has been created, try installing gputools first:
 
     pip install gputools
 
-If it works, luck you!. pypopencl should have been installed and you can start using the environment. 
+If it works, luck you!. pypopencl should have been installed and you can start using the software. You can go to the section for "Running llsz"
+
 
 ****
 **If gputools installation does not work** -> You will get an error when building wheels for pyopencl. This means you will have to manually install pyopencl. To do this, use [pre-built wheels](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl) here.
@@ -52,7 +53,7 @@ If everything is working, you will see something like this:
 
 ![gputools](resources/gputool_success.png)
 
-If not, it could be that you installed the wrong pyopencl version. If you installed cl21, then download and install pyopenl with cl12 in the name.
+If not, it could be that you installed the wrong pyopencl version. If you installed cl21, then download and install pyopencl file with cl12 in the name or vice versa.
 
 *****
 ## **Running llsz**
