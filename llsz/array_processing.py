@@ -6,13 +6,21 @@ def get_deskew_arr(img_raw,deskew_shape:tuple,vol_shape,time:float=0,channel:int
     Args:
         img_stack ([type]): [description]
         deskew_shape (tuple): [description]
+        vol_shape (tuple): [description]
         time (float, optional): [description]. Defaults to 0.
         channel (int, optional): [description]. Defaults to 0.
         scene (int, optional): [description]. Defaults to 0.
         skew_dir (str, optional): [description]. Defaults to "Y".
-    """     
+    """ 
+    print(type(img_raw))
     if(type(img_raw)) is da.Array:
-        img_stack=img_raw[time,:,:,:]
+        try:
+            if len(img_raw.shape)==5:
+                img_stack=img_raw[time,channel,:,:,:]
+            elif len(img_raw.shape)==4:
+                img_stack=img_raw[time,:,:,:]
+        except:
+            print("Image shape must be either 4 or 5, i.e., contain channel and/time). Got shape "+img_raw.shape)
     else:
         img_stack=img_raw.get_image_dask_data("ZYX",T=time,C=channel,S=scene)
     deskew_size=deskew_shape
