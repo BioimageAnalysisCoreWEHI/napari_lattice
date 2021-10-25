@@ -1,6 +1,4 @@
-#UI elements for opening file
-#Deskewing
-#Cropping
+#UI for reading files, deskewing and cropping
 
 import pathlib
 import os
@@ -18,6 +16,8 @@ from .io import read_czi
 from .llsz_core import process_czi
 from llsz.crop_utils import crop_deskew_roi
 
+
+#TODO: Add option of choosing what to do after reading the file
 
 @magicgui(File_Path={'mode': 'r'},
            call_button='Open')
@@ -114,22 +114,22 @@ def run_deskew(header,
     #Add a function widget and pass parameters to teh crop_image widget
     viewer.window.add_function_widget(crop_image,magic_kwargs=dict(header=dict(widget_type="Label",
                                                                                 label="<h3>Cropping and deskewing</h3>"),
-                                                                    crop_roi_title=dict(widget_type="Label",
-                                                                    label="<h3>Use ROIs drawn on this shapes layer:</h3>"),
-                                                                    crop_title=dict(widget_type="Label",
-                                                                    label="<h3>Image to crop from (NOT implemented; uses original stack):</h3>"),
-                                                                    vol_shape=dict(value=vol_shape),
-                                                                    raw_data_dask=dict(value=raw_data_dask),
-                                                                    angle=dict(value=angle),
-                                                                    dy=dict(value=dy),
-                                                                    dz=dict(value=dz),
-                                                                    z_start=dict(value=z_start),
-                                                                    z_end=dict(value=z_end),
-                                                                    timepoint=dict(min=0,max=time,step=1,label="<h3>Time:</h3>"),
-                                                                    chan=dict(min=0,max=channels,step=1,label="<h3>Channel:</h3>"),
-                                                                    skew_direction=dict(value=skew_direction),                                                                            
-                                                                    layout='vertical')
-                                                                    )                                     
+                                                                                crop_roi_title=dict(widget_type="Label",
+                                                                                label="<h3>Use ROIs drawn on this shapes layer:</h3>"),
+                                                                                crop_title=dict(widget_type="Label",
+                                                                                label="<h3>Image to crop from (NOT implemented; uses original stack):</h3>"),
+                                                                                vol_shape=dict(value=vol_shape),
+                                                                                raw_data_dask=dict(value=raw_data_dask),
+                                                                                angle=dict(value=angle),
+                                                                                dy=dict(value=dy),
+                                                                                dz=dict(value=dz),
+                                                                                z_start=dict(value=z_start),
+                                                                                z_end=dict(value=z_end),
+                                                                                timepoint=dict(min=0,max=time,step=1,label="<h3>Time:</h3>"),
+                                                                                chan=dict(min=0,max=channels,step=1,label="<h3>Channel:</h3>"),
+                                                                                skew_direction=dict(value=skew_direction),                                                                            
+                                                                                layout='vertical')
+                                                                                )                                     
     img_name="Deskewed image_c"+str(chan_deskew)+"_t"+str(time_deskew)
     #return (deskew_full, {"name":"Uncropped data"})
     return (deskew_final, {"name":img_name})
@@ -162,8 +162,9 @@ def crop_image(header,
                     translate_x=int(roi_layer[0][0][0])
                     translate_y=int(roi_layer[0][0][1])
                     crop_img_layer= (crop_roi_vol , {'translate' : [0,translate_x,translate_y] })
-                #CROP ROI and return? how to deal with multiple roi images?
+                ##TODO: Multiple ROIs -> CROP ROI and return? how to deal with multiple roi images?
                 return crop_img_layer
+
 """
 
 
