@@ -1,76 +1,77 @@
-# Napari to process Zeiss lattice data
+# llsz_napari
 
-You will need [Anaconda Navigator](https://www.anaconda.com/products/individual) or a lighter version [Miniconda](https://docs.conda.io/en/latest/miniconda.html) installed.
+[![License](https://img.shields.io/pypi/l/llsz_napari.svg?color=green)](https://github.com/pr4deepr/llsz_napari/raw/main/LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/llsz_napari.svg?color=green)](https://pypi.org/project/llsz_napari)
+[![Python Version](https://img.shields.io/pypi/pyversions/llsz_napari.svg?color=green)](https://python.org)
+[![tests](https://github.com/pr4deepr/llsz_napari/workflows/tests/badge.svg)](https://github.com/pr4deepr/llsz_napari/actions)
+[![codecov](https://codecov.io/gh/pr4deepr/llsz_napari/branch/main/graph/badge.svg)](https://codecov.io/gh/pr4deepr/llsz_napari)
+[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/llsz_napari)](https://napari-hub.org/plugins/llsz_napari)
 
-Install git into your conda environment and then clone the repo. 
+LLSZ
 
-    conda install -c anaconda git
-    git clone https://github.com/pr4deepr/llsz_napari.git
+----------------------------------
 
-Alternatively, you can just download the whole folder, unzip and open a terminal within the directory
+This [napari] plugin was generated with [Cookiecutter] using with [@napari]'s [cookiecutter-napari-plugin] template.
 
-The conda environment required for running the llsz package can be installed using the environment.yml file. 
+<!--
+Don't miss the full getting started guide to set up your new package:
+https://github.com/napari/cookiecutter-napari-plugin#getting-started
 
-To enable fast configuration of conda environments, it is recommended to install [mamba](https://github.com/mamba-org/mamba) into your base environment.
+and review the napari docs for plugin developers:
+https://napari.org/docs/plugins/index.html
+-->
 
-    conda install mamba -n base -c conda-forge
+## Installation
 
-If you are having trouble with Anaconda, use Miniconda instead. 
+Make sure you have the llsz environment installed from "master" branch
 
-Once mamba is installed, you can create a conda environment by replacing "conda" with "mamba"
+To install latest development version :
 
-Create the conda environment using .yml file
+    pip install git+https://github.com/pr4deepr/llsz_napari.git
 
-    conda env create -f environment.yml
- 
-If you have **mamba** use,
-
-    mamba env create -f environment.yml
-
-
-Creating this environment may take a while as a few files need to be downloaded (cudatoolkit is a large file).
-
-Due to potential configuration issues with gputools and pyopencl, they are to be installed manually.
-
-After the environment has been created, try installing gputools first:
-
-    pip install gputools
-
-If it works, luck you!. pypopencl should have been installed and you can start using the software. You can go to the section for "Running llsz"
+and for the GUI:
+    pip install git+https://github.com/hanjinliu/magic-class.git
 
 
-****
-**If gputools installation does not work** -> You will get an error when building wheels for pyopencl. This means you will have to manually install pyopencl. To do this, use [pre-built wheels](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl) here.
+Once installed, just start napari as normal and the plugin should be under "Plugins" tab
 
-For Python 3.9 use files with cp39 in their name. Download a file with name [cl21](https://download.lfd.uci.edu/pythonlibs/y2rycu7g/pyopencl-2021.2.8+cl21-cp39-cp39-win_amd64.whl) , if that doesn't work, then try [cl12](https://download.lfd.uci.edu/pythonlibs/y2rycu7g/pyopencl-2021.2.8+cl12-cp39-cp39-win_amd64.whl). Download the file and then run 
+Functions:
+* Open a czi lattice file
+* Preview deskewing on any time or channel
+* Save deskewed stack for time and channel range of interest
 
-    pip install pyopencl_file_name
+To do:
+* Add cropping
+* Clean up UI
 
-Once you have successfully configured pyopencl, you can then install gputools.
+## Contributing
 
-    pip install gputools
+Contributions are very welcome. Tests can be run with [tox], please ensure
+the coverage at least stays the same before you submit a pull request.
 
-To test if everything is working, run
+## License
 
-    python -m gputools
+Distributed under the terms of the [BSD-3] license,
+"llsz_napari" is free and open source software
 
-If everything is working, you will see something like this:
+## Issues
 
-![gputools](resources/gputool_success.png)
+If you encounter any problems, please [file an issue] along with a detailed description.
 
-If not, it could be that you installed the wrong pyopencl version. If you installed cl21, then download and install pyopencl file with cl12 in the name or vice versa.
+[napari]: https://github.com/napari/napari
+[Cookiecutter]: https://github.com/audreyr/cookiecutter
+[@napari]: https://github.com/napari
+[MIT]: http://opensource.org/licenses/MIT
+[BSD-3]: http://opensource.org/licenses/BSD-3-Clause
+[GNU GPL v3.0]: http://www.gnu.org/licenses/gpl-3.0.txt
+[GNU LGPL v3.0]: http://www.gnu.org/licenses/lgpl-3.0.txt
+[Apache Software License 2.0]: http://www.apache.org/licenses/LICENSE-2.0
+[Mozilla Public License 2.0]: https://www.mozilla.org/media/MPL/2.0/index.txt
+[cookiecutter-napari-plugin]: https://github.com/napari/cookiecutter-napari-plugin
 
-*****
-## **Running llsz**
+[file an issue]: https://github.com/pr4deepr/llsz_napari/issues
 
-Once the environment is configured, you can open a terminal within the package folder and run:
-
-    python main.py
-
-This will start a napari instance.
-The worfklow currently is:
-* Open a czi file (skewed raw data)
-* Deskew a single timepoint
-* Use the deskewed stack and max projection for previewing and cropping an area of interest
-
-![Preview of widget](resources/preview_video.gif)
+[napari]: https://github.com/napari/napari
+[tox]: https://tox.readthedocs.io/en/latest/
+[pip]: https://pypi.org/project/pip/
+[PyPI]: https://pypi.org/
