@@ -27,9 +27,10 @@ Make sure you have the llsz environment installed from "master" branch
 
 To install latest development version :
 
-    pip install git+https://github.com/pr4deepr/llsz_napari.git
+    pip install git+https://github.com/pr4deepr/llsz_napari.git@napari_plugin
 
 and for the GUI:
+
     pip install git+https://github.com/hanjinliu/magic-class.git
 
 
@@ -39,6 +40,9 @@ Functions:
 * Open a czi lattice file
 * Preview deskewing on any time or channel
 * Save deskewed stack for time and channel range of interest
+
+![image](https://user-images.githubusercontent.com/13831458/140601278-4bd7e754-b1b6-438f-98d2-5d40ace29853.png)
+
 
 To do:
 * Add cropping
