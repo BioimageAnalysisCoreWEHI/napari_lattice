@@ -23,7 +23,9 @@ https://napari.org/docs/plugins/index.html
 
 ## Installation
 
-Make sure you have the llsz environment installed from "master" branch
+Use a conda environment. Start with installing [pyopencl](https://documen.tician.de/pyopencl/)
+
+    conda install -c conda-forge pyopencl
 
 To install latest development version :
 
