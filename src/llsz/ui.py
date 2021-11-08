@@ -87,7 +87,7 @@ class LLSZWidget:
         
         @magicgui(header=dict(widget_type="Label",label="<h3>Saving Data</h3>"),
                    time_start = dict(label="Time Start:"),
-                   time_end = dict(label="Time End:" ),
+                   time_end = dict(label="Time End:", value =1 ),
                    ch_start = dict(label="Channel Start:"),
                    ch_end = dict(label="Channel End:", value =1 ),
                    save_path = dict(mode ='d',label="Directory to save "))

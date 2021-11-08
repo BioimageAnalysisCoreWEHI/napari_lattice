@@ -83,3 +83,5 @@ target/
 
 #all pycache directories
 /**/__pycache__
+
+.idea/
