@@ -31,12 +31,9 @@ To install latest development version :
 
     pip install git+https://github.com/pr4deepr/llsz_napari.git@napari_plugin
 
-and for the GUI:
 
-    pip install git+https://github.com/hanjinliu/magic-class.git
-
-#### [Sample data for testing](https://cloudstor.aarnet.edu.au/plus/s/700eD6EcgOODovI)
-
+#### [**Sample data for testing**](https://cloudstor.aarnet.edu.au/plus/s/700eD6EcgOODovI) 
+***Credit: Cindy Evelyn & Niall Geoghegan, Walter and Eliza Hall Institute of Medical Research, Melbourne, Australia***
 
 Once installed, just start napari as normal and the plugin should be under "Plugins" tab
 
