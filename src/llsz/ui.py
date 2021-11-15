@@ -122,7 +122,7 @@ class LLSZWidget:
         @magicgui
         def Crop_Preview(self,roi_layer:ShapesData):# -> LayerDataTuple:
             if not roi_layer:
-                print("No coordinates found. Draw or Import ROI layer.")
+                print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
             else:
                 #TODO: Add assertion to check if bbox layer or coordinates
                 print("Using channel and time", self.chan_crop.value,self.time_crop.value)
@@ -191,7 +191,7 @@ class LLSZWidget:
                    save_path = dict(mode ='d',label="Directory to save "))
         def Crop_Save(self, header, time_start:int, time_end:int, ch_start:int, ch_end:int, roi_layer_list:ShapesData, save_path:Path = Path(history.get_save_history()[0])):
             if not roi_layer_list:
-                print("No coordinates found. Draw or Import ROI layer.")
+                print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
             else:
                 assert time_start>=0, "Time start should be >0"
                 assert time_end < self.lattice.time and time_end >0, "Check time entry "
