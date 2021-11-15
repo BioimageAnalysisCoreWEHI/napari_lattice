@@ -19,7 +19,6 @@ from tqdm import tqdm, trange
 from llsz.array_processing import get_deskew_arr
 from llsz.transformations import deskew_zeiss
 from llsz.io import LatticeData
-import tifffile
 from aicsimageio.writers.ome_tiff_writer import OmeTiffWriter
 from aicsimageio.types import PhysicalPixelSizes
 from llsz.crop_utils import crop_deskew_roi
@@ -38,7 +37,6 @@ class LLSZWidget:
             self.aics = self.lattice.data
             self.file_name = os.path.splitext(os.path.basename(path))[0]
             self.save_name=os.path.splitext(os.path.basename(path))[0]
-            #settings.NapariSettings().application.open_history.insert(0,path.__str__())
             self.parent_viewer.add_image(self.aics.dask_data)
             self["Open_File"].background_color = "green" 
             self.dask = False #Use GPU by default
@@ -135,9 +133,7 @@ class LLSZWidget:
                 translate_y=int(roi_layer[0][0][1])
                 #crop_img_layer= (crop_roi_vol , #{'translate' : [0,translate_x,translate_y] })
                 self.parent_viewer.add_image(crop_roi_vol,translate = (0,translate_x,translate_y))
-            ##TODO: Multiple ROIs -> CROP ROI and return? how to deal with multiple roi images?
-            return #crop_img_layer
-            #returns crop and it starts after the deskew stack; check how its inserted into napari?
+            return 
 
         @magicgui(header=dict(widget_type="Label",label="<h3>Saving Data</h3>"),
                    time_start = dict(label="Time Start:"),
@@ -146,18 +142,22 @@ class LLSZWidget:
                    ch_end = dict(label="Channel End:", value =1 ),
                    save_path = dict(mode ='d',label="Directory to save "))
         def Deskew_Save(self, header, time_start:int, time_end:int, ch_start:int, ch_end:int, save_path:Path = Path(history.get_save_history()[0])):
+
             assert time_start>=0, "Time start should be >0"
             assert time_end < self.lattice.time and time_end >0, "Check time entry "
             assert ch_start >= 0, "Channel start should be >0"
             assert ch_end <= self.lattice.channels and ch_end >= 0 , "Channel end should be less than "+str(self.lattice.channels)
+
             time_range = range(time_start, time_end)
             channel_range = range(ch_start, ch_end)
+
             angle=self.lattice.angle
             shear_factor = self.lattice.shear_factor
             scaling_factor = self.lattice.scaling_factor
 
             #Convert path to string
             save_path = save_path.__str__()
+            
             #save channel/s for each timepoint. 
             #TODO: Check speed -> Channel and then timepoint or vice versa, which is faster?
             for time_point in tqdm(time_range, desc = "Time", position=0):    
@@ -210,6 +210,7 @@ class LLSZWidget:
                     for time_point in tqdm(time_range, desc = "Time:", position=1,leave = False):
                         images_array=[] 
                         for ch in tqdm(channel_range, desc = "Channels:", position=2,leave = False):
+                            #suppress any printing to console
                             with suppress_stdout_stderr():
                                 crop_roi_vol=crop_deskew_roi(roi_layer,self.lattice.deskew_vol_shape,self.aics.dask_data,angle,self.lattice.dy,self.lattice.dz,
                                                                 self.lattice.deskew_z_start,self.lattice.deskew_z_end,time_point,ch,self.lattice.skew,reverse=True)
