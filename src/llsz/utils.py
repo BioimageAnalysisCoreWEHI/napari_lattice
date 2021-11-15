@@ -2,6 +2,8 @@ from itertools import product
 import numpy as np
 from .transformations import deskew_affine_matrix,rotate_affine_matrix,scale_Z_affine_matrix,translate_Y_matrix
 from collections import defaultdict
+from contextlib import contextmanager,redirect_stderr,redirect_stdout
+from os import devnull
 
 
 def get_vertices_volume(vol_shape):
@@ -141,7 +143,7 @@ def transform_dim(vol_shape,shape_coord,angle:float,dx_y:float,dz:float, skew_di
     #get coordinates without translation
     transformed_coordinates=get_new_coordinates(vol_shape,shape_coord,angle,dx_y,dz,translation,skew_dir,reverse)
     deskewed_y=(transformed_coordinates[7][1] - transformed_coordinates[0][1])
-    return round(deskewed_y)
+    return int(deskewed_y)
 
 def get_translation_y(vol_shape_deskew,shape_coord,angle:float,dx_y:float,dz:float,skew_dir:str="Y",reverse:bool=False):
     #,deskew_factor:float,,scale_factor:float
@@ -234,3 +236,10 @@ def etree_to_dict(t):
             d[t.tag] = text
     return d
 
+#block printing to console
+@contextmanager
+def suppress_stdout_stderr():
+    """A context manager that redirects stdout and stderr to devnull"""
+    with open(devnull, 'w') as fnull:
+        with redirect_stderr(fnull) as err, redirect_stdout(fnull) as out:
+            yield (err, out)

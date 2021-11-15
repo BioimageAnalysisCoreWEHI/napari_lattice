@@ -47,7 +47,7 @@ def process_czi(stack,angle,skew_direction):
 
     #calculate deskew factor
     #Using tan of angle subtracted by 90 gives accurate deskew factor; verified on FIJI with CLIJ
-    deskew_factor=get_shear_factor(angle=30.0)
+    deskew_factor=get_shear_factor(angle)
     print("Using deskew factor of: ", deskew_factor)
 
     #Calculating scale factor

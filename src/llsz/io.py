@@ -60,6 +60,7 @@ def check_metadata(img_path):
       For example, Zen 3.2 flipped the image so the coverslip was towards the bottom of Z stack. So, value will be 'Flip'")
     return
 
+#TODO: Add option to read tiff files (images from Janelia lattice can be specified by changing angle and skew during initialisation)
 class LatticeData():
     def __init__(self,path,angle,skew) -> None:
         self.angle = angle
@@ -79,12 +80,16 @@ class LatticeData():
         #process the file to get parameters for deskewing
         self.deskew_shape, self.deskew_vol_shape, self.deskew_translate_y, self.deskew_z_start, self.deskew_z_end = process_czi(self.data, self.angle, self.skew)
         pass 
-
+    
     def get_angle(self):
         return self.angle
 
-    def set_angle(self, angle):
+    def set_angle(self, angle:float):
         self.angle = angle
+
+    def set_skew(self, skew:str):
+        self.skew = skew        
+        
 #read each time point and save?
 
 """

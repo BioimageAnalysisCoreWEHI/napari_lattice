@@ -9,7 +9,7 @@ def get_deskew_arr(img_raw,deskew_shape:tuple,vol_shape,time:float=0,channel:int
     Args:
         img_stack (AICS Image): AICS Object 
         deskew_shape (tuple): Shape of final deskewed volume
-        vol_shape (tuple): [description]
+        vol_shape (tuple): Shape of initial raw volume
         time (float, optional): Time point to deskew. Defaults to 0.
         channel (int, optional): Channel to deskew. Defaults to 0.
         scene (int, optional): Scene, which is currently set to 0.
