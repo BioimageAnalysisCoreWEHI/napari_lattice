@@ -51,8 +51,9 @@ To do:
 * Clean up UI (Menu options?)
 * Add pyclesperanto as backend for transformations
 * Implement image analysis workflow option
-* Document functions consistently
+* Include deconvolution
 * Add batch processing option (no napari -> magic-class or magicgui only)
+* Document functions consistently
 
 
 ## Contributing
