@@ -24,7 +24,7 @@ from aicsimageio.types import PhysicalPixelSizes
 from llsz.crop_utils import crop_deskew_roi
 from llsz.utils import suppress_stdout_stderr
 
-@magicclass(widget_type="scrollable", name ="LLSZ analysis")
+@magicclass(widget_type="mainwindow", name ="LLSZ analysis")
 class LLSZWidget:
     @magicclass(widget_type="list", popup_mode="below")#, close_on_run=False
     class llsz_menu:
