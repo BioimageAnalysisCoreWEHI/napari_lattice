@@ -16,7 +16,7 @@ def get_deskew_arr(img_raw,deskew_shape:tuple,vol_shape,time:float=0,channel:int
         skew_dir (str, optional): Direction of skew; propert of the microscope ("X" or "Y"). Defaults to "Y".
     """ 
     #print(type(img_raw))
-    if(type(img_raw)) is da.Array:
+    if type(img_raw) is da.Array:
         try:
             if len(img_raw.shape)==5:
                 img_stack=img_raw[time,channel,:,:,:]
@@ -26,6 +26,7 @@ def get_deskew_arr(img_raw,deskew_shape:tuple,vol_shape,time:float=0,channel:int
             print("Image shape must be either 4 or 5, i.e., contain channel and/time). Got shape "+img_raw.shape)
     else:
         img_stack=img_raw.get_image_dask_data("ZYX",T=time,C=channel,S=scene)
+    
     deskew_size=deskew_shape
     deskew_chunk_size=deskew_shape #tuple((nz,deskewed_y,nx))
 

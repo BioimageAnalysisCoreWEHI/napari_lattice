@@ -4,7 +4,7 @@
 
 import numpy as np
 from .utils import get_new_coordinates, get_scale_factor, get_shear_factor, get_vertices_volume, transform_dim,get_translation_y
-from .transformations import deskew_zeiss
+from .transformations import apply_deskew_transformation
 import dask.array as da
 from pprint import pprint #pretty print!
 import itertools
@@ -144,7 +144,7 @@ def crop_deskew_roi(crop_roi,vol_shape,vol,angle,dx_y,dz,z_start,z_end,time,chan
     deskew_roi_img[:transformed_roi_depth-z_diff,:roi_skew_height,:transformed_roi_width]=crop_dask_stack
     
     #deskew the cropped roi
-    deskew_roi=deskew_zeiss(deskew_roi_img,angle,shear_factor,scale_factor,translate_y,reverse=False,dask=False)
+    deskew_roi=apply_deskew_transformation(deskew_roi_img,angle,shear_factor,scale_factor,translate_y,reverse=False,dask=False)
     deskew_roi=deskew_roi.astype("uint16")
 
     #Get the bounds for cropping

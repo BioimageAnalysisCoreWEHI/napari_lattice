@@ -5,61 +5,106 @@ from pathlib import Path
 import aicsimageio
 
 from magicclass.wrappers import set_design
-from magicgui.widgets._bases.container_widget import ContainerWidget
 from magicgui import magicgui
-from magicclass import magicclass, click, field
+from magicclass import magicclass, click, field, vfield
 
 import numpy as np
 from napari.types import ImageData,ShapesData, LayerDataTuple
 from napari_plugin_engine import napari_hook_implementation
 from napari.utils import progress, history
-from scipy.ndimage.measurements import label
-from tqdm import tqdm, trange
+#from scipy.ndimage.measurements import label
+from tqdm import tqdm
 
 from llsz.array_processing import get_deskew_arr
-from llsz.transformations import deskew_zeiss
-from llsz.io import LatticeData
+from llsz.transformations import apply_deskew_transformation
+from llsz.io import LatticeData,LatticeData_czi
 from aicsimageio.writers.ome_tiff_writer import OmeTiffWriter
 from aicsimageio.types import PhysicalPixelSizes
 from llsz.crop_utils import crop_deskew_roi
 from llsz.utils import suppress_stdout_stderr
+from napari_time_slicer import time_slicer
+from napari_tools_menu import register_function
 
-@magicclass(widget_type="mainwindow", name ="LLSZ analysis")
+@magicclass(widget_type="split", name ="LLSZ analysis")
 class LLSZWidget:
-    @magicclass(widget_type="list", popup_mode="below")#, close_on_run=False
+    @magicclass(widget_type="list")#, close_on_run=False
     class llsz_menu:
+
+        open_file = False
+
         @set_design(background_color="orange", font_family="Consolas",visible=True)
-        def Open_File(self, path:Path = Path(history.get_open_history()[0])):
+        @click(hides="Choose_Existing_Layer")
+        def Open_a_czi_File(self, path:Path = Path(history.get_open_history()[0])):
             print("Opening", path)
             #update the napari settings to use the opened file path as last opened path
             history.update_open_history(path.__str__())
-            self.lattice=LatticeData(path, 30.0, "Y")
+            self.lattice=LatticeData_czi(path, 30.0, "Y")
             self.aics = self.lattice.data
             self.file_name = os.path.splitext(os.path.basename(path))[0]
             self.save_name=os.path.splitext(os.path.basename(path))[0]
             self.parent_viewer.add_image(self.aics.dask_data)
-            self["Open_File"].background_color = "green" 
+            self["Open_a_czi_File"].background_color = "green" 
             self.dask = False #Use GPU by default
+            self.open_file = True #if open button used
+
+        #Display text
+        @click(enabled=False)
+        def OR(self):
+            pass
+
+        @set_design(background_color="magenta", font_family="Consolas",visible=True)
+        @click(hides="Open_a_czi_File")
+        def Choose_Existing_Layer(self, img_data:ImageData,pixel_size_dx:float,pixel_size_dy:float,pixel_size_dz:float,skew_dir:str):
+            print("Using existing image layer")
+            skew_dir = str.upper(skew_dir)
+            assert skew_dir in ('Y','X'), "Skew direction not recognised. Enter either Y or X"
+            self.lattice=LatticeData(img_data, 30.0, skew_dir,pixel_size_dx,pixel_size_dy,pixel_size_dz)
+            self.aics = self.lattice.data
+            self["Choose_Existing_Layer"].background_color = "green" 
+            self.dask = False #Use GPU by default
+            self.open_file = True #if open button used
+
+        #Enter custom angle if needed
+        #Will only update after choosing an image
+        angle = vfield(float,options={"value": 30.0},name = "Deskew Angle")
+        @angle.connect
+        def _set_angle(self):
+            try:
+                self.lattice.set_angle(self.angle)
+                print("Angle is: ",self.lattice.angle)
+            except AttributeError:
+                print("Open a file first before setting angles")
+            return
         
         @magicgui(labels = False,auto_call=True)
         def Use_GPU(self, Use_GPU:bool = True):
+            """Choose to use GPU or Dask
+
+            Args:
+                Use_GPU (bool, optional): Defaults to True.
+            """            
             print("Use GPU set to, ", Use_GPU)
             self.dask = not(Use_GPU)
-            return  
-        
+            return 
+
 
         time_deskew = field(int, options={"min": 0,  "step": 1},name = "Time")
         chan_deskew = field(int, options={"min": 0,  "step": 1},name = "Channels")
 
-        #@set_design(text="Preview Deskew")
+
         @magicgui(header=dict(widget_type="Label",label="<h3>Preview Deskew</h3>"), call_button = "Preview")
-        def Preview_Deskew(self, header, img_data:ImageData):#, img_layer:ImageData):
+        @register_function(menu="Transform > Deskew in Y (llsz)")
+        #@time_slicer
+        def Preview_Deskew(self, header, img_data:ImageData):
+            """
+            Preview the deskewing for a single timepoint
+
+            Args:
+                header ([type]): [description]
+                img_data (ImageData): [description]
+            """            
             print("Previewing deskewed channel and time")
-            
-            #Function for previewing deskew
-            #time_deskew = field(int, options={"min": 0, "max": self.lattice.time,"step": 1},name = "Time")
-            #chan_deskew = field(int, options={"min": 0, "max": self.lattice.channels, "step": 1},name = "Channels")
-            #print(self.time_deskew.value,self.time_deskew.value)
+            assert img_data.size, "No image open or selected"
             assert self.time_deskew.value < self.lattice.time, "Time is out of range"
             assert self.chan_deskew.value < self.lattice.channels, "Channel is out of range"
             time_deskew = self.time_deskew.value
@@ -73,16 +118,13 @@ class LLSZWidget:
             assert str.upper(self.lattice.skew) in ('Y','X'), "Skew direction not recognised. Enter either Y or X"
             #curr_time=viewer.dims.current_step[0]
             
-            #self.lattice.deskew_shape,self.lattice.deskew_vol_shape,self.lattice.deskew_translate_y,self.lattice.deskew_z_start,self.lattice.deskew_z_end=process_czi(stack,angle,self.lattice.skew)
             print("Deskewing for Time:",time_deskew,"and Channel", chan_deskew )
 
-            #print("Processing ",viewer.dims.current_step[0])
-            
             #Get a dask array with same shape as final deskewed image and containing the raw data (Essentially a scaled up version of the raw data)   
             deskew_img=get_deskew_arr(self.aics.dask_data, self.lattice.deskew_shape, self.lattice.deskew_vol_shape, time= time_deskew, channel=chan_deskew, scene=0, skew_dir=self.lattice.skew)
             
             #Perform deskewing on the skewed dask array 
-            deskew_full=deskew_zeiss(deskew_img,angle,shear_factor,scaling_factor,self.lattice.deskew_translate_y,reverse=False,dask=self.dask)
+            deskew_full=apply_deskew_transformation(deskew_img,angle,shear_factor,scaling_factor,self.lattice.deskew_translate_y,reverse=False,dask=self.dask)
 
             #Crop the z slices to get only the deskewed array and not the empty area
             deskew_final=deskew_full[self.lattice.deskew_z_start:self.lattice.deskew_z_end].astype('uint16') 
@@ -104,6 +146,7 @@ class LLSZWidget:
                                         
             #img_name="Deskewed image_c"+str(chan_deskew)+"_t"+str(time_deskew)
             self.parent_viewer.add_image(deskew_final,name="Deskewed image"+suffix_name)
+            self.parent_viewer.layers[0].visible = False
             print("Deskewing complete")
             #return (deskew_full, {"name":"Uncropped data"})
             #(deskew_final, {"name":img_name})
@@ -142,7 +185,7 @@ class LLSZWidget:
                    ch_end = dict(label="Channel End:", value =1 ),
                    save_path = dict(mode ='d',label="Directory to save "))
         def Deskew_Save(self, header, time_start:int, time_end:int, ch_start:int, ch_end:int, save_path:Path = Path(history.get_save_history()[0])):
-
+            assert self.open_file, "Image not initialised"
             assert time_start>=0, "Time start should be >0"
             assert time_end < self.lattice.time and time_end >0, "Check time entry "
             assert ch_start >= 0, "Channel start should be >0"
@@ -166,7 +209,7 @@ class LLSZWidget:
 
                     deskew_img=get_deskew_arr(self.aics, self.lattice.deskew_shape, self.lattice.deskew_vol_shape, time= time_point, channel=ch, scene=0, skew_dir=self.lattice.skew)
                     #Perform deskewing on the skewed dask array 
-                    deskew_full=deskew_zeiss(deskew_img,angle,shear_factor,scaling_factor,self.lattice.deskew_translate_y,reverse=False,dask=self.dask)
+                    deskew_full=apply_deskew_transformation(deskew_img,angle,shear_factor,scaling_factor,self.lattice.deskew_translate_y,reverse=False,dask=self.dask)
                     #Crop the z slices to get only the deskewed array and not the empty area
                     deskew_final=deskew_full[self.lattice.deskew_z_start:self.lattice.deskew_z_end].astype('uint16')
                     images_array.append(deskew_final)
@@ -193,6 +236,7 @@ class LLSZWidget:
             if not roi_layer_list:
                 print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
             else:
+                assert self.open_file, "Image not initialised"
                 assert time_start>=0, "Time start should be >0"
                 assert time_end < self.lattice.time and time_end >0, "Check time entry "
                 assert ch_start >= 0, "Channel start should be >0"
@@ -226,6 +270,7 @@ class LLSZWidget:
                 history.update_save_history(final_name)
                 print("Cropping and Saving Complete -> ",save_path)
                 return
+
 
                     
 

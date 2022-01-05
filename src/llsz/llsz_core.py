@@ -7,15 +7,18 @@ from pprint import pprint
 
 #TODO: break down into smaller functions if needed
 
-def process_czi(stack,angle,skew_direction):
+def calculate_deskew_parameters(stack,angle,skew_direction:str,dx:float,dy:float,dz:float):
     """Process a AICSImage object to calculate the shape and coordinates of the final deskewed array
     Returns the shape of the deskewed array, any translations to keep volume in bounds
     start and end z positions of deskewed array after rotation
 
     Args:
-        stack (AICSImage): czi fil
-        angle ([type]): [description]
-        skew_direction ([type]): [description]
+        stack (AICSImage): Image volume that is to be procesed for deskewing
+        angle (float): Deskew Angle
+        skew_direction (str): Direction of skew (Y or X)
+        dx (float): Pixel size in X, um
+        dy (float): Pixel size in Y, um
+        dz (float): Pixel size in Z, um
 
     Returns:
         deskew_shape (tuple/array): Final shape of the deskewed array (1,z,y,x)
@@ -27,7 +30,7 @@ def process_czi(stack,angle,skew_direction):
     #Get all metadata AICSIMAGEIO returns the data consistently as TCZYX regardless of image dimensions
     print("Image is read as ",stack.dims.order)
 
-    dz,dy,dx=stack.physical_pixel_sizes
+    #dz,dy,dx=stack.physical_pixel_sizes
     #channels=stack.dims.C
 
     #if scenes are present
@@ -94,8 +97,3 @@ def process_czi(stack,angle,skew_direction):
     deskew_shape=tuple((nz,deskewed_y,nx))
 
     return deskew_shape,vol_shape,translate_y,z_start,z_end
-
-
-
-    #channel_range=range(channels)
-    #raw_data_dask=stack.get_image_dask_data("TCZYX",C=channel_range,S=0)

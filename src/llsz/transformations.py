@@ -1,3 +1,4 @@
+from datetime import time
 import numpy as np
 from dask_image import ndinterp
 from gputools.transforms import affine as affineGPU
@@ -174,7 +175,7 @@ def translate_Y_matrix(translation, reverse:bool=False):
                 ])
     return translate_mat
     
-def deskew_zeiss(vol,angle:float=30.0,shear_factor:float=1.7321,scale_factor:float=0,translation:float=0,skew_dir:str="Y",reverse:bool=False,dask:bool=False):
+def apply_deskew_transformation(vol,angle:float=30.0,shear_factor:float=1.7321,scale_factor:float=0,translation:float=0,skew_dir:str="Y",reverse:bool=False,dask:bool=False):
     """Performs Scaling, Deskew, Rotation and Translation of the raw data from Zeiss lattice and returns a processed image
 
     Args:
@@ -216,3 +217,4 @@ def deskew_zeiss(vol,angle:float=30.0,shear_factor:float=1.7321,scale_factor:flo
         deskewed_vol = affineGPU(vol, np.linalg.inv(deskew_rotation_mat),output_shape=vol.shape,mode="constant")
         #scipy deskewed_vol = affine_transform(vol, n
     return deskewed_vol #img_as_uint(processed)
+

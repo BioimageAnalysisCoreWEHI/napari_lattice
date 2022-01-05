@@ -9,13 +9,18 @@ import dask
 from dask.distributed import Client
 from dask.cache import Cache
 from llsz.utils import etree_to_dict, get_scale_factor,get_shear_factor
-from llsz.llsz_core import process_czi
+from llsz.llsz_core import calculate_deskew_parameters
+import os
+import numpy as np
+import dask 
+
+from napari.types import ImageData
 
 from tqdm.notebook import trange, tqdm
 
 #add options for configuring dask scheduler
 
-def read_czi(img_path):
+def read_img(img_path):
     """Return AICSimage object from image path
 
     Args:
@@ -46,8 +51,41 @@ def read_czi(img_path):
     print("If using dask, dask Client can be viewed at:",client.dashboard_link)
 
     #Check metadata to verify postprocessing or any modifications by Zen
-    check_metadata(img_path)
+    if os.path.splitext(img_path)[1][1:].strip().lower() == "czi":
+        check_metadata(img_path)
     return stack
+
+def convert_imgdata_aics(img_data:ImageData):
+    """Return AICSimage object from napari ImageData type
+
+    Args:
+        img_data ([type]): [description]
+
+    Returns:
+        AICImage: [description]
+    """    
+    #Error handling for czi file
+    try:
+        #stack=aicsimageio.imread_dask(img_location)
+        stack= aicsimageio.AICSImage(img_data) #using AICSImage will read data as STCZYX
+        #stack_meta=aicsimageio.imread_dask(img_location)
+    except Exception as e:
+        print("Error: A ", sys.exc_info()[0], "has occurred. See below for details.")
+        raise
+    
+    #Dask setup
+    #Setting up dask scheduler
+    client = Client(processes=False)  # start distributed scheduler locally.  Launch dashboard
+    #memory_limit='30GB',
+    dask.config.set({"temporary_directory":"C:\\Dask_temp\\","optimization.fuse.active": False,
+                    'array.slicing.split_large_chunks': False})
+    cache = Cache(2e9)
+    cache.register()
+    print("If using dask, dask Client can be viewed at:",client.dashboard_link)
+
+    #Check metadata to verify postprocessing or any modifications by Zen
+    return stack
+
 
 #will flesh this out once lattice has more metadata in the czi file
 def check_metadata(img_path):
@@ -61,13 +99,16 @@ def check_metadata(img_path):
     return
 
 #TODO: Add option to read tiff files (images from Janelia lattice can be specified by changing angle and skew during initialisation)
-class LatticeData():
-    def __init__(self,path,angle,skew) -> None:
+class LatticeData_czi():
+    def __init__(self,img,angle,skew) -> None:
         self.angle = angle
         self.skew = skew
-
-        #Read in a AICS image and get data and metadata
-        self.data = read_czi(path)
+    
+        #Read in image path or imageData and return an AICS objec. Allows standardised access to metadata
+        #if isinstance(img,(np.ndarray,dask.array.core.Array)):
+        #    self.data = convert_imgdata_aics(img)
+        #else:
+        self.data = read_img(img)
         
         self.dims = self.data.dims
         self.time = self.data.dims.T
@@ -78,9 +119,9 @@ class LatticeData():
         self.scaling_factor = get_scale_factor(self.angle, self.dy , self.dz)
 
         #process the file to get parameters for deskewing
-        self.deskew_shape, self.deskew_vol_shape, self.deskew_translate_y, self.deskew_z_start, self.deskew_z_end = process_czi(self.data, self.angle, self.skew)
+        self.deskew_shape, self.deskew_vol_shape, self.deskew_translate_y, self.deskew_z_start, self.deskew_z_end = calculate_deskew_parameters(self.data, self.angle, self.skew,self.dx,self.dy,self.dz)
         pass 
-    
+
     def get_angle(self):
         return self.angle
 
@@ -89,7 +130,46 @@ class LatticeData():
 
     def set_skew(self, skew:str):
         self.skew = skew        
+
+#TODO: Add option to read tiff files (images from Janelia lattice can be specified by changing angle and skew during initialisation)
+class LatticeData():
+    def __init__(self,img,angle,skew,dx,dy,dz) -> None:
+        self.angle = angle
+        self.skew = skew
+    
+        #Read in image path or imageData and return an AICS objec. Allows standardised access to metadata
+        #if isinstance(img,(np.ndarray,dask.array.core.Array)):
+        self.data = convert_imgdata_aics(img)
+        #else:
+        #    self.data = read_img(img)
+        #set metadata based on user input if aicsimageio cannot find it
+        if None in self.data.physical_pixel_sizes:
+            self.dx = dx
+            self.dy = dy
+            self.dz = dz
+        else:
+            self.dz,self.dy,self.dx = self.data.physical_pixel_sizes
         
+        self.dims = self.data.dims
+        self.time = self.data.dims.T
+        self.channels = self.data.dims.C
+
+        self.shear_factor = get_shear_factor(self.angle)
+        self.scaling_factor = get_scale_factor(self.angle, self.dy , self.dz)
+
+        #process the file to get parameters for deskewing
+        self.deskew_shape, self.deskew_vol_shape, self.deskew_translate_y, self.deskew_z_start, self.deskew_z_end = calculate_deskew_parameters(self.data, self.angle, self.skew,self.dx,self.dy,self.dz)
+        pass 
+
+    def get_angle(self):
+        return self.angle
+
+    def set_angle(self, angle:float):
+        self.angle = angle
+
+    def set_skew(self, skew:str):
+        self.skew = skew 
+
 #read each time point and save?
 
 """
@@ -98,7 +178,7 @@ deskew_chunk_size=tuple((nz,deskewed_y,nx))
 
 
 
-save_dir="Z://Pradeep//Lightsheet//Niall_test//"
+save_dir=""
 save_name=os.path.splitext(os.path.basename(img_location))[0]
 with Profiler() as prof1, ResourceProfiler(dt=0.25) as rprof1,CacheProfiler() as cprof1:
     #for time_point in tqdm(range(0,time)):
