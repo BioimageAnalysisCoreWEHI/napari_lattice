@@ -2,7 +2,85 @@ from datetime import time
 import numpy as np
 from dask_image import ndinterp
 from gputools.transforms import affine as affineGPU
+import pyclesperanto_prototype as cle
 
+def affine_transform(source, at:cle.AffineTransform3D=None):
+    """
+    Applies an AffineTransform3D to a given soure image. What's different to the affine_transform in clesperanto:
+    Assuming the transform rotates the image out of the field of view (negative coordinates), it will be moved back 
+    so that all pixels are visible. Thus, the applied transform actually contains a translation, that was not passed
+    as parameter.
+    """
+    
+    # define coordinates of all corners of the current stack
+    from itertools import product
+    nx,ny,nz=source.shape
+    original_bounding_box=[list(x)+[1] for x in product((0,nz),(0,ny),(0,nx))] 
+    # transform the corners using the given affine transform
+    transformed_bounding_box=np.asarray(list(map(lambda x:at._matrix@x,original_bounding_box)))
+
+    # the min and max coordinates tell us from where to where the image ranges (bounding box)
+    min_coordinate = transformed_bounding_box.min(axis=0)
+    max_coordinate = transformed_bounding_box.max(axis=0)
+    # determin the size of the transformed bounding box
+    new_size =(max_coordinate - min_coordinate)[0:3].astype(int).tolist()[::-1]
+
+    # create a new stack on GPU
+    destination = cle.create(new_size)
+    
+    # we make a copy to not modify the original transform
+    transform_copy = cle.AffineTransform3D()
+    transform_copy._concatenate(at._matrix)
+    
+    # if the new minimum-coordinate is `-x`, we need to 
+    # translate the stack by `x` so that the new origin is (0,0,0)
+    translation = -min_coordinate
+    transform_copy.translate(
+        translate_x = translation[0],
+        translate_y = translation[1],
+        translate_z = translation[2]
+    )
+    
+    # apply transform and return result
+    return cle.affine_transform(source, destination, transform=transform_copy)
+    
+
+def deskew_y(raw, rotation_angle : float = 30,dx: float = 1.0 , dy:float = 1.0, dz:float = 1.0, reverse:bool = False, keep_orientation:bool = False, viewer:"napari.Viewer"=None) -> "napari.types.ImageData":
+    """
+    Deskew an image stack
+
+    Returns:
+        Deskewed volume
+    """    
+    
+    # from https://github.com/SpimCat/unsweep/blob/6592b2667bda304336360e099ac015654a87787a/src/main/java/net/haesleinhuepf/spimcat/unsweep/Unsweep.java#L45
+    import math
+    
+    deskew_transform = cle.AffineTransform3D()
+
+    #scaling 
+    new_dz=np.sin(rotation_angle * np.pi/180.0)*dz
+    scale_factor=(new_dz/dy)
+    deskew_transform.scale(scale_z=scale_factor)
+
+    # shearing
+    deskew_factor = 1.0 / math.tan(rotation_angle * math.pi / 180)
+    
+    shear_mat = np.array([
+                        [1.0, 0 ,0 , 0],
+                        [0, 1.0, deskew_factor, 0],
+                        [0, 0, 1.0, 0],  
+                        [0, 0.0, 0.0, 1.0]          
+                        ])
+    deskew_transform._concatenate(shear_mat)
+    
+    delta = 0
+
+    # rotation
+    deskew_transform.rotate(angle_in_degrees=(delta-rotation_angle), axis=0)
+
+    # apply transform
+    return affine_transform(raw, at=deskew_transform)
 
 def deskew_affine_matrix(deskew_factor:float=1.7321,skew_dir:str="Y",reverse:bool=False):
     """Take deskew factor and skew direction and return coresponding affine matrix
@@ -132,7 +210,7 @@ def rotate_affine_matrix(vol_shape,skew_dir:str="Y",angle:float=30.0,reverse:boo
 
 #Affine matrix for scaling
 def scale_Z_affine_matrix(scale_factor:float, reverse:bool=False):
-    """Take scale factor and return the rotation affine matrix
+    """Take scale factor and return the scaling matrix
     Info about transformation matrices: https://www.brainvoyager.com/bv/doc/UsersGuide/CoordsAndTransforms/SpatialTransformationMatrices.html
 
     Args:
@@ -217,4 +295,5 @@ def apply_deskew_transformation(vol,angle:float=30.0,shear_factor:float=1.7321,s
         deskewed_vol = affineGPU(vol, np.linalg.inv(deskew_rotation_mat),output_shape=vol.shape,mode="constant")
         #scipy deskewed_vol = affine_transform(vol, n
     return deskewed_vol #img_as_uint(processed)
+
 

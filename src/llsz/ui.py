@@ -117,7 +117,12 @@ class LLSZWidget:
             #curr_time=viewer.dims.current_step[0]
             
             print("Deskewing for Time:",time_deskew,"and Channel", chan_deskew )
+
+            #get user-specified 3D volume
+            raw_vol = img_data[time_deskew,chan_deskew,:,:,:]
             
+            #deskew_img = deskew_y(raw_vol, angle, dx,dy,dz)
+
             #Get a dask array with same shape as final deskewed image and containing the raw data (Essentially a scaled up version of the raw data)   
             deskew_img=get_deskew_arr(self.aics.dask_data, self.lattice.deskew_shape, self.lattice.deskew_vol_shape, time= time_deskew, channel=chan_deskew, scene=0, skew_dir=self.lattice.skew)
             
