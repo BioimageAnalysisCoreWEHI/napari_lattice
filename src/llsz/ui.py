@@ -93,8 +93,6 @@ class LLSZWidget:
 
 
         @magicgui(header=dict(widget_type="Label",label="<h3>Preview Deskew</h3>"), call_button = "Preview")
-        @register_function(menu="Transform > Deskew in Y (llsz)")
-        #@time_slicer
         def Preview_Deskew(self, header, img_data:ImageData):
             """
             Preview the deskewing for a single timepoint
@@ -119,7 +117,7 @@ class LLSZWidget:
             #curr_time=viewer.dims.current_step[0]
             
             print("Deskewing for Time:",time_deskew,"and Channel", chan_deskew )
-
+            
             #Get a dask array with same shape as final deskewed image and containing the raw data (Essentially a scaled up version of the raw data)   
             deskew_img=get_deskew_arr(self.aics.dask_data, self.lattice.deskew_shape, self.lattice.deskew_vol_shape, time= time_deskew, channel=chan_deskew, scene=0, skew_dir=self.lattice.skew)
             

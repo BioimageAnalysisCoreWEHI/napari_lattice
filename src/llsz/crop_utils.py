@@ -137,6 +137,7 @@ def crop_deskew_roi(crop_roi,vol_shape,vol,angle,dx_y,dz,z_start,z_end,time,chan
     if(crop_dask_stack.shape[2] != transformed_roi_width):
         transformed_roi_width = crop_dask_stack.shape[2]
         print("Adjusting for bounding box outside the image bounds (X-axis)")
+
     #create empty dask array with same size as the transformed roi from above
     deskew_roi_img=da.zeros(max_roi_shape,dtype=vol.dtype,chunks=tuple(max_roi_shape))
     
@@ -308,7 +309,10 @@ def get_transformed_roi_coord(vol_shape,roi_coord,angle,dx_y,dz,translation,skew
     return (z_roi_1,z_roi_2),(y_roi_1,y_roi_2),(x_roi_1,x_roi_2)
 
 def get_ROI_bounds(deskew_roi_shape,coord,angle:float,dx_y:float,dz:float,translation:float=0,skew_dir:str="Y",reverse:bool=False):
-    """Gets the 
+    """Get the bounds of the roi for cropping
+    deskew_roi_shape is the extended volume
+    coord are coordinates within the volume which are being transformed
+    output will be coord tranformed within deskew_roi_shape 
 
     Args:
         deskew_roi_shape (list): Shape of final volume around with rotation/transformation performed (z,y,x,1)
@@ -321,11 +325,6 @@ def get_ROI_bounds(deskew_roi_shape,coord,angle:float,dx_y:float,dz:float,transl
         reverse (bool, optional): [Option to reverse the transformation. reverse=true can be used if going from deskewed to original volume]. Defaults to False.
     Returns:
         [list]: Coordinates to crop the ROI within deskewed volume as (x1,x2,y1,y2,z1,z2) 
-    """    
-    """get the bounds of the roi for cropping
-    deskew_roi_shape is the extended volume
-    coord are coordinates within the volume which are being transformed
-    output will be coord tranformed within deskew_roi_shape
     """
     deskew_coord = get_new_coordinates(deskew_roi_shape,coord,angle,dx_y,dz,translation,skew_dir,False)
     
@@ -339,7 +338,7 @@ def get_ROI_bounds(deskew_roi_shape,coord,angle:float,dx_y:float,dz:float,transl
         z_top = int(deskew_coord[2][0])
         z_bottom = int(deskew_coord[4][0])
     else:
-        print("Cropping for skew other than Zeiss not implemented yet")
+        print("Cropping for skew other than Y direction (Zeiss) not implemented yet")
     
     return x_top,x_bottom,y_top,y_bottom,z_top,z_bottom
 

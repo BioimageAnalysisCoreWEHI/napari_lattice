@@ -21,8 +21,8 @@ def calculate_deskew_parameters(stack,angle,skew_direction:str,dx:float,dy:float
         dz (float): Pixel size in Z, um
 
     Returns:
-        deskew_shape (tuple/array): Final shape of the deskewed array (1,z,y,x)
-        vol_shape (tuple/array): Shape of the volume (1,z,y,x)
+        deskew_shape (tuple/array): Final shape/bounding box of the deskewed array (1,z,y,x)
+        vol_shape (tuple/array): Shape/bounding box of the raw volume (1,z,y,x)
         translate_y: Any translations required to keep deskewed array in bounds
         z_start: Starting Z slice
         z_end: Ending Z slice
