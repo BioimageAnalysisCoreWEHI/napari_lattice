@@ -46,6 +46,9 @@ Functions:
 
 ![image](/resources/LLSZ_window.png)
 
+This plugin uses gputools or dask for affine transformation.
+API for transformations are defined in /src/llsz/transformations.py. However, most of this is being implemented in pyclesperanto to simplify the code
+
 
 To do:
 * Clean up UI (Menu options?)

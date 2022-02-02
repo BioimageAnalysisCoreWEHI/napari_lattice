@@ -35,6 +35,11 @@ class LLSZWidget:
         @set_design(background_color="orange", font_family="Consolas",visible=True)
         @click(hides="Choose_Existing_Layer")
         def Open_a_czi_File(self, path:Path = Path(history.get_open_history()[0])):
+            """Opens a czi lattice file and initialises metadata based on metadata and user-specified parameters
+
+            Args:
+                path (Path, optional): [description]. Defaults to Path(history.get_open_history()[0]).
+            """            
             print("Opening", path)
             #update the napari settings to use the opened file path as last opened path
             history.update_open_history(path.__str__())
@@ -55,6 +60,17 @@ class LLSZWidget:
         @set_design(background_color="magenta", font_family="Consolas",visible=True)
         @click(hides="Open_a_czi_File")
         def Choose_Existing_Layer(self, img_data:ImageData,pixel_size_dx:float,pixel_size_dy:float,pixel_size_dz:float,skew_dir:str):
+            """User can select existing Image Layer for deskewing. 
+            Selecting this will create a prompt asking the user to choose the image layer & 
+            enter the pixel size as well as the direction of skew (X or Y)
+
+            Args:
+                img_data (ImageData): [description]
+                pixel_size_dx (float): [description]
+                pixel_size_dy (float): [description]
+                pixel_size_dz (float): [description]
+                skew_dir (str): [description]
+            """            
             print("Using existing image layer")
             skew_dir = str.upper(skew_dir)
             assert skew_dir in ('Y','X'), "Skew direction not recognised. Enter either Y or X"
@@ -66,7 +82,9 @@ class LLSZWidget:
 
         #Enter custom angle if needed
         #Will only update after choosing an image
+        #Enter a custom deskewing angle
         angle = vfield(float,options={"value": 30.0},name = "Deskew Angle")
+        #Following ensures that it will only update after an image layer is initialised 
         @angle.connect
         def _set_angle(self):
             try:
@@ -78,7 +96,7 @@ class LLSZWidget:
         
         @magicgui(labels = False,auto_call=True)
         def Use_GPU(self, Use_GPU:bool = True):
-            """Choose to use GPU or Dask
+            """Choose to use GPU  or Dask transformations
 
             Args:
                 Use_GPU (bool, optional): Defaults to True.
@@ -98,8 +116,7 @@ class LLSZWidget:
             Preview the deskewing for a single timepoint
 
             Args:
-                header ([type]): [description]
-                img_data (ImageData): [description]
+                img_data (ImageData): Image data to perform deskewing on
             """            
             print("Previewing deskewed channel and time")
             assert img_data.size, "No image open or selected"
@@ -153,8 +170,13 @@ class LLSZWidget:
         #@click(enables ="Crop_Preview")
         @magicgui(header=dict(widget_type="Label",label="<h3>Preview Crop</h3>"),call_button="Initialise shapes layer")
         def Initialize_Shapes_Layer(self,header):
+            """Create a button for adding a shapes layer 
+            """            
             self.parent_viewer.add_shapes(shape_type='polygon', edge_width=5,edge_color='white',face_color=[1,1,1,0],name="Cropping BBOX layer")
             return
+
+        #Use shapes layer to select area to crop from original image
+        #Computes a reverse transformation
 
         time_crop = field(int, options={"min": 0,  "step": 1},name = "Time")
         chan_crop = field(int, options={"min": 0,  "step": 1},name = "Channels")
@@ -183,6 +205,16 @@ class LLSZWidget:
                    ch_end = dict(label="Channel End:", value =1 ),
                    save_path = dict(mode ='d',label="Directory to save "))
         def Deskew_Save(self, header, time_start:int, time_end:int, ch_start:int, ch_end:int, save_path:Path = Path(history.get_save_history()[0])):
+            """Define the channels, timepoints and save path to save the deskewed output
+                Image will be saved with pixel size metadata
+            Args:
+                header ([type]): [description]
+                time_start (int): [description]
+                time_end (int): [description]
+                ch_start (int): [description]
+                ch_end (int): [description]
+                save_path (Path, optional): [description]. Defaults to Path(history.get_save_history()[0]).
+            """            
             assert self.open_file, "Image not initialised"
             assert time_start>=0, "Time start should be >0"
             assert time_end < self.lattice.time and time_end >0, "Check time entry "
@@ -231,6 +263,19 @@ class LLSZWidget:
                    ch_end = dict(label="Channel End:", value =1 ),
                    save_path = dict(mode ='d',label="Directory to save "))
         def Crop_Save(self, header, time_start:int, time_end:int, ch_start:int, ch_end:int, roi_layer_list:ShapesData, save_path:Path = Path(history.get_save_history()[0])):
+            """ User can choose to deskew and save only a small area of interest. 
+                Need to specify channels, timepoints and save path to save the deskewed output
+                Image will be saved with pixel size metadata
+
+            Args:
+                header ([type]): [description]
+                time_start (int): [description]
+                time_end (int): [description]
+                ch_start (int): [description]
+                ch_end (int): [description]
+                roi_layer_list (ShapesData): [description]
+                save_path (Path, optional): [description]. Defaults to Path(history.get_save_history()[0]).
+            """            
             if not roi_layer_list:
                 print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
             else:
