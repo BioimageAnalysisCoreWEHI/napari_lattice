@@ -116,7 +116,7 @@ def get_new_coordinates(vol_shape,shape_coord,angle:float,dx_y:float,dz:float,tr
         affine_mat=translate_mat_y@rotate_mat@deskew_mat@scale_mat#@flip_mat_z #scale, deskew and then rotate 
     else:
         affine_mat=scale_mat@deskew_mat@rotate_mat@translate_mat_y #reverse ###flip_mat_z@
-    #print(affine_mat)
+
     transformed_coordinates=transform_coordinates(affine_mat,coord_list)
     return transformed_coordinates
 

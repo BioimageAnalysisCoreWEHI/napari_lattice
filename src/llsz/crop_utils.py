@@ -8,6 +8,8 @@ from .transformations import apply_deskew_transformation
 import dask.array as da
 from pprint import pprint #pretty print!
 import itertools
+import pyclesperanto_prototype as cle
+from pyclesperanto_prototype import Image, affine_transform
 
 #define function to calculate deskew volume based on input or reference volume
 #function for cropping and getting rois, 
@@ -20,6 +22,42 @@ import itertools
 
 #one function for crop and deskew single ROI? -> Can use this for testing
 #one function for taking a list of ROIs and passing to the above function?
+
+
+def crop_deskew_y(input_image: Image,
+             output_image: Image = None,
+             angle_in_degrees: float = 30,
+             voxel_size_x: float = 1,
+             voxel_size_y: float = 1,
+             voxel_size_z: float = 1,
+             scaling_factor: float = 1
+             ) -> Image:
+    import math
+
+    transform = cle.AffineTransform3D()
+    
+    #Reverse of deskewing affine 
+    # correct orientation so that the new Z-plane goes proximal-distal from the objective.
+    transform.rotate(angle_in_degrees = 90, axis=0)
+
+    # make voxels isotropic, calculate the new scaling factor for Z after shearing
+    #https://github.com/tlambert03/napari-ndtiffs/blob/092acbd92bfdbf3ecb1eb9c7fc146411ad9e6aae/napari_ndtiffs/affine.py#L57
+    new_dz=math.sin(angle_in_degrees * math.pi/180.0)*voxel_size_z
+    scale_factor_z=(new_dz/voxel_size_y)*scaling_factor
+    transform.scale(scale_x = scaling_factor, scale_y = scaling_factor, scale_z=scale_factor_z)    
+
+    # rotate the stack to get proper Z-planes; rotate 90 - angle around X-axis
+    transform.rotate(angle_in_degrees=90-angle_in_degrees, axis=0)
+
+    # shear in the X plane towards Y
+    transform.shear_in_x_plane(angle_y_in_degrees = 90 - angle_in_degrees)
+
+    # apply transform
+    return affine_transform(input_image, output_image, transform=transform, auto_size=False)
+
+
+
+
 
 def crop_deskew_roi(crop_roi,vol_shape,vol,angle,dx_y,dz,z_start,z_end,time,channel,skew_dir,reverse=True):
     """Crops the ROI volume based on a 2D bounding box from napari and the starting and ending Z slices
