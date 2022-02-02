@@ -116,6 +116,7 @@ class LLSZWidget:
             Preview the deskewing for a single timepoint
 
             Args:
+                header: Title or Label of the widget
                 img_data (ImageData): Image data to perform deskewing on
             """            
             print("Previewing deskewed channel and time")
@@ -171,6 +172,8 @@ class LLSZWidget:
         @magicgui(header=dict(widget_type="Label",label="<h3>Preview Crop</h3>"),call_button="Initialise shapes layer")
         def Initialize_Shapes_Layer(self,header):
             """Create a button for adding a shapes layer 
+            Args:
+                header: Title or Label of the widget
             """            
             self.parent_viewer.add_shapes(shape_type='polygon', edge_width=5,edge_color='white',face_color=[1,1,1,0],name="Cropping BBOX layer")
             return
@@ -182,6 +185,11 @@ class LLSZWidget:
         chan_crop = field(int, options={"min": 0,  "step": 1},name = "Channels")
         @magicgui
         def Crop_Preview(self,roi_layer:ShapesData):# -> LayerDataTuple:
+            """Crop the skewed image and deskew only the user-defined ROI
+
+            Args:
+                roi_layer (ShapesData): Shapes layer with user-defined ROI
+            """            
             if not roi_layer:
                 print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
             else:
@@ -208,12 +216,12 @@ class LLSZWidget:
             """Define the channels, timepoints and save path to save the deskewed output
                 Image will be saved with pixel size metadata
             Args:
-                header ([type]): [description]
-                time_start (int): [description]
-                time_end (int): [description]
-                ch_start (int): [description]
-                ch_end (int): [description]
-                save_path (Path, optional): [description]. Defaults to Path(history.get_save_history()[0]).
+                header ([type]): header: Title or Label of the widget
+                time_start (int): starting time
+                time_end (int): end time
+                ch_start (int): start channel
+                ch_end (int): end channel
+                save_path (Path, optional): Path to save output. Defaults to Path(history.get_save_history()[0]).
             """            
             assert self.open_file, "Image not initialised"
             assert time_start>=0, "Time start should be >0"
@@ -268,13 +276,13 @@ class LLSZWidget:
                 Image will be saved with pixel size metadata
 
             Args:
-                header ([type]): [description]
-                time_start (int): [description]
-                time_end (int): [description]
-                ch_start (int): [description]
-                ch_end (int): [description]
-                roi_layer_list (ShapesData): [description]
-                save_path (Path, optional): [description]. Defaults to Path(history.get_save_history()[0]).
+               header ([type]): header: Title or Label of the widget
+                time_start (int): starting time
+                time_end (int): end time
+                ch_start (int): start channel
+                ch_end (int): end channel
+                roi_layer_list (ShapesData): Shapes layer with user-defined ROI
+                save_path (Path, optional): Path to save output. Defaults to Path(history.get_save_history()[0]).
             """            
             if not roi_layer_list:
                 print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
