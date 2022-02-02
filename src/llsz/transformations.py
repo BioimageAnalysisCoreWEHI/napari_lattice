@@ -1,7 +1,8 @@
 from datetime import time
 import numpy as np
 from dask_image import ndinterp
-from gputools.transforms import affine as affineGPU
+from gputools import affine as affineGPU
+
 import pyclesperanto_prototype as cle
 
 def affine_transform(source, at:cle.AffineTransform3D=None):

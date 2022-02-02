@@ -24,6 +24,7 @@ from llsz.crop_utils import crop_deskew_roi
 from llsz.utils import suppress_stdout_stderr
 from napari_time_slicer import time_slicer
 from napari_tools_menu import register_function
+import pyclesperanto_prototype as cle
 
 @magicclass(widget_type="split", name ="LLSZ analysis")
 class LLSZWidget:
@@ -110,36 +111,25 @@ class LLSZWidget:
             #stack=self.aics
             angle=self.lattice.angle
             
-            shear_factor = self.lattice.shear_factor
-            scaling_factor = self.lattice.scaling_factor
-            
             assert str.upper(self.lattice.skew) in ('Y','X'), "Skew direction not recognised. Enter either Y or X"
-            #curr_time=viewer.dims.current_step[0]
             
             print("Deskewing for Time:",time_deskew,"and Channel", chan_deskew )
-
+            
             #get user-specified 3D volume
-            raw_vol = img_data[time_deskew,chan_deskew,:,:,:]
+            print(img_data.shape)
+            if(len(img_data.shape)==3):
+                raw_vol = img_data
+            else:
+                raw_vol = img_data[time_deskew,chan_deskew,:,:,:]
             
-            #deskew_img = deskew_y(raw_vol, angle, dx,dy,dz)
+            #Deskew using pyclesperanto
+            deskew_final = cle.deskew_y(raw_vol, angle_in_degrees=angle,voxel_size_x=self.lattice.dx,voxel_size_y=self.lattice.dy,voxel_size_z=self.lattice.dz)
 
-            #Get a dask array with same shape as final deskewed image and containing the raw data (Essentially a scaled up version of the raw data)   
-            deskew_img=get_deskew_arr(self.aics.dask_data, self.lattice.deskew_shape, self.lattice.deskew_vol_shape, time= time_deskew, channel=chan_deskew, scene=0, skew_dir=self.lattice.skew)
-            
-            #Perform deskewing on the skewed dask array 
-            deskew_full=apply_deskew_transformation(deskew_img,angle,shear_factor,scaling_factor,self.lattice.deskew_translate_y,reverse=False,dask=self.dask)
-
-            #Crop the z slices to get only the deskewed array and not the empty area
-            deskew_final=deskew_full[self.lattice.deskew_z_start:self.lattice.deskew_z_end].astype('uint16') 
-
-            #Load whole image into RAM, otherwise will compute image everytime
-            #TODO: is there a better way to preview deskewed image using DASK?
+            #TODO: Use dask
             if self.dask:
                 print("Using CPU for deskewing")
-                deskew_final = deskew_final.compute()
-
-            #Add layer for cropping
-            #viewer.add_shapes(shape_type='polygon', edge_width=5,edge_color='white',face_color=[1,1,1,0],name="Cropping BBOX layer")
+                #use cle library for affine transforms, but use dask and scipy
+                #deskew_final = deskew_final.compute()
             max_proj_deskew=np.max(deskew_final,axis=0)
 
             #add channel and time information to the name
@@ -151,6 +141,7 @@ class LLSZWidget:
             self.parent_viewer.add_image(deskew_final,name="Deskewed image"+suffix_name)
             self.parent_viewer.layers[0].visible = False
             print("Deskewing complete")
+            return 
             #return (deskew_full, {"name":"Uncropped data"})
             #(deskew_final, {"name":img_name})
 
