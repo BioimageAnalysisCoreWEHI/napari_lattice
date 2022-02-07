@@ -26,159 +26,6 @@ from napari_tools_menu import register_function
 import pyclesperanto_prototype as cle
 from qtpy.QtCore import Qt
 
-from qtpy.QtWidgets import QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLayout, QLabel, QTabWidget, QScrollArea
-from qtpy.QtWidgets import QFileDialog
-from qtpy import uic
-from magicgui.widgets import create_widget
-from napari.layers import Labels, Image
-
-import os
-
-
-class LLSZWidget_designer(QWidget):
-    def __init__(self, napari_viewer):
-        super().__init__()
-
-        self.viewer = napari_viewer
-        self.UI_FILE = os.path.join(os.path.dirname(__file__), 'dock_widget.ui')
-        uic.loadUi(self.UI_FILE, self)
-
-        # allocate member attributes
-        self.skew_dir = ''
-        self.img_data = None
-        self.dask = False  # Use GPU by default
-        self.lattice = None
-
-        self.time_deskew = 0
-        self.chan_deskew = 0
-
-        # connect buttons
-        self.btn_open_czi_file.clicked.connect(self._open_a_czi_File)
-        self.spinbox_deskew_angle.valueChanged.connect(self._set_angle)
-        self.checkbox_use_gpu.stateChanged.connect(self._toggle_GPU)
-
-        # create input dropdowns
-        # self.combobox_img_data.activated.connect(lambda: self.populate_dropdown(self.combobox_img_data, Image))
-
-    def populate_dropdown(self, dd_widget, layertype):
-        """
-        Populate entries in a dropdown widget from available layers in the viewer
-        """
-
-        layers = self.viewer.layers
-        layers = [layer.name for layer in self.viewer.layers if isinstance(layer, layertype)]
-        dd_widget.addItems(layers)
-
-        return
-
-
-    def Preview_Deskew(self):
-        """
-        Preview the deskewing for a single timepoint.
-        """
-
-        self.time_deskew = self.spinbox_time_deskew.value
-        self.chan_deskew = self.spinbox_channels_deskew.value
-
-        # create function-internal variable reference
-        t_deskew = self.time_deskew
-        c_deskew = self.chan_deskew
-
-        print("Previewing deskewed channel and time")
-        assert img_data.size, "No image open or selected"
-        assert self.time_deskew.value < self.lattice.time, "Time is out of range"
-        assert self.chan_deskew.value < self.lattice.channels, "Channel is out of range"
-        #stack=self.aics
-
-        assert str.upper(self.lattice.skew) in ('Y','X'), "Skew direction not recognised. Enter either Y or X"
-
-        print("Deskewing for Time:", t_deskew, "and Channel", c_deskew )
-
-        #get user-specified 3D volume
-        print(img_data.shape)
-        if(len(img_data.shape)==3):
-            raw_vol = img_data
-        else:
-            raw_vol = img_data[time_deskew, chan_deskew,:,:,:]
-
-        #Deskew using pyclesperanto
-        deskew_final = cle.deskew_y(raw_vol,
-                                    angle_in_degrees=self.lattice.angle,
-                                    voxel_size_x=self.lattice.dx,
-                                    voxel_size_y=self.lattice.dy,
-                                    voxel_size_z=self.lattice.dz)
-
-        #TODO: Use dask
-        if self.dask:
-            print("Using CPU for deskewing")
-            #use cle library for affine transforms, but use dask and scipy
-            #deskew_final = deskew_final.compute()
-        max_proj_deskew = np.max(deskew_final,axis=0)
-
-        #add channel and time information to the name
-        suffix_name = "_c" + str(c_deskew) + "_t" + str(t_deskew)
-
-        self.viewer.add_image(max_proj_deskew, name="Deskew_MIP")
-
-        #img_name="Deskewed image_c"+str(chan_deskew)+"_t"+str(time_deskew)
-        self.viewer.add_image(deskew_final,name="Deskewed image"+suffix_name)
-        self.viewer.layers[0].visible = False
-        print("Deskewing complete")
-        return
-        #return (deskew_full, {"name":"Uncropped data"})
-        #(deskew_final, {"name":img_name})
-
-    def _toggle_GPU(self):
-        if self.checkbox_use_gpu.isChecked():
-            self.dask = True
-        else:
-            self.dask = False
-
-
-    def _set_angle(self):
-
-        if self.lattice is not None:
-            self.lattice.set_angle(self.spinbox_deskew_angle.value)
-            print("Angle is: ",self.lattice.angle)
-        else:
-            print("Open a file first before setting angles")
-        return
-
-
-    def _open_a_czi_File(self):
-
-        filename, _ = QFileDialog.getOpenFileName(self, 'Open file',
-                                                  filter='*.czi')
-
-        if filename is None:
-            return
-
-        self.lattice = LatticeData_czi(filename, 30.0, "Y")
-        self.aics = self.lattice.data
-
-        self.file_name = os.path.splitext(os.path.basename(filename))[0]
-        self.save_name = os.path.splitext(os.path.basename(filename))[0]
-
-        self.viewer.add_image(self.aics.dask_data)
-        self.populate_dropdown(self.combobox_img_data, Image)
-
-    def Choose_Existing_Layer(self,
-                              img_data: ImageData,
-                              pixel_size_dx: float,
-                              pixel_size_dy: float,
-                              pixel_size_dz: float,
-                              skew_dir: str):
-        print("Using existing image layer")
-        skew_dir = str.upper(skew_dir)
-        assert skew_dir in ('Y','X'), "Skew direction not recognised. Enter either Y or X"
-        self.lattice=LatticeData(img_data, 30.0, skew_dir,pixel_size_dx,pixel_size_dy,pixel_size_dz)
-        self.aics = self.lattice.data
-        self["Choose_Existing_Layer"].background_color = "green"
-        lattice = self.lattice
-
-
-
-
 
 def plugin_wrapper():
     @magicclass(widget_type="scrollable", name ="LLSZ analysis")
@@ -433,7 +280,7 @@ def plugin_wrapper():
     return widget
 
 
-
+                    
 
 
 
@@ -441,7 +288,7 @@ def plugin_wrapper():
 @napari_hook_implementation
 def napari_experimental_provide_dock_widget():
     # you can return either a single widget, or a sequence of widgets
-    return [(plugin_wrapper, {"name" : "LLSZ Widget"} ), LLSZWidget_designer]
+    return [(plugin_wrapper, {"name" : "LLSZ Widget"} )]
 
 
 
