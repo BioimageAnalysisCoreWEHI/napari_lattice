@@ -2,8 +2,6 @@
 
 import os
 from pathlib import Path
-from xmlrpc.server import DocXMLRPCRequestHandler
-# import aicsimageio
 from magicclass.wrappers import set_design
 from magicgui import magicgui
 from magicclass import magicclass, click, field, vfield
@@ -16,17 +14,9 @@ from tqdm import tqdm
 
 from napari.types import ImageData, ShapesData
 from napari_plugin_engine import napari_hook_implementation
-from napari.utils import progress, history
-# from scipy.ndimage.measurements import label
+from napari.utils import history
 
-from llsz.utils import suppress_stdout_stderr
 from llsz.io import LatticeData, LatticeData_czi, save_tiff
-from llsz.llsz_core import crop_volume_deskew
-
-from aicsimageio.writers.ome_tiff_writer import OmeTiffWriter
-from aicsimageio.types import PhysicalPixelSizes
-
-
 from llsz.llsz_core import crop_volume_deskew
 
 def plugin_wrapper():
