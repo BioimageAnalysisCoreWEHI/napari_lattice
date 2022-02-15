@@ -37,6 +37,8 @@ To install latest development version :
 
 Once installed, just start napari as normal and the plugin should be under "Plugins" tab
 
+All transformations are now powered by clesperanto.
+
 Functions:
 * Opening files (2 options)
   * Open a czi lattice file OR 
@@ -54,7 +56,6 @@ API for transformations are defined in /src/llsz/transformations.py. However, mo
 
 To do:
 * Clean up UI (Menu options?)
-* Add pyclesperanto as backend for transformations
 * Implement image analysis workflow option
 * Include deconvolution
 * Add batch processing option (no napari -> magic-class or magicgui only)
