@@ -1,22 +1,27 @@
 #Opening and saving files
-#Add option to save max projections??
 
 import aicsimageio
 import aicspylibczi
 from aicsimageio.writers import OmeTiffWriter
+from aicsimageio.types import PhysicalPixelSizes
+from pathlib import Path
+
+import pyclesperanto_prototype as cle
 import sys
 import dask
 from dask.distributed import Client
 from dask.cache import Cache
-from llsz.utils import etree_to_dict, get_scale_factor,get_shear_factor
-from llsz.llsz_core import calculate_deskew_parameters
+from llsz.utils import etree_to_dict
+from llsz.utils import get_deskewed_shape
+from llsz.llsz_core import crop_volume_deskew
+
 import os
 import numpy as np
 import dask 
 
 from napari.types import ImageData
 
-from tqdm.notebook import trange, tqdm
+from tqdm import tqdm
 
 #add options for configuring dask scheduler
 
@@ -37,14 +42,15 @@ def read_img(img_path):
     except Exception as e:
         print("Error: A ", sys.exc_info()[0], "has occurred. See below for details.")
         if "method or operation is not implemented" in (str(e)):
-            print("If it is a CZI file, resave it as a czi again using Zen software. This is due to the file being in an uncompressed format from the microscope.")
+            print("If it is a CZI file, try resaving it as a czi again using Zen software. This could be due to the file being in an uncompressed format from the microscope.")
         raise
     
     #Dask setup
     #Setting up dask scheduler
     client = Client(processes=False)  # start distributed scheduler locally.  Launch dashboard
     #memory_limit='30GB',
-    dask.config.set({"temporary_directory":"C:\\Dask_temp\\","optimization.fuse.active": False,
+    home_dir = os.path.expanduser('~')
+    dask.config.set({"temporary_directory":home_dir,"optimization.fuse.active": False,
                     'array.slicing.split_large_chunks': False})
     cache = Cache(2e9)
     cache.register()
@@ -87,18 +93,89 @@ def convert_imgdata_aics(img_data:ImageData):
     return stack
 
 
-#will flesh this out once lattice has more metadata in the czi file
+#will flesh this out once Zeiss lattice has more relevant metadata in the czi file
 def check_metadata(img_path):
     print("Checking CZI metadata")
     metadatadict_czi = etree_to_dict(aicspylibczi.CziFile(img_path).meta)
     metadatadict_czi = metadatadict_czi["ImageDocument"]["Metadata"]
     acquisition_mode_setup=metadatadict_czi["Experiment"]["ExperimentBlocks"]["AcquisitionBlock"]["HelperSetups"]["AcquisitionModeSetup"]["Detectors"]
     print(acquisition_mode_setup["Detector"]["ImageOrientation"])
-    print("Image Orientation: If any post processing has been applied, it will appear here.\
+    print("Image Orientation: If any post processing has been applied, it will appear here.\n \
       For example, Zen 3.2 flipped the image so the coverslip was towards the bottom of Z stack. So, value will be 'Flip'")
     return
 
-#TODO: Add option to read tiff files (images from Janelia lattice can be specified by changing angle and skew during initialisation)
+#TODO: write save function for deskew and for crop
+
+def save_tiff(vol,
+              func:callable,
+              time_start:int,
+              time_end:int,
+              channel_start:int,
+              channel_end:int,
+              save_path:Path,
+              save_name_prefix:str = "",
+              save_name:str = "img",
+              dx:float = 1,
+              dy:float = 1,
+              dz:float = 1,
+              *args,**kwargs):
+    """
+    Applies a function as described in callable
+    Args:
+        vol (_type_): Volume to process
+        func (callable): _description_
+        time_start (int): _description_
+        time_end (int): _description_
+        channel_start (int): _description_
+        channel_end (int): _description_
+        save_path (Path): _description_
+        save_name_prefix (str, optional): Add a prefix to name. For example, if processng ROIs, add ROI_1_. Defaults to "".
+        save_name (str, optional): name of file being saved. Defaults to "img".
+        dx (float, optional): _description_. Defaults to 1.
+        dy (float, optional): _description_. Defaults to 1.
+        dz (float, optional): _description_. Defaults to 1.
+    """              
+    
+    save_path = save_path.__str__()
+    
+    time_range = range(time_start, time_end)
+    channel_range = range(channel_start, channel_end)
+    
+    #convert voxel sixes to an aicsimage physicalpixelsizes object for metadata
+    aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
+
+    for time_point in tqdm(time_range, desc="Time", position=0):
+        images_array = []      
+        for ch in tqdm(channel_range, desc="Channels", position=1,leave=False):
+
+            if len(vol.shape) == 3:
+                raw_vol = vol
+            else:
+                raw_vol = vol[time_point, ch, :, :, :]
+            #Apply function to a volume
+            if func is cle.deskew_y:
+                #print(raw_vol.shape)
+                processed_vol = func(input_image = raw_vol, *args,**kwargs)
+            elif func is crop_volume_deskew:
+                processed_vol = func(original_volume = raw_vol, *args,**kwargs)
+            else:
+                processed_vol = func( *args,**kwargs)
+
+            images_array.append(processed_vol)
+            
+        images_array = np.array(images_array)
+        final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
+                        time_point) + "_" + save_name + ".ome.tif"
+    
+        OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+    
+    return
+
+#Defining classes for initialising files. 
+#Converts it to an aicsimageio object and makes it easy to access metadata
+
+#TODO: Merge both file initialising classes
+#Class for initializing lattice czi files
 class LatticeData_czi():
     def __init__(self,img,angle,skew) -> None:
         self.angle = angle
@@ -115,11 +192,8 @@ class LatticeData_czi():
         self.channels = self.data.dims.C
 
         self.dz,self.dy,self.dx = self.data.physical_pixel_sizes
-        self.shear_factor = get_shear_factor(self.angle)
-        self.scaling_factor = get_scale_factor(self.angle, self.dy , self.dz)
 
-        #process the file to get parameters for deskewing
-        self.deskew_shape, self.deskew_vol_shape, self.deskew_translate_y, self.deskew_z_start, self.deskew_z_end = calculate_deskew_parameters(self.data, self.angle, self.skew,self.dx,self.dy,self.dz)
+        self.deskew_vol_shape = get_deskewed_shape(self.data.dask_data, self.angle,self.dx,self.dy,self.dz)
         pass 
 
     def get_angle(self):
@@ -131,6 +205,7 @@ class LatticeData_czi():
     def set_skew(self, skew:str):
         self.skew = skew        
 
+#Class for initializing non czi files
 #TODO: Add option to read tiff files (images from Janelia lattice can be specified by changing angle and skew during initialisation)
 class LatticeData():
     def __init__(self,img,angle,skew,dx,dy,dz) -> None:
@@ -154,11 +229,8 @@ class LatticeData():
         self.time = self.data.dims.T
         self.channels = self.data.dims.C
 
-        self.shear_factor = get_shear_factor(self.angle)
-        self.scaling_factor = get_scale_factor(self.angle, self.dy , self.dz)
-
         #process the file to get parameters for deskewing
-        self.deskew_shape, self.deskew_vol_shape, self.deskew_translate_y, self.deskew_z_start, self.deskew_z_end = calculate_deskew_parameters(self.data, self.angle, self.skew,self.dx,self.dy,self.dz)
+        self.deskew_vol_shape = get_deskewed_shape(self.data, self.angle,self.dx,self.dy,self.dz)
         pass 
 
     def get_angle(self):
@@ -169,46 +241,3 @@ class LatticeData():
 
     def set_skew(self, skew:str):
         self.skew = skew 
-
-#read each time point and save?
-
-"""
-deskew_size=tuple((nz,deskewed_y,nx))
-deskew_chunk_size=tuple((nz,deskewed_y,nx))
-
-
-
-save_dir=""
-save_name=os.path.splitext(os.path.basename(img_location))[0]
-with Profiler() as prof1, ResourceProfiler(dt=0.25) as rprof1,CacheProfiler() as cprof1:
-    #for time_point in tqdm(range(0,time)):
-    for time_point in trange(time-1, desc="Time"):
-        images_array=[] 
-        for ch in trange(channels, desc="Channels"):
-            img=stack.get_image_dask_data("ZYX",T=time_point,C=ch,S=scenes)
-            #chunk size essential for next step, otherwise takes too long
-            deskew_img=da.zeros(deskew_size,dtype=stack_meta.dtype,chunks=deskew_chunk_size)
-            deskew_img[:,:ny,:]=img
-            #result=lattice_process(deskew_img)# for stack12 in tqdm(deskew_img)]
-            deskew_all=deskew_rotate_zeiss(deskew_img,angle,shear_factor=deskew_factor,reverse=False,dask=False)
-            deskew_final=deskew_all[z_start:z_end]/65535.0
-            deskew_final=np.flip(deskew_final,axis=(0))
-            deskew_final=img_as_uint(deskew_final)
-            #Stack into a large dask array
-            #deskewed_stack= da.stack(result, axis=0)#.reshape((367, 2, 501, deskewed_dim, nx)).rechunk((1,1,501, deskewed_dim, nx))
-            images_array.append(deskew_final)
-        ch_img=np.array(images_array) #convert to array of arrays
-        #currently CZYX
-        #when saving imagej=True format, it should be TZCYXS
-        #swap for imagej=TRue saving
-        ch_img=np.swapaxes(ch_img,0,1)
-
-        processed_time_save=save_dir+"//T"+str(time_point)+"_"+save_name+".ome.tif"
-
-        tifffile.imwrite(processed_time_save,ch_img,metadata={"axes":"ZCYX",'spacing': dy, 'unit': 'um',},dtype='uint16')#make 16-bit: 
-        #tifffile.imwrite(processed_time_save,ch_img,metadata={"axes":"CZYX",'spacing': dy, 'unit': 'um',},dtype='uint16',imagej=True)#make 16-bit: 
-        #print("Time "+str(time_point)+" saved")
-    print("Complete")
-
-"""
-    

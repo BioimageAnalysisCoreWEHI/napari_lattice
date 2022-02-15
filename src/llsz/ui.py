@@ -2,30 +2,32 @@
 
 import os
 from pathlib import Path
+from xmlrpc.server import DocXMLRPCRequestHandler
 # import aicsimageio
 from magicclass.wrappers import set_design
 from magicgui import magicgui
 from magicclass import magicclass, click, field, vfield
+from qtpy.QtCore import Qt
 
 import numpy as np
-from napari.types import ImageData, ShapesData, LayerDataTuple
+import dask.array as da
+import pyclesperanto_prototype as cle
+from tqdm import tqdm
+
+from napari.types import ImageData, ShapesData
 from napari_plugin_engine import napari_hook_implementation
 from napari.utils import progress, history
 # from scipy.ndimage.measurements import label
-from tqdm import tqdm
 
-from .array_processing import get_deskew_arr
-from .transformations import apply_deskew_transformation
-from .io import LatticeData, LatticeData_czi
+from llsz.utils import suppress_stdout_stderr
+from llsz.io import LatticeData, LatticeData_czi, save_tiff
+from llsz.llsz_core import crop_volume_deskew
+
 from aicsimageio.writers.ome_tiff_writer import OmeTiffWriter
 from aicsimageio.types import PhysicalPixelSizes
-from .crop_utils import crop_deskew_roi
-from llsz.utils import suppress_stdout_stderr
-# from napari_time_slicer import time_slicer
-# from napari_tools_menu import register_function
-import pyclesperanto_prototype as cle
-from qtpy.QtCore import Qt
 
+
+from llsz.llsz_core import crop_volume_deskew
 
 def plugin_wrapper():
     @magicclass(widget_type="scrollable", name="LLSZ analysis")
@@ -84,9 +86,11 @@ def plugin_wrapper():
                 try:
                     LLSZWidget.LlszMenu.lattice.set_angle(self.angle)
                     LLSZWidget.LlszMenu.lattice.angle_value = self.angle
-                    print("Angle is: ", LLSZWidget.LlszMenu.lattice.angle)
+                    print("Angle is set to: ", LLSZWidget.LlszMenu.lattice.angle)
                 except AttributeError:
                     print("Open a file first before setting angles")
+                #print(LLSZWidget.LlszMenu.lattice.angle)
+                #print(LLSZWidget.LlszMenu.lattice.angle_value)
                 return
 
             @magicgui(labels=False, auto_call=True)
@@ -119,25 +123,27 @@ def plugin_wrapper():
                 assert img_data.size, "No image open or selected"
                 assert self.time_deskew.value < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
                 assert self.chan_deskew.value < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
-                # stack = LLSZWidget.LlszMenu.aics
-                LLSZWidget.LlszMenu.time_deskew_value = self.time_deskew.value
-                LLSZWidget.LlszMenu.chan_deskew_value = self.chan_deskew.value
+                
+                time = self.time_deskew.value
+                channel = self.chan_deskew.value
 
                 assert str.upper(LLSZWidget.LlszMenu.lattice.skew) in ('Y', 'X'), \
                     "Skew direction not recognised. Enter either Y or X"
 
-                print("Deskewing for Time:", LLSZWidget.LlszMenu.time_deskew_value,
-                      "and Channel: ", LLSZWidget.LlszMenu.chan_deskew_value)
+                print("Deskewing for Time:", time,
+                      "and Channel: ", channel)
 
                 # get user-specified 3D volume
                 print(img_data.shape)
+
                 if len(img_data.shape) == 3:
                     raw_vol = img_data
                 else:
-                    raw_vol = img_data[LLSZWidget.LlszMenu.time_deskew_value, LLSZWidget.LlszMenu.chan_deskew_value, :, :, :]
+                    raw_vol = img_data[time, channel, :, :, :]
 
                 # Deskew using pyclesperanto
-                deskew_final = cle.deskew_y(raw_vol, angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
+                deskew_final = cle.deskew_y(raw_vol, 
+                                            angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
                                             voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
                                             voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
                                             voxel_size_z=LLSZWidget.LlszMenu.lattice.dz)
@@ -147,6 +153,7 @@ def plugin_wrapper():
                     print("Using CPU for deskewing")
                     # use cle library for affine transforms, but use dask and scipy
                     # deskew_final = deskew_final.compute()
+                
                 max_proj_deskew = np.max(deskew_final, axis=0)
 
                 # add channel and time information to the name
@@ -158,13 +165,12 @@ def plugin_wrapper():
                 # img_name="Deskewed image_c"+str(chan_deskew)+"_t"+str(time_deskew)
                 self.parent_viewer.add_image(deskew_final, name="Deskewed image" + suffix_name)
                 self.parent_viewer.layers[0].visible = False
+                #print("Shape is ",deskew_final.shape)
                 print("Deskewing complete")
                 return
-                # return (deskew_full, {"name":"Uncropped data"})
-                # (deskew_final, {"name":img_name})
 
         @magicclass(widget_type="collapsible", name="Preview Crop")
-        class LlszMenuCollapsible1:
+        class Preview_Crop_Menu:
 
             # @click(enables ="Crop_Preview")
             @magicgui(call_button="Initialise shapes layer")
@@ -178,156 +184,158 @@ def plugin_wrapper():
 
             @magicgui
             def Crop_Preview(self, roi_layer: ShapesData):  # -> LayerDataTuple:
-                if not roi_layer:
-                    print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
-                else:
-                    # TODO: Add assertion to check if bbox layer or coordinates
-                    print("Using channel and time", self.chan_crop.value, self.time_crop.value)
-                    # if passing roi layer as layer, use roi.data
-                    # rotate around deskew_vol_shape
-                    # going back from shape of deskewed volume to original for cropping
-                    crop_roi_vol = crop_deskew_roi(roi_layer[0],
-                                                   LLSZWidget.LlszMenu.lattice.deskew_vol_shape,
-                                                   LLSZWidget.LlszMenu.aics.dask_data,
-                                                   LLSZWidget.LlszMenu.lattice.angle,
-                                                   LLSZWidget.LlszMenu.lattice.dy,
-                                                   LLSZWidget.LlszMenu.lattice.dz,
-                                                   LLSZWidget.LlszMenu.lattice.deskew_z_start,
-                                                   LLSZWidget.LlszMenu.lattice.deskew_z_end,
-                                                   self.time_crop.value, self.chan_crop.value,
-                                                   LLSZWidget.LlszMenu.lattice.skew,
-                                                   reverse=True)
-                    translate_x = int(roi_layer[0][0][0])
-                    translate_y = int(roi_layer[0][0][1])
-                    # crop_img_layer= (crop_roi_vol , #{'translate' : [0,translate_x,translate_y] })
-                    self.parent_viewer.add_image(crop_roi_vol, translate=(0, translate_x, translate_y))
+                assert roi_layer, "No coordinates found for cropping. Check if right shapes layer or initialise shapes layer and draw ROIs."
+                # TODO: Add assertion to check if bbox layer or coordinates
+                print("Using channel and time", self.chan_crop.value, self.time_crop.value)
+                # if passing roi layer as layer, use roi.data
+                # rotate around deskew_vol_shape
+                # going back from shape of deskewed volume to original for cropping
+
+                vol = LLSZWidget.LlszMenu.aics.dask_data
+
+                vol_zyx= vol[self.time_crop.value,self.chan_crop.value,...]
+
+                deskewed_shape = LLSZWidget.LlszMenu.lattice.deskew_vol_shape
+                
+                deskewed_volume = da.zeros(deskewed_shape)
+
+                z_start = 0
+                z_end = deskewed_shape[0]
+
+                crop_roi_vol = crop_volume_deskew(original_volume = vol_zyx, 
+                                                deskewed_volume=deskewed_volume, 
+                                                roi_shape = roi_layer, 
+                                                angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle, 
+                                                voxel_size_x =LLSZWidget.LlszMenu.lattice.dx, 
+                                                voxel_size_y =LLSZWidget.LlszMenu.lattice.dy, 
+                                                voxel_size_z =LLSZWidget.LlszMenu.lattice.dz, 
+                                                z_start = z_start, 
+                                                z_end = z_end)
+
+                self.parent_viewer.add_image(crop_roi_vol)
                 return
 
         @magicclass(widget_type="collapsible", name="Save Data")
-        class LlszMenuCollapsible2:
+        class SaveData:
 
             @magicgui(time_start=dict(label="Time Start:"),
                       time_end=dict(label="Time End:", value=1),
                       ch_start=dict(label="Channel Start:"),
                       ch_end=dict(label="Channel End:", value=1),
                       save_path=dict(mode='d', label="Directory to save "))
+
             def Deskew_Save(self, time_start: int, time_end: int, ch_start: int, ch_end: int,
                             save_path: Path = Path(history.get_save_history()[0])):
+
                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
-                assert time_start >= 0, "Time start should be >0"
-                assert LLSZWidget.LlszMenu.lattice.time > time_end > 0, "Check time entry "
-                assert ch_start >= 0, "Channel start should be >0"
-                assert LLSZWidget.LlszMenu.lattice.channels >= ch_end >= 0, "Channel end should be less than " + \
-                                                                            str(LLSZWidget.LlszMenu.lattice.channels)
-
-                deskew_z_start = LLSZWidget.LlszMenu.lattice.deskew_z_start
-                deskew_z_end = LLSZWidget.LlszMenu.lattice.deskew_z_end
-                time_range = range(time_start, time_end)
-                channel_range = range(ch_start, ch_end)
-
+                assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be 0 or same as total time: "+str(LLSZWidget.LlszMenu.lattice.time)
+                assert 0< time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be >0 or same as total time: "+str(LLSZWidget.LlszMenu.lattice.time)
+                assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or same as no. of channels: "+str(LLSZWidget.LlszMenu.lattice.channels)
+                assert 0< ch_end <= LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels: " +str(LLSZWidget.LlszMenu.lattice.channels)
+              
+                #time_range = range(time_start, time_end)
+                #channel_range = range(ch_start, ch_end)
                 angle = LLSZWidget.LlszMenu.lattice.angle
-                shear_factor = LLSZWidget.LlszMenu.lattice.shear_factor
-                scaling_factor = LLSZWidget.LlszMenu.lattice.scaling_factor
+                dx = LLSZWidget.LlszMenu.lattice.dx
+                dy = LLSZWidget.LlszMenu.lattice.dy
+                dz = LLSZWidget.LlszMenu.lattice.dz
 
                 # Convert path to string
-                save_path = save_path.__str__()
+                #save_path = save_path.__str__()
 
-                # save channel/s for each timepoint.
-                # TODO: Check speed -> Channel and then timepoint or vice versa, which is faster?
-                for time_point in tqdm(time_range, desc="Time", position=0):
-                    images_array = []
-                    for ch in tqdm(channel_range, desc="Channels", position=1, leave=False):
-                        deskew_img = get_deskew_arr(LLSZWidget.LlszMenu.aics,
-                                                    LLSZWidget.LlszMenu.lattice.deskew_shape,
-                                                    LLSZWidget.LlszMenu.lattice.deskew_vol_shape,
-                                                    time=time_point, channel=ch,
-                                                    scene=0, skew_dir=LLSZWidget.LlszMenu.lattice.skew)
-                        # Perform deskewing on the skewed dask array
-                        deskew_full = apply_deskew_transformation(deskew_img, angle, shear_factor, scaling_factor,
-                                                                  LLSZWidget.LlszMenu.lattice.deskew_translate_y,
-                                                                  reverse=False,
-                                                                  dask=LLSZWidget.LlszMenu.dask)
-                        # Crop the z slices to get only the deskewed array and not the empty area
-                        deskew_final = deskew_full[deskew_z_start:deskew_z_end].astype('uint16')
-                        images_array.append(deskew_final)
-
-                    images_array = np.array(images_array)  # convert to array of arrays
-                    # images_array is in the format CZYX, but when saving for imagej using tifffile, it should be
-                    # TZCYXS; may need to add a flag for this images_array=np.swapaxes(images_array,0,1)
-                    final_name = save_path + os.sep + "C" + str(ch) + "T" + str(
-                        time_point) + "_" + LLSZWidget.LlszMenu.save_name + ".ome.tif"
-                    aics_image_pixel_sizes = PhysicalPixelSizes(LLSZWidget.LlszMenu.lattice.dz,
-                                                                LLSZWidget.LlszMenu.lattice.dy,
-                                                                LLSZWidget.LlszMenu.lattice.dx)
-                    OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
-
-                history.update_save_history(final_name)
+                #get the image data
+                img_data = LLSZWidget.LlszMenu.aics.dask_data
+                
+                #pass arguments for save tiff, callable and function arguments
+                save_tiff(img_data,
+                          cle.deskew_y,
+                          time_start = time_start,
+                          time_end = time_end,
+                          channel_start = ch_start,
+                          channel_end = ch_end,
+                          save_path = save_path,
+                          save_name= LLSZWidget.LlszMenu.save_name,
+                          voxel_size_x=dx,
+                          voxel_size_y=dy,
+                          voxel_size_z=dz,
+                          angle_in_degrees = angle,
+                          )
+                
                 print("Deskewing and Saving Complete -> ", save_path)
                 return
-
+        
         @magicclass(widget_type="collapsible", name="Crop and Save Data")
-        class LlszMenuCollapsible3:
-
+        class CropSaveData:
             @magicgui(time_start=dict(label="Time Start:"),
                       time_end=dict(label="Time End:", value=1),
                       ch_start=dict(label="Channel Start:"),
                       ch_end=dict(label="Channel End:", value=1),
                       save_path=dict(mode='d', label="Directory to save "))
-            def Crop_Save(self, time_start: int, time_end: int, ch_start: int, ch_end: int,
-                          roi_layer_list: ShapesData, save_path: Path = Path(history.get_save_history()[0])):
+            def Crop_Save(self, 
+                          time_start: int, 
+                          time_end: int, 
+                          ch_start: int, 
+                          ch_end: int,
+                          roi_layer_list: ShapesData, 
+                          save_path: Path = Path(history.get_save_history()[0])):
+
                 if not roi_layer_list:
                     print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
                 else:
                     assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
-                    assert time_start >= 0, "Time start should be >0"
-                    assert LLSZWidget.LlszMenu.lattice.time > time_end > 0, "Check time entry "
-                    assert ch_start >= 0, "Channel start should be >0"
-                    assert LLSZWidget.LlszMenu.lattice.channels >= ch_end >= 0, "Channel end should be less than " + str(LLSZWidget.LlszMenu.lattice.channels)
-
-                    time_range = range(time_start, time_end)
-                    channel_range = range(ch_start, ch_end)
+                    assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be 0 or >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time)
+                    assert 0< time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time)
+                    assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(LLSZWidget.LlszMenu.lattice.channels)
+                    assert 0< ch_end <= LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(LLSZWidget.LlszMenu.lattice.channels)
+              
                     angle = LLSZWidget.LlszMenu.lattice.angle
-                    # Convert path to string
-                    save_path = save_path.__str__()
+                    dx = LLSZWidget.LlszMenu.lattice.dx
+                    dy = LLSZWidget.LlszMenu.lattice.dy
+                    dz = LLSZWidget.LlszMenu.lattice.dz
+
+                    #get image data
+                    img_data = LLSZWidget.LlszMenu.aics.dask_data
+                    
+                    #Get shape of deskewed image
+                    deskewed_shape = LLSZWidget.LlszMenu.lattice.deskew_vol_shape
+                    #Define a dask array with shape of deskewed image
+                    deskewed_volume = da.zeros(deskewed_shape)
+
+                    z_start = 0
+                    z_end = deskewed_shape[0]
                     # save channel/s for each timepoint.
                     # TODO: Check speed -> Channel and then timepoint or vice versa, which is faster?
+
                     print("Cropping and saving files...")
+
                     for idx, roi_layer in enumerate(tqdm(roi_layer_list, desc="ROI:", position=0)):
-                        for time_point in tqdm(time_range, desc="Time:", position=1, leave=False):
-                            images_array = []
-                            for ch in tqdm(channel_range, desc="Channels:", position=2, leave=False):
-                                # suppress any printing to console
-                                with suppress_stdout_stderr():
-                                    crop_roi_vol = crop_deskew_roi(roi_layer,
-                                                                   LLSZWidget.LlszMenu.lattice.deskew_vol_shape,
-                                                                   LLSZWidget.LlszMenu.aics.dask_data, angle,
-                                                                   LLSZWidget.LlszMenu.lattice.dy,
-                                                                   LLSZWidget.LlszMenu.lattice.dz,
-                                                                   LLSZWidget.LlszMenu.lattice.deskew_z_start,
-                                                                   LLSZWidget.LlszMenu.lattice.deskew_z_end,
-                                                                   time_point, ch, LLSZWidget.LlszMenu.lattice.skew,
-                                                                   reverse=True)
-                                images_array.append(crop_roi_vol)
-                            images_array = np.array(images_array)  # convert to array of arrays
-                            # images_array is in the format TCZYX, but when saving for imagej, it should be TZCYXS;
-                            # may need to add a flag for this
-                            # TODO: Add flag for saving in imagej format and options for other file formats
-                            # images_array=np.swapaxes(images_array,0,1)
-                            final_name = save_path + os.sep + "ROI_" + str(idx) + "_C" + str(ch) + "T" + str(
-                                time_point) + "_" + LLSZWidget.LlszMenu.save_name + ".ome.tif"
-                            # create aicsimageio physical pixel size variable using PhysicalPixelSizes class
-                            aics_image_pixel_sizes = PhysicalPixelSizes(LLSZWidget.LlszMenu.lattice.dz,
-                                                                        LLSZWidget.LlszMenu.lattice.dy,
-                                                                        LLSZWidget.LlszMenu.lattice.dx)
-                            OmeTiffWriter.save(images_array, final_name,
-                                               physical_pixel_sizes=aics_image_pixel_sizes)
-                    history.update_save_history(final_name)
+                        save_tiff(img_data,
+                          crop_volume_deskew,
+                          time_start = time_start,
+                          time_end = time_end,
+                          channel_start = ch_start,
+                          channel_end = ch_end,
+                          save_name_prefix  = "ROI_" + str(idx)+"_",
+                          save_path = save_path,
+                          save_name= LLSZWidget.LlszMenu.save_name,
+                          dx=dx,
+                          dy=dy,
+                          dz=dz,
+                          deskewed_volume=deskewed_volume,
+                          roi_shape = roi_layer,
+                          angle_in_degrees = angle,
+                          z_start = z_start,
+                          z_end = z_end,
+                          voxel_size_x=dx,
+                          voxel_size_y=dy,
+                          voxel_size_z=dz,
+                          )
                     print("Cropping and Saving Complete -> ", save_path)
                     return
-
+    
         # for w in (llsz_menu.Preview_Deskew.header, llsz_menu.Preview_Deskew.img_data):
         LlszMenu.Preview_Deskew.header.native.setSizePolicy(1 | 1, 0)
-
+        
     widget = LLSZWidget()
     # aligning collapsible widgets at the top instead of having them centered vertically
     widget._widget._layout.setAlignment(Qt.AlignTop)
@@ -341,7 +349,7 @@ def napari_experimental_provide_dock_widget():
     # you can return either a single widget, or a sequence of widgets
     return [(plugin_wrapper, {"name": "LLSZ Widget"})]
 
-# Testing out UI only
-# Disable napari hook and enable the following two lines to just test the UI
-# ui=LLSZWidget()
-# ui.show(run=True)
+##Testing out UI only
+## Disable napari hook, remove plugin_wrapper
+#ui=LLSZWidget()
+#ui.show(run=True)
