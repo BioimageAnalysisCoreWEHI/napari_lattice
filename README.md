@@ -29,7 +29,7 @@ Use a conda environment. Start with installing [pyopencl](https://documen.tician
 
 To install latest development version :
 
-    pip install git+https://github.com/pr4deepr/llsz_napari.git@napari_plugin
+    pip install git+https://github.com/pr4deepr/llsz_napari.git
 
 
 #### [**Sample data for testing**](https://cloudstor.aarnet.edu.au/plus/s/700eD6EcgOODovI) 
@@ -37,8 +37,12 @@ To install latest development version :
 
 Once installed, just start napari as normal and the plugin should be under "Plugins" tab
 
+All transformations are now powered by clesperanto.
+
 Functions:
-* Open a czi lattice file
+* Opening files (2 options)
+  * Open a czi lattice file OR 
+  * Select an existing image layer in napari. This means you will have to enter voxel sizes and deskewing angle manually
 * Preview deskewing on any time or channel
 * Preview cropping on any time or channel
 * Save deskewed stack for time and channel range of interest
@@ -46,10 +50,12 @@ Functions:
 
 ![image](/resources/LLSZ_window.png)
 
+This plugin uses gputools or dask for affine transformation.
+API for transformations are defined in /src/llsz/transformations.py. However, most of this is being implemented in pyclesperanto to simplify the code
+
 
 To do:
 * Clean up UI (Menu options?)
-* Add pyclesperanto as backend for transformations
 * Implement image analysis workflow option
 * Include deconvolution
 * Add batch processing option (no napari -> magic-class or magicgui only)
