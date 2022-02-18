@@ -18,6 +18,7 @@ from napari.utils import history
 
 from llsz.io import LatticeData, LatticeData_czi, save_tiff
 from llsz.llsz_core import crop_volume_deskew
+from napari_workflows import Workflow
 
 def plugin_wrapper():
     @magicclass(widget_type="scrollable", name="LLSZ analysis")
@@ -236,9 +237,27 @@ def plugin_wrapper():
                 #get the image data
                 img_data = LLSZWidget.LlszMenu.aics.dask_data
                 
+                deskew_workflow = Workflow()
+
+                #define deskewing workflow
+                input_arg = "input"
+                task_name = "deskewing"
+                deskew_workflow.set(task_name, 
+                                    cle.deskew_y, 
+                                    input_arg, 
+                                    angle_in_degrees = angle,
+                                    voxel_size_x = dx, 
+                                    voxel_size_y= dy,
+                                    voxel_size_z = dz)
+                print(deskew_workflow)
+
+
+
                 #pass arguments for save tiff, callable and function arguments
                 save_tiff(img_data,
-                          cle.deskew_y,
+                          workflow = deskew_workflow,
+                          input_arg = input_arg,
+                          task_name = task_name,
                           time_start = time_start,
                           time_end = time_end,
                           channel_start = ch_start,
@@ -296,30 +315,47 @@ def plugin_wrapper():
                     # save channel/s for each timepoint.
                     # TODO: Check speed -> Channel and then timepoint or vice versa, which is faster?
 
-                    print("Cropping and saving files...")
+                    print("Cropping and saving files...")           
+                    crop_deskew_workflow = Workflow()
+
+                    #define crop and deskewing workflow
+                    #Have to define a workflow every loop though!
+                    input_arg = "input"
+                    task_name = "crop_deskewing"
+                    roi = "roi"
+                    crop_deskew_workflow.set(task_name, 
+                                            crop_volume_deskew,
+                                            original_volume = input_arg, 
+                                            deskewed_volume = deskewed_volume,
+                                            roi_shape = roi,
+                                            angle_in_degrees = angle,
+                                            voxel_size_x = dx, 
+                                            voxel_size_y= dy,
+                                            voxel_size_z = dz,
+                                            z_start = z_start,
+                                            z_end = z_end)
 
                     for idx, roi_layer in enumerate(tqdm(roi_layer_list, desc="ROI:", position=0)):
+                        
+                        #As the roi changes every loop, we set the roi here
+                        crop_deskew_workflow.set(roi, roi_layer)
+                        
+                        #pass arguments for save tiff
                         save_tiff(img_data,
-                          crop_volume_deskew,
-                          time_start = time_start,
-                          time_end = time_end,
-                          channel_start = ch_start,
-                          channel_end = ch_end,
-                          save_name_prefix  = "ROI_" + str(idx)+"_",
-                          save_path = save_path,
-                          save_name= LLSZWidget.LlszMenu.save_name,
-                          dx=dx,
-                          dy=dy,
-                          dz=dz,
-                          deskewed_volume=deskewed_volume,
-                          roi_shape = roi_layer,
-                          angle_in_degrees = angle,
-                          z_start = z_start,
-                          z_end = z_end,
-                          voxel_size_x=dx,
-                          voxel_size_y=dy,
-                          voxel_size_z=dz,
-                          )
+                                    workflow = crop_deskew_workflow,
+                                    input_arg = input_arg,
+                                    task_name = task_name,
+                                    time_start = time_start,
+                                    time_end = time_end,
+                                    channel_start = ch_start,
+                                    channel_end = ch_end,
+                                    save_path = save_path,
+                                    save_name= LLSZWidget.LlszMenu.save_name,
+                                    voxel_size_x=dx,
+                                    voxel_size_y=dy,
+                                    voxel_size_z=dz,
+                                    angle_in_degrees = angle,
+                                    )
                     print("Cropping and Saving Complete -> ", save_path)
                     return
     

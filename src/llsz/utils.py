@@ -24,6 +24,10 @@ def calculate_crop_bbox(shape, z_start:int, z_end:int):
     start = np.rint(np.min(shape, axis=0)).clip(0)
     stop = np.rint(np.max(shape, axis=0)).clip(0)
 
+    #Shapes layer can return 3D coordinates, so only take last two
+    if len(start>2): start = start[-2:]
+    if len(stop>2): stop = stop[-2:]
+
     start=np.insert(start,0,z_start) # start[0]=z_start
     stop = np.insert(stop,0,z_end) #  =z_start
 

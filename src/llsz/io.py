@@ -23,6 +23,8 @@ from napari.types import ImageData
 
 from tqdm import tqdm
 
+from napari_workflows import Workflow
+
 #add options for configuring dask scheduler
 
 def read_img(img_path):
@@ -107,7 +109,9 @@ def check_metadata(img_path):
 #TODO: write save function for deskew and for crop
 
 def save_tiff(vol,
-              func:callable,
+              workflow:Workflow,
+              input_arg:str,
+              task_name:str,
               time_start:int,
               time_end:int,
               channel_start:int,
@@ -117,13 +121,17 @@ def save_tiff(vol,
               save_name:str = "img",
               dx:float = 1,
               dy:float = 1,
-              dz:float = 1,
-              *args,**kwargs):
+              dz:float = 1):
     """
-    Applies a function as described in callable
+    Applies a workflow to the image and saves the output
+    Use of workflows ensures its agnostic to the processing operation
+
     Args:
         vol (_type_): Volume to process
-        func (callable): _description_
+        workflow (Workflow): Clesperanto workflow
+        input_arg (str): name for input image
+        task_name (str): name of the task that should be executed in the workflow
+        time_start (int): _description_
         time_start (int): _description_
         time_end (int): _description_
         channel_start (int): _description_
@@ -152,14 +160,13 @@ def save_tiff(vol,
                 raw_vol = vol
             else:
                 raw_vol = vol[time_point, ch, :, :, :]
-            #Apply function to a volume
-            if func is cle.deskew_y:
-                #print(raw_vol.shape)
-                processed_vol = func(input_image = raw_vol, *args,**kwargs)
-            elif func is crop_volume_deskew:
-                processed_vol = func(original_volume = raw_vol, *args,**kwargs)
-            else:
-                processed_vol = func( *args,**kwargs)
+            
+            #Use workflows to execute
+            #Set the input argument
+            workflow.set(input_arg, raw_vol)
+
+            #Execute workflow
+            processed_vol = workflow.get(task_name)
 
             images_array.append(processed_vol)
             
