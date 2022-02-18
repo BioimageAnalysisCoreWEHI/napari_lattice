@@ -13,16 +13,20 @@ def calculate_crop_bbox(shape, z_start:int, z_end:int):
     Args:
         shape (int): [description]
         z_start (int): Start of slice
-        z_end (int): Start of slice
+        z_end (int): End of slice
 
     Returns:
-        array,array: Bounding box of ROI in 3D (xyz) and the shape of the ROI in 3D (zyx)
+        list,np.array: Bounding box of ROI in 3D (xyz), the shape of the ROI in 3D (zyx)
     """    
     #calculate bounding box and shape of cropped 3D volume
     #shape is 3D ROI from shape layer
     #get ROI coordinates,clip to zero, get shape of ROI volume and vertices of 3D ROI
     start = np.rint(np.min(shape, axis=0)).clip(0)
     stop = np.rint(np.max(shape, axis=0)).clip(0)
+
+    #Shapes layer can return 3D coordinates, so only take last two
+    if len(start>2): start = start[-2:]
+    if len(stop>2): stop = stop[-2:]
 
     start=np.insert(start,0,z_start) # start[0]=z_start
     stop = np.insert(stop,0,z_end) #  =z_start
