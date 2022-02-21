@@ -230,7 +230,7 @@ class LatticeData():
         self.channels = self.data.dims.C
 
         #process the file to get parameters for deskewing
-        self.deskew_vol_shape = get_deskewed_shape(self.data, self.angle,self.dx,self.dy,self.dz)
+        self.deskew_vol_shape = get_deskewed_shape(self.data.dask_data, self.angle,self.dx,self.dy,self.dz)
         pass 
 
     def get_angle(self):

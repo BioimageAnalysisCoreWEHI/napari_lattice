@@ -76,7 +76,7 @@ def get_deskewed_shape(volume,
     return new_shape
 
 
-#https://stackoverflow.com/questions/7684333/converting-xml-to-dictionary-using-elementtree
+#https://stackoverflow.com/a/10076823
 #Credit: Antoine Pinsard
 #Convert xml elementree to dict
 def etree_to_dict(t):
