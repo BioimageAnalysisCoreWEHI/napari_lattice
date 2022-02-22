@@ -10,6 +10,8 @@ import pyclesperanto_prototype as cle
 import sys
 import dask
 import dask.array as da
+import xarray 
+
 from dask.distributed import Client
 from dask.cache import Cache
 
@@ -219,6 +221,9 @@ class LatticeData():
 
         #if no channel dimension specified, then expand axis at index 1
         if not channel_dimension:
+            #if xarray, access data using .data method
+            if type(img) is xarray.core.dataarray.DataArray:
+                img = img.data
             img = dask_expand_dims(img,axis=1) 
             #img = np.expand_dims(img,axis=1)
         
