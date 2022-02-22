@@ -132,12 +132,12 @@ def plugin_wrapper():
                 vol_zyx= vol[time,channel,...]
 
                 # Deskew using pyclesperanto
-                deskew_final = cle.deskew_y(vol_zyx, 
+                deskewed = cle.deskew_y(vol_zyx, 
                                             angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
                                             voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
                                             voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
-                                            voxel_size_z=LLSZWidget.LlszMenu.lattice.dz)
-
+                                            voxel_size_z=LLSZWidget.LlszMenu.lattice.dz).astype(np.uint16)
+                deskew_final = cle.pull_zyx(deskewed)
                 # TODO: Use dask
                 if LLSZWidget.LlszMenu.dask:
                     print("Using CPU for deskewing")
@@ -196,7 +196,7 @@ def plugin_wrapper():
                 z_start = 0
                 z_end = deskewed_shape[0]
 
-                crop_roi_vol = crop_volume_deskew(original_volume = vol_zyx, 
+                crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx, 
                                                 deskewed_volume=deskewed_volume, 
                                                 roi_shape = roi_layer, 
                                                 angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle, 
@@ -204,8 +204,10 @@ def plugin_wrapper():
                                                 voxel_size_y =LLSZWidget.LlszMenu.lattice.dy, 
                                                 voxel_size_z =LLSZWidget.LlszMenu.lattice.dz, 
                                                 z_start = z_start, 
-                                                z_end = z_end)
+                                                z_end = z_end).astype(np.uint16)
 
+                crop_roi_vol = cle.pull_zyx(crop_roi_vol_desk)
+                
                 self.parent_viewer.add_image(crop_roi_vol)
                 return
 
