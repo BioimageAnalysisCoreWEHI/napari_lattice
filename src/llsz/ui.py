@@ -13,12 +13,17 @@ import pyclesperanto_prototype as cle
 from tqdm import tqdm
 
 from napari.types import ImageData, ShapesData
+from napari.layers.image.image import Image
 from napari_plugin_engine import napari_hook_implementation
 from napari.utils import history
 
 from llsz.io import LatticeData, LatticeData_czi, save_tiff
 from llsz.llsz_core import crop_volume_deskew
-from napari_workflows import Workflow
+from napari_workflows import Workflow, WorkflowManager
+from napari_workflows._io_yaml_v1 import load_workflow, save_workflow
+
+from llsz.utils import get_first_last_image_and_task
+
 
 def plugin_wrapper():
     @magicclass(widget_type="scrollable", name="LLSZ analysis")
@@ -32,9 +37,11 @@ def plugin_wrapper():
             dask = False
             file_name = ""
             save_name = ""
+            #default scale
+            glob_scale = (1,1,1)
 
             @set_design(background_color="orange", font_family="Consolas", visible=True)
-            @click(hides="Choose_Existing_Layer")
+            @click(hides=["Choose_Existing_Layer","OR","Select_image_layer_below_to_process"])
             def Open_a_czi_File(self, path: Path = Path(history.get_open_history()[0])):
                 print("Opening", path)
                 # update the napari settings to use the opened file path as last opened path
@@ -47,31 +54,82 @@ def plugin_wrapper():
                 self["Open_a_czi_File"].background_color = "green"
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
                 LLSZWidget.LlszMenu.open_file = True  # if open button used
+                #set scale
+                self.glob_scale = LLSZWidget.LlszMenu.lattice.data.physical_pixel_sizes
 
             # Display text
             @click(enabled=False)
             def OR(self):
                 pass
 
+            # Display text
+            @click(enabled=False)
+            def Select_image_layer_below_to_process(self):
+                pass
+
             @set_design(background_color="magenta", font_family="Consolas", visible=True)
-            @click(hides="Open_a_czi_File")
-            def Choose_Existing_Layer(self, img_data: ImageData, pixel_size_dx: float, pixel_size_dy: float,
-                                      pixel_size_dz: float, skew_dir: str):
+            @click(hides=["Open_a_czi_File","OR"])
+            def Choose_Existing_Layer(self, img_data:ImageData, skew_dir: str = "Y"):
                 print("Using existing image layer")
                 skew_dir = str.upper(skew_dir)
                 assert skew_dir in ('Y', 'X'), "Skew direction not recognised. Enter either Y or X"
-                LLSZWidget.LlszMenu.lattice = LatticeData(img_data, 30.0, skew_dir, pixel_size_dx, pixel_size_dy,
-                                                          pixel_size_dz)
+                
+                #get scale from active iamge layers
+                #if image layer not selected, then select the first image layer in the layers list
+                try:
+                    scale = self.parent_viewer.layers.selection.active.scale
+                    LLSZWidget.LlszMenu.scale = scale
+                except AttributeError: #scale is None
+                    for layer in self.parent_viewer.layers:
+                        if type(layer) is Image:
+                            self.parent_viewer.layers.selection.active = self.parent_viewer.layers[0]
+                            scale = self.parent_viewer.layers.selection.active.scale          
+    
+                if list(scale) in [[None], [1,1,1]]:
+                    print("Pixel sizes are (zyx) are: ",scale)
+                    print("Enter it manually if this is incorrect")
+                    dz,dy,dx = (1,1,1)
+                else:
+                    dz,dy,dx = scale
+                    print("Pixel sizes in microns (zyx): ", dz,dy,dx)
+                
+                LLSZWidget.LlszMenu.lattice = LatticeData(img_data, 30.0, skew_dir, dx, dy,dz)
                 LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
+                
+                self.glob_scale = LLSZWidget.LlszMenu.lattice.data.PhysicalPixelSizes
+                
                 self["Choose_Existing_Layer"].background_color = "green"
+                self["Enter_pixel_size"].background_color = "orange"
+                
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
                 LLSZWidget.LlszMenu.open_file = True  # if open button used
+                return
+            
+            #Enter pixel size manually
+            @set_design(text = "Manually Enter pixel size")
+            def Enter_pixel_size(self,
+                                pixel_size_dx: float = glob_scale[2],
+                                pixel_size_dy: float = glob_scale[1],
+                                pixel_size_dz: float = glob_scale[0] ):
+                try:
+                    LLSZWidget.LlszMenu.lattice.dx = pixel_size_dx
+                    LLSZWidget.LlszMenu.lattice.dy = pixel_size_dy
+                    LLSZWidget.LlszMenu.lattice.dz = pixel_size_dz
+                    print("Pixel sizes (zyx) set to",LLSZWidget.LlszMenu.lattice.dx,
+                                                     LLSZWidget.LlszMenu.lattice.dy,
+                                                     LLSZWidget.LlszMenu.lattice.dz," microns")
+                    self["Enter_pixel_size"].background_color = "green"
+                except AttributeError:
+                    print("Choose layer first before entering pixel sizes")
+                
+                return  
 
             # Enter custom angle if needed
             # Will only update after choosing an image
             angle = vfield(float, options={"value": 30.0}, name="Deskew Angle")
             angle_value = 30.0
-
+            
+            #Connect with vfield above
             @angle.connect
             def _set_angle(self):
                 try:
@@ -124,16 +182,12 @@ def plugin_wrapper():
                 print("Deskewing for Time:", time,
                       "and Channel: ", channel)
 
-                # get user-specified 3D volume
-                print(img_data.shape)
+                vol = LLSZWidget.LlszMenu.aics.dask_data
 
-                if len(img_data.shape) == 3:
-                    raw_vol = img_data
-                else:
-                    raw_vol = img_data[time, channel, :, :, :]
+                vol_zyx= vol[time,channel,...]
 
                 # Deskew using pyclesperanto
-                deskew_final = cle.deskew_y(raw_vol, 
+                deskew_final = cle.deskew_y(vol_zyx, 
                                             angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
                                             voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
                                             voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
@@ -190,6 +244,7 @@ def plugin_wrapper():
                 
                 deskewed_volume = da.zeros(deskewed_shape)
 
+                #Option for entering custom z values?
                 z_start = 0
                 z_end = deskewed_shape[0]
 
@@ -206,14 +261,14 @@ def plugin_wrapper():
                 self.parent_viewer.add_image(crop_roi_vol)
                 return
 
-        @magicclass(widget_type="collapsible", name="Save Data")
+        @magicclass(widget_type="collapsible", name="Deskew & Save Data")
         class SaveData:
 
             @magicgui(time_start=dict(label="Time Start:"),
                       time_end=dict(label="Time End:", value=1),
                       ch_start=dict(label="Channel Start:"),
                       ch_end=dict(label="Channel End:", value=1),
-                      save_path=dict(mode='d', label="Directory to save "))
+                      save_path=dict(mode='d', label="Directory to save"))
 
             def Deskew_Save(self, time_start: int, time_end: int, ch_start: int, ch_end: int,
                             save_path: Path = Path(history.get_save_history()[0])):
@@ -358,8 +413,102 @@ def plugin_wrapper():
                                     )
                     print("Cropping and Saving Complete -> ", save_path)
                     return
-    
-        # for w in (llsz_menu.Preview_Deskew.header, llsz_menu.Preview_Deskew.img_data):
+                
+        @magicclass(widget_type="collapsible", name="Apply workflow to process and save")
+        class ApplyWorkflowSave:
+            
+            # Display text
+            @click(enabled=False)
+            def Apply_and_Preview_Workflow(self):
+                pass
+            
+            time_preview= field(int, options={"min": 0, "step": 1}, name="Time")
+            chan_preview = field(int, options={"min": 0, "step": 1}, name="Channels")
+            
+            #include boolean to get task list
+            #add a drop down with list of tasks
+            
+            #Add option to save
+            
+            @magicgui(get_active_workflow = dict(widget_type="Checkbox",label="Get active workflow in napari-workflow",value = False),
+                      workflow_path = dict(mode='r', label="Load custom workflow (.yaml/yml)"),
+                      call_button="Apply and Preview Workflow")
+            def Preview_Workflow(self,
+                                get_active_workflow:bool,
+                                workflow_path:Path= Path.home()):
+                """
+                Apply a cle.workflow to the processing pipeline
+                User can define a pipeline which can be inspected in napari workflow inspector
+                and then execute it by ticking  the get active workflow checkbox, 
+                OR
+                Use a predefined workflow
+                
+                In both cases, if deskewing is not present as first step, it will be added on
+                and rest of the task will be made followers
+
+                Args:
+                    
+                """
+                
+                print("Previewing deskewed channel and time with workflow")
+                
+                if get_active_workflow:
+                    #installs the workflow to napari
+                    user_workflow = WorkflowManager.install(self.parent_viewer).workflow
+                else:
+                    user_workflow = load_workflow(workflow_path)
+                assert type(user_workflow) is Workflow, "Workflow file is not a cle.worfklow. Check file! You can use workflow inspector if needed"
+                
+                input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
+                print(input_arg_first, input_arg_last, first_task_name,last_task_name )
+                #get list of tasks
+                task_list = list(user_workflow._tasks.keys())
+                print("Workflow loaded:")
+                print(user_workflow)
+                
+                assert self.time_preview.value < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
+                assert self.chan_preview.value < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
+                
+                time = self.time_preview.value
+                channel = self.chan_preview.value
+
+                print("Deskewing for Time:", time,
+                      "and Channel: ", channel)
+                
+                vol = LLSZWidget.LlszMenu.aics.dask_data
+
+                vol_zyx= vol[time,channel,...]
+
+                task_name_start = first_task_name[0]
+                task_name_last = last_task_name[0]
+                
+                if user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y,cle.deskew_x):
+                    #input_file = vol_zyx
+                    user_workflow.set("deskew_image",cle.deskew_y, vol_zyx,
+                                      angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle,
+                                      voxel_size_x = LLSZWidget.LlszMenu.lattice.dx,
+                                      voxel_size_y= LLSZWidget.LlszMenu.lattice.dy,
+                                      voxel_size_z = LLSZWidget.LlszMenu.lattice.dz)
+                    #Set input of the workflow to be from deskewing
+                    user_workflow.set(input_arg_first,"deskew_image")
+                else:  
+                    #set the first input image to be the volume user has chosen
+                    user_workflow.set(input_arg_first,vol_zyx)
+                
+                print("Workflow executed:")
+                print(user_workflow)
+                #Execute workflow
+                processed_vol = user_workflow.get(task_name_last)
+
+                # add channel and time information to the name
+                suffix_name = "_c" + str(LLSZWidget.LlszMenu.chan_deskew_value) + "_t" + \
+                              str(LLSZWidget.LlszMenu.time_deskew_value)
+                                     
+                self.parent_viewer.add_image(processed_vol, name="Workflow_processed"+ suffix_name)
+
+                print("Workflow complete")
+                return
+            
         LlszMenu.Preview_Deskew.header.native.setSizePolicy(1 | 1, 0)
         
     widget = LLSZWidget()
