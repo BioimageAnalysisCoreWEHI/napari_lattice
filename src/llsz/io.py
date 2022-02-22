@@ -224,9 +224,8 @@ class LatticeData():
             #if xarray, access data using .data method
             if type(img) is xarray.core.dataarray.DataArray:
                 img = img.data
-            img = dask_expand_dims(img,axis=1) 
-            #img = np.expand_dims(img,axis=1)
-        
+            img = dask_expand_dims(img,axis=1) #np expand_dims may not be appropriate for dask array
+                    
         #Read in image path or imageData and return an AICS objec. Allows standardised access to metadata
         #if isinstance(img,(np.ndarray,dask.array.core.Array)):
         self.data = convert_imgdata_aics(img)

@@ -60,7 +60,7 @@ def plugin_wrapper():
                                       pixel_size_dx: float, 
                                       pixel_size_dy: float,
                                       pixel_size_dz: float,
-                                      channel_dimension_present:bool=False, 
+                                      channel_dimension_present:bool=True, 
                                       skew_dir: str="Y"):
                 
                 print("Using existing image layer")
@@ -175,16 +175,15 @@ def plugin_wrapper():
             def Crop_Preview(self, roi_layer: ShapesData):  # -> LayerDataTuple:
                 assert roi_layer, "No coordinates found for cropping. Check if right shapes layer or initialise shapes layer and draw ROIs."
                 # TODO: Add assertion to check if bbox layer or coordinates
-                print("Using channel and time", self.chan_crop.value, self.time_crop.value)
-                # if passing roi layer as layer, use roi.data
-                # rotate around deskew_vol_shape
-                # going back from shape of deskewed volume to original for cropping
-                assert self.time_crop.value < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
-                assert self.chan_crop.value < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
                 
                 time = self.time_crop.value
                 channel = self.chan_crop.value
                 
+                assert time < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
+                assert channel < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
+                
+                print("Using channel ", channel," and time", time)
+                               
                 vol = LLSZWidget.LlszMenu.aics.dask_data
 
                 vol_zyx= vol[time,channel,...]
