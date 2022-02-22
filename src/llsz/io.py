@@ -9,18 +9,17 @@ from pathlib import Path
 import pyclesperanto_prototype as cle
 import sys
 import dask
+import dask.array as da
 from dask.distributed import Client
 from dask.cache import Cache
+
 from llsz.utils import etree_to_dict
-from llsz.utils import get_deskewed_shape
+from llsz.utils import get_deskewed_shape, dask_expand_dims
 from llsz.llsz_core import crop_volume_deskew
 
 import os
 import numpy as np
-import dask 
-
 from napari.types import ImageData
-
 from tqdm import tqdm
 
 #add options for configuring dask scheduler
@@ -147,20 +146,25 @@ def save_tiff(vol,
     for time_point in tqdm(time_range, desc="Time", position=0):
         images_array = []      
         for ch in tqdm(channel_range, desc="Channels", position=1,leave=False):
-
-            if len(vol.shape) == 3:
-                raw_vol = vol
-            else:
-                raw_vol = vol[time_point, ch, :, :, :]
+            try:
+                if len(vol.shape) == 3:
+                    raw_vol = vol
+                elif len(vol.shape) == 4:
+                    raw_vol = vol[time_point, :, :, :]
+                elif len(vol.shape) == 5:
+                    raw_vol = vol[time_point, ch, :, :, :]
+            except IndexError:
+                print("Check shape of volume. Expected volume with shape 3,4 or 5. Got ",vol.shape) 
+                
             #Apply function to a volume
             if func is cle.deskew_y:
                 #print(raw_vol.shape)
-                processed_vol = func(input_image = raw_vol, *args,**kwargs)
+                processed_vol = func(input_image = raw_vol, *args,**kwargs).astype(np.uint16)
             elif func is crop_volume_deskew:
-                processed_vol = func(original_volume = raw_vol, *args,**kwargs)
+                processed_vol = func(original_volume = raw_vol, *args,**kwargs).astype(np.uint16)
             else:
-                processed_vol = func( *args,**kwargs)
-
+                processed_vol = func( *args,**kwargs).astype(np.uint16)
+            
             images_array.append(processed_vol)
             
         images_array = np.array(images_array)
@@ -180,7 +184,7 @@ class LatticeData_czi():
     def __init__(self,img,angle,skew) -> None:
         self.angle = angle
         self.skew = skew
-    
+
         #Read in image path or imageData and return an AICS objec. Allows standardised access to metadata
         #if isinstance(img,(np.ndarray,dask.array.core.Array)):
         #    self.data = convert_imgdata_aics(img)
@@ -188,6 +192,7 @@ class LatticeData_czi():
         self.data = read_img(img)
         
         self.dims = self.data.dims
+        
         self.time = self.data.dims.T
         self.channels = self.data.dims.C
 
@@ -208,10 +213,15 @@ class LatticeData_czi():
 #Class for initializing non czi files
 #TODO: Add option to read tiff files (images from Janelia lattice can be specified by changing angle and skew during initialisation)
 class LatticeData():
-    def __init__(self,img,angle,skew,dx,dy,dz) -> None:
+    def __init__(self,img,angle,skew,dx,dy,dz,channel_dimension) -> None:
         self.angle = angle
         self.skew = skew
-    
+
+        #if no channel dimension specified, then expand axis at index 1
+        if not channel_dimension:
+            img = dask_expand_dims(img,axis=1) 
+            #img = np.expand_dims(img,axis=1)
+        
         #Read in image path or imageData and return an AICS objec. Allows standardised access to metadata
         #if isinstance(img,(np.ndarray,dask.array.core.Array)):
         self.data = convert_imgdata_aics(img)

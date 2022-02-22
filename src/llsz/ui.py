@@ -51,16 +51,23 @@ def plugin_wrapper():
             @click(enabled=False)
             def OR(self):
                 pass
-
+            
+            
             @set_design(background_color="magenta", font_family="Consolas", visible=True)
             @click(hides="Open_a_czi_File")
-            def Choose_Existing_Layer(self, img_data: ImageData, pixel_size_dx: float, pixel_size_dy: float,
-                                      pixel_size_dz: float, skew_dir: str):
+            def Choose_Existing_Layer(self, 
+                                      img_data: ImageData, 
+                                      pixel_size_dx: float, 
+                                      pixel_size_dy: float,
+                                      pixel_size_dz: float,
+                                      channel_dimension_present:bool=False, 
+                                      skew_dir: str="Y"):
+                
                 print("Using existing image layer")
                 skew_dir = str.upper(skew_dir)
                 assert skew_dir in ('Y', 'X'), "Skew direction not recognised. Enter either Y or X"
                 LLSZWidget.LlszMenu.lattice = LatticeData(img_data, 30.0, skew_dir, pixel_size_dx, pixel_size_dy,
-                                                          pixel_size_dz)
+                                                          pixel_size_dz,channel_dimension_present)
                 LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
                 self["Choose_Existing_Layer"].background_color = "green"
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
@@ -97,9 +104,6 @@ def plugin_wrapper():
             time_deskew = field(int, options={"min": 0, "step": 1}, name="Time")
             chan_deskew = field(int, options={"min": 0, "step": 1}, name="Channels")
 
-            time_deskew_value = 0
-            chan_deskew_value = 0
-
             @magicgui(header=dict(widget_type="Label", label="<h3>Preview Deskew</h3>"), call_button="Preview")
             def Preview_Deskew(self, header, img_data: ImageData):
                 """
@@ -123,16 +127,12 @@ def plugin_wrapper():
                 print("Deskewing for Time:", time,
                       "and Channel: ", channel)
 
-                # get user-specified 3D volume
-                print(img_data.shape)
+                vol = LLSZWidget.LlszMenu.aics.dask_data
 
-                if len(img_data.shape) == 3:
-                    raw_vol = img_data
-                else:
-                    raw_vol = img_data[time, channel, :, :, :]
+                vol_zyx= vol[time,channel,...]
 
                 # Deskew using pyclesperanto
-                deskew_final = cle.deskew_y(raw_vol, 
+                deskew_final = cle.deskew_y(vol_zyx, 
                                             angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
                                             voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
                                             voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
@@ -147,8 +147,7 @@ def plugin_wrapper():
                 max_proj_deskew = np.max(deskew_final, axis=0)
 
                 # add channel and time information to the name
-                suffix_name = "_c" + str(LLSZWidget.LlszMenu.chan_deskew_value) + "_t" + \
-                              str(LLSZWidget.LlszMenu.time_deskew_value)
+                suffix_name = "_c" + str(channel) + "_t" + str(time)
 
                 self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP")
 
@@ -180,10 +179,15 @@ def plugin_wrapper():
                 # if passing roi layer as layer, use roi.data
                 # rotate around deskew_vol_shape
                 # going back from shape of deskewed volume to original for cropping
-
+                assert self.time_crop.value < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
+                assert self.chan_crop.value < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
+                
+                time = self.time_crop.value
+                channel = self.chan_crop.value
+                
                 vol = LLSZWidget.LlszMenu.aics.dask_data
 
-                vol_zyx= vol[self.time_crop.value,self.chan_crop.value,...]
+                vol_zyx= vol[time,channel,...]
 
                 deskewed_shape = LLSZWidget.LlszMenu.lattice.deskew_vol_shape
                 
@@ -253,6 +257,8 @@ def plugin_wrapper():
                 
                 print("Deskewing and Saving Complete -> ", save_path)
                 return
+        
+        
         
         @magicclass(widget_type="collapsible", name="Crop and Save Data")
         class CropSaveData:
