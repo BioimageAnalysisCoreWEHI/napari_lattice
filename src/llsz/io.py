@@ -119,6 +119,7 @@ def save_tiff(vol,
               dx:float = 1,
               dy:float = 1,
               dz:float = 1,
+              angle:float = None,
               *args,**kwargs):
     """
     Applies a function as described in callable
@@ -135,6 +136,7 @@ def save_tiff(vol,
         dx (float, optional): _description_. Defaults to 1.
         dy (float, optional): _description_. Defaults to 1.
         dz (float, optional): _description_. Defaults to 1.
+        angle_in_degrees(float, optional) = Deskewing angle in degrees, used to calculate new z
     """              
     
     save_path = save_path.__str__()
@@ -142,8 +144,15 @@ def save_tiff(vol,
     time_range = range(time_start, time_end)
     channel_range = range(channel_start, channel_end)
     
+    #Calculate new_pixel size in z
     #convert voxel sixes to an aicsimage physicalpixelsizes object for metadata
-    aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
+    if angle:
+        import math
+        new_dz = math.sin(angle * math.pi / 180.0) * dz
+        aics_image_pixel_sizes = PhysicalPixelSizes(new_dz,dy,dx)
+    else:
+        
+        aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
 
     for time_point in tqdm(time_range, desc="Time", position=0):
         images_array = []      

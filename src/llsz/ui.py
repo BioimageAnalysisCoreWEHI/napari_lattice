@@ -250,10 +250,14 @@ def plugin_wrapper():
                           channel_end = ch_end,
                           save_path = save_path,
                           save_name= LLSZWidget.LlszMenu.save_name,
+                          dx = dx,
+                          dy = dy,
+                          dz = dz,
+                          angle = angle,
+                          angle_in_degrees = angle,
                           voxel_size_x=dx,
                           voxel_size_y=dy,
-                          voxel_size_z=dz,
-                          angle_in_degrees = angle,
+                          voxel_size_z=dz
                           )
                 
                 print("Deskewing and Saving Complete -> ", save_path)
@@ -306,6 +310,7 @@ def plugin_wrapper():
                     print("Cropping and saving files...")
 
                     for idx, roi_layer in enumerate(tqdm(roi_layer_list, desc="ROI:", position=0)):
+                        print("Processing ROI ",idx)
                         save_tiff(img_data,
                           crop_volume_deskew,
                           time_start = time_start,
@@ -318,6 +323,7 @@ def plugin_wrapper():
                           dx=dx,
                           dy=dy,
                           dz=dz,
+                          angle = angle,
                           deskewed_volume=deskewed_volume,
                           roi_shape = roi_layer,
                           angle_in_degrees = angle,
