@@ -9,18 +9,19 @@ from pathlib import Path
 import pyclesperanto_prototype as cle
 import sys
 import dask
+import dask.array as da
+import xarray 
+
 from dask.distributed import Client
 from dask.cache import Cache
+
 from llsz.utils import etree_to_dict
-from llsz.utils import get_deskewed_shape
+from llsz.utils import get_deskewed_shape, dask_expand_dims
 from llsz.llsz_core import crop_volume_deskew
 
 import os
 import numpy as np
-import dask 
-
 from napari.types import ImageData
-
 from tqdm import tqdm
 
 from napari_workflows import Workflow
@@ -142,6 +143,7 @@ def save_tiff(vol,
         dx (float, optional): _description_. Defaults to 1.
         dy (float, optional): _description_. Defaults to 1.
         dz (float, optional): _description_. Defaults to 1.
+        angle_in_degrees(float, optional) = Deskewing angle in degrees, used to calculate new z
     """              
     
     save_path = save_path.__str__()
@@ -149,8 +151,15 @@ def save_tiff(vol,
     time_range = range(time_start, time_end)
     channel_range = range(channel_start, channel_end)
     
+    #Calculate new_pixel size in z
     #convert voxel sixes to an aicsimage physicalpixelsizes object for metadata
-    aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
+    if angle:
+        import math
+        new_dz = math.sin(angle * math.pi / 180.0) * dz
+        aics_image_pixel_sizes = PhysicalPixelSizes(new_dz,dy,dx)
+    else:
+        
+        aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
 
     for time_point in tqdm(time_range, desc="Time", position=0):
         images_array = []      
@@ -187,7 +196,7 @@ class LatticeData_czi():
     def __init__(self,img,angle,skew) -> None:
         self.angle = angle
         self.skew = skew
-    
+
         #Read in image path or imageData and return an AICS objec. Allows standardised access to metadata
         #if isinstance(img,(np.ndarray,dask.array.core.Array)):
         #    self.data = convert_imgdata_aics(img)
@@ -195,6 +204,7 @@ class LatticeData_czi():
         self.data = read_img(img)
         
         self.dims = self.data.dims
+        
         self.time = self.data.dims.T
         self.channels = self.data.dims.C
 
@@ -215,10 +225,17 @@ class LatticeData_czi():
 #Class for initializing non czi files
 #TODO: Add option to read tiff files (images from Janelia lattice can be specified by changing angle and skew during initialisation)
 class LatticeData():
-    def __init__(self,img,angle,skew,dx,dy,dz) -> None:
+    def __init__(self,img,angle,skew,dx,dy,dz,channel_dimension) -> None:
         self.angle = angle
         self.skew = skew
-    
+
+        #if no channel dimension specified, then expand axis at index 1
+        if not channel_dimension:
+            #if xarray, access data using .data method
+            if type(img) is xarray.core.dataarray.DataArray:
+                img = img.data
+            img = dask_expand_dims(img,axis=1) #np expand_dims may not be appropriate for dask array
+                    
         #Read in image path or imageData and return an AICS objec. Allows standardised access to metadata
         #if isinstance(img,(np.ndarray,dask.array.core.Array)):
         self.data = convert_imgdata_aics(img)
@@ -237,7 +254,7 @@ class LatticeData():
         self.channels = self.data.dims.C
 
         #process the file to get parameters for deskewing
-        self.deskew_vol_shape = get_deskewed_shape(self.data, self.angle,self.dx,self.dy,self.dz)
+        self.deskew_vol_shape = get_deskewed_shape(self.data.dask_data, self.angle,self.dx,self.dy,self.dz)
         pass 
 
     def get_angle(self):

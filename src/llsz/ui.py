@@ -94,6 +94,7 @@ def plugin_wrapper():
                     print("Pixel sizes in microns (zyx): ", dz,dy,dx)
                 
                 LLSZWidget.LlszMenu.lattice = LatticeData(img_data, 30.0, skew_dir, dx, dy,dz)
+
                 LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
                 
                 self.glob_scale = LLSZWidget.LlszMenu.lattice.data.PhysicalPixelSizes
@@ -156,9 +157,6 @@ def plugin_wrapper():
             time_deskew = field(int, options={"min": 0, "step": 1}, name="Time")
             chan_deskew = field(int, options={"min": 0, "step": 1}, name="Channels")
 
-            time_deskew_value = 0
-            chan_deskew_value = 0
-
             @magicgui(header=dict(widget_type="Label", label="<h3>Preview Deskew</h3>"), call_button="Preview")
             def Preview_Deskew(self, header, img_data: ImageData):
                 """
@@ -191,8 +189,8 @@ def plugin_wrapper():
                                             angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
                                             voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
                                             voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
-                                            voxel_size_z=LLSZWidget.LlszMenu.lattice.dz)
-
+                                            voxel_size_z=LLSZWidget.LlszMenu.lattice.dz).astype(np.uint16)
+                deskew_final = cle.pull_zyx(deskewed)
                 # TODO: Use dask
                 if LLSZWidget.LlszMenu.dask:
                     print("Using CPU for deskewing")
@@ -202,8 +200,7 @@ def plugin_wrapper():
                 max_proj_deskew = np.max(deskew_final, axis=0)
 
                 # add channel and time information to the name
-                suffix_name = "_c" + str(LLSZWidget.LlszMenu.chan_deskew_value) + "_t" + \
-                              str(LLSZWidget.LlszMenu.time_deskew_value)
+                suffix_name = "_c" + str(channel) + "_t" + str(time)
 
                 self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP")
 
@@ -231,14 +228,18 @@ def plugin_wrapper():
             def Crop_Preview(self, roi_layer: ShapesData):  # -> LayerDataTuple:
                 assert roi_layer, "No coordinates found for cropping. Check if right shapes layer or initialise shapes layer and draw ROIs."
                 # TODO: Add assertion to check if bbox layer or coordinates
-                print("Using channel and time", self.chan_crop.value, self.time_crop.value)
-                # if passing roi layer as layer, use roi.data
-                # rotate around deskew_vol_shape
-                # going back from shape of deskewed volume to original for cropping
-
+                
+                time = self.time_crop.value
+                channel = self.chan_crop.value
+                
+                assert time < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
+                assert channel < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
+                
+                print("Using channel ", channel," and time", time)
+                               
                 vol = LLSZWidget.LlszMenu.aics.dask_data
 
-                vol_zyx= vol[self.time_crop.value,self.chan_crop.value,...]
+                vol_zyx= vol[time,channel,...]
 
                 deskewed_shape = LLSZWidget.LlszMenu.lattice.deskew_vol_shape
                 
@@ -248,7 +249,7 @@ def plugin_wrapper():
                 z_start = 0
                 z_end = deskewed_shape[0]
 
-                crop_roi_vol = crop_volume_deskew(original_volume = vol_zyx, 
+                crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx, 
                                                 deskewed_volume=deskewed_volume, 
                                                 roi_shape = roi_layer, 
                                                 angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle, 
@@ -256,8 +257,10 @@ def plugin_wrapper():
                                                 voxel_size_y =LLSZWidget.LlszMenu.lattice.dy, 
                                                 voxel_size_z =LLSZWidget.LlszMenu.lattice.dz, 
                                                 z_start = z_start, 
-                                                z_end = z_end)
+                                                z_end = z_end).astype(np.uint16)
 
+                crop_roi_vol = cle.pull_zyx(crop_roi_vol_desk)
+                
                 self.parent_viewer.add_image(crop_roi_vol)
                 return
 
@@ -319,14 +322,20 @@ def plugin_wrapper():
                           channel_end = ch_end,
                           save_path = save_path,
                           save_name= LLSZWidget.LlszMenu.save_name,
+                          dx = dx,
+                          dy = dy,
+                          dz = dz,
+                          angle = angle,
+                          angle_in_degrees = angle,
                           voxel_size_x=dx,
                           voxel_size_y=dy,
-                          voxel_size_z=dz,
-                          angle_in_degrees = angle,
+                          voxel_size_z=dz
                           )
                 
                 print("Deskewing and Saving Complete -> ", save_path)
                 return
+        
+        
         
         @magicclass(widget_type="collapsible", name="Crop and Save Data")
         class CropSaveData:
@@ -391,7 +400,7 @@ def plugin_wrapper():
                                             z_end = z_end)
 
                     for idx, roi_layer in enumerate(tqdm(roi_layer_list, desc="ROI:", position=0)):
-                        
+                        print("Processing ROI ",idx)
                         #As the roi changes every loop, we set the roi here
                         crop_deskew_workflow.set(roi, roi_layer)
                         
@@ -411,6 +420,7 @@ def plugin_wrapper():
                                     voxel_size_z=dz,
                                     angle_in_degrees = angle,
                                     )
+
                     print("Cropping and Saving Complete -> ", save_path)
                     return
                 

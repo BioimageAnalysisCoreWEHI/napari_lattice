@@ -77,7 +77,7 @@ def get_deskewed_shape(volume,
     return new_shape
 
 
-#https://stackoverflow.com/questions/7684333/converting-xml-to-dictionary-using-elementtree
+#https://stackoverflow.com/a/10076823
 #Credit: Antoine Pinsard
 #Convert xml elementree to dict
 def etree_to_dict(t):
@@ -120,6 +120,7 @@ def suppress_stdout_stderr():
         with redirect_stderr(fnull) as err, redirect_stdout(fnull) as out:
             yield (err, out)
 
+
 #Functions to deal with cle workflow
 #TODO: Clean up this function
 def get_first_last_image_and_task(user_workflow:Workflow):
@@ -150,3 +151,18 @@ def get_first_last_image_and_task(user_workflow:Workflow):
                 last_task_name.append(key)
                 
     return input_arg_first, img_source, first_task_name, last_task_name
+
+        
+#dask implementation for expand_dims not in latest release yet, so copying from their repo
+#https://github.com/dask/dask/blob/dca10398146c6091a55c54db3778a06b485fc5ce/dask/array/routines.py#L1889        
+def dask_expand_dims(a,axis):
+    if type(axis) not in (tuple, list):
+        axis = (axis,)
+
+    out_ndim = len(axis) + a.ndim
+
+    shape_it = iter(a.shape)
+    shape = [1 if ax in axis else next(shape_it) for ax in range(out_ndim)]
+
+    return a.reshape(shape)
+

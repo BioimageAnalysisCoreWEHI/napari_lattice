@@ -61,31 +61,39 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.array],
     #get shape of original volume in xyz
     orig_shape = original_volume.shape[::-1]
 
-    #Default taking entire frame of y. 
-    #TODO: allow cropping in all axes
-    y_start = 0
-    y_end = orig_shape[1]
 
+    #Take min and max of the cropped bounding boxes to define min and max coordinates
+    #crop_transform_bbox is in the form xyz
+    
     min_coordinate = crop_transform_bbox.min(axis=0)
     max_coordinate = crop_transform_bbox.max(axis=0)
 
+    #get min and max in each position
+    #clip them to avoid negative values and any values outside the bounding box of original volume
     x_start = min_coordinate[0].astype(int)
+    x_start = np.clip(x_start, 0,orig_shape[0])
     x_end = max_coordinate[0].astype(int)
+    x_end = np.clip(x_end, 0,orig_shape[0])
 
-    #The crop_transform bbox has 4 values of z
-    #First and last z value is out of bounds of the original volume
-    #We only take the 2nd and 3rd value
-    z_end_vol = np.abs(crop_transform_bbox[2][2]).astype(int)
+    y_start = min_coordinate[1].astype(int)
+    y_start = np.clip(y_start, 0,orig_shape[1])
+    
+    y_end = max_coordinate[1].astype(int)
+    y_end = np.clip(y_end, 0,orig_shape[1])
+    
+    z_start_vol = min_coordinate[2].astype(int)
+    z_start_vol = np.clip(z_start_vol, 0,orig_shape[2]) #clip to z bounds of original volume
+    
+    z_end_vol = max_coordinate[2].astype(int)
     z_end_vol = np.clip(z_end_vol, 0,orig_shape[2]) #clip to z bounds of original volume
 
-    z_start_vol = np.abs(crop_transform_bbox[1][2]).astype(int)
-    z_start_vol = np.clip(z_start_vol, 0,orig_shape[2]) #clip to z bounds of original volume
-
-    #make sure z_start > z_end
-    if z_start > z_end:
+    #make sure z_start < z_end
+    if z_start_vol > z_end_vol:
         #tuple swap  #https://docs.python.org/3/reference/expressions.html#evaluation-order
-        z_start,z_end = z_end,z_start
-        
+        z_start_vol,z_end_vol = z_end_vol,z_start_vol
+    
+    #After getting the coordinates, crop from original volume and deskew only the cropped volume
+    
     if type(original_volume) is da.core.Array:
         #If using dask, use .map_blocks(np.copy) to copy subset (faster)
         crop_volume = original_volume[z_start_vol:z_end_vol,y_start:y_end,x_start:x_end].map_blocks(np.copy).squeeze()
@@ -107,7 +115,7 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.array],
     #Crop in Y
     deskewed_crop = deskewed_prelim[:,crop_excess:crop_height+crop_excess,:]
 
-    return deskewed_crop
+    return deskewed_crop #deskewed_prelim
 
 #Get reverse affine transform by rotating around a user-specified volume
 def get_inverse_affine_transform(original_volume,angle_in_degrees,voxel_x,voxel_y,voxel_z):
