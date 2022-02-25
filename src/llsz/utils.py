@@ -4,7 +4,6 @@ from contextlib import contextmanager,redirect_stderr,redirect_stdout
 from os import devnull
 import numpy as np
 import pyclesperanto_prototype as cle
-from napari_workflows import Workflow
 
 
 #get bounding box of ROI in 3D and the shape of the ROI
@@ -119,39 +118,6 @@ def suppress_stdout_stderr():
     with open(devnull, 'w') as fnull:
         with redirect_stderr(fnull) as err, redirect_stdout(fnull) as out:
             yield (err, out)
-
-
-#Functions to deal with cle workflow
-#TODO: Clean up this function
-def get_first_last_image_and_task(user_workflow:Workflow):
-    """Get first, last images and tasks
-
-    Args:
-        user_workflow (Workflow): _description_
-
-    Returns:
-        _type_: name of first input image, last input image, first task, last task
-    """    
-    
-    #get image with no preprocessing step (first image)
-    input_arg_first = user_workflow.roots()[0]
-    #get last image
-    input_arg_last = user_workflow.leafs()[0]
-    #get name of preceding image as that is the input to last task
-    img_source = user_workflow.sources_of(input_arg_last)[0]
-    first_task_name = []
-    last_task_name = []
-
-    #loop through workflow keys and get key that has 
-    for key in user_workflow._tasks.keys():
-        for task in user_workflow._tasks[key]:
-            if task == input_arg_first:
-                first_task_name.append(key)
-            elif task == img_source:
-                last_task_name.append(key)
-                
-    return input_arg_first, img_source, first_task_name, last_task_name
-
         
 #dask implementation for expand_dims not in latest release yet, so copying from their repo
 #https://github.com/dask/dask/blob/dca10398146c6091a55c54db3778a06b485fc5ce/dask/array/routines.py#L1889        
@@ -165,4 +131,3 @@ def dask_expand_dims(a,axis):
     shape = [1 if ax in axis else next(shape_it) for ax in range(out_ndim)]
 
     return a.reshape(shape)
-
