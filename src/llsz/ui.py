@@ -1,5 +1,14 @@
 # UI for reading files, deskewing and cropping
 
+#check for napari-aicsimageio and aicsimageio[czi]
+import sys
+
+package_names = ["napari_aicsimageio","aicsimageio[czi]"]
+
+for package in package_names:
+    assert package in sys.modules, "Packages not found. Please install aicsimageio[czi] and napari-aicsimageio"
+
+
 import os
 from pathlib import Path
 from magicclass.wrappers import set_design

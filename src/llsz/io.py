@@ -1,7 +1,5 @@
 #Opening and saving files
-
 import aicsimageio
-import aicspylibczi
 from aicsimageio.writers import OmeTiffWriter
 from aicsimageio.types import PhysicalPixelSizes
 from pathlib import Path
@@ -23,6 +21,7 @@ import os
 import numpy as np
 from napari.types import ImageData
 from tqdm import tqdm
+
 
 #add options for configuring dask scheduler
 
@@ -97,7 +96,7 @@ def convert_imgdata_aics(img_data:ImageData):
 #will flesh this out once Zeiss lattice has more relevant metadata in the czi file
 def check_metadata(img_path):
     print("Checking CZI metadata")
-    metadatadict_czi = etree_to_dict(aicspylibczi.CziFile(img_path).meta)
+    metadatadict_czi = etree_to_dict(aicsimageio.AICSImage(img_path).metadata)
     metadatadict_czi = metadatadict_czi["ImageDocument"]["Metadata"]
     acquisition_mode_setup=metadatadict_czi["Experiment"]["ExperimentBlocks"]["AcquisitionBlock"]["HelperSetups"]["AcquisitionModeSetup"]["Detectors"]
     print(acquisition_mode_setup["Detector"]["ImageOrientation"])
