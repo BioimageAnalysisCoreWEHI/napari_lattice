@@ -1,12 +1,13 @@
 # UI for reading files, deskewing and cropping
-
+#TODO: Add in setup.cfg; change license to GPL3
 #check for napari-aicsimageio and aicsimageio[czi]
-import sys
+#
+#import sys
 
-package_names = ["napari_aicsimageio","aicsimageio[czi]"]
+#package_names = ["napari_aicsimageio","aicspylibczi"]
 
-for package in package_names:
-    assert package in sys.modules, "Packages not found. Please install aicsimageio[czi] and napari-aicsimageio"
+#for package in package_names:
+    #assert package in sys.modules, "Packages not found. Please install napari_aicsimageio and aicspylibczi."
 
 
 import os

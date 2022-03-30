@@ -53,7 +53,7 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.array],
     crop_bounding_box, crop_vol_shape = calculate_crop_bbox(shape,z_start,z_end)
     
     #get reverse transform by rotating around original volume
-    reverse_aff, excess_bounds = get_inverse_affine_transform(original_volume,angle_in_degrees,voxel_size_x,voxel_size_y,voxel_size_z)
+    reverse_aff, excess_bounds, deskew_transform = get_inverse_affine_transform(original_volume,angle_in_degrees,voxel_size_x,voxel_size_y,voxel_size_z)
 
     #apply the transform to get corresponding bounding boxes in original volume
     crop_transform_bbox = np.asarray(list(map(lambda x: reverse_aff._matrix @ x,crop_bounding_box)))
@@ -100,11 +100,9 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.array],
     else:
         crop_volume = original_volume[z_start_vol:z_end_vol,y_start:y_end,x_start:x_end]
 
-    deskewed_prelim = cle.deskew_y(crop_volume, 
-                        angle_in_degrees=angle_in_degrees, 
-                        voxel_size_x=voxel_size_x, 
-                        voxel_size_y=voxel_size_y, 
-                        voxel_size_z=voxel_size_z)
+    deskewed_prelim = cle.affine_transform(crop_volume, 
+                                           transform =deskew_transform,
+                                           auto_size=True)
     #The height of deskewed_prelim will be larger than specified shape
     # as the coordinates of the ROI are skewed in the original volume
 
@@ -115,7 +113,7 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.array],
     #Crop in Y
     deskewed_crop = deskewed_prelim[:,crop_excess:crop_height+crop_excess,:]
 
-    return deskewed_crop #deskewed_prelim
+    return deskewed_crop
 
 #Get reverse affine transform by rotating around a user-specified volume
 def get_inverse_affine_transform(original_volume,angle_in_degrees,voxel_x,voxel_y,voxel_z):
@@ -131,7 +129,7 @@ def get_inverse_affine_transform(original_volume,angle_in_degrees,voxel_x,voxel_
         voxel_z (_type_): _description_
 
     Returns:
-        cle.AffineTransform3D, int: Affine transform and Excess z slices on either side of the undeskewed volume
+        Inverse Affine transform (cle.AffineTransform3D), int: Excess z slices, Deskew transform (cle.AffineTransform3D)
     """    
     #calculate the deskew transform for specified volume
     deskew_transform = _deskew_y_vol_transform(original_volume,angle_in_degrees,voxel_x,voxel_y,voxel_z)
@@ -156,7 +154,7 @@ def get_inverse_affine_transform(original_volume,angle_in_degrees,voxel_x,voxel_
     rev_deskew_z = max_bounds[2]
     extra_bounds = int((rev_deskew_z - original_volume.shape[0]))
 
-    return deskew_inverse, extra_bounds
+    return deskew_inverse, extra_bounds, deskew_transform
 
 #Get deskew transform where rotation is around centre of "original_volume"
 def _deskew_y_vol_transform(original_volume, angle_in_degrees:float = 30, voxel_size_x: float = 1,
@@ -178,19 +176,26 @@ def _deskew_y_vol_transform(original_volume, angle_in_degrees:float = 30, voxel_
     import math
     
     transform = cle.AffineTransform3D()
-    transform.shear_in_x_plane(angle_y_in_degrees = 90 - angle_in_degrees)
+    shear_factor = math.sin((90 - angle_in_degrees) * math.pi / 180.0) * (voxel_size_z/voxel_size_y)
+    transform._matrix[1, 2] = shear_factor
+    #transform.shear_in_x_plane(angle_y_in_degrees = 90 - angle_in_degrees)
     
     #As deskewing is performed by rotation around ref_vol, we need to define a rotation matrix
     #that uses centre of ref_vol
-    transform._concatenate(rotate_around_vol_mat(original_volume, -(90-angle_in_degrees)))
+    
+    #transform.rotate(angle_in_degrees= 0 - angle_in_degrees, axis=0)
     
     # make voxels isotropic, calculate the new scaling factor for Z after shearing
     # https://github.com/tlambert03/napari-ndtiffs/blob/092acbd92bfdbf3ecb1eb9c7fc146411ad9e6aae/napari_ndtiffs/affine.py#L57
     new_dz = math.sin(angle_in_degrees * math.pi / 180.0) * voxel_size_z
     scale_factor_z = (new_dz / voxel_size_y) * scale_factor
     transform.scale(scale_x=scale_factor, scale_y=scale_factor, scale_z=scale_factor_z)
+    
+    #rotation around centre of ref_vol
+    #transform._concatenate(rotate_around_vol_mat(original_volume, (0-angle_in_degrees)))
+    transform.rotate(angle_in_degrees= 0 - angle_in_degrees, axis=0)
     # correct orientation so that the new Z-plane goes proximal-distal from the objective.
-    transform.rotate(angle_in_degrees=90, axis=0)
+    
 
     return transform
 
