@@ -115,7 +115,7 @@ the coverage at least stays the same before you submit a pull request.
 
 ## License
 
-Distributed under the terms of the [BSD-3] license,
+Distributed under the terms of the [GPL-3.0 License] license,
 "llsz_napari" is free and open source software
 
 ## Issues
