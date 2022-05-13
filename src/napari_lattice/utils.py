@@ -1,10 +1,12 @@
 import numpy as np
 from collections import defaultdict
 from contextlib import contextmanager,redirect_stderr,redirect_stdout
-from os import devnull
-import numpy as np
-import pyclesperanto_prototype as cle
+from os import devnull, path
 
+import pyclesperanto_prototype as cle
+from read_roi import read_roi_zip
+
+from napari_workflows import Workflow
 
 #get bounding box of ROI in 3D and the shape of the ROI
 def calculate_crop_bbox(shape, z_start:int, z_end:int):
@@ -131,3 +133,83 @@ def dask_expand_dims(a,axis):
     shape = [1 if ax in axis else next(shape_it) for ax in range(out_ndim)]
 
     return a.reshape(shape)
+
+def read_imagej_roi(roi_zip_path):
+    assert  path.splitext(roi_zip_path)[1] == ".zip", "ImageJ ROI file needs to be a zip file"
+    ij_roi = read_roi_zip(roi_zip_path)
+
+    #initialise list of rois
+    roi_list = []
+
+    #Read through each roi and create a list so that it matches the organisation of the shapes from napari shapes layer
+    for k in ij_roi.keys():
+        if ij_roi[k]['type'] in ('oval', 'rectangle'):
+            width=ij_roi[k]['width']
+            height=ij_roi[k]['height']
+            left=ij_roi[k]['left']
+            top=ij_roi[k]['top']
+            roi = [[top,left],[top,left+width],[top+height,left+width],[top+height,left]]
+            roi_list.append(roi)
+        elif ij_roi[k]['type'] in ('polygon','freehand'):
+            left = min(ij_roi[k]['x'])
+            top = min(ij_roi[k]['y'])
+            right = max(ij_roi[k]['x'])
+            bottom = max(ij_roi[k]['y'])
+            roi = [[top,left],[top,right],[bottom,right],[bottom,left]]
+            roi_list.append(roi)
+        else:
+            print("Cannot read ROI ",ij_roi[k],".Recognised as type ",ij_roi[k]['type'])
+    return roi_list
+
+#Functions to deal with cle workflow
+#TODO: Clean up this function
+def get_first_last_image_and_task(user_workflow:Workflow):
+    """Get images and tasks for first and last entry
+    Args:
+        user_workflow (Workflow): _description_
+    Returns:
+        list: name of first input image, last input image, first task, last task
+    """    
+    
+    #get image with no preprocessing step (first image)
+    input_arg_first = user_workflow.roots()[0]
+    #get last image
+    input_arg_last = user_workflow.leafs()[0]
+    #get name of preceding image as that is the input to last task
+    img_source = user_workflow.sources_of(input_arg_last)[0]
+    first_task_name = []
+    last_task_name = []
+
+    #loop through workflow keys and get key that has 
+    for key in user_workflow._tasks.keys():
+        for task in user_workflow._tasks[key]:
+            if task == input_arg_first:
+                first_task_name.append(key)
+            elif task == img_source:
+                last_task_name.append(key)
+                
+    return input_arg_first, img_source, first_task_name, last_task_name
+
+
+def modify_workflow_task(old_arg,task_key:str,new_arg,workflow):
+    """_Modify items in a workflow task
+    Workflow is not modified, only a new task with updated arg is returned
+    Args:
+        old_arg (_type_): The argument in the workflow that needs to be modified
+        new_arg (_type_): New argument
+        task_key (str): Name of the task within the workflow
+        workflow (_type_): Workflow
+
+    Returns:
+        tuple: Modified task with name task_key
+    """    
+    task = workflow._tasks[task_key]
+    #convert tuple to list for modification
+    task_list = list(task)
+    try:
+        item_index =  task_list.index(old_arg)
+    except ValueError:
+       print(old_arg," not found in workflow file")
+    task_list[item_index] = new_arg
+    modified_task=tuple(task_list)
+    return modified_task

@@ -66,6 +66,11 @@ docs/_build/
 # PyBuilder
 target/
 
+# Pycharm and VSCode
+.idea/
+venv/
+.vscode/
+
 # IPython Notebook
 .ipynb_checkpoints
 
@@ -77,11 +82,3 @@ target/
 
 # written by setuptools_scm
 **/_version.py
-
-.vscode/
-/dask-worker-space/
-
-#all pycache directories
-/**/__pycache__
-
-.idea/

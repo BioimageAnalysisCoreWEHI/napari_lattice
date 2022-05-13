@@ -1,0 +1,26 @@
+name: napari-lattice
+display_name: Lattice Lightsheet Analysis
+contributions:
+  commands:   
+  - id: napari-lattice.deskew
+    title: Deskewing
+    python_name: napari_lattice.deskew:_deskew_widget 
+
+  - id: napari-lattice.crop_deskew
+    title: Crop & Deskew
+    python_name: napari_lattice.crop_deskew:_crop_deskew_widget 
+
+  - id: napari-lattice.workflow
+    title: Lattice Workflow
+    python_name: napari_lattice.use_workflow:_workflow_widget
+
+  widgets:
+  - command: napari-lattice.deskew
+    display_name: Deskew
+
+  - command: napari-lattice.crop_deskew
+    display_name: Crop & Deskew
+
+  - command: napari-lattice.workflow
+    display_name: Lattice Workflow
+    #autogenerate: true
