@@ -107,8 +107,11 @@ the coverage at least stays the same before you submit a pull request.
 
 ## License
 
-Distributed under the terms of the [GNU GPL v3.0] license,
-"napari-lattice" is free and open source software
+
+=======
+Distributed under the terms of the [GPL-3.0 License] license,
+"llsz_napari" is free and open source software
+
 
 ## Issues
 
@@ -119,7 +122,7 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 [@napari]: https://github.com/napari
 [MIT]: http://opensource.org/licenses/MIT
 [BSD-3]: http://opensource.org/licenses/BSD-3-Clause
-[GNU GPL v3.0]: http://www.gnu.org/licenses/gpl-3.0.txt
+[GGPL-3.0 License]: http://www.gnu.org/licenses/gpl-3.0.txt
 [GNU LGPL v3.0]: http://www.gnu.org/licenses/lgpl-3.0.txt
 [Apache Software License 2.0]: http://www.apache.org/licenses/LICENSE-2.0
 [Mozilla Public License 2.0]: https://www.mozilla.org/media/MPL/2.0/index.txt
