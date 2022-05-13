@@ -5,7 +5,7 @@ import dask.array as da
 from typing import Union
 from napari.layers.shapes import shapes
 
-from llsz.utils import calculate_crop_bbox
+from .utils import calculate_crop_bbox
 
 
 #pass shapes data from single ROI to crop the volume from original data
@@ -42,6 +42,7 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.array],
     if type(roi_shape) is shapes.Shapes:
         shape = roi_shape.data[0]
     elif type(roi_shape) is list:#if list of rois, use only first one
+        #TODO:change to accept any roi by passing index
         shape = roi_shape[0]
         #len(roi_shape) >= 1:  
     elif len(roi_shape) == 4 and type(roi_shape) is np.ndarray:
@@ -176,14 +177,11 @@ def _deskew_y_vol_transform(original_volume, angle_in_degrees:float = 30, voxel_
     import math
     
     transform = cle.AffineTransform3D()
+    
+    #shear factor for deskewing
     shear_factor = math.sin((90 - angle_in_degrees) * math.pi / 180.0) * (voxel_size_z/voxel_size_y)
     transform._matrix[1, 2] = shear_factor
-    #transform.shear_in_x_plane(angle_y_in_degrees = 90 - angle_in_degrees)
     
-    #As deskewing is performed by rotation around ref_vol, we need to define a rotation matrix
-    #that uses centre of ref_vol
-    
-    #transform.rotate(angle_in_degrees= 0 - angle_in_degrees, axis=0)
     
     # make voxels isotropic, calculate the new scaling factor for Z after shearing
     # https://github.com/tlambert03/napari-ndtiffs/blob/092acbd92bfdbf3ecb1eb9c7fc146411ad9e6aae/napari_ndtiffs/affine.py#L57
@@ -199,6 +197,7 @@ def _deskew_y_vol_transform(original_volume, angle_in_degrees:float = 30, voxel_
 
     return transform
 
+#deprecated
 #Calculate rotation transform around a volume
 def rotate_around_vol_mat(ref_vol,angle_in_degrees:float=30.0):
     """Return the rotation matrix , so its rotated around centre of ref_vol
@@ -239,4 +238,3 @@ def rotate_around_vol_mat(ref_vol,angle_in_degrees:float=30.0):
     rotate_mat = np.dot(np.dot(np.dot(T, T1), R), T2)
     #print(rotate_mat)
     return rotate_mat
-

@@ -1,25 +1,25 @@
-# **Napari-Lattice-Lightsheet**
-[![License](https://img.shields.io/pypi/l/llsz_napari.svg?color=green)](https://github.com/pr4deepr/llsz_napari/raw/main/LICENSE)
-[![PyPI](https://img.shields.io/pypi/v/llsz_napari.svg?color=green)](https://pypi.org/project/llsz_napari)
-[![Python Version](https://img.shields.io/pypi/pyversions/llsz_napari.svg?color=green)](https://python.org)
-[![tests](https://github.com/pr4deepr/llsz_napari/workflows/tests/badge.svg)](https://github.com/pr4deepr/llsz_napari/actions)
-[![codecov](https://codecov.io/gh/pr4deepr/llsz_napari/branch/main/graph/badge.svg)](https://codecov.io/gh/pr4deepr/llsz_napari)
-[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/llsz_napari)](https://napari-hub.org/plugins/llsz_napari)
+# napari-lattice
 
+[![License](https://img.shields.io/pypi/l/napari-lattice.svg?color=green)](https://github.com/githubuser/napari-lattice/raw/main/LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/napari-lattice.svg?color=green)](https://pypi.org/project/napari-lattice)
+[![Python Version](https://img.shields.io/pypi/pyversions/napari-lattice.svg?color=green)](https://python.org)
+[![tests](https://github.com/githubuser/napari-lattice/workflows/tests/badge.svg)](https://github.com/githubuser/napari-lattice/actions)
+[![codecov](https://codecov.io/gh/githubuser/napari-lattice/branch/main/graph/badge.svg)](https://codecov.io/gh/githubuser/napari-lattice)
+[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-lattice)](https://napari-hub.org/plugins/napari-lattice)
+
+A simple plugin to use with napari
 
 ----------------------------------
 
-This [napari] plugin was generated with [Cookiecutter] using with [@napari]'s [cookiecutter-napari-plugin] template.
+This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
 
 <!--
 Don't miss the full getting started guide to set up your new package:
 https://github.com/napari/cookiecutter-napari-plugin#getting-started
 
 and review the napari docs for plugin developers:
-https://napari.org/docs/plugins/index.html
+https://napari.org/plugins/index.html
 -->
-
-This napari plugin allows deskewing, cropping and visualisation of lattice lightsheet data from a Zeiss lattice lightsheet microscope. Support will eventually be for other oblique plane lightsheet microscopy files.
 
 ## **Installation**
 
@@ -46,7 +46,7 @@ If this version doesn't work, try `pyopencl‑2021.2.9+cl12‑cp39‑cp39‑win_
 
 To install latest version of the napari plugin:
 
-    pip install git+https://github.com/pr4deepr/llsz_napari.git
+    pip install git+https://github.com/pr4deepr/napari_lattice.git
 
 *************
 ## **Features**
@@ -57,13 +57,10 @@ To install latest version of the napari plugin:
 All transformations are now powered by clesperanto.
 
 Functions:
-* Opening files (2 options)
-  * Open a czi lattice file OR 
-  * Select an existing image layer in napari. This means you will have to enter voxel sizes and deskewing angle manually
-* Preview deskewing on any time or channel
-* Preview cropping on any time or channel
-* Save deskewed stack for time and channel range of interest
-* Save cropped stack for time and channel range of interest
+* Deskewing of Zeiss lattice lightsheet images
+  * Ability to preview deskewed image
+* Crop and deskew only a small portion of the image (Saves Time and storage)
+* You can import ROIs created in ImageJ into the plugin for cropping
 
 
 
@@ -74,7 +71,7 @@ Once installed, just [start napari](https://napari.org/tutorials/fundamentals/ge
 
 ### ****File compatibility**
 
-You can directly open a Zeiss lattice file by clicking `open a czi file`. Alternatively, drag and drop an image stack in napari and then click `Choose Existing Layer` to set the values for this image layer. 
+You can directly open a Zeiss lattice file by dragging the file into napari. Once image has loaded, click `Choose Image Layer`. If its a czi file, you do not need to enter voxel sizes, just choose the corresponding Image Layer and press Ok. Once the button turns green, it means the image is loaded
 
 ### **Previewing data**
 
@@ -82,7 +79,9 @@ To preview the deskewed output of a single timepoint and channel, choose the lay
 
 ### **Previewing cropped data**
 
-Click Initialise shapes layer so you can draw an ROI for the region you would like to crop. The first ROI in the Shapes layer selected in `roi layer` will be deskewed. 
+Click Initialise shapes layer to enable the buttons for cropping and import ImageJ ROIs. You can draw an ROI for the region you would like to crop. If you have multiple ROIs, select the ROI you would like to deskew.
+
+You can also import ROIs from an ImageJ ROI file (.zip). You can use a combination of shapes and ImageJ ROIs.
 
 Note: The cropping functionality works by calculating the corresponding coordinates in the raw data and then deskewing only that portion. This should save time if you decide to use `Crop and Save Data` option.
 
@@ -101,13 +100,6 @@ Please find sample data for testing in the `sample_data` folder above
 
 
 
-To do:
-* Clean up UI (Menu options?)
-* Implement image analysis workflow option
-* Include deconvolution
-* Add batch processing option (no napari -> magic-class or magicgui only)
-
-
 ## Contributing
 
 Contributions are very welcome. Tests can be run with [tox], please ensure
@@ -115,8 +107,11 @@ the coverage at least stays the same before you submit a pull request.
 
 ## License
 
+
+=======
 Distributed under the terms of the [GPL-3.0 License] license,
 "llsz_napari" is free and open source software
+
 
 ## Issues
 
@@ -127,13 +122,11 @@ If you encounter any problems, please [file an issue] along with a detailed desc
 [@napari]: https://github.com/napari
 [MIT]: http://opensource.org/licenses/MIT
 [BSD-3]: http://opensource.org/licenses/BSD-3-Clause
-[GNU GPL v3.0]: http://www.gnu.org/licenses/gpl-3.0.txt
+[GGPL-3.0 License]: http://www.gnu.org/licenses/gpl-3.0.txt
 [GNU LGPL v3.0]: http://www.gnu.org/licenses/lgpl-3.0.txt
 [Apache Software License 2.0]: http://www.apache.org/licenses/LICENSE-2.0
 [Mozilla Public License 2.0]: https://www.mozilla.org/media/MPL/2.0/index.txt
 [cookiecutter-napari-plugin]: https://github.com/napari/cookiecutter-napari-plugin
-
-[file an issue]: https://github.com/pr4deepr/llsz_napari/issues
 
 [napari]: https://github.com/napari/napari
 [tox]: https://tox.readthedocs.io/en/latest/
