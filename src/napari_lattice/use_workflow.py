@@ -62,18 +62,20 @@ def _workflow_widget():
                 WorkflowWidget.WorkflowMenu.lattice = LatticeData(img_layer, 30.0, skew_dir,pixel_size_dx, pixel_size_dy,
                                                           pixel_size_dz,channel_dimension_present)
                 WorkflowWidget.WorkflowMenu.dask = False  # Use GPU by default
-                ave_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
-                if save_name:
-                    WorkflowWidget.WorkflowMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
-                else:
+                
+                if img_layer.source.path is None:
                     WorkflowWidget.WorkflowMenu.save_name = img_layer.name
+                else:
+                    WorkflowWidget.WorkflowMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
+
                 #Flag to check if file has been initialised
                 WorkflowWidget.WorkflowMenu.open_file = True
-                self["Choose_Image_Layer"].background_color = "green"
+
                 print("Pixel size (ZYX): ",(WorkflowWidget.WorkflowMenu.lattice.dz,WorkflowWidget.WorkflowMenu.lattice.dy,WorkflowWidget.WorkflowMenu.lattice.dx))
                 print("Dimensions of image layer (ZYX): ",list(WorkflowWidget.WorkflowMenu.lattice.data.shape[-3:]))
                 print("Dimensions of deskewed image (ZYX): ",WorkflowWidget.WorkflowMenu.lattice.deskew_vol_shape)
                 print("Initialised")
+                self["Choose_Image_Layer"].background_color = "green"
                 return
                     
 

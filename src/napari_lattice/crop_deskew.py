@@ -58,18 +58,19 @@ def _crop_deskew_widget():
                 CropWidget.CropMenu.lattice = LatticeData(img_layer, 30.0, skew_dir,pixel_size_dx, pixel_size_dy,
                                                           pixel_size_dz,channel_dimension_present)
                 CropWidget.CropMenu.dask = False  # Use GPU by default
-                save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
-                if save_name:
-                    CropWidget.CropMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
-                else:
+                
+                if img_layer.source.path is None:
                     CropWidget.CropMenu.save_name = img_layer.name
+                else:
+                    CropWidget.CropMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
+
                 #Flag to check if file has been initialised
                 CropWidget.CropMenu.open_file = True
-                self["Choose_Image_Layer"].background_color = "green"
                 print("Pixel size (ZYX): ",(CropWidget.CropMenu.lattice.dz,CropWidget.CropMenu.lattice.dy,CropWidget.CropMenu.lattice.dx))
                 print("Dimensions of image layer (ZYX): ",list(CropWidget.CropMenu.lattice.data.shape[-3:]))
                 print("Dimensions of deskewed image (ZYX): ",CropWidget.CropMenu.lattice.deskew_vol_shape)
                 print("Initialised")
+                self["Choose_Image_Layer"].background_color = "green"
                 return
                     
 
@@ -134,12 +135,17 @@ def _crop_deskew_widget():
                 vol_zyx= vol[time,channel,...]
 
                 # Deskew using pyclesperanto
-                deskew_final = cle.deskew_y(vol_zyx, 
-                                            angle_in_degrees=CropWidget.CropMenu.angle_value,
-                                            voxel_size_x=CropWidget.CropMenu.lattice.dx,
-                                            voxel_size_y=CropWidget.CropMenu.lattice.dy,
-                                            voxel_size_z=CropWidget.CropMenu.lattice.dz).astype(vol_zyx.dtype)
-                
+                #deskew_final = cle.deskew_y(vol_zyx, 
+                                            #angle_in_degrees=CropWidget.CropMenu.angle_value,
+                                            #voxel_size_x=CropWidget.CropMenu.lattice.dx,
+                                            #voxel_size_y=CropWidget.CropMenu.lattice.dy,
+                                            #voxel_size_z=CropWidget.CropMenu.lattice.dz).astype(vol_zyx.dtype)
+                deskew_final = vol_zyx.map_blocks(cle.deskew_y,
+                                                angle_in_degrees=CropWidget.CropMenu.angle_value,
+                                                voxel_size_x=CropWidget.CropMenu.lattice.dx,
+                                                voxel_size_y=CropWidget.CropMenu.lattice.dy,
+                                                voxel_size_z=CropWidget.CropMenu.lattice.dz,
+                                                dtype=vol.dtype)
                 #deskew_final = cle.pull_zyx(deskewed)
                 # TODO: Use dask
                 if CropWidget.CropMenu.dask:
