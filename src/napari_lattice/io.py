@@ -1,4 +1,5 @@
 #Opening and saving files
+from multiprocessing.dummy import Array
 import aicsimageio
 from aicsimageio.writers import OmeTiffWriter
 from aicsimageio.types import PhysicalPixelSizes
@@ -135,6 +136,10 @@ def save_tiff(vol,
             #Apply function to a volume
             if func is cle.deskew_y:
                 #print(raw_vol.shape)
+                #import dask.array as da
+                #if raw_vol not da.core.Array:
+                    #raw_vol=da.from_array(raw_vol)
+                #process_vol = raw_vol.map_blocks(func,input_image = raw_vol, dtype=image_type,*args,**kwargs)
                 processed_vol = func(input_image = raw_vol, *args,**kwargs).astype(image_type)
             elif func is crop_volume_deskew:
                 processed_vol = func(original_volume = raw_vol, *args,**kwargs).astype(image_type)
@@ -161,8 +166,6 @@ def save_tiff_workflow(vol,
               channel_start:int,
               channel_end:int,
               save_path:Path,
-              crop:bool=False,
-              roi_layer=None,
               save_name_prefix:str = "",
               save_name:str = "img",
               dx:float = 1,
@@ -188,7 +191,7 @@ def save_tiff_workflow(vol,
         dx (float, optional): _description_. Defaults to 1.
         dy (float, optional): _description_. Defaults to 1.
         dz (float, optional): _description_. Defaults to 1.
-        angle_in_degrees(float, optional) = Deskewing angle in degrees, used to calculate new z
+        angle(float, optional) = Deskewing angle in degrees, used to calculate new z
     """              
     
     save_path = save_path.__str__()
@@ -214,11 +217,12 @@ def save_tiff_workflow(vol,
             else:
                 raw_vol = vol[time_point, ch, :, :, :]
             
+            #Set input to the workflow to be volume from each time point and channel
             workflow.set(input_arg,raw_vol)
+            #execute workflow
             processed_vol = workflow.get(last_task)
-            images_array.append(processed_vol)
-            
-            
+            images_array.append(processed_vol)    
+        
         images_array = np.array(images_array)
         final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
                         time_point) + "_" + save_name + ".ome.tif"
@@ -235,6 +239,7 @@ class LatticeData():
         self.angle = angle
         self.skew = skew
         #if image layer
+        print(type(img))
         if type(img) is image.Image: #napari layer image
             #check if its an aicsimageio object and has voxel size info            
             if 'aicsimage' in img.metadata.keys() and img.metadata['aicsimage'].physical_pixel_sizes != (None,None,None):
@@ -270,12 +275,30 @@ class LatticeData():
                     #if type(img.data) in [xarray.core.dataarray.DataArray,np.ndarray]:
                         #img = img.data
                 #img = dask_expand_dims(img,axis=1) ##if no channel dimension specified, then expand axis at index 1
+        
         elif type(img) in [np.ndarray,da.core.Array]:
             img_data_aics = aicsimageio.AICSImage(img.data)
             self.data = img_data_aics.dask_data
             self.dx = dx
             self.dy = dy
             self.dz = dz
+            
+        elif type(img) is aicsimageio.aics_image.AICSImage:
+            
+            if img.physical_pixel_sizes != (None,None,None):
+                self.data = img.dask_data
+                self.dims = img.dims
+                self.time = img.dims.T
+                self.channels = img.dims.C
+                self.dz,self.dy,self.dx = img.physical_pixel_sizes
+                
+            else:
+                self.data = img.dask_data
+                self.dims = img.dims
+                self.time = img.dims.T
+                self.channels = img.dims.C
+                self.dz,self.dy,self.dx = dz,dy,dx
+                
         else:
             raise Exception("Has to be an image layer or array, got type: ",type(img))    
         

@@ -39,15 +39,20 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.array],
     #assert len(shape) == 4, print("Shape must be an array of shape 4 ")
     shape = None
 
+
+    #if shapes layer, get first one
     if type(roi_shape) is shapes.Shapes:
         shape = roi_shape.data[0]
-    elif type(roi_shape) is list:#if list of rois, use only first one
+    #if its a list and each element has a shape of 4, its a list of rois
+    elif type(roi_shape) is list and len(roi_shape[0])==4:
         #TODO:change to accept any roi by passing index
         shape = roi_shape[0]
         #len(roi_shape) >= 1:  
-    elif len(roi_shape) == 4 and type(roi_shape) is np.ndarray:
+        #if its a array or list with shape of 4, its a single ROI
+    elif len(roi_shape) == 4 and type(roi_shape) in(np.ndarray,list):
         shape = roi_shape
-    
+        
+
     assert len(shape) == 4, print("Shape must be an array of shape 4") 
 
 

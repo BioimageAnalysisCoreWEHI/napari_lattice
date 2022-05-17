@@ -76,7 +76,7 @@ def _deskew_widget():
                     LLSZWidget.LlszMenu.lattice.angle_value = self.angle
                     print("Angle is set to: ", LLSZWidget.LlszMenu.lattice.angle)
                 except AttributeError:
-                    print("Open a file first before setting angles")
+                    print("Choose image layer first before setting angles")
                 #print(LLSZWidget.LlszMenu.lattice.angle)
                 #print(LLSZWidget.LlszMenu.lattice.angle_value)
                 return
@@ -122,15 +122,26 @@ def _deskew_widget():
 
                 vol = LLSZWidget.LlszMenu.lattice.data
 
-                vol_zyx= vol[time,channel,...]
+                vol_zyx= vol[time,channel,:,:,:]
 
                 # Deskew using pyclesperanto
-                deskew_final = cle.deskew_y(vol_zyx, 
-                                            angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
-                                            voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
-                                            voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
-                                            voxel_size_z=LLSZWidget.LlszMenu.lattice.dz).astype(np.uint16)
-                
+                #on some hardware, getting an error LogicError: clSetKernelArg failed:
+                # INVALID_ARG_SIZE - when processing arg#13 (1-based), using dask map_blocks seems to work
+                #try:
+                    #deskew_final = cle.deskew_y(vol_zyx, 
+                                            #angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
+                                            #voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
+                                            #voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
+                #                           voxel_size_z=LLSZWidget.LlszMenu.lattice.dz).astype(vol.dtype)
+                #except Exception as e:
+                #print("Got error: ",e,". Using tiling strategy")
+                deskew_final = vol_zyx.map_blocks(cle.deskew_y,
+                                                angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
+                                                voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
+                                                voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
+                                                voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
+                                                dtype=vol.dtype)
+                    
                 #deskew_final = cle.pull_zyx(deskewed)
                 # TODO: Use dask
                 if LLSZWidget.LlszMenu.dask:

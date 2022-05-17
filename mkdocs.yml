@@ -1,0 +1,11 @@
+site_name: llsz_napari
+site_description: LLSZ
+site_author: BAC
+
+theme: readthedocs
+
+
+repo_url: https://github.com/pr4deepr/llsz_napari
+
+pages:
+- Home: index.md
