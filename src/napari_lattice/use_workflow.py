@@ -62,8 +62,11 @@ def _workflow_widget():
                 WorkflowWidget.WorkflowMenu.lattice = LatticeData(img_layer, 30.0, skew_dir,pixel_size_dx, pixel_size_dy,
                                                           pixel_size_dz,channel_dimension_present)
                 WorkflowWidget.WorkflowMenu.dask = False  # Use GPU by default
-                WorkflowWidget.WorkflowMenu.save_name =  os.path.splitext(os.path.basename(img_layer.source.path))[0]
-                
+                ave_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
+                if save_name:
+                    WorkflowWidget.WorkflowMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
+                else:
+                    WorkflowWidget.WorkflowMenu.save_name = img_layer.name
                 #Flag to check if file has been initialised
                 WorkflowWidget.WorkflowMenu.open_file = True
                 self["Choose_Image_Layer"].background_color = "green"

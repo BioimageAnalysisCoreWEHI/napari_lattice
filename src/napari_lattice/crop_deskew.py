@@ -58,8 +58,11 @@ def _crop_deskew_widget():
                 CropWidget.CropMenu.lattice = LatticeData(img_layer, 30.0, skew_dir,pixel_size_dx, pixel_size_dy,
                                                           pixel_size_dz,channel_dimension_present)
                 CropWidget.CropMenu.dask = False  # Use GPU by default
-                CropWidget.CropMenu.save_name =  os.path.splitext(os.path.basename(img_layer.source.path))[0]
-                
+                save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
+                if save_name:
+                    CropWidget.CropMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
+                else:
+                    CropWidget.CropMenu.save_name = img_layer.name
                 #Flag to check if file has been initialised
                 CropWidget.CropMenu.open_file = True
                 self["Choose_Image_Layer"].background_color = "green"

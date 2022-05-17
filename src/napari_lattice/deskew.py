@@ -55,7 +55,11 @@ def _deskew_widget():
                 #LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
                 self["Choose_Image_Layer"].background_color = "green"
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
-                LLSZWidget.LlszMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
+                save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
+                if save_name:
+                    LLSZWidget.LlszMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
+                else:
+                    LLSZWidget.LlszMenu.save_name = img_layer.name
                 LLSZWidget.LlszMenu.open_file = True
                 print("Pixel size (ZYX): ",(LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx))
                 print("Dimensions of image layer (ZYX): ",list(LLSZWidget.LlszMenu.lattice.data.shape[-3:]))
