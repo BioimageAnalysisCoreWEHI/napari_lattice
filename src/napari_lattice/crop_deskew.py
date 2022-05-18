@@ -59,11 +59,6 @@ def _crop_deskew_widget():
                                                           pixel_size_dz,channel_dimension_present)
                 CropWidget.CropMenu.dask = False  # Use GPU by default
                 
-                if img_layer.source.path is None:
-                    CropWidget.CropMenu.save_name = img_layer.name
-                else:
-                    CropWidget.CropMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
-
                 #Flag to check if file has been initialised
                 CropWidget.CropMenu.open_file = True
                 print("Pixel size (ZYX): ",(CropWidget.CropMenu.lattice.dz,CropWidget.CropMenu.lattice.dy,CropWidget.CropMenu.lattice.dx))
@@ -122,6 +117,7 @@ def _crop_deskew_widget():
                 """
                 print("Previewing deskewed channel and time")
                 assert img_data.size, "No image open or selected"
+                assert CropWidget.CropMenu.open_file, "Image not initialised"
                 assert time< CropWidget.CropMenu.lattice.time, "Time is out of range"
                 assert channel < CropWidget.CropMenu.lattice.channels, "Channel is out of range"
                 
@@ -145,7 +141,8 @@ def _crop_deskew_widget():
                                                 voxel_size_x=CropWidget.CropMenu.lattice.dx,
                                                 voxel_size_y=CropWidget.CropMenu.lattice.dy,
                                                 voxel_size_z=CropWidget.CropMenu.lattice.dz,
-                                                dtype=vol.dtype)
+                                                dtype=vol.dtype,
+                                                chunks=CropWidget.CropMenu.lattice.deskew_vol_shape)
                 #deskew_final = cle.pull_zyx(deskewed)
                 # TODO: Use dask
                 if CropWidget.CropMenu.dask:
@@ -158,10 +155,9 @@ def _crop_deskew_widget():
                 # add channel and time information to the name
                 suffix_name = "_c" + str(channel) + "_t" + str(time)
 
-                self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP")
-
-                # img_name="Deskewed image_c"+str(chan_deskew)+"_t"+str(time_deskew)
-                self.parent_viewer.add_image(deskew_final, name="Deskewed image" + suffix_name)
+                scale = (CropWidget.CropMenu.lattice.new_dz,CropWidget.CropMenu.lattice.dy,CropWidget.CropMenu.lattice.dx)
+                self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP",scale=scale[1:3])
+                self.parent_viewer.add_image(deskew_final, name="Deskewed image" + suffix_name,scale=scale)
                 self.parent_viewer.layers[0].visible = False
                 #print("Shape is ",deskew_final.shape)
                 print("Preview: Deskewing complete")
@@ -172,8 +168,8 @@ def _crop_deskew_widget():
         class Preview_Crop_Menu:
               
             @click(enables =["Import_ImageJ_ROI","Crop_Preview"])
-            def Initialize_Shapes_Layer(self):
-                CropWidget.Preview_Crop_Menu.shapes_layer = self.parent_viewer.add_shapes(shape_type='polygon', edge_width=5, edge_color='white',
+            def Click_to_enable_cropping_preview(self):
+                CropWidget.Preview_Crop_Menu.shapes_layer = self.parent_viewer.add_shapes(shape_type='polygon', edge_width=1, edge_color='white',
                                             face_color=[1, 1, 1, 0], name="Cropping BBOX layer")
                 #TO select ROIs if needed
                 CropWidget.Preview_Crop_Menu.shapes_layer.mode="SELECT"
@@ -199,7 +195,7 @@ def _crop_deskew_widget():
             def Crop_Preview(self, roi_layer: ShapesData):  # -> LayerDataTuple:
                 assert roi_layer, "No coordinates found for cropping. Check if right shapes layer or initialise shapes layer and draw ROIs."
                 #assert self.roi_idx.value <len(CropWidget.Preview_Crop_Menu.shapes_layer.data), "ROI not present"
-                assert len(CropWidget.Preview_Crop_Menu.shapes_layer.selected_data)>0, "ROI not selected"
+                #assert len(CropWidget.Preview_Crop_Menu.shapes_layer.selected_data)>0, "ROI not selected"
                 # TODO: Add assertion to check if bbox layer or coordinates
                 time = self.time_crop.value
                 channel = self.chan_crop.value
@@ -220,8 +216,16 @@ def _crop_deskew_widget():
                 #Option for entering custom z values?
                 z_start = 0
                 z_end = deskewed_shape[0]
-                roi_idx = list(CropWidget.Preview_Crop_Menu.shapes_layer.selected_data)[0]
-                roi_choice = roi_layer[roi_idx]
+
+                #if only one roi selected, use the first ROI for cropping
+                if len(roi_layer)==1:
+                    roi_idx=0
+                else:
+                    roi_idx = list(CropWidget.Preview_Crop_Menu.shapes_layer.selected_data)[0]
+                roi_choice = roi_layer[roi_idx] 
+                #As the original image is scaled, the coordinates are in microns, so we need to convert
+                #roi to from micron to canvas/world coordinates
+                roi_choice = [x/CropWidget.CropMenu.lattice.dy for x in roi_choice]
                 print("Previewing ROI ", roi_idx)
                 
                 crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx, 
@@ -234,9 +238,8 @@ def _crop_deskew_widget():
                                                 z_start = z_start, 
                                                 z_end = z_end).astype(vol_zyx.dtype)
 
-                #crop_roi_vol = cle.pull_zyx(crop_roi_vol_desk)
-                
-                self.parent_viewer.add_image(crop_roi_vol_desk)
+                scale = (CropWidget.CropMenu.lattice.new_dz,CropWidget.CropMenu.lattice.dy,CropWidget.CropMenu.lattice.dx)
+                self.parent_viewer.add_image(crop_roi_vol_desk,scale=scale)
                 return
 
         @magicclass(widget_type="collapsible", name="Crop and Save Data")
@@ -278,7 +281,9 @@ def _crop_deskew_widget():
                     
                     print("Cropping and saving files...")           
 
-                    
+                    #necessary only when scale is used for napari.viewer.add_image operations
+                    roi_layer_list = [x/CropWidget.CropMenu.lattice.dy for x in roi_layer_list]
+
                     for idx, roi_layer in enumerate(tqdm(roi_layer_list, desc="ROI:", position=0)):
                         #pass arguments for save tiff, callable and function arguments
                         print("Processing ROI ",idx)
@@ -289,9 +294,9 @@ def _crop_deskew_widget():
                             time_end = time_end,
                             channel_start = ch_start,
                             channel_end = ch_end,
-                            save_name_prefix  = "ROI_" + str(idx)+"_",
+                            save_name_prefix  = "ROI_" + str(idx),
                             save_path = save_path,
-                            save_name= CropWidget.CropMenu.save_name,
+                            save_name= CropWidget.CropMenu.lattice.save_name,
                             dx = dx,
                             dy = dy,
                             dz = dz,

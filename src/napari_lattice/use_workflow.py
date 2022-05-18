@@ -63,14 +63,9 @@ def _workflow_widget():
                                                           pixel_size_dz,channel_dimension_present)
                 WorkflowWidget.WorkflowMenu.dask = False  # Use GPU by default
                 
-                if img_layer.source.path is None:
-                    WorkflowWidget.WorkflowMenu.save_name = img_layer.name
-                else:
-                    WorkflowWidget.WorkflowMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
-
                 #Flag to check if file has been initialised
                 WorkflowWidget.WorkflowMenu.open_file = True
-
+               
                 print("Pixel size (ZYX): ",(WorkflowWidget.WorkflowMenu.lattice.dz,WorkflowWidget.WorkflowMenu.lattice.dy,WorkflowWidget.WorkflowMenu.lattice.dx))
                 print("Dimensions of image layer (ZYX): ",list(WorkflowWidget.WorkflowMenu.lattice.data.shape[-3:]))
                 print("Dimensions of deskewed image (ZYX): ",WorkflowWidget.WorkflowMenu.lattice.deskew_vol_shape)
@@ -140,13 +135,14 @@ def _workflow_widget():
                 vol_zyx= vol[time,channel,...]
 
                 # Deskew using pyclesperanto
-                deskew_final = cle.deskew_y(vol_zyx, 
-                                            angle_in_degrees=WorkflowWidget.WorkflowMenu.angle_value,
-                                            voxel_size_x=WorkflowWidget.WorkflowMenu.lattice.dx,
-                                            voxel_size_y=WorkflowWidget.WorkflowMenu.lattice.dy,
-                                            voxel_size_z=WorkflowWidget.WorkflowMenu.lattice.dz).astype(vol_zyx.dtype)
+                deskew_final = vol_zyx.map_blocks(cle.deskew_y,
+                                                angle_in_degrees=WorkflowWidget.WorkflowMenu.angle_value,
+                                                voxel_size_x=WorkflowWidget.WorkflowMenu.lattice.dx,
+                                                voxel_size_y=WorkflowWidget.WorkflowMenu.lattice.dy,
+                                                voxel_size_z=WorkflowWidget.WorkflowMenu.lattice.dz,
+                                                dtype=vol.dtype,
+                                                chunks=WorkflowWidget.WorkflowMenu.lattice.deskew_vol_shape)
                 
-                #deskew_final = cle.pull_zyx(deskewed)
                 # TODO: Use dask
                 if WorkflowWidget.WorkflowMenu.dask:
                     print("Using CPU for deskewing")
@@ -157,11 +153,9 @@ def _workflow_widget():
 
                 # add channel and time information to the name
                 suffix_name = "_c" + str(channel) + "_t" + str(time)
-
-                self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP")
-
-                # img_name="Deskewed image_c"+str(chan_deskew)+"_t"+str(time_deskew)
-                self.parent_viewer.add_image(deskew_final, name="Deskewed image" + suffix_name)
+                scale = (WorkflowWidget.WorkflowMenu.lattice.new_dz,WorkflowWidget.WorkflowMenu.lattice.dy,WorkflowWidget.WorkflowMenu.lattice.dx)
+                self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP",scale=scale[1:3])
+                self.parent_viewer.add_image(deskew_final, name="Deskewed image" + suffix_name,scale=scale)
                 self.parent_viewer.layers[0].visible = False
                 #print("Shape is ",deskew_final.shape)
                 print("Preview: Deskewing complete")
@@ -172,18 +166,19 @@ def _workflow_widget():
         class Preview_Crop_Menu:
               
             @click(enables =["Import_ImageJ_ROI","Crop_Preview"])
-            def Initialize_Shapes_Layer(self):
-                WorkflowWidget.Preview_Crop_Menu.shapes_layer = self.parent_viewer.add_shapes(shape_type='polygon', edge_width=5, edge_color='white',
+            def Click_to_enable_cropping_preview(self):
+                WorkflowWidget.Preview_Crop_Menu.shapes_layer = self.parent_viewer.add_shapes(shape_type='polygon', edge_width=1, edge_color='white',
                                             face_color=[1, 1, 1, 0], name="Cropping BBOX layer")
                 #TO select ROIs if needed
                 WorkflowWidget.Preview_Crop_Menu.shapes_layer.mode="SELECT"
                 return
             
+            #Import Imagej ROIs using read-roi library
+            #non rectangular ROis will be converted to rectangles based on maximum bounds
             @click(enabled =False)
             def Import_ImageJ_ROI(self, path: Path = Path(history.get_open_history()[0])):
                 print("Opening", path)
                 roi_list = read_imagej_roi(path)
-                #print(WorkflowWidget.Preview_Crop_Menu.shapes_layer)
                 WorkflowWidget.Preview_Crop_Menu.shapes_layer.add(roi_list,shape_type='polygon', edge_width=5, edge_color='yellow',
                                                                           face_color=[1, 1, 1, 0])
                 return
@@ -197,7 +192,7 @@ def _workflow_widget():
             def Crop_Preview(self, roi_layer: ShapesData):  # -> LayerDataTuple:
                 assert roi_layer, "No coordinates found for cropping. Check if right shapes layer or initialise shapes layer and draw ROIs."
                 #assert self.roi_idx.value <len(WorkflowWidget.Preview_Crop_Menu.shapes_layer.data), "ROI not present"
-                assert len(WorkflowWidget.Preview_Crop_Menu.shapes_layer.selected_data)>0, "ROI not selected"
+                #assert len(WorkflowWidget.Preview_Crop_Menu.shapes_layer.selected_data)>0, "ROI not selected"
                 # TODO: Add assertion to check if bbox layer or coordinates
                 time = self.time_crop.value
                 channel = self.chan_crop.value
@@ -218,7 +213,13 @@ def _workflow_widget():
                 #Option for entering custom z values?
                 z_start = 0
                 z_end = deskewed_shape[0]
-                roi_idx = list(WorkflowWidget.Preview_Crop_Menu.shapes_layer.selected_data)[0]
+
+                #if only one roi selected, use the first ROI for cropping
+                if len(roi_layer)==1:
+                    roi_idx=0
+                else:
+                    roi_idx = list(WorkflowWidget.Preview_Crop_Menu.shapes_layer.selected_data)[0]
+                    
                 roi_choice = roi_layer[roi_idx]
                 print("Previewing ROI ", roi_idx)
                 
@@ -232,9 +233,8 @@ def _workflow_widget():
                                                 z_start = z_start, 
                                                 z_end = z_end).astype(vol_zyx.dtype)
 
-                #crop_roi_vol = cle.pull_zyx(crop_roi_vol_desk)
-                
-                self.parent_viewer.add_image(crop_roi_vol_desk)
+                scale = (WorkflowWidget.WorkflowMenu.lattice.new_dz,WorkflowWidget.WorkflowMenu.lattice.dy,WorkflowWidget.WorkflowMenu.lattice.dx)
+                self.parent_viewer.add_image(crop_roi_vol_desk,scale=scale)
                 return
         
         @magicclass(widget_type="collapsible", name="Preview Workflow",popup_mode="below")
@@ -400,7 +400,9 @@ def _workflow_widget():
                 print("Processing for Time:", time,"and Channel: ", channel)
                 
                 vol = WorkflowWidget.WorkflowMenu.lattice.data
-
+                #convert Roi pixel coordinates to canvas coordinates
+                #necessary only when scale is used for napari.viewer.add_image operations
+                roi_layer_list = [x/WorkflowWidget.WorkflowMenu.lattice.dy for x in roi_layer_list]
                 #vol_zyx= vol[time,channel,...]
 
                 task_name_start = first_task_name[0]
@@ -444,8 +446,8 @@ def _workflow_widget():
                                             save_path = save_path,
                                             crop = Use_Cropping,
                                             roi_layer = roi_layer,
-                                            save_name_prefix = "ROI_"+str(idx)+"_",
-                                            save_name =  WorkflowWidget.WorkflowMenu.save_name,
+                                            save_name_prefix = "ROI_"+str(idx),
+                                            save_name =  WorkflowWidget.WorkflowMenu.lattice.save_name,
                                             dx = dx,
                                             dy = dy,
                                             dz = dz,
@@ -475,7 +477,7 @@ def _workflow_widget():
                                             channel_start = ch_start,
                                             channel_end = ch_end,
                                             save_path = save_path,
-                                            save_name =  WorkflowWidget.WorkflowMenu.save_name,
+                                            save_name =  WorkflowWidget.WorkflowMenu.lattice.save_name,
                                             dx = dx,
                                             dy = dy,
                                             dz = dz,
@@ -495,7 +497,7 @@ def _workflow_widget():
                                             channel_start = ch_start,
                                             channel_end = ch_end,
                                             save_path = save_path,
-                                            save_name =  WorkflowWidget.WorkflowMenu.save_name,
+                                            save_name =  WorkflowWidget.WorkflowMenu.lattice.save_name,
                                             dx = dx,
                                             dy = dy,
                                             dz = dz,

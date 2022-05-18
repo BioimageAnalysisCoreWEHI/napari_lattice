@@ -149,7 +149,15 @@ def save_tiff(vol,
             images_array.append(processed_vol)
             
         images_array = np.array(images_array)
-        final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
+        if func is crop_volume_deskew:
+            #create folder for each ROI
+            save_path = save_path+os.sep+save_name_prefix+os.sep
+            if not os.path.exists(save_path):
+                os.makedirs(save_path)
+            final_name = save_path + os.sep +save_name_prefix+ "_C" + str(ch) + "T" + str(
+                        time_point) + "_" + save_name + ".ome.tif"
+        else:
+            final_name = save_path + os.sep +save_name_prefix+ "_C" + str(ch) + "T" + str(
                         time_point) + "_" + save_name + ".ome.tif"
     
         OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
@@ -275,7 +283,11 @@ class LatticeData():
                     #if type(img.data) in [xarray.core.dataarray.DataArray,np.ndarray]:
                         #img = img.data
                 #img = dask_expand_dims(img,axis=1) ##if no channel dimension specified, then expand axis at index 1
-        
+            if img.source.path is None:
+                self.save_name = img.name
+            else:
+                self.save_name = img.name.replace(":","").strip()
+
         elif type(img) in [np.ndarray,da.core.Array]:
             img_data_aics = aicsimageio.AICSImage(img.data)
             self.data = img_data_aics.dask_data
@@ -301,7 +313,12 @@ class LatticeData():
                 
         else:
             raise Exception("Has to be an image layer or array, got type: ",type(img))    
-        
+            
+            #set new z voxel size
+        if self.skew == "Y":
+            import math
+            self.new_dz = math.sin(self.angle * math.pi / 180.0) * self.dz
+                
         #process the file to get shape of final deskewed image
         self.deskew_vol_shape = get_deskewed_shape(self.data, self.angle,self.dx,self.dy,self.dz)
 

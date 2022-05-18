@@ -53,7 +53,7 @@ def _deskew_widget():
                 LLSZWidget.LlszMenu.lattice = LatticeData(img_layer, 30.0, skew_dir,pixel_size_dx, pixel_size_dy,
                                                           pixel_size_dz,channel_dimension_present)
                 #LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
-                self["Choose_Image_Layer"].background_color = "green"
+                
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
 
                 #TODO:change LatticeData class to accept deskew direction, calculate shape and for croppng too
@@ -62,11 +62,6 @@ def _deskew_widget():
 
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
                 
-                if img_layer.source.path is None:
-                    LLSZWidget.LlszMenu.save_name = img_layer.name
-                else:
-                    LLSZWidget.LlszMenu.save_name = os.path.splitext(os.path.basename(img_layer.source.path))[0]
-
                 LLSZWidget.LlszMenu.open_file = True
                 print("Pixel size (ZYX): ",(LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx))
                 print("Dimensions of image layer (ZYX): ",list(LLSZWidget.LlszMenu.lattice.data.shape[-3:]))
@@ -74,13 +69,6 @@ def _deskew_widget():
                 print("Initialised")
                 self["Choose_Image_Layer"].background_color = "green"
           
-                return
-                
-                LLSZWidget.LlszMenu.open_file = True
-                print("Pixel size (ZYX): ",(LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx))
-                print("Dimensions of image layer (ZYX): ",list(LLSZWidget.LlszMenu.lattice.data.shape[-3:]))
-                print("Dimensions of deskewed image (ZYX): ",LLSZWidget.LlszMenu.lattice.deskew_vol_shape)
-                print("Initialised")
                 return
                 
 
@@ -160,9 +148,9 @@ def _deskew_widget():
                                                 voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
                                                 voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
                                                 voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
-                                                dtype=vol.dtype)
-                    
-                #deskew_final = cle.pull_zyx(deskewed)
+                                                dtype=vol.dtype,
+                                                chunks=LLSZWidget.LlszMenu.lattice.deskew_vol_shape)
+                
                 # TODO: Use dask
                 if LLSZWidget.LlszMenu.dask:
                     print("Using CPU for deskewing")
@@ -173,11 +161,9 @@ def _deskew_widget():
 
                 # add channel and time information to the name
                 suffix_name = "_c" + str(channel) + "_t" + str(time)
-
-                self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP")
-
-                # img_name="Deskewed image_c"+str(chan_deskew)+"_t"+str(time_deskew)
-                self.parent_viewer.add_image(deskew_final, name="Deskewed image" + suffix_name)
+                scale = (LLSZWidget.LlszMenu.lattice.new_dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx)
+                self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP",scale=scale[1:3])
+                self.parent_viewer.add_image(deskew_final, name="Deskewed image" + suffix_name,scale=scale)
                 self.parent_viewer.layers[0].visible = False
                 #print("Shape is ",deskew_final.shape)
                 print("Preview: Deskewing complete")
@@ -224,7 +210,7 @@ def _deskew_widget():
                           channel_start = ch_start,
                           channel_end = ch_end,
                           save_path = save_path,
-                          save_name= LLSZWidget.LlszMenu.save_name,
+                          save_name= LLSZWidget.LlszMenu.lattice.save_name,
                           dx = dx,
                           dy = dy,
                           dz = dz,
