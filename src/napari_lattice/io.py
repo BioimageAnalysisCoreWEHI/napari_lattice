@@ -118,6 +118,12 @@ def save_tiff(vol,
     else:
         aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
 
+    if func is crop_volume_deskew:
+        #create folder for each ROI
+        save_path = save_path+os.sep+save_name_prefix+os.sep
+        if not os.path.exists(save_path):
+            os.makedirs(save_path)
+
     for time_point in tqdm(time_range, desc="Time", position=0):
         images_array = []      
         for ch in tqdm(channel_range, desc="Channels", position=1,leave=False):
@@ -149,15 +155,8 @@ def save_tiff(vol,
             images_array.append(processed_vol)
             
         images_array = np.array(images_array)
-        if func is crop_volume_deskew:
-            #create folder for each ROI
-            save_path = save_path+os.sep+save_name_prefix+os.sep
-            if not os.path.exists(save_path):
-                os.makedirs(save_path)
-            final_name = save_path + os.sep +save_name_prefix+ "_C" + str(ch) + "T" + str(
-                        time_point) + "_" + save_name + ".ome.tif"
-        else:
-            final_name = save_path + os.sep +save_name_prefix+ "_C" + str(ch) + "T" + str(
+
+        final_name = save_path + os.sep +save_name_prefix+ "_C" + str(ch) + "T" + str(
                         time_point) + "_" + save_name + ".ome.tif"
     
         OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
