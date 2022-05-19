@@ -160,7 +160,7 @@ def save_tiff(vol,
                         time_point) + "_" + save_name + ".ome.tif"
     
         OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
-    
+    images_array = None
     return
 
 def save_tiff_workflow(vol,
