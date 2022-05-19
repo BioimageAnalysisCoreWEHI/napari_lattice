@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from pathlib import Path
 from magicclass.wrappers import set_design
 from magicgui import magicgui, widgets
@@ -16,7 +17,7 @@ from napari.types import ImageData, ShapesData
 
 from napari.utils import history
 
-from .io import LatticeData,  save_tiff,save_tiff_workflow
+from .io import LatticeData, save_tiff_workflow
 from .llsz_core import crop_volume_deskew
 from .utils import read_imagej_roi, get_first_last_image_and_task,modify_workflow_task
 
@@ -174,12 +175,14 @@ def _workflow_widget():
                 return
             
             #Import Imagej ROIs using read-roi library
-            #non rectangular ROis will be converted to rectangles based on maximum bounds
+            #non rectangular ROIs will be converted to rectangles based on maximum bounds
             @click(enabled =False)
             def Import_ImageJ_ROI(self, path: Path = Path(history.get_open_history()[0])):
                 print("Opening", path)
                 roi_list = read_imagej_roi(path)
-                WorkflowWidget.Preview_Crop_Menu.shapes_layer.add(roi_list,shape_type='polygon', edge_width=5, edge_color='yellow',
+                #convert to canvas coordinates
+                roi_list = (np.array(roi_list)* WorkflowWidget.Preview_Crop_Menu.lattice.dy).tolist()
+                WorkflowWidget.Preview_Crop_Menu.shapes_layer.add(roi_list,shape_type='polygon', edge_width=1, edge_color='yellow',
                                                                           face_color=[1, 1, 1, 0])
                 return
             

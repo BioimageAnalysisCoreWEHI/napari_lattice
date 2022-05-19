@@ -1,4 +1,5 @@
 import os
+import numpy as np
 from pathlib import Path
 from magicclass.wrappers import set_design
 from magicgui import magicgui, widgets
@@ -179,8 +180,9 @@ def _crop_deskew_widget():
             def Import_ImageJ_ROI(self, path: Path = Path(history.get_open_history()[0])):
                 print("Opening", path)
                 roi_list = read_imagej_roi(path)
-                #print(CropWidget.Preview_Crop_Menu.shapes_layer)
-                CropWidget.Preview_Crop_Menu.shapes_layer.add(roi_list,shape_type='polygon', edge_width=5, edge_color='yellow',
+                #convert to canvas coordinates
+                roi_list = (np.array(roi_list)*CropWidget.CropMenu.lattice.dy).tolist()
+                CropWidget.Preview_Crop_Menu.shapes_layer.add(roi_list,shape_type='polygon', edge_width=1, edge_color='yellow',
                                                                           face_color=[1, 1, 1, 0])
                 return
             
@@ -206,11 +208,9 @@ def _crop_deskew_widget():
                 print("Using channel ", channel," and time", time)
                 
                 vol = CropWidget.CropMenu.lattice.data
-
                 vol_zyx= vol[time,channel,...]
 
                 deskewed_shape = CropWidget.CropMenu.lattice.deskew_vol_shape
-                
                 deskewed_volume = da.zeros(deskewed_shape)
 
                 #Option for entering custom z values?
@@ -222,6 +222,7 @@ def _crop_deskew_widget():
                     roi_idx=0
                 else:
                     roi_idx = list(CropWidget.Preview_Crop_Menu.shapes_layer.selected_data)[0]
+
                 roi_choice = roi_layer[roi_idx] 
                 #As the original image is scaled, the coordinates are in microns, so we need to convert
                 #roi to from micron to canvas/world coordinates
@@ -281,7 +282,7 @@ def _crop_deskew_widget():
                     
                     print("Cropping and saving files...")           
 
-                    #necessary only when scale is used for napari.viewer.add_image operations
+                    #necessary when scale is used for napari.viewer.add_image operations
                     roi_layer_list = [x/CropWidget.CropMenu.lattice.dy for x in roi_layer_list]
 
                     for idx, roi_layer in enumerate(tqdm(roi_layer_list, desc="ROI:", position=0)):
