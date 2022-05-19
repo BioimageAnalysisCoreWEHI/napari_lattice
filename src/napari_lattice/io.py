@@ -156,7 +156,7 @@ def save_tiff(vol,
             
         images_array = np.array(images_array)
 
-        final_name = save_path + os.sep +save_name_prefix+ "_C" + str(ch) + "T" + str(
+        final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
                         time_point) + "_" + save_name + ".ome.tif"
     
         OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
