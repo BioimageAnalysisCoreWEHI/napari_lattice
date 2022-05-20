@@ -110,7 +110,7 @@ def main():
     elif processing == "crop":
         roi_list = read_imagej_roi(roi_file)
         for idx, roi_layer in enumerate(tqdm(roi_list, desc="ROI:", position=0)):
-            print("Processing ROI "+str(idx)+"of"+str(len(roi_list)))
+            print("Processing ROI "+str(idx)+" of "+str(len(roi_list)))
             deskewed_shape = lattice.deskew_vol_shape
             deskewed_volume = da.zeros(deskewed_shape)
             #Can modify for entering custom z values
