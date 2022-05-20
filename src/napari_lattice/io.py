@@ -120,6 +120,7 @@ def save_tiff(vol,
 
     if func is crop_volume_deskew:
         #create folder for each ROI
+        save_name_prefix = save_name_prefix + "_"
         save_path = save_path+os.sep+save_name_prefix+os.sep
         if not os.path.exists(save_path):
             os.makedirs(save_path)
@@ -157,7 +158,7 @@ def save_tiff(vol,
         images_array = np.array(images_array)
 
         final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
-                        time_point) + "_" + save_name + ".ome.tif"
+                        time_point) + "_" +save_name+ ".ome.tif"
     
         OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
     images_array = None
@@ -282,10 +283,13 @@ class LatticeData():
                     #if type(img.data) in [xarray.core.dataarray.DataArray,np.ndarray]:
                         #img = img.data
                 #img = dask_expand_dims(img,axis=1) ##if no channel dimension specified, then expand axis at index 1
+            #if no path returned by source.path, get image name with colon and spaces removed
             if img.source.path is None:
-                self.save_name = img.name
+                self.save_name = img.name.replace(":","").strip() #remove colon (:) and any leading spaces
+                self.save_name = '_'.join(self.save_name.split()) #replace any group of spaces with "_"
+                
             else:
-                self.save_name = img.name.replace(":","").strip()
+                self.save_name = img.name
 
         elif type(img) in [np.ndarray,da.core.Array]:
             img_data_aics = aicsimageio.AICSImage(img.data)

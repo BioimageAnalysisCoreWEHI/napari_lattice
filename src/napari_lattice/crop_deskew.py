@@ -262,8 +262,8 @@ def _crop_deskew_widget():
                     print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
                 else:
                     assert CropWidget.CropMenu.open_file, "Image not initialised"
-                    assert 0<= time_start <=CropWidget.CropMenu.lattice.time, "Time start should be 0 or >0 or same as total time "+str(CropWidget.CropMenu.lattice.time)
-                    assert 0< time_end <=CropWidget.CropMenu.lattice.time, "Time end should be >0 or same as total time "+str(CropWidget.CropMenu.lattice.time)
+                    assert 0<= time_start <=CropWidget.CropMenu.lattice.time, "Time start should be >0 or same as total time "+str(CropWidget.CropMenu.lattice.time)
+                    assert 0< time_end <=CropWidget.CropMenu.lattice.time, "Time end should be between 0 and total time "+str(CropWidget.CropMenu.lattice.time)
                     assert 0<= ch_start <= CropWidget.CropMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(CropWidget.CropMenu.lattice.channels)
                     assert 0< ch_end <= CropWidget.CropMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(CropWidget.CropMenu.lattice.channels)
               
