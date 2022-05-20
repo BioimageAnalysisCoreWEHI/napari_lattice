@@ -20,7 +20,7 @@ def args_parse():
     parser.add_argument('--output',type=str,nargs=1,help="Enter save folder")
     parser.add_argument('--skew_direction',type=str,nargs=1,help="Enter the direction of skew (default is Y)",default="Y")
     parser.add_argument('--deskew_angle',type=float,nargs=1,help="Enter the agnel of deskew (default is 30)",default=30)
-    parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop",default="deskew")
+    parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop")
     parser.add_argument('--roi_file',type=str,nargs=1,help="Enter the path to the ROI file for cropping")
     parser.add_argument('--channel',type=bool,nargs=1,help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",default=False)
     parser.add_argument('--voxel_sizes',type=tuple,nargs=1,help="Enter the voxel sizes as (dz,dy,dx). Make sure they are in brackets",default=(0.3,0.1499219272808386,0.1499219272808386))
@@ -40,7 +40,7 @@ def main():
     deskew_angle = args.deskew_angle
     channel_dimension = args.channel
     skew_dir = args.skew_direction
-    processing = args.processing.lower() #lowercase
+    processing = args.processing[0].lower() #lowercase
     if processing == "crop":
         roi_file = args.roi_file[0]
         assert roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
@@ -67,7 +67,7 @@ def main():
             img_list.extend(glob.glob(input_path+os.sep+'*'+file_type))
 
     #if a single file, just add filename to the image list
-    elif os.path.isfile(input_path) and (os.path.extsep(input_path))[1] in file_extension:
+    elif os.path.isfile(input_path) and (os.path.splitext(input_path))[1] in file_extension:
         img_list.append(input_path)
     else:
         exit("Do not recognise "+input_path+" as directory or file")
@@ -110,7 +110,7 @@ def main():
     elif processing == "crop":
         roi_list = read_imagej_roi(roi_file)
         for idx, roi_layer in enumerate(tqdm(roi_list, desc="ROI:", position=0)):
-            
+            print("Processing ROI "+str(idx)+"of"+str(len(roi_list)))
             deskewed_shape = lattice.deskew_vol_shape
             deskewed_volume = da.zeros(deskewed_shape)
             #Can modify for entering custom z values
