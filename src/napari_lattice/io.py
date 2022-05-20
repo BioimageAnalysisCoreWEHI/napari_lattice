@@ -119,14 +119,16 @@ def save_tiff(vol,
         aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
 
     if func is crop_volume_deskew:
-        #create folder for each ROI
+        #create folder for each ROI; disabled as each roi is saved as hyperstack
         save_name_prefix = save_name_prefix + "_"
-        save_path = save_path+os.sep+save_name_prefix+os.sep
-        if not os.path.exists(save_path):
-            os.makedirs(save_path)
-
-    for time_point in tqdm(time_range, desc="Time", position=0):
-        images_array = []      
+        #save_path = save_path+os.sep+save_name_prefix+os.sep
+        #if not os.path.exists(save_path):
+            #os.makedirs(save_path)
+        im_final=[]
+    
+    #loop is ordered so image is saved in order TCZYX for ometiffwriter
+    for time_point in tqdm(time_range, desc="Time", position=0): 
+        images_array = []
         for ch in tqdm(channel_range, desc="Channels", position=1,leave=False):
             try:
                 if len(vol.shape) == 3:
@@ -142,10 +144,6 @@ def save_tiff(vol,
             
             #Apply function to a volume
             if func is cle.deskew_y:
-                #print(raw_vol.shape)
-                #import dask.array as da
-                #if raw_vol not da.core.Array:
-                    #raw_vol=da.from_array(raw_vol)
                 #process_vol = raw_vol.map_blocks(func,input_image = raw_vol, dtype=image_type,*args,**kwargs)
                 processed_vol = func(input_image = raw_vol, *args,**kwargs).astype(image_type)
             elif func is crop_volume_deskew:
@@ -154,14 +152,24 @@ def save_tiff(vol,
                 processed_vol = func( *args,**kwargs).astype(image_type)
             
             images_array.append(processed_vol)
-            
-        images_array = np.array(images_array)
-
-        final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
-                        time_point) + "_" +save_name+ ".ome.tif"
+        
+        images_array = np.array(images_array)   
+        #For functions other than cropping save each timepoint
+        if func != crop_volume_deskew: 
+            final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
+                            time_point) + "_" +save_name+ ".ome.tif"
     
-        OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
-    images_array = None
+            OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+        elif func is crop_volume_deskew:
+            im_final.append(images_array)
+    #if using cropping, save whole stack instead of individual timepoints
+    if func is crop_volume_deskew:
+        im_final = np.array(im_final)
+        final_name = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".ome.tif"
+        OmeTiffWriter.save(im_final, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+        im_final = None
+        
+    
     return
 
 def save_tiff_workflow(vol,
