@@ -424,10 +424,12 @@ def _workflow_widget():
                 if get_active_workflow:
                     #installs the workflow to napari
                     user_workflow = WorkflowManager.install(self.parent_viewer).workflow
+                    print("Workflow installed")
                 else:
                     print(workflow_path)
                     user_workflow = load_workflow(workflow_path)
-                assert type(user_workflow) is Workflow, "Workflow file is not a napari worfklow object. Check file! You can use workflow inspector if needed"
+                    
+                assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file! You can use workflow inspector if needed"
                 
                 input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
                 print(input_arg_first, input_arg_last, first_task_name,last_task_name )
@@ -435,7 +437,6 @@ def _workflow_widget():
                 task_list = list(user_workflow._tasks.keys())
                 print("Workflow loaded:")
                 print(user_workflow)
-                
                 
                 vol = WorkflowWidget.WorkflowMenu.lattice.data
                 #convert Roi pixel coordinates to canvas coordinates
