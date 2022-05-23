@@ -158,6 +158,7 @@ def _workflow_widget():
                 self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP",scale=scale[1:3])
                 self.parent_viewer.add_image(deskew_final, name="Deskewed image" + suffix_name,scale=scale)
                 self.parent_viewer.layers[0].visible = False
+                self.parent_viewer.dims.axis_labels = list('tczyx')
                 #print("Shape is ",deskew_final.shape)
                 print("Preview: Deskewing complete")
                 return
@@ -227,7 +228,7 @@ def _workflow_widget():
                 roi_choice = roi_layer[roi_idx]
                 #As the original image is scaled, the coordinates are in microns, so we need to convert
                 #roi to from micron to canvas/world coordinates
-                roi_choice = [x/WorkflowWidget.CropMenu.lattice.dy for x in roi_choice]
+                roi_choice = [x/WorkflowWidget.WorkflowMenu.lattice.dy for x in roi_choice]
                 print("Previewing ROI ", roi_idx)
                 
                 crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx, 
@@ -258,9 +259,12 @@ def _workflow_widget():
             
             @magicgui(get_active_workflow = dict(widget_type="Checkbox",label="Get active workflow in napari-workflow",value = False),
                       workflow_path = dict(mode='r', label="Load custom workflow (.yaml/yml)"),
+                      Use_Cropping = dict(widget_type="Checkbox",label="Crop Data",value = False),
                       call_button="Apply and Preview Workflow")
             def Workflow_Preview(self,
                                 get_active_workflow:bool,
+                                Use_Cropping,
+                                roi_layer_list: ShapesData, 
                                 workflow_path:Path= Path.home()):
                 """
                 Apply napari_workflows to the processing pipeline
@@ -308,9 +312,43 @@ def _workflow_widget():
 
                 task_name_start = first_task_name[0]
                 task_name_last = last_task_name[0]
+                
                 #get the function associated with the first task and check if its deskewing
-                if user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y,cle.deskew_x):
-                    #input_file = vol_zyx
+                if Use_Cropping:
+                    #use deskewed volume for cropping function
+                    deskewed_shape = WorkflowWidget.WorkflowMenu.lattice.deskew_vol_shape
+                    deskewed_volume = da.zeros(deskewed_shape)
+                    z_start = 0
+                    z_end = deskewed_shape[0]
+                    if user_workflow.get_task(task_name_start)[0] not in [crop_volume_deskew]:
+                        #if only one roi drawn, use the first ROI for cropping
+                        if len(roi_layer_list)==1:
+                            roi_idx=0
+                        else: #else get the user selection
+                            assert len(WorkflowWidget.Preview_Crop_Menu.shapes_layer.selected_data)>0, "Please select an ROI"
+                            roi_idx = list(WorkflowWidget.Preview_Crop_Menu.shapes_layer.selected_data)[0]
+                        roi_choice = roi_layer_list[roi_idx]
+                        #As the original image is scaled, the coordinates are in microns, so we need to convert
+                        #roi to from micron to canvas/world coordinates
+                        roi_choice = [x/WorkflowWidget.WorkflowMenu.lattice.dy for x in roi_choice]
+                        print("Previewing ROI ", roi_idx)
+                        
+                        user_workflow.set("crop_deskew_image",crop_volume_deskew,original_volume = vol_zyx, 
+                                                    deskewed_volume=deskewed_volume, 
+                                                    roi_shape = roi_choice, 
+                                                    angle_in_degrees = WorkflowWidget.WorkflowMenu.lattice.angle, 
+                                                    voxel_size_x =WorkflowWidget.WorkflowMenu.lattice.dx, 
+                                                    voxel_size_y =WorkflowWidget.WorkflowMenu.lattice.dy, 
+                                                    voxel_size_z =WorkflowWidget.WorkflowMenu.lattice.dz, 
+                                                    z_start = z_start, 
+                                                    z_end = z_end)
+                        #Set input of the workflow to be from crop_deskewing
+                        user_workflow.set(input_arg_first,"crop_deskew_image")
+                    else:
+                        user_workflow.set(input_arg_first,vol_zyx)
+                        
+                elif user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y,cle.deskew_x):
+                    
                     user_workflow.set("deskew_image",cle.deskew_y, vol_zyx,
                                       angle_in_degrees = WorkflowWidget.WorkflowMenu.lattice.angle,
                                       voxel_size_x = WorkflowWidget.WorkflowMenu.lattice.dx,
@@ -398,13 +436,6 @@ def _workflow_widget():
                 print("Workflow loaded:")
                 print(user_workflow)
                 
-                assert self.time_preview.value < WorkflowWidget.WorkflowMenu.lattice.time, "Time is out of range"
-                assert self.chan_preview.value < WorkflowWidget.WorkflowMenu.lattice.channels, "Channel is out of range"
-                
-                time = self.time_preview.value
-                channel = self.chan_preview.value
-
-                print("Processing for Time:", time,"and Channel: ", channel)
                 
                 vol = WorkflowWidget.WorkflowMenu.lattice.data
                 #convert Roi pixel coordinates to canvas coordinates
@@ -451,7 +482,6 @@ def _workflow_widget():
                                             channel_start = ch_start,
                                             channel_end = ch_end,
                                             save_path = save_path,
-                                            crop = Use_Cropping,
                                             roi_layer = roi_layer,
                                             save_name_prefix = "ROI_"+str(idx),
                                             save_name =  WorkflowWidget.WorkflowMenu.lattice.save_name,
