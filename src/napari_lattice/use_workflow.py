@@ -367,8 +367,8 @@ def _workflow_widget():
 
                 # add channel and time information to the name
                 suffix_name = "_c" + str(channel) + "_t" +str(time)
-                                     
-                self.parent_viewer.add_image(processed_vol, name="Workflow_processed"+ suffix_name)
+                scale = (WorkflowWidget.WorkflowMenu.lattice.new_dz,WorkflowWidget.WorkflowMenu.lattice.dy,WorkflowWidget.WorkflowMenu.lattice.dx)
+                self.parent_viewer.add_image(processed_vol, name="Workflow_processed"+ suffix_name,scale=scale)
 
                 print("Workflow complete")
                 return
@@ -482,7 +482,7 @@ def _workflow_widget():
                                             channel_start = ch_start,
                                             channel_end = ch_end,
                                             save_path = save_path,
-                                            roi_layer = roi_layer,
+                                            #roi_layer = roi_layer,
                                             save_name_prefix = "ROI_"+str(idx),
                                             save_name =  WorkflowWidget.WorkflowMenu.lattice.save_name,
                                             dx = dx,
