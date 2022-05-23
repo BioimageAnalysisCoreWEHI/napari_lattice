@@ -211,16 +211,18 @@ def _crop_deskew_widget():
                 vol_zyx= vol[time,channel,...]
 
                 deskewed_shape = CropWidget.CropMenu.lattice.deskew_vol_shape
+                #Create a dask array same shape as deskewed image
                 deskewed_volume = da.zeros(deskewed_shape)
 
                 #Option for entering custom z values?
                 z_start = 0
                 z_end = deskewed_shape[0]
 
-                #if only one roi selected, use the first ROI for cropping
+                #if only one roi drawn, use the first ROI for cropping
                 if len(roi_layer)==1:
                     roi_idx=0
                 else:
+                    assert len(CropWidget.Preview_Crop_Menu.shapes_layer.selected_data)>0, "Please select an ROI"
                     roi_idx = list(CropWidget.Preview_Crop_Menu.shapes_layer.selected_data)[0]
 
                 roi_choice = roi_layer[roi_idx] 

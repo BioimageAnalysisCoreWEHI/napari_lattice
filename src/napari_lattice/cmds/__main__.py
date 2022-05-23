@@ -11,16 +11,23 @@ import os,glob
 import pyclesperanto_prototype as cle
 from tqdm import tqdm
 import dask.array as da
+import sys
 
+#define parser class so as to print help message
+class ArgParser(argparse.ArgumentParser): 
+   def error(self, message):
+      sys.stderr.write('error: %s\n' % message)
+      self.print_help()
+      sys.exit(2)
 
 def args_parse():
     """ Parse input arguments"""
     parser = argparse.ArgumentParser(description="Lattice Data processing")
-    parser.add_argument('--input',type=str,nargs=1,help="Enter input file")
-    parser.add_argument('--output',type=str,nargs=1,help="Enter save folder")
+    parser.add_argument('--input',type=str,nargs=1,help="Enter input file", required=True)
+    parser.add_argument('--output',type=str,nargs=1,help="Enter save folder", required=True)
     parser.add_argument('--skew_direction',type=str,nargs=1,help="Enter the direction of skew (default is Y)",default="Y")
     parser.add_argument('--deskew_angle',type=float,nargs=1,help="Enter the agnel of deskew (default is 30)",default=30)
-    parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop")
+    parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop", required=True)
     parser.add_argument('--roi_file',type=str,nargs=1,help="Enter the path to the ROI file for cropping")
     parser.add_argument('--channel',type=bool,nargs=1,help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",default=False)
     parser.add_argument('--voxel_sizes',type=tuple,nargs=1,help="Enter the voxel sizes as (dz,dy,dx). Make sure they are in brackets",default=(0.3,0.1499219272808386,0.1499219272808386))
@@ -29,6 +36,7 @@ def args_parse():
     parser.add_argument('--channel_range',type=int,nargs=2,help="Enter channel range to extract, default will be all channels. Example 0 1 will extract first two channels. ",default=[0,0])
     args = parser.parse_args()
     return args
+
 
 
 
@@ -41,6 +49,7 @@ def main():
     channel_dimension = args.channel
     skew_dir = args.skew_direction
     processing = args.processing[0].lower() #lowercase
+
     if processing == "crop":
         roi_file = args.roi_file[0]
         assert roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"

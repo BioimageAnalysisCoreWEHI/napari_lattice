@@ -94,6 +94,57 @@ Use this option if you would like to deskew and save only the ROIs you've define
 
 *******
 
+## **Terminal**
+
+The software can also be used from the terminal, if you do want to batch process data in a folder. To run the program, you will have to open a terminal and make sure your environment is activated using `conda activate`. To see a list of options, you type `napari_lattice -h` . The `-h` means help and will print out a list of options on how to run the program. Currently, the available options are:
+
+    usage: napari_lattice [-h] [--input INPUT] [--output OUTPUT] [--skew_direction SKEW_DIRECTION] [--deskew_angle DESKEW_ANGLE] [--processing PROCESSING] [--roi_file ROI_FILE] [--channel CHANNEL]
+                        [--voxel_sizes VOXEL_SIZES] [--file_extension FILE_EXTENSION] [--time_range TIME_RANGE TIME_RANGE] [--channel_range CHANNEL_RANGE CHANNEL_RANGE]
+
+    Lattice Data processing
+
+    optional arguments:
+    -h, --help            show this help message and exit
+    --input INPUT         Enter input file
+    --output OUTPUT       Enter save folder
+    --skew_direction SKEW_DIRECTION
+                            Enter the direction of skew (default is Y)
+    --deskew_angle DESKEW_ANGLE
+                            Enter the agnel of deskew (default is 30)
+    --processing PROCESSING
+                            Enter the processing option: deskew, crop, workflow or workflow_crop
+    --roi_file ROI_FILE   Enter the path to the ROI file for cropping
+    --channel CHANNEL     If input is a tiff file and there are channel dimensions but no time dimensions, choose as True
+    --voxel_sizes VOXEL_SIZES
+                            Enter the voxel sizes as (dz,dy,dx). Make sure they are in brackets
+    --file_extension FILE_EXTENSION
+                            If choosing a folder, enter the extension of the files (make sure you enter it with the dot at the start, i.e., .czi or .tif), else .czi and .tif files will be used
+    --time_range TIME_RANGE TIME_RANGE
+                            Enter time range to extract ,example 0 10 will extract first 10 timepoints> default is to extract entire timeseries
+    --channel_range CHANNEL_RANGE CHANNEL_RANGE
+                            Enter channel range to extract, default will be all channels. Example 0 1 will extract first two channels.
+
+As an example, if you would like to deskew a bunch of files in a folder, you would need to define the `input folder`, `save location` and `processing` option (deskew). The skew direction by default is `Y` and `deskew angle` is 30.
+
+If the input folder is:
+
+    C:\source
+
+and output or save location is:
+
+    C:\deskewed
+
+then you run the command, 
+
+    napari_lattice --input "C:\source" --output "C:\deskewed" --processing deskew
+
+Note that the folder locations are in quotes. This is useful especially if you have spaces in the folder names. 
+
+If you'd like to run cropping and deskew and have a list of rois in an imagej roi .zip file which is located at, say `D:\rois_for_crop.zip` and the folder locations are the same as above, then we can use the command:
+
+    napari_lattice --input "C:\source" --output "C:\deskewed" --roi_file "D:\rois_for_crop.zip" --processing crop
+
+
 Please find sample data for testing in the `sample_data` folder above
 
 ***Data Credit: Cindy Evelyn & Niall Geoghegan, Walter and Eliza Hall Institute of Medical Research, Melbourne, Australia***

@@ -146,7 +146,7 @@ def _workflow_widget():
                 
                 # TODO: Use dask
                 if WorkflowWidget.WorkflowMenu.dask:
-                    print("Using CPU for deskewing")
+                    print("Using CPU for deskewing. Has not been implemented yet")
                     # use cle library for affine transforms, but use dask and scipy
                     # deskew_final = deskew_final.compute()
                 
@@ -217,13 +217,17 @@ def _workflow_widget():
                 z_start = 0
                 z_end = deskewed_shape[0]
 
-                #if only one roi selected, use the first ROI for cropping
+                #if only one roi drawn, use the first ROI for cropping
                 if len(roi_layer)==1:
                     roi_idx=0
-                else:
+                else: #else get the user selection
+                    assert len(WorkflowWidget.Preview_Crop_Menu.shapes_layer.selected_data)>0, "Please select an ROI"
                     roi_idx = list(WorkflowWidget.Preview_Crop_Menu.shapes_layer.selected_data)[0]
                     
                 roi_choice = roi_layer[roi_idx]
+                #As the original image is scaled, the coordinates are in microns, so we need to convert
+                #roi to from micron to canvas/world coordinates
+                roi_choice = [x/WorkflowWidget.CropMenu.lattice.dy for x in roi_choice]
                 print("Previewing ROI ", roi_idx)
                 
                 crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx, 
@@ -259,7 +263,7 @@ def _workflow_widget():
                                 get_active_workflow:bool,
                                 workflow_path:Path= Path.home()):
                 """
-                Apply a napari_workflows to the processing pipeline
+                Apply napari_workflows to the processing pipeline
                 User can define a pipeline which can be inspected in napari workflow inspector
                 and then execute it by ticking  the get active workflow checkbox, 
                 OR
