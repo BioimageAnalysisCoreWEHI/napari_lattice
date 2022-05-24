@@ -4,6 +4,7 @@ import pyclesperanto_prototype as cle
 import dask.array as da
 from typing import Union
 from napari.layers.shapes import shapes
+import RedLionfishDeconv as rl
 
 from .utils import calculate_crop_bbox
 
@@ -243,3 +244,35 @@ def rotate_around_vol_mat(ref_vol,angle_in_degrees:float=30.0):
     rotate_mat = np.dot(np.dot(np.dot(T, T1), R), T2)
     #print(rotate_mat)
     return rotate_mat
+
+#https://github.com/rosalindfranklininstitute/RedLionfish/blob/19ff16fe307343e417039627240224b29b4f4a95/RedLionfishDeconv/napari_plugin.py#L97
+#adapted the redfishlion napari plugin
+def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAlgorithm=True):
+    """Apply Richardson Lucy Deconvolution using the redfishlion library
+
+    Args:
+        image (_type_): Image to deconvolve
+        psf (_type_): PSF to be used for deconvolution
+        niter (int): No. of iterations
+        method (str, optional): . Defaults to "gpu".
+        resAsUint8 (bool, optional): int8 as output.
+        useBlockAlgorithm (bool, optional): process images as blocks. Allows large arrays to be processed in gpu memory
+
+    Returns:
+        np.array: Deconvolved image
+    """    
+    assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
+    assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
+    
+    if method.lower() == "cpu":
+        method = "cpu"
+    else:
+        method = "gpu"
+    
+    decon_data = rl.doRLDeconvolutionFromNpArrays(data = image, 
+                                                  psfdata = psf, 
+                                                  niter= niter, 
+                                                  method = method ,
+                                                  resAsUint8=resAsUint8,
+                                                  useBlockAlgorithm=useBlockAlgorithm)
+    return decon_data

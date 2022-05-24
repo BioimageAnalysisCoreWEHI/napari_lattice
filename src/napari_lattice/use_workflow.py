@@ -6,6 +6,7 @@ from magicgui import magicgui, widgets
 from magicclass import magicclass, click, field, vfield, set_options
 from qtpy.QtCore import Qt
 
+import yaml
 
 import numpy as np
 import dask.array as da
@@ -286,9 +287,16 @@ def _workflow_widget():
                     user_workflow = WorkflowManager.install(self.parent_viewer).workflow
                     print("Workflow loaded from napari")
                 else:
+
+                    try:
+                        user_workflow = load_workflow("D:\deskew_seg_workflow.yaml")
+                    except yaml.loader.ConstructorError as e:
+                        print("\033[91m While loading workflow, got the following error which may mean you need to install the corresponding module in your Python environment: \033[0m")
+                        print(e)
+                        
                     user_workflow = load_workflow(workflow_path)
                     print("Workflow loaded from file")
-                    #WorkflowWidget.ApplyWorkflowSave.Preview_Workflow.workflow_path = workflow_path
+                    
                 assert type(user_workflow) is Workflow, "Workflow file is not a napari worfklow object. Check file! You can use workflow inspector if needed"
                 
                 input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)

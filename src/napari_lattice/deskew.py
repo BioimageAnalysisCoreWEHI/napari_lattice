@@ -162,10 +162,9 @@ def _deskew_widget():
                 # add channel and time information to the name
                 suffix_name = "_c" + str(channel) + "_t" + str(time)
                 scale = (LLSZWidget.LlszMenu.lattice.new_dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx)
-                mip_scale = list(scale[1:3])
-                mip_scale.insert(0,1)
-                self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP",scale=mip_scale)
+                #TODO:adding img of difff scales change dim slider
                 self.parent_viewer.add_image(deskew_final, name="Deskewed image" + suffix_name,scale=scale)
+                self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP",scale=scale[1:3])
                 self.parent_viewer.layers[0].visible = False
                 #print("Shape is ",deskew_final.shape)
                 print("Preview: Deskewing complete")
