@@ -289,7 +289,7 @@ def _workflow_widget():
                 else:
 
                     try:
-                        user_workflow = load_workflow("D:\deskew_seg_workflow.yaml")
+                        user_workflow = load_workflow(workflow_path.__str__())
                     except yaml.loader.ConstructorError as e:
                         print("\033[91m While loading workflow, got the following error which may mean you need to install the corresponding module in your Python environment: \033[0m")
                         print(e)
