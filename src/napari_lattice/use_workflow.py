@@ -294,7 +294,7 @@ def _workflow_widget():
                         print("\033[91m While loading workflow, got the following error which may mean you need to install the corresponding module in your Python environment: \033[0m")
                         print(e)
                         
-                    user_workflow = load_workflow(workflow_path)
+                    #user_workflow = load_workflow(workflow_path)
                     print("Workflow loaded from file")
                     
                 assert type(user_workflow) is Workflow, "Workflow file is not a napari worfklow object. Check file! You can use workflow inspector if needed"
