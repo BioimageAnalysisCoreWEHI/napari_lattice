@@ -254,7 +254,6 @@ class LatticeData():
         self.angle = angle
         self.skew = skew
         #if image layer
-        print(type(img))
         if type(img) is image.Image: #napari layer image
             #check if its an aicsimageio object and has voxel size info            
             if 'aicsimage' in img.metadata.keys() and img.metadata['aicsimage'].physical_pixel_sizes != (None,None,None):
@@ -304,7 +303,7 @@ class LatticeData():
             self.dx = dx
             self.dy = dy
             self.dz = dz
-            
+ 
         elif type(img) is aicsimageio.aics_image.AICSImage:
             
             if img.physical_pixel_sizes != (None,None,None):
@@ -324,7 +323,7 @@ class LatticeData():
         else:
             raise Exception("Has to be an image layer or array, got type: ",type(img))    
             
-            #set new z voxel size
+        #set new z voxel size
         if self.skew == "Y":
             import math
             self.new_dz = math.sin(self.angle * math.pi / 180.0) * self.dz

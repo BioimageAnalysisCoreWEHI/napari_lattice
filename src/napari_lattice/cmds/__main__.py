@@ -89,8 +89,7 @@ def main():
             for img in img_list:
                 img_name = os.path.basename(os.path.splitext(img)[0])
                 roi_temp = roi_file +os.sep+ img_name + ".zip" 
-                print(roi_temp)
-                
+
                 if os.path.exists(roi_temp):
                     roi_list.append(roi_temp)
                 else:
@@ -101,13 +100,14 @@ def main():
             roi_list.append(roi_file)
         assert len(roi_list) == len(img_list), "Image and ROI lists do not match"
     else:
+        #add list of empty strings so that it can run through for loop
         no_files = len(img_list)
         roi_list =[""]*no_files
       
     
-
+    #loop through list of images and rois
     for img,roi in zip(img_list,roi_list):  
-        #img = img_list[0]
+        print("Processing Image "+img)
         aics_img = AICSImage(img)
         lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
 
@@ -120,6 +120,12 @@ def main():
         if time_end == 0:
             time_end = lattice.time
 
+        #Create save directory for each image
+        save_path = output_path + os.sep + os.path.basename(os.path.splitext(img)[0]) + os.sep
+        if not os.path.exists(save_path):
+            os.mkdir(save_path)
+        
+        #Deskewing only
         if processing == "deskew": 
 
             save_tiff(vol = img_data,
@@ -128,7 +134,7 @@ def main():
                         time_end = time_end,
                         channel_start = channel_start,
                         channel_end = channel_end,
-                        save_path = output_path,
+                        save_path = save_path,
                         save_name= save_name,
                         dx = dx,
                         dy = dy,
@@ -139,7 +145,8 @@ def main():
                         voxel_size_y=dy,
                         voxel_size_z=dz
                         )
-            
+        
+        #Crop and deskew
         elif processing == "crop":
 
             roi_img = read_imagej_roi(roi)
@@ -148,9 +155,7 @@ def main():
                 print("Processing ROI "+str(idx)+" of "+str(len(roi_img)))
                 deskewed_shape = lattice.deskew_vol_shape
                 deskewed_volume = da.zeros(deskewed_shape)
-                save_path = output_path + os.sep + os.path.basename(os.path.splitext(img)[0]) + os.sep
-                if not os.path.exists(save_path):
-                    os.mkdir(save_path)
+
                 print("Saving at ",save_path)
                 #Can modify for entering custom z values
                 z_start = 0
