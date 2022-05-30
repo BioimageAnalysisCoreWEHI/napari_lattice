@@ -247,9 +247,8 @@ def save_tiff_workflow(vol,
     
     return
 
-
-#Class for initializing non czi files
-#TODO: Add option to read tiff files (images from Janelia lattice can be specified by changing angle and skew during initialisation)
+#class for initilazing lattice data and setting metadata
+#TODO: handle scenes
 class LatticeData():
     def __init__(self,img,angle,skew,dx,dy,dz,channel_dimension) -> None:
         self.angle = angle

@@ -2,16 +2,15 @@
 #Run processing on command line instead of napari. 
 #Example for deskewing files in a folder
 #python lattice_processing.py --input /home/pradeep/to_deskew --output /home/pradeep/output_save/ --processing deskew
-import argparse
+import argparse,os,glob,sys
 from napari_lattice.io import LatticeData,save_tiff
 from napari_lattice.utils import read_imagej_roi
 from napari_lattice.llsz_core import crop_volume_deskew
 from aicsimageio import AICSImage
-import os,glob
 import pyclesperanto_prototype as cle
 from tqdm import tqdm
 import dask.array as da
-import sys
+ 
 
 #define parser class so as to print help message
 class ArgParser(argparse.ArgumentParser): 
@@ -53,7 +52,8 @@ def main():
     if processing == "crop":
         roi_file = args.roi_file[0]
         assert roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
-        assert os.path.splitext(roi_file)[1] == ".zip", "ROI file is not a zip file"
+        if os.path.isfile(roi_file): #if file make sure it is a zip file
+            assert os.path.splitext(roi_file)[1] == ".zip", "ROI file is not a zip file"
             
     time_start,time_end = args.time_range
     channel_start, channel_end = args.channel_range
@@ -68,87 +68,117 @@ def main():
         file_extension = [".czi",".tif",".tiff"]
     else:
         file_extension = args.file_extension
-
+    
+    #Initialise list of images and ROIs
     img_list= []
-    #if folder get list of images that match extension in file_extension
+    roi_list= []
+
+    #If input_path a directory, get a list of images
     if os.path.isdir(input_path):
         for file_type in file_extension:
             img_list.extend(glob.glob(input_path+os.sep+'*'+file_type))
-
-    #if a single file, just add filename to the image list
+        print("List of images: ", img_list)
     elif os.path.isfile(input_path) and (os.path.splitext(input_path))[1] in file_extension:
-        img_list.append(input_path)
+        img_list.append(input_path)     #if a single file, just add filename to the image list
     else:
-        exit("Do not recognise "+input_path+" as directory or file")
-    print(img_list)
+        sys.exit("Do not recognise "+input_path+" as directory or file")
 
-    #for img in img_list:  
-    img = img_list[0]
-    aics_img = AICSImage(img)
-    lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
+    #If cropping, get list of roi files with matching image names
+    if processing == "crop":
+        if os.path.isdir(roi_file):
+            for img in img_list:
+                img_name = os.path.basename(os.path.splitext(img)[0])
+                roi_temp = roi_file +os.sep+ img_name + ".zip" 
+                print(roi_temp)
+                
+                if os.path.exists(roi_temp):
+                    roi_list.append(roi_temp)
+                else:
+                    sys.exit("Cannot find ROI file for "+img)
+                    
+            print("List of ROIs: ", roi_list)
+        elif os.path.isfile(roi_file):
+            roi_list.append(roi_file)
+        assert len(roi_list) == len(img_list), "Image and ROI lists do not match"
+    else:
+        no_files = len(img_list)
+        roi_list =[""]*no_files
+      
+    
 
-    img_data = lattice.data
+    for img,roi in zip(img_list,roi_list):  
+        #img = img_list[0]
+        aics_img = AICSImage(img)
+        lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
 
-    save_name = os.path.splitext(os.path.basename(img))[0]
+        img_data = lattice.data
 
-    if channel_end == 0:
-        channel_end = lattice.channels
-    if time_end == 0:
-        time_end = lattice.time
+        save_name = os.path.splitext(os.path.basename(img))[0]
 
-    if processing == "deskew": 
+        if channel_end == 0:
+            channel_end = lattice.channels
+        if time_end == 0:
+            time_end = lattice.time
 
-        save_tiff(vol = img_data,
-                    func = cle.deskew_y,
-                    time_start = time_start,
-                    time_end = time_end,
-                    channel_start = channel_start,
-                    channel_end = channel_end,
-                    save_path = output_path,
-                    save_name= save_name,
-                    dx = dx,
-                    dy = dy,
-                    dz = dz,
-                    angle = deskew_angle,
-                    angle_in_degrees = deskew_angle,
-                    voxel_size_x=dx,
-                    voxel_size_y=dy,
-                    voxel_size_z=dz
-                    )
-        
-    elif processing == "crop":
-        roi_list = read_imagej_roi(roi_file)
-        for idx, roi_layer in enumerate(tqdm(roi_list, desc="ROI:", position=0)):
-            print("Processing ROI "+str(idx)+" of "+str(len(roi_list)))
-            deskewed_shape = lattice.deskew_vol_shape
-            deskewed_volume = da.zeros(deskewed_shape)
-            #Can modify for entering custom z values
-            z_start = 0
-            z_end = deskewed_shape[0]
-            save_tiff(img_data,
-                        func = crop_volume_deskew,
+        if processing == "deskew": 
+
+            save_tiff(vol = img_data,
+                        func = cle.deskew_y,
                         time_start = time_start,
                         time_end = time_end,
                         channel_start = channel_start,
                         channel_end = channel_end,
-                        save_name_prefix  = "ROI_" + str(idx)+"_",
                         save_path = output_path,
                         save_name= save_name,
                         dx = dx,
                         dy = dy,
                         dz = dz,
                         angle = deskew_angle,
-                        deskewed_volume=deskewed_volume,
-                        roi_shape = roi_layer,
                         angle_in_degrees = deskew_angle,
-                        z_start = z_start,
-                        z_end = z_end,
                         voxel_size_x=dx,
                         voxel_size_y=dy,
-                        voxel_size_z=dz,
+                        voxel_size_z=dz
                         )
-    else:
-        exit("Have not implemented "+processing)
+            
+        elif processing == "crop":
+
+            roi_img = read_imagej_roi(roi)
+            print(roi)
+            for idx, roi_layer in enumerate(tqdm(roi_img, desc="ROI:", position=0)):
+                print("Processing ROI "+str(idx)+" of "+str(len(roi_img)))
+                deskewed_shape = lattice.deskew_vol_shape
+                deskewed_volume = da.zeros(deskewed_shape)
+                save_path = output_path + os.sep + os.path.basename(os.path.splitext(img)[0]) + os.sep
+                if not os.path.exists(save_path):
+                    os.mkdir(save_path)
+                print("Saving at ",save_path)
+                #Can modify for entering custom z values
+                z_start = 0
+                z_end = deskewed_shape[0]
+                save_tiff(img_data,
+                            func = crop_volume_deskew,
+                            time_start = time_start,
+                            time_end = time_end,
+                            channel_start = channel_start,
+                            channel_end = channel_end,
+                            save_name_prefix  = "ROI_" + str(idx)+"_",
+                            save_path = save_path,
+                            save_name= save_name,
+                            dx = dx,
+                            dy = dy,
+                            dz = dz,
+                            angle = deskew_angle,
+                            deskewed_volume=deskewed_volume,
+                            roi_shape = roi_layer,
+                            angle_in_degrees = deskew_angle,
+                            z_start = z_start,
+                            z_end = z_end,
+                            voxel_size_x=dx,
+                            voxel_size_y=dy,
+                            voxel_size_z=dz,
+                            )
+        else:
+            exit("Have not implemented "+processing)
 
 if __name__ == '__main__':
     main()

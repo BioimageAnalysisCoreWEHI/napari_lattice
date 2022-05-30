@@ -135,6 +135,14 @@ def dask_expand_dims(a,axis):
     return a.reshape(shape)
 
 def read_imagej_roi(roi_zip_path):
+    """Read an ImageJ ROI zip file so it loaded into napari shapes layer
+        If non rectangular ROI, will convert into a rectangle based on extreme points
+    Args:
+        roi_zip_path (zip file): ImageJ ROI zip file
+
+    Returns:
+        list: List of ROIs
+    """    
     assert  path.splitext(roi_zip_path)[1] == ".zip", "ImageJ ROI file needs to be a zip file"
     ij_roi = read_roi_zip(roi_zip_path)
 
