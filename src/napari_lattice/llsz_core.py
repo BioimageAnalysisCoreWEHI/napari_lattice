@@ -10,8 +10,8 @@ from .utils import calculate_crop_bbox
 
 
 #pass shapes data from single ROI to crop the volume from original data
-def crop_volume_deskew(original_volume:Union[da.core.Array,np.array], 
-                        deskewed_volume:Union[da.core.Array,np.array], 
+def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0._pycl.OCLArray], 
+                        deskewed_volume:Union[da.core.Array,np.ndarray,cle._tier0._pycl.OCLArray], 
                         roi_shape:Union[shapes.Shapes,list,np.array], 
                         angle_in_degrees:float, 
                         voxel_size_x:float, 
@@ -120,7 +120,7 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.array],
     #Crop in Y
     deskewed_crop = deskewed_prelim[:,crop_excess:crop_height+crop_excess,:]
 
-    return deskewed_crop
+    return deskewed_crop#,deskewed_prelim
 
 #Get reverse affine transform by rotating around a user-specified volume
 def get_inverse_affine_transform(original_volume,angle_in_degrees,voxel_x,voxel_y,voxel_z):

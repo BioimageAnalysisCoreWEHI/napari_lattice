@@ -35,24 +35,17 @@ def _Preview(LLSZWidget,
     vol_zyx= vol[time,channel,:,:,:]
 
     # Deskew using pyclesperanto
-    #on some hardware, getting an error LogicError: clSetKernelArg failed:
-    # INVALID_ARG_SIZE - when processing arg#13 (1-based), using dask map_blocks seems to work
-    #try:
-        #deskew_final = cle.deskew_y(vol_zyx, 
-                                #angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
-                                #voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
-                                #voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
-    #                           voxel_size_z=LLSZWidget.LlszMenu.lattice.dz).astype(vol.dtype)
-    #except Exception as e:
-    #print("Got error: ",e,". Using tiling strategy")
-    deskew_final = vol_zyx.map_blocks(cle.deskew_y,
-                                    angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
-                                    voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
-                                    voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
-                                    voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
-                                    dtype=vol.dtype,
-                                    chunks=LLSZWidget.LlszMenu.lattice.deskew_vol_shape)
+    # if getting an error LogicError: clSetKernelArg failed:
+    #INVALID_ARG_SIZE - when processing arg#13 (1-based),
+    #make sure array is pulled from GPU
     
+    deskew_final = cle.deskew_y(vol_zyx, 
+                                angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
+                                voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
+                                voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
+                               voxel_size_z=LLSZWidget.LlszMenu.lattice.dz).astype(vol.dtype)
+
+    deskew_final = cle.pull(deskew_final)
     # TODO: Use dask
     if LLSZWidget.LlszMenu.dask:
         print("Using CPU for deskewing")

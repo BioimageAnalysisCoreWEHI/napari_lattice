@@ -43,7 +43,7 @@ def _napari_lattice_widget_wrapper():
             save_name = ""
 
             main_heading = widgets.Label(value="<h3>Napari Lattice: Visualization & Analysis</h3>")
-            heading1 = widgets.Label(value="Drag and drop an image file onto napari.\nOnce image has opened, initialize the plugin \n by clicking button below and choosing image layer'.\n Ensure the voxel sizes are accurate in the prompt.\n If everything initalized properly, the button turns green.")
+            heading1 = widgets.Label(value="Drag and drop an image file onto napari.\nOnce image has opened,\ninitialize the plugin by clicking the button below\n'.\n Ensure the image layer and voxel sizes are accurate in the prompt.\n If everything initalized properly, the button turns green.")
             @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Initialize plugin",width=200) 
             @set_options(pixel_size_dx={"widget_type": "FloatSpinBox", "value":0.1449922,"step": 0.000000001},
                          pixel_size_dy={"widget_type": "FloatSpinBox", "value":0.1449922, "step": 0.000000001},
@@ -238,22 +238,23 @@ def _napari_lattice_widget_wrapper():
                             roi_choice = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_choice]
                             print("Previewing ROI ", roi_idx)
                             
-                            crop_roi_vol_desk = vol_zyx.map_blocks(crop_volume_deskew,
-                                                                   deskewed_volume=deskewed_volume, 
-                                                                   roi_shape = roi_choice, 
-                                                                   angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
-                                                                   voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
-                                                                   voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
-                                                                   voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
-                                                                   z_start = z_start, 
-                                                                   z_end = z_end,
-                                                                   dtype=vol_zyx.dtype,
-                                                                   chunks=LLSZWidget.LlszMenu.lattice.deskew_vol_shape)
+                            crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx,
+                                                                        deskewed_volume=deskewed_volume, 
+                                                                        roi_shape = roi_choice, 
+                                                                        angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
+                                                                        voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
+                                                                        voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
+                                                                        voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
+                                                                        z_start = z_start, 
+                                                                        z_end = z_end)#.astype(vol_zyx.dtype)
 
+                            crop_roi_vol_desk = cle.pull(crop_roi_vol_desk)
+                            
                             scale = (LLSZWidget.LlszMenu.lattice.new_dz,
                                     LLSZWidget.LlszMenu.lattice.dy,
                                     LLSZWidget.LlszMenu.lattice.dx)
                             self.parent_viewer.add_image(crop_roi_vol_desk,scale=scale)
+                            #self.parent_viewer.add_image(excess,scale=scale)
                             return
                 
                 
