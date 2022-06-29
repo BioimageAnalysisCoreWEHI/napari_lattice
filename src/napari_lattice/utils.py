@@ -2,11 +2,17 @@ import numpy as np
 from collections import defaultdict
 from contextlib import contextmanager,redirect_stderr,redirect_stdout
 from os import devnull, path
+import os
+
+import pandas as pd
+import dask.array as da
 
 import pyclesperanto_prototype as cle
 from read_roi import read_roi_zip
 
 from napari_workflows import Workflow
+from tifffile import imsave
+
 
 #get bounding box of ROI in 3D and the shape of the ROI
 def calculate_crop_bbox(shape, z_start:int, z_end:int):
@@ -171,6 +177,7 @@ def read_imagej_roi(roi_zip_path):
 
 #Functions to deal with cle workflow
 #TODO: Clean up this function
+#TODO: Check if tasks in order?
 def get_first_last_image_and_task(user_workflow:Workflow):
     """Get images and tasks for first and last entry
     Args:
@@ -221,3 +228,140 @@ def modify_workflow_task(old_arg,task_key:str,new_arg,workflow):
     task_list[item_index] = new_arg
     modified_task=tuple(task_list)
     return modified_task
+
+
+def get_all_py_files(directory): 
+    """get all py files within directory and return as a list of filenames
+    Args:
+        directory: Directory with .py files
+    """    
+    from os.path import dirname, basename, isfile, join
+    import glob
+    
+    import sys
+    
+    modules = glob.glob(join(dirname(directory), "*.py"))
+    all = [basename(f)[:-3] for f in modules if isfile(f) and not f.endswith('__init__.py')]
+    print(f"Files found are: {all}")
+    
+    
+    return all
+
+def as_type(img,ref_vol):
+    """return image same dtype as ref_vol
+
+    Args:
+        img (_type_): _description_
+        ref_vol (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """    
+    img.astype(ref_vol.dtype)
+    return img
+
+def process_custom_workflow_output(workflow_output,
+                                 save_dir=None,
+                                 idx=None,
+                                 LLSZWidget=None,
+                                 widget_class=None,
+                                 channel=0,
+                                 time=0,
+                                 preview:bool=True):
+    """Check the output from a custom workflow; 
+    saves tables and images separately
+
+    Args:
+        workflow_output (_type_): _description_
+        save_dir (_type_): _description_
+        idx (_type_): _description_
+        LLSZWidget (_type_): _description_
+        widget_class (_type_): _description_
+        channel (_type_): _description_
+        time (_type_): _description_
+    """    
+    if type(workflow_output) in [dict,list]:
+        #create function for tthis dataframe bit
+        df = pd.DataFrame(workflow_output)
+        if preview:
+            save_path = path.join(save_dir,"lattice_measurement_"+str(idx)+".csv")
+            print(f"Detected a dictionary as output, saving preview at",save_path)
+            df.to_csv(save_path, index=False)
+        else:
+            return df
+    elif type(workflow_output) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]:
+        if preview:
+            suffix_name = str(idx)+"_c" + str(channel) + "_t" +str(time)
+            scale = (LLSZWidget.LlszMenu.lattice.new_dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx)
+            widget_class.parent_viewer.add_image(workflow_output, name="Workflow_preview_"+ suffix_name,scale=scale)
+        else:
+            return workflow_output
+        
+
+
+def _process_custom_workflow_output_batch(ref_vol,
+                                          no_elements,
+                                          array_element_type,
+                                          channel_range,
+                                          images_array,
+                                          save_path,
+                                          time_point,
+                                          ch,
+                                          save_name_prefix,
+                                          save_name,
+                                          dx=None,
+                                          dy=None,
+                                          new_dz=None
+                                          ):
+    #create columns index for the list
+    if list in array_element_type:
+        row_idx=[]
+        
+     #Iterate through the dict or list output from workflow and add columns for Channel and timepoint
+    for i in range(no_elements):
+        for j in channel_range:
+            if type(images_array[j,i]) in [dict]:
+                images_array[j,i].update({"Channel/Time":"C"+str(j)+"T"+str(time_point)})
+            elif type(images_array[j,i]) in [list]:
+                row_idx.append("C"+str(j)+"T"+str(time_point))
+    
+    for element in range(no_elements):
+        if(array_element_type[element]) in [dict]:
+            #convert to pandas dataframe
+            output_dict_pd = [pd.DataFrame(i) for i in images_array[:,element]]
+            output_dict_pd = pd.concat(output_dict_pd)
+            #set index to the channel/time
+            output_dict_pd = output_dict_pd.set_index("Channel/Time")
+            
+            #Save path
+            dict_save_path = os.path.join(save_path,"Measurement_"+str(element))
+            if not(os.path.exists(dict_save_path)):
+                os.mkdir(dict_save_path)
+            dict_save_path = os.path.join(dict_save_path,"C" + str(ch) + "T" + str(time_point) + "_measurement.csv")
+            output_dict_pd.to_csv(dict_save_path, index=False)
+        
+        elif(array_element_type[element]) in [list]:
+            
+            output_list_pd = pd.DataFrame(np.vstack(images_array[:,element]),index=row_idx)
+            #Save path
+            list_save_path = os.path.join(save_path,"Measurement_"+str(element))
+            if not(os.path.exists(list_save_path)):
+                os.mkdir(list_save_path)
+            list_save_path = os.path.join(list_save_path,"C" + str(ch) + "T" + str(time_point) + "_measurement.csv")
+            output_list_pd.to_csv(list_save_path, index=False)
+        
+        elif(array_element_type[element]) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]:
+            im_final = np.stack(images_array[:,element]).astype(ref_vol.dtype)
+            final_name = os.path.join(save_path,save_name_prefix + "C" + str(ch) + "T" + str(
+                time_point) + "_" + save_name + ".tif")
+            #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+            if len(im_final.shape) ==4: #if only one image with no channel, then dimension will 1,z,y,x, so swap 0 and 1
+                im_final = np.swapaxes(im_final,0,1) #was 1,2,but when stacking images, dimension is CZYX
+                im_final = im_final[np.newaxis,...] #adding extra dimension for T
+            elif len(im_final.shape)>4:#if
+                im_final = np.swapaxes(im_final,1,2) #if image with multiple channels, , it will be 1,c,z,y,x
+            #imagej=True; ImageJ hyperstack axes must be in TZCYXS order
+            imsave(final_name,im_final, bigtiff=True, imagej=True,resolution=(1./dx, 1./dy),
+            metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'})#imagej=True
+            im_final = None
+    return

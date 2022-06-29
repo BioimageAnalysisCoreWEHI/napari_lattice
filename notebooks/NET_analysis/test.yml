@@ -1,0 +1,5 @@
+!!python/object:napari_workflows._workflow.Workflow
+_tasks:
+  segmentation: !!python/tuple
+  - !!python/name:net_analysis.segment_img ''
+  - input

@@ -18,6 +18,7 @@ from napari.utils import history
 from .io import LatticeData,  save_tiff
 from .llsz_core import crop_volume_deskew
 from .utils import read_imagej_roi
+from .ui_core import _Preview, _Deskew_Save
 
 
 def _crop_deskew_widget():
@@ -116,52 +117,11 @@ def _crop_deskew_widget():
                     header ([type]): [description]
                     img_data (ImageData): [description]
                 """
-                print("Previewing deskewed channel and time")
-                assert img_data.size, "No image open or selected"
-                assert CropWidget.CropMenu.open_file, "Image not initialised"
-                assert time< CropWidget.CropMenu.lattice.time, "Time is out of range"
-                assert channel < CropWidget.CropMenu.lattice.channels, "Channel is out of range"
-                
-                assert str.upper(CropWidget.CropMenu.lattice.skew) in ('Y', 'X'), \
-                    "Skew direction not recognised. Enter either Y or X"
-
-                print("Deskewing for Time:", time,"and Channel: ", channel)
-
-                vol = CropWidget.CropMenu.lattice.data
-
-                vol_zyx= vol[time,channel,...]
-
-                # Deskew using pyclesperanto
-                #deskew_final = cle.deskew_y(vol_zyx, 
-                                            #angle_in_degrees=CropWidget.CropMenu.angle_value,
-                                            #voxel_size_x=CropWidget.CropMenu.lattice.dx,
-                                            #voxel_size_y=CropWidget.CropMenu.lattice.dy,
-                                            #voxel_size_z=CropWidget.CropMenu.lattice.dz).astype(vol_zyx.dtype)
-                deskew_final = vol_zyx.map_blocks(cle.deskew_y,
-                                                angle_in_degrees=CropWidget.CropMenu.angle_value,
-                                                voxel_size_x=CropWidget.CropMenu.lattice.dx,
-                                                voxel_size_y=CropWidget.CropMenu.lattice.dy,
-                                                voxel_size_z=CropWidget.CropMenu.lattice.dz,
-                                                dtype=vol.dtype,
-                                                chunks=CropWidget.CropMenu.lattice.deskew_vol_shape)
-                #deskew_final = cle.pull_zyx(deskewed)
-                # TODO: Use dask
-                if CropWidget.CropMenu.dask:
-                    print("Using CPU for deskewing")
-                    # use cle library for affine transforms, but use dask and scipy
-                    # deskew_final = deskew_final.compute()
-                
-                max_proj_deskew = cle.maximum_z_projection(deskew_final) #np.max(deskew_final, axis=0)
-
-                # add channel and time information to the name
-                suffix_name = "_c" + str(channel) + "_t" + str(time)
-
-                scale = (CropWidget.CropMenu.lattice.new_dz,CropWidget.CropMenu.lattice.dy,CropWidget.CropMenu.lattice.dx)
-                self.parent_viewer.add_image(max_proj_deskew, name="Deskew_MIP",scale=scale[1:3])
-                self.parent_viewer.add_image(deskew_final, name="Deskewed image" + suffix_name,scale=scale)
-                self.parent_viewer.layers[0].visible = False
-                #print("Shape is ",deskew_final.shape)
-                print("Preview: Deskewing complete")
+                _Preview(CropWidget,
+                        self,
+                        time,
+                        channel,
+                        img_data)
                 return
         
         #add function for previewing cropped image

@@ -9,15 +9,15 @@ import pyclesperanto_prototype as cle
 import sys
 import dask
 import dask.array as da
-import xarray 
 from napari.layers import image, Layer
 import dask.array as da
+import pandas as pd
 
 from dask.distributed import Client
 from dask.cache import Cache
 
 from .utils import etree_to_dict
-from .utils import get_deskewed_shape, dask_expand_dims,modify_workflow_task
+from .utils import get_deskewed_shape, dask_expand_dims,modify_workflow_task, process_custom_workflow_output,_process_custom_workflow_output_batch
 from .llsz_core import crop_volume_deskew
 
 import os
@@ -25,6 +25,7 @@ import numpy as np
 from napari.types import ImageData
 from napari_workflows import Workflow
 from tqdm import tqdm
+from tifffile import imsave
 
 
 def convert_imgdata_aics(img_data:ImageData):
@@ -114,9 +115,10 @@ def save_tiff(vol,
     if angle>0:
         import math
         new_dz = math.sin(angle * math.pi / 180.0) * dz
-        aics_image_pixel_sizes = PhysicalPixelSizes(new_dz,dy,dx)
+        #aics_image_pixel_sizes = PhysicalPixelSizes(new_dz,dy,dx)
     else:
-        aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
+        #aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
+        new_dz = dz
 
     if func is crop_volume_deskew:
         #create folder for each ROI; disabled as each roi is saved as hyperstack
@@ -157,19 +159,25 @@ def save_tiff(vol,
         #For functions other than cropping save each timepoint
         if func != crop_volume_deskew: 
             final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
-                            time_point) + "_" +save_name+ ".ome.tif"
-    
-            OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+                            time_point) + "_" +save_name+ ".tif"
+            #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+            imsave(final_name,images_array, bigtiff=True, resolution=(1./dx, 1./dy),
+               metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'})#imagej=True
         elif func is crop_volume_deskew:
             im_final.append(images_array)
+            
     #if using cropping, save whole stack instead of individual timepoints
     if func is crop_volume_deskew:
         im_final = np.array(im_final)
-        final_name = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".ome.tif"
-        OmeTiffWriter.save(im_final, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
-        im_final = None
+        final_name = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".tif"
+        #OmeTiffWriter.save(im_final, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+        im_final = np.swapaxes(im_final,1,2)
+        #imagej=True; ImageJ hyperstack axes must be in TZCYXS order
         
-    
+        imsave(final_name,im_final, bigtiff=True, resolution=(1./dx, 1./dy),
+               metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'})#imagej=True
+        im_final = None
+   
     return
 
 def save_tiff_workflow(vol,
@@ -220,12 +228,14 @@ def save_tiff_workflow(vol,
     if angle:
         import math
         new_dz = math.sin(angle * math.pi / 180.0) * dz
-        aics_image_pixel_sizes = PhysicalPixelSizes(new_dz,dy,dx)
+        #aics_image_pixel_sizes = PhysicalPixelSizes(new_dz,dy,dx)
     else:     
-        aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
+        #aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
+        new_dz = dz
 
     for time_point in tqdm(time_range, desc="Time", position=0):
-        images_array = []      
+        images_array = []
+        data_table = []     
         for ch in tqdm(channel_range, desc="Channels", position=1,leave=False):
 
             if len(vol.shape) == 3:
@@ -237,13 +247,88 @@ def save_tiff_workflow(vol,
             workflow.set(input_arg,raw_vol)
             #execute workflow
             processed_vol = workflow.get(last_task)
+
             images_array.append(processed_vol)    
         
+        #Check if images_array elements are multiple elements or just an image?
         images_array = np.array(images_array)
-        final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
-                        time_point) + "_" + save_name + ".ome.tif"
-    
-        OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+        
+        no_elements = len(processed_vol)
+        if type(processed_vol) not in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]:
+            array_element_type = [type(images_array[0,i]) for i in range(no_elements)]
+        else:
+            array_element_type = type(processed_vol)
+            
+        #check if output from workflow a list of dicts, list and/or images
+        
+        if any([i in [dict,list,tuple] for i in array_element_type]):
+            if (len(processed_vol)>1) and (type(processed_vol) in [tuple]):
+                _process_custom_workflow_output_batch(raw_vol,
+                                                      no_elements,
+                                                        array_element_type,
+                                                        channel_range,
+                                                        images_array,
+                                                        save_path,
+                                                        time_point,
+                                                        ch,
+                                                        save_name_prefix,
+                                                        save_name,
+                                                        dx,
+                                                        dy,
+                                                        new_dz)
+            #check if list and it it contains dict or images
+            elif (len(processed_vol)>1) and (type(processed_vol) in [list]) and any([type(i) in [dict,np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array] for i in processed_vol]):
+                _process_custom_workflow_output_batch(raw_vol,
+                                                        no_elements,
+                                                        array_element_type,
+                                                        channel_range,
+                                                        images_array,
+                                                        save_path,
+                                                        time_point,
+                                                        ch,
+                                                        save_name_prefix,
+                                                        save_name,
+                                                        dx,
+                                                        dy,
+                                                        new_dz)         
+            #if a single dict or   list of dicts
+            elif type(images_array) in [dict] or type(images_array[0]) in [dict]:
+                #convert to pandas dataframe
+                for j in channel_range:
+                    images_array[j].update({"Channel/Time":"C"+str(j)+"T"+str(time_point)})
+                output_dict_pd = [pd.DataFrame(i) for i in images_array]
+                output_dict_pd = pd.concat(output_dict_pd)
+                #set index to the channel/time
+                output_dict_pd = output_dict_pd.set_index("Channel/Time")            
+                dict_save_path = os.path.join(save_path,"C" + str(ch) + "T" + str(time_point) + "_measurement.csv")
+                output_dict_pd.to_csv(dict_save_path, index=False)
+            
+            #if a single list or list of lists
+            elif type(images_array) in [list] or type(images_array[0]) in [list]:
+                row_idx=[]
+                for j in channel_range:
+                    row_idx.append("C"+str(j)+"T"+str(time_point))
+                    
+                output_list_pd = pd.DataFrame(np.vstack(images_array),index=row_idx)
+                #Save path
+                list_save_path = os.path.join(save_path,"C" + str(ch) + "T" + str(time_point) + "_measurement.csv")
+                output_list_pd.to_csv(list_save_path, index=False)
+        
+                
+        #processing as an iamge    
+        else:
+            
+            final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
+                            time_point) + "_" + save_name + ".tif"
+            #TODO: Change to tiffile.imsave
+            #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+            #images from above are returned as czyx, so swap 
+            #print(images_array.shape)
+            images_array = np.swapaxes(images_array,0,1).astype(raw_vol.dtype)
+            #imagej=True; ImageJ hyperstack axes must be in TZCYXS order
+            imsave(final_name,images_array, bigtiff=True, imagej=True, resolution=(1./dx,1./dy),
+               metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'ZCYX'})#imagej=True
+            #images_array = None
     
     return
 

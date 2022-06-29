@@ -1,4 +1,5 @@
 import os
+import sys
 import numpy as np
 from pathlib import Path
 from magicclass.wrappers import set_design
@@ -20,7 +21,7 @@ from napari.utils import history
 
 from .io import LatticeData, save_tiff_workflow
 from .llsz_core import crop_volume_deskew
-from .utils import read_imagej_roi, get_first_last_image_and_task,modify_workflow_task
+from .utils import read_imagej_roi, get_first_last_image_and_task,modify_workflow_task,get_all_py_files, as_type
 
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow, save_workflow
@@ -261,12 +262,14 @@ def _workflow_widget():
             @magicgui(get_active_workflow = dict(widget_type="Checkbox",label="Get active workflow in napari-workflow",value = False),
                       workflow_path = dict(mode='r', label="Load custom workflow (.yaml/yml)"),
                       Use_Cropping = dict(widget_type="Checkbox",label="Crop Data",value = False),
+                      custom_module=dict(widget_type="Checkbox",label="Load custom module (same dir as workflow)",value = False),
                       call_button="Apply and Preview Workflow")
             def Workflow_Preview(self,
                                 get_active_workflow:bool,
-                                Use_Cropping,
+                                Use_Cropping:bool,
                                 roi_layer_list: ShapesData, 
-                                workflow_path:Path= Path.home()):
+                                workflow_path:Path= Path.home(),
+                                custom_module:bool=False):
                 """
                 Apply napari_workflows to the processing pipeline
                 User can define a pipeline which can be inspected in napari workflow inspector
@@ -289,6 +292,14 @@ def _workflow_widget():
                 else:
 
                     try:
+                        #if loading custom module, scan directory with workflow file and load *.py files
+                        if custom_module:
+                            import importlib
+                            parent_dir = workflow_path.resolve().parents[0].__str__()+os.sep
+                            sys.path.append(parent_dir)
+                            custom_py_files = get_all_py_files(parent_dir)
+                            modules = map(importlib.import_module,custom_py_files)
+                            print(modules)
                         user_workflow = load_workflow(workflow_path.__str__())
                     except yaml.loader.ConstructorError as e:
                         print("\033[91m While loading workflow, got the following error which may mean you need to install the corresponding module in your Python environment: \033[0m")
@@ -319,7 +330,10 @@ def _workflow_widget():
                 vol_zyx= vol[time,channel,...]
 
                 task_name_start = first_task_name[0]
-                task_name_last = last_task_name[0]
+                try:
+                    task_name_last = last_task_name[0]
+                except IndexError:
+                    task_name_last = task_name_start
                 
                 #get the function associated with the first task and check if its deskewing
                 if Use_Cropping:
@@ -362,8 +376,9 @@ def _workflow_widget():
                                       voxel_size_x = WorkflowWidget.WorkflowMenu.lattice.dx,
                                       voxel_size_y= WorkflowWidget.WorkflowMenu.lattice.dy,
                                       voxel_size_z = WorkflowWidget.WorkflowMenu.lattice.dz)
+                    user_workflow.set("change_bitdepth",as_type,"deskew_image",vol_zyx)
                     #Set input of the workflow to be from deskewing
-                    user_workflow.set(input_arg_first,"deskew_image")
+                    user_workflow.set(input_arg_first,"change_bitdepth")
                 else:  
                     #set the first input image to be the volume user has chosen
                     user_workflow.set(input_arg_first,vol_zyx)
@@ -372,11 +387,18 @@ def _workflow_widget():
                 print(user_workflow)
                 #Execute workflow
                 processed_vol = user_workflow.get(task_name_last)
-
+                
+                if type(processed_vol) in [dict,list]:
+                    import pandas as pd
+                    df = pd.DataFrame(processed_vol)
+                    save_path = os.path.join(parent_dir,"lattice_measurement.csv")
+                    print(f"Detected a dictionary as output, saving preview at",save_path)
+                    df.to_csv(save_path, index=False)
+                else:
                 # add channel and time information to the name
-                suffix_name = "_c" + str(channel) + "_t" +str(time)
-                scale = (WorkflowWidget.WorkflowMenu.lattice.new_dz,WorkflowWidget.WorkflowMenu.lattice.dy,WorkflowWidget.WorkflowMenu.lattice.dx)
-                self.parent_viewer.add_image(processed_vol, name="Workflow_processed"+ suffix_name,scale=scale)
+                    suffix_name = "_c" + str(channel) + "_t" +str(time)
+                    scale = (WorkflowWidget.WorkflowMenu.lattice.new_dz,WorkflowWidget.WorkflowMenu.lattice.dy,WorkflowWidget.WorkflowMenu.lattice.dx)
+                    self.parent_viewer.add_image(processed_vol, name="Workflow_processed"+ suffix_name,scale=scale)
 
                 print("Workflow complete")
                 return
@@ -392,6 +414,7 @@ def _workflow_widget():
                       get_active_workflow = dict(widget_type="Checkbox",label="Get active workflow in napari-workflow",value = False),
                       workflow_path=dict(mode='r', label="Load custom workflow (.yaml/yml)"),
                       save_path=dict(mode='d', label="Directory to save "),
+                      custom_module=dict(widget_type="Checkbox",label="Load custom module (same dir as workflow)",value = False),
                       call_button="Apply Workflow and Save Result")            
             def Apply_Workflow_and_Save(self , 
                                         time_start: int, 
@@ -402,6 +425,7 @@ def _workflow_widget():
                                         roi_layer_list: ShapesData, 
                                         get_active_workflow:bool=False,
                                         workflow_path:Path= Path.home(),
+                                        custom_module:bool=False,
                                         save_path: Path = Path(history.get_save_history()[0])):
                 """
                 Apply a user-defined analysis workflow using napari-workflows
@@ -434,13 +458,19 @@ def _workflow_widget():
                     user_workflow = WorkflowManager.install(self.parent_viewer).workflow
                     print("Workflow installed")
                 else:
-                    print(workflow_path)
+                    if custom_module:
+                        import importlib
+                        parent_dir = workflow_path.resolve().parents[0].__str__()+os.sep
+                        sys.path.append(parent_dir)
+                        custom_py_files = get_all_py_files(parent_dir)
+                        modules = map(importlib.import_module,custom_py_files)
+                        print(modules)
                     user_workflow = load_workflow(workflow_path)
                     
                 assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file! You can use workflow inspector if needed"
                 
                 input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
-                print(input_arg_first, input_arg_last, first_task_name,last_task_name )
+                print(input_arg_first, input_arg_last, first_task_name,last_task_name)
                 #get list of tasks
                 task_list = list(user_workflow._tasks.keys())
                 print("Workflow loaded:")
@@ -453,7 +483,11 @@ def _workflow_widget():
                 #vol_zyx= vol[time,channel,...]
 
                 task_name_start = first_task_name[0]
-                task_name_last = last_task_name[0]
+                try:
+                    task_name_last = last_task_name[0]
+                except IndexError:
+                    task_name_last = task_name_start
+                    
                 #if cropping, set that as first task
                 if Use_Cropping:
                     deskewed_shape = WorkflowWidget.WorkflowMenu.lattice.deskew_vol_shape
@@ -531,7 +565,6 @@ def _workflow_widget():
                 ##If deskewing is already as a task, then set the first argument to input so we can modify that later
                 else:
 
-
                     #we pass first argument as input
                     save_tiff_workflow(vol=vol,
                                             workflow = user_workflow,
@@ -551,6 +584,7 @@ def _workflow_widget():
 
                 print("Workflow complete")
                 return
+            print(Apply_Workflow_and_Save.max_height())
         #Workflow to deskew and apply workflow; 
         #Check if user wants to crop by having a crop flag        
     #Important to have this or napari won't recognize the classes and magicclass qidgets
@@ -559,4 +593,5 @@ def _workflow_widget():
     workflow_widget._widget._layout.setAlignment(Qt.AlignTop)
 
     return workflow_widget   
-            
+
+
