@@ -18,7 +18,8 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
                         voxel_size_y:float, 
                         voxel_size_z:float, 
                         z_start:int, 
-                        z_end:int):
+                        z_end:int,
+                        debug:bool=False):
 
     """
         Uses coordinates from deskewed space to find corresponding coordinates in original volume 
@@ -33,6 +34,7 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
         voxel_size_z (float): [description]
         z_start (int): [description]
         z_end (int): [description]
+        debug (bool) : False , Can be used to return the uncropped volume for debugging purposes
     """
 
     assert len(original_volume.shape) == 3, print("Shape of original volume must be 3")
@@ -72,8 +74,8 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
     #Take min and max of the cropped bounding boxes to define min and max coordinates
     #crop_transform_bbox is in the form xyz
     
-    min_coordinate = crop_transform_bbox.min(axis=0)
-    max_coordinate = crop_transform_bbox.max(axis=0)
+    min_coordinate = np.around(crop_transform_bbox.min(axis=0))
+    max_coordinate = np.around(crop_transform_bbox.max(axis=0))
 
     #get min and max in each position
     #clip them to avoid negative values and any values outside the bounding box of original volume
@@ -88,12 +90,21 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
     y_end = max_coordinate[1].astype(int)
     y_end = np.clip(y_end, 0,orig_shape[1])
     
-    z_start_vol = min_coordinate[2].astype(int)
-    z_start_vol = np.clip(z_start_vol, 0,orig_shape[2]) #clip to z bounds of original volume
+    z_start_vol_prelim = min_coordinate[2].astype(int)
+    z_start_vol = np.clip(z_start_vol_prelim, 0,orig_shape[2]) #clip to z bounds of original volume
     
-    z_end_vol = max_coordinate[2].astype(int)
-    z_end_vol = np.clip(z_end_vol, 0,orig_shape[2]) #clip to z bounds of original volume
-
+    z_end_vol_prelim = max_coordinate[2].astype(int)
+    z_end_vol = np.clip(z_end_vol_prelim, 0,orig_shape[2]) #clip to z bounds of original volume
+    
+    #If the coordinates are out of bound, then the final volume needs adjustment in Y axis
+    #if skew in X direction, then use y axis for finding correction factor instead
+    if z_end_vol_prelim!=z_end_vol:
+        out_bounds_correction = z_end_vol_prelim - z_end_vol
+    elif z_start_vol_prelim!=z_start_vol:
+        out_bounds_correction = z_start_vol_prelim - z_start_vol
+    else:
+        out_bounds_correction = 0
+        
     #make sure z_start < z_end
     if z_start_vol > z_end_vol:
         #tuple swap  #https://docs.python.org/3/reference/expressions.html#evaluation-order
@@ -112,15 +123,22 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
                                            auto_size=True)
     #The height of deskewed_prelim will be larger than specified shape
     # as the coordinates of the ROI are skewed in the original volume
-
+    #TODO: ACCOUNT FOR CROPPING FROM TOP AND BOTTOM
+    #IF CLIPPING HAPPENS FOR Y_START or Y_END, use difference to calculate offset
+    
     deskewed_height = deskewed_prelim.shape[1]
     crop_height = crop_vol_shape[1]
-    #Find excess volume on both sides
-    crop_excess = int((deskewed_height  - crop_height)/2)
+    
+    #Find "excess" volume on both sides due to deskewing
+    crop_excess = int(round((deskewed_height  - crop_height)/2)) + out_bounds_correction
     #Crop in Y
     deskewed_crop = deskewed_prelim[:,crop_excess:crop_height+crop_excess,:]
-
-    return deskewed_crop#,deskewed_prelim
+    
+    # For debugging, ,deskewed_prelim will also be returne which is the uncropped volume
+    if debug:
+        return deskewed_crop,deskewed_prelim
+    else:
+        return deskewed_crop 
 
 #Get reverse affine transform by rotating around a user-specified volume
 def get_inverse_affine_transform(original_volume,angle_in_degrees,voxel_x,voxel_y,voxel_z):
