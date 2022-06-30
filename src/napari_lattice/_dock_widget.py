@@ -43,8 +43,8 @@ def _napari_lattice_widget_wrapper():
             save_name = ""
 
             main_heading = widgets.Label(value="<h3>Napari Lattice: Visualization & Analysis</h3>")
-            heading1 = widgets.Label(value="Drag and drop an image file onto napari.\nOnce image has opened,\ninitialize the plugin by clicking the button below.\n Ensure the image layer and voxel sizes are accurate in the prompt.\n If everything initalized properly, the button turns green.")
-            @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Initialize plugin",width=200) 
+            heading1 = widgets.Label(value="Drag and drop an image file onto napari.\nOnce image has opened, initialize the\nplugin by clicking the button below.\nEnsure the image layer and voxel sizes are accurate in the prompt.\n If everything initalises properly, the button turns green.")
+            @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Initialize Plugin", width=200) 
             @set_options(pixel_size_dx={"widget_type": "FloatSpinBox", "value":0.1449922,"step": 0.000000001},
                          pixel_size_dy={"widget_type": "FloatSpinBox", "value":0.1449922, "step": 0.000000001},
                          pixel_size_dz={"widget_type": "FloatSpinBox", "value":0.3, "step": 0.000000001}
@@ -83,6 +83,7 @@ def _napari_lattice_widget_wrapper():
                 print("Dimensions of deskewed image (ZYX): ",LLSZWidget.LlszMenu.lattice.deskew_vol_shape)
                 print("Initialised")
                 self["Choose_Image_Layer"].background_color = "green"
+                self["Choose_Image_Layer"].text = "Plugin Initialised"
           
                 return
                 
@@ -175,15 +176,18 @@ def _napari_lattice_widget_wrapper():
                 @magicclass(name="Cropping Preview")
                 class Preview_Crop_Menu:
                     
-                    @set_design(font_size=12,text="Click to activate Cropping Preview")
+                    @set_design(font_size=10,text="Click to activate Cropping Preview",background_color="magenta")
                     @click(enables =["Import_ImageJ_ROI","Crop_Preview"])
                     def activate_cropping(self):
                         LLSZWidget.WidgetContainer.CropWidget.Preview_Crop_Menu.shapes_layer = self.parent_viewer.add_shapes(shape_type='polygon', edge_width=1, edge_color='white',
                                                     face_color=[1, 1, 1, 0], name="Cropping BBOX layer")
                         #TO select ROIs if needed
                         LLSZWidget.WidgetContainer.CropWidget.Preview_Crop_Menu.shapes_layer.mode="SELECT"
+                        self["activate_cropping"].text = "Cropping layer active"
+                        self["activate_cropping"].background_color = "green"
                         return
                     
+                    heading2 = widgets.Label(value="You can either import ImageJ ROI (.zip) files or manually define ROIs using the shape layer")
                     @click(enabled =False)
                     def Import_ImageJ_ROI(self, path: Path = Path(history.get_open_history()[0])):
                         print("Opening", path)
@@ -196,7 +200,7 @@ def _napari_lattice_widget_wrapper():
                         
                     time_crop = field(int, options={"min": 0, "step": 1}, name="Time")
                     chan_crop = field(int, options={"min": 0, "step": 1}, name="Channels")
-                    heading_roi = widgets.Label(value="Import or draw ROI, and then select the ROI using the cursor.")
+                    heading_roi = widgets.Label(value="If there are multiple ROIs, select the ROI before clicking button below")
                     #roi_idx = field(int, options={"min": 0, "step": 1}, name="ROI number")
 
                     
@@ -558,7 +562,7 @@ def _napari_lattice_widget_wrapper():
                         assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file! You can use workflow inspector if needed"
 
                         input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
-                        print(input_arg_first, input_arg_last, first_task_name,last_task_name )
+                        print(input_arg_first, input_arg_last, first_task_name,last_task_name)
                         #get list of tasks
                         task_list = list(user_workflow._tasks.keys())
                         print("Workflow loaded:")
@@ -674,7 +678,7 @@ def _napari_lattice_widget_wrapper():
                         return
                         
                 pass
-    
+    LLSZWidget.WidgetContainer.DeskewWidget.max_height = 50
     #Important to have this or napari won't recognize the classes and magicclass qidgets
     widget = LLSZWidget()
     # aligning collapsible widgets at the top instead of having them centered vertically
