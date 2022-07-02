@@ -144,7 +144,7 @@ def _napari_lattice_widget_wrapper():
         #Widget container to house all the widgets
         @magicclass(widget_type="tabbed", name="Functions")
         class WidgetContainer: 
-            @magicclass(name="Deskew")
+            @magicclass(name="Deskew",widget_type="scrollable")
             class DeskewWidget:
                @magicgui(header=dict(widget_type="Label", label="<h3>Deskew and Save</h3>"),
                        time_start=dict(label="Time Start:"),
@@ -173,7 +173,7 @@ def _napari_lattice_widget_wrapper():
             class CropWidget:  
                 
             #add function for previewing cropped image
-                @magicclass(name="Cropping Preview")
+                @magicclass(name="Cropping Preview",widget_type="scrollable")
                 class Preview_Crop_Menu:
                     
                     @set_design(font_size=10,text="Click to activate Cropping Preview",background_color="magenta")
@@ -261,7 +261,7 @@ def _napari_lattice_widget_wrapper():
                             return
                 
                 
-                    @magicclass(name="Crop and Save Data")
+                    @magicclass(name="Crop and Save Data",widget_type="scrollable")
                     class CropSaveData:
                         @magicgui(header=dict(widget_type="Label", label="<h3>Crop and Save Data</h3>"),
                                   time_start=dict(label="Time Start:"),
@@ -337,7 +337,7 @@ def _napari_lattice_widget_wrapper():
 
             @magicclass(name="Workflow")
             class WorkflowWidget:  
-                @magicclass(name="Preview Workflow")
+                @magicclass(name="Preview Workflow",widget_type="scrollable")
                 class PreviewWorkflow:
                     #time_preview= field(int, options={"min": 0, "step": 1}, name="Time")
                     #chan_preview = field(int, options={"min": 0, "step": 1}, name="Channels")
@@ -678,7 +678,7 @@ def _napari_lattice_widget_wrapper():
                         return
                         
                 pass
-    LLSZWidget.WidgetContainer.DeskewWidget.max_height = 50
+    #LLSZWidget.WidgetContainer.DeskewWidget.max_height = 50
     #Important to have this or napari won't recognize the classes and magicclass qidgets
     widget = LLSZWidget()
     # aligning collapsible widgets at the top instead of having them centered vertically
