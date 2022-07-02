@@ -678,7 +678,8 @@ def _napari_lattice_widget_wrapper():
                         return
                         
                 pass
-    #LLSZWidget.WidgetContainer.DeskewWidget.max_height = 50
+    LLSZWidget.WidgetContainer.DeskewWidget.max_width = 100
+    #max_height = 50
     #Important to have this or napari won't recognize the classes and magicclass qidgets
     widget = LLSZWidget()
     # aligning collapsible widgets at the top instead of having them centered vertically
