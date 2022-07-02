@@ -13,20 +13,20 @@ from .utils import calculate_crop_bbox
 def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0._pycl.OCLArray], 
                         deskewed_volume:Union[da.core.Array,np.ndarray,cle._tier0._pycl.OCLArray], 
                         roi_shape:Union[shapes.Shapes,list,np.array], 
-                        angle_in_degrees:float, 
-                        voxel_size_x:float, 
-                        voxel_size_y:float, 
-                        voxel_size_z:float, 
-                        z_start:int, 
-                        z_end:int,
+                        angle_in_degrees:float=30, 
+                        voxel_size_x:float=1, 
+                        voxel_size_y:float=1, 
+                        voxel_size_z:float=1, 
+                        z_start:int=0, 
+                        z_end:int=1,
                         debug:bool=False):
 
     """
         Uses coordinates from deskewed space to find corresponding coordinates in original volume 
         and deskew only the specific volume
     Args:
-        original_volume (np.array): Volume to deskew (xyz)
-        deskewed_volume (np.array): Deskewed volume (xyz)
+        original_volume (np.array): Volume to deskew (zyx)
+        deskewed_volume (np.array): Deskewed volume (zyx)
         roi_shape ((Union[shapes.Shapes,list,np.array])): if shapes layer or data passed, use onl
         angle_in_degrees ([float): deskewing angle in degrees
         voxel_size_x (float): [description]
