@@ -3,14 +3,16 @@
 #Example for deskewing files in a folder
 #python lattice_processing.py --input /home/pradeep/to_deskew --output /home/pradeep/output_save/ --processing deskew
 import argparse,os,glob,sys
-from napari_lattice.io import LatticeData,save_tiff
-from napari_lattice.utils import read_imagej_roi
+from napari_lattice.io import LatticeData, save_tiff, save_tiff_workflow
+from napari_lattice.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task,modify_workflow_task
 from napari_lattice.llsz_core import crop_volume_deskew
 from aicsimageio import AICSImage
 import pyclesperanto_prototype as cle
 from tqdm import tqdm
 import dask.array as da
- 
+from napari_workflows import Workflow, WorkflowManager
+from napari_workflows._io_yaml_v1 import load_workflow
+
 
 #define parser class so as to print help message
 class ArgParser(argparse.ArgumentParser): 
@@ -33,6 +35,7 @@ def args_parse():
     parser.add_argument('--file_extension',type=str,nargs=1,help="If choosing a folder, enter the extension of the files (make sure you enter it with the dot at the start, i.e., .czi or .tif), else .czi and .tif files will be used")
     parser.add_argument('--time_range',type=int,nargs=2,help="Enter time range to extract ,example 0 10 will extract first 10 timepoints> default is to extract entire timeseries",default=[0,0])
     parser.add_argument('--channel_range',type=int,nargs=2,help="Enter channel range to extract, default will be all channels. Example 0 1 will extract first two channels. ",default=[0,0])
+    parser.add_argument('--workflow_path',type=str,nargs=1,help="Enter path to the workflow file '.yml")
     args = parser.parse_args()
     return args
 
@@ -54,7 +57,39 @@ def main():
         assert roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
         if os.path.isfile(roi_file): #if file make sure it is a zip file
             assert os.path.splitext(roi_file)[1] == ".zip", "ROI file is not a zip file"
-            
+    
+    if processing == "workflow" or processing == "workflow_crop":
+        workflow_path = args.workflow_path[0]
+        user_workflow = load_workflow(workflow_path)
+        assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"       
+        #load custom modules if any
+        import importlib
+        parent_dir = workflow_path+os.sep
+        sys.path.append(parent_dir)
+        custom_py_files = get_all_py_files(parent_dir)
+        if len(custom_py_files)>0: 
+            modules = map(importlib.import_module,custom_py_files)
+            print(f"Custom modules imported {modules}") 
+        
+        input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
+        print(input_arg_first, input_arg_last, first_task_name,last_task_name)
+        #get list of tasks
+        task_list = list(user_workflow._tasks.keys())
+        print("Workflow loaded:")
+        print(user_workflow)
+        
+        task_name_start = first_task_name[0]
+        try:
+            task_name_last = last_task_name[0]
+        except IndexError:
+            task_name_last = task_name_start
+        
+        
+                  
+
+        
+
+         
     time_start,time_end = args.time_range
     channel_start, channel_end = args.channel_range
 
@@ -84,7 +119,7 @@ def main():
         sys.exit("Do not recognise "+input_path+" as directory or file")
 
     #If cropping, get list of roi files with matching image names
-    if processing == "crop":
+    if processing == "crop" or processing == "workflow_crop":
         if os.path.isdir(roi_file):
             for img in img_list:
                 img_name = os.path.basename(os.path.splitext(img)[0])
@@ -103,7 +138,32 @@ def main():
         #add list of empty strings so that it can run through for loop
         no_files = len(img_list)
         roi_list =[""]*no_files
-      
+    
+    #Setup workflows
+    if processing == "workflow" or processing == "workflow_crop":
+        if processing == "workflow_crop":
+           deskewed_shape = lattice.deskew_vol_shape
+           deskewed_volume = da.zeros(deskewed_shape)
+           z_start = 0
+           z_end = deskewed_shape[0]
+           roi = "roi"
+           volume = "volume"
+           #Create workflow for cropping and deskewing
+           #volume and roi used will be set dynamically
+           user_workflow.set("crop_deskew",crop_volume_deskew,
+                             original_volume = volume,
+                             deskewed_volume = deskewed_volume,
+                             roi_shape = roi,
+                             angle_in_degrees = deskew_angle,
+                             voxel_size_x = dx,
+                             voxel_size_y= dy,
+                             voxel_size_z = dz, 
+                             z_start = z_start, 
+                             z_end = z_end)
+           #change the first task so it accepts "crop_deskew as input"
+           new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew",workflow=user_workflow)
+           user_workflow.set(task_name_start,new_task) 
+      ##ADD CONDITIONS FOR WORKFLOW
     
     #loop through list of images and rois
     for img,roi in zip(img_list,roi_list):  
@@ -182,6 +242,8 @@ def main():
                             voxel_size_y=dy,
                             voxel_size_z=dz,
                             )
+        elif processing =="workflow":
+            exit("Have not implemented "+processing)
         else:
             exit("Have not implemented "+processing)
 
