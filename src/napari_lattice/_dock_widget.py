@@ -1,4 +1,5 @@
 import os, sys, yaml
+from aicsimageio import AICSImage
 import numpy as np
 from pathlib import Path
 import dask.array as da
@@ -20,7 +21,7 @@ from .ui_core import _Preview, _Deskew_Save
 
 from napari.types import ImageData, ShapesData
 from .utils import read_imagej_roi
-from .llsz_core import crop_volume_deskew
+from .llsz_core import crop_volume_deskew, rl_decon
 from tqdm import tqdm
 
 from .io import LatticeData,  save_tiff, save_tiff_workflow
@@ -64,16 +65,10 @@ def _napari_lattice_widget_wrapper():
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_x
                 elif skew_dir == "Y":
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_y
-                #TODO:change LatticeData class to accept deskew direction, calculate shape and for croppng too
+
                 LLSZWidget.LlszMenu.lattice = LatticeData(img_layer, 30.0, skew_dir,pixel_size_dx, pixel_size_dy,
                                                           pixel_size_dz,channel_dimension_present)
                 #LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
-                
-                LLSZWidget.LlszMenu.dask = False  # Use GPU by default
-
-                #TODO:change LatticeData class to accept deskew direction, calculate shape and for croppng too
-                LLSZWidget.LlszMenu.lattice = LatticeData(img_layer, 30.0, skew_dir,pixel_size_dx, pixel_size_dy,
-                                                          pixel_size_dz,channel_dimension_present)
 
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
                 
@@ -82,6 +77,7 @@ def _napari_lattice_widget_wrapper():
                 print("Dimensions of image layer (ZYX): ",list(LLSZWidget.LlszMenu.lattice.data.shape[-3:]))
                 print("Dimensions of deskewed image (ZYX): ",LLSZWidget.LlszMenu.lattice.deskew_vol_shape)
                 print("Initialised")
+
                 self["Choose_Image_Layer"].background_color = "green"
                 self["Choose_Image_Layer"].text = "Plugin Initialised"
           
@@ -92,7 +88,7 @@ def _napari_lattice_widget_wrapper():
             # Will only update after choosing an image
             angle = vfield(float, options={"value": 30.0}, name="Deskew Angle")
             angle_value = 30.0
-
+            
             @angle.connect
             def _set_angle(self):
                 try:
@@ -115,7 +111,19 @@ def _napari_lattice_widget_wrapper():
                 print("Use GPU set to, ", use_GPU)
                 LLSZWidget.LlszMenu.dask = not use_GPU
                 return
-        
+
+            #Redfishlion library for deconvolution
+            deconvolution = vfield(bool, options={"enabled": False}, name="Use Deconvolution (RL)")
+
+            @magicgui(workflow_path = dict(mode='r', label="Choose PSF file"),)
+            def Import_PSF(psf_path:Path= Path.home()):
+                psf_img = AICSImage(psf_path.__str__())
+                if psf_img.dims.C != LLSZWidget.LlszMenu.lattice.channels:
+                    print(f"PSF image has {psf_img.dims.C} one channel, whereas image has {LLSZWidget.LlszMenu.lattice.channels}")
+                LLSZWidget.LlszMenu.psf = psf_img.data
+                
+                
+
         @magicclass
         class Preview:          
             @magicgui(header=dict(widget_type="Label",label="<h3>Preview Deskew</h3>"),
@@ -238,7 +246,7 @@ def _napari_lattice_widget_wrapper():
 
                             roi_choice = roi_layer[roi_idx] 
                             #As the original image is scaled, the coordinates are in microns, so we need to convert
-                            #roi to from micron to canvas/world coordinates
+                            #roi from micron to canvas/world coordinates
                             roi_choice = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_choice]
                             print("Previewing ROI ", roi_idx)
                             
