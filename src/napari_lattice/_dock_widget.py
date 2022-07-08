@@ -472,6 +472,14 @@ def _napari_lattice_widget_wrapper():
                         time = time_preview
                         channel = chan_preview
 
+                        #to access current time and channel and pass it to workflow file
+                        try: 
+                            import config
+                            config.channel = channel
+                            config.time = time
+                        except ModuleNotFoundError as e:
+                            pass
+                        
                         print("Processing for Time:", time,"and Channel: ", channel)
                         
                         vol = LLSZWidget.LlszMenu.lattice.data
