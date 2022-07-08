@@ -433,6 +433,7 @@ def _napari_lattice_widget_wrapper():
                         if get_active_workflow:
                             #installs the workflow to napari
                             user_workflow = WorkflowManager.install(self.parent_viewer).workflow
+                            parent_dir = workflow_path.resolve().parents[0].__str__()+os.sep
                             print("Workflow loaded from napari")
                         else:
 

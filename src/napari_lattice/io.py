@@ -233,6 +233,7 @@ def save_tiff_workflow(vol,
         #aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
         new_dz = dz
 
+    
     for time_point in tqdm(time_range, desc="Time", position=0):
         images_array = []
         data_table = []     
@@ -243,6 +244,16 @@ def save_tiff_workflow(vol,
             else:
                 raw_vol = vol[time_point, ch, :, :, :]
             
+            #to access current time and channel, create a file config.py in same dir as workflow or in home directory
+            #add "channel = 0" and "time=0" in the file and save
+            #https://docs.python.org/3/faq/programming.html?highlight=global#how-do-i-share-global-variables-across-modules
+            try: 
+                import config
+                config.channel = ch
+                config.time = time_point
+            except ModuleNotFoundError as e:
+                pass
+            
             #Set input to the workflow to be volume from each time point and channel
             workflow.set(input_arg,raw_vol)
             #execute workflow
@@ -250,9 +261,9 @@ def save_tiff_workflow(vol,
 
             images_array.append(processed_vol)    
         
-        #Check if images_array elements are multiple elements or just an image?
         images_array = np.array(images_array)
         
+        #check if output from workflow a list of dicts, list and/or images
         no_elements = len(processed_vol)
         if type(processed_vol) not in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]:
             array_element_type = [type(images_array[0,i]) for i in range(no_elements)]
@@ -320,7 +331,6 @@ def save_tiff_workflow(vol,
             
             final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
                             time_point) + "_" + save_name + ".tif"
-            #TODO: Change to tiffile.imsave
             #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
             #images from above are returned as czyx, so swap 
             #print(images_array.shape)
