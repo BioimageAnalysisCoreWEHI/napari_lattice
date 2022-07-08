@@ -19,6 +19,7 @@ from dask.cache import Cache
 from .utils import etree_to_dict
 from .utils import get_deskewed_shape,_process_custom_workflow_output_batch
 from .llsz_core import crop_volume_deskew
+from . import config
 
 import os
 import numpy as np
@@ -247,12 +248,10 @@ def save_tiff_workflow(vol,
             #to access current time and channel, create a file config.py in same dir as workflow or in home directory
             #add "channel = 0" and "time=0" in the file and save
             #https://docs.python.org/3/faq/programming.html?highlight=global#how-do-i-share-global-variables-across-modules
-            try: 
-                import config
-                config.channel = ch
-                config.time = time_point
-            except ModuleNotFoundError as e:
-                pass
+            
+            config.channel = ch
+            config.time = time_point
+
             
             #Set input to the workflow to be volume from each time point and channel
             workflow.set(input_arg,raw_vol)

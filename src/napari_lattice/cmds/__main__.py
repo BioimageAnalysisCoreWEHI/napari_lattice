@@ -264,6 +264,7 @@ def main():
                                 )
                     
                 elif processing =="workflow_crop":
+
                     user_workflow.set(roi,roi_layer)
                     save_tiff_workflow(vol=img_data,
                                        workflow = user_workflow,

@@ -27,7 +27,7 @@ from tqdm import tqdm
 from .io import LatticeData,  save_tiff, save_tiff_workflow
 
 from .utils import read_imagej_roi, get_first_last_image_and_task,modify_workflow_task,get_all_py_files, as_type, process_custom_workflow_output
-
+from . import config
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
 
@@ -473,12 +473,8 @@ def _napari_lattice_widget_wrapper():
                         channel = chan_preview
 
                         #to access current time and channel and pass it to workflow file
-                        try: 
-                            import config
-                            config.channel = channel
-                            config.time = time
-                        except ModuleNotFoundError as e:
-                            pass
+                        config.channel = channel
+                        config.time = time
                         
                         print("Processing for Time:", time,"and Channel: ", channel)
                         
