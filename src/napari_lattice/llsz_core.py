@@ -123,7 +123,6 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
                                            auto_size=True)
     #The height of deskewed_prelim will be larger than specified shape
     # as the coordinates of the ROI are skewed in the original volume
-    #TODO: ACCOUNT FOR CROPPING FROM TOP AND BOTTOM
     #IF CLIPPING HAPPENS FOR Y_START or Y_END, use difference to calculate offset
     
     deskewed_height = deskewed_prelim.shape[1]
