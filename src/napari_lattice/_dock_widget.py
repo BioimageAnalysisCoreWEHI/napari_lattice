@@ -32,9 +32,10 @@ from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
 
 def _napari_lattice_widget_wrapper():
-    @magicclass
+    #split widget type enables a resizable widget
+    @magicclass(widget_type="split")
     class LLSZWidget:
-        @magicclass
+        @magicclass(widget_type="split")
         class LlszMenu:
             open_file = False
             lattice = None
@@ -45,15 +46,15 @@ def _napari_lattice_widget_wrapper():
 
             main_heading = widgets.Label(value="<h3>Napari Lattice: Visualization & Analysis</h3>")
             heading1 = widgets.Label(value="Drag and drop an image file onto napari.\nOnce image has opened, initialize the\nplugin by clicking the button below.\nEnsure the image layer and voxel sizes are accurate in the prompt.\n If everything initalises properly, the button turns green.")
-            @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Initialize Plugin", width=200) 
+            @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Initialize Plugin", max_height=75, font_size = 13) 
             @set_options(pixel_size_dx={"widget_type": "FloatSpinBox", "value":0.1449922,"step": 0.000000001},
                          pixel_size_dy={"widget_type": "FloatSpinBox", "value":0.1449922, "step": 0.000000001},
                          pixel_size_dz={"widget_type": "FloatSpinBox", "value":0.3, "step": 0.000000001}
                          )
             def Choose_Image_Layer(self,
                                       img_layer:Layer,
-                                      pixel_size_dx: float = 0.145, 
-                                      pixel_size_dy: float = 0.145,
+                                      pixel_size_dx: float = 0.1449922, 
+                                      pixel_size_dy: float = 0.1449922,
                                       pixel_size_dz: float = 0.3,
                                       channel_dimension_present:bool=False, 
                                       skew_dir: str="Y"):
@@ -71,6 +72,9 @@ def _napari_lattice_widget_wrapper():
                 #LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
 
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
+                
+                #list to store psf images
+                LLSZWidget.LlszMenu.lattice.psf = []
                 
                 LLSZWidget.LlszMenu.open_file = True
                 print("Pixel size (ZYX): ",(LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx))
@@ -113,14 +117,62 @@ def _napari_lattice_widget_wrapper():
                 return
 
             #Redfishlion library for deconvolution
-            deconvolution = vfield(bool, options={"enabled": False}, name="Use Deconvolution (RL)")
+            deconvolution = vfield(bool, options={"enabled": False}, name="Use Deconvolution (RL) NOT ACTIVE")
+            deconvolution.value = False
+            @deconvolution.connect
+            def _set_decon(self):
+                if self.deconvolution:
+                    print("Deconvolution Activated")
+                    LLSZWidget.LlszMenu.deconvolution.value = True
+                else:
+                    print("Deconvolution Disabled")
+                    LLSZWidget.LlszMenu.deconvolution.value  = False
+                return
+            
+            @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Click to select PSFs for deconvolution", max_height=75, font_size = 11)
+            @set_options(header = dict(widget_type="Label",label="<h3>Enter path to the PSF images</h3>"),
+                         psf_ch1_path={"widget_type": "FileEdit","label":"Channel 1/Multichannel PSF:"},
+                         psf_ch2_path={"widget_type": "FileEdit","label":"Channel 2"},
+                         psf_ch3_path={"widget_type": "FileEdit","label":"Channel 3"},
+                         psf_ch4_path={"widget_type": "FileEdit","label":"Channel 4"}
+                         )
+            def deconvolution_gui(self,
+                                    header,
+                                    psf_ch1_path:Path,
+                                    psf_ch2_path:Path,
+                                    psf_ch3_path:Path,
+                                    psf_ch4_path:Path):
+                        #move function to ui_core; 
+                        #create list with psf image arrays for each channel
+                        #index corresponds to channel no
+                from pathlib import WindowsPath
+                assert LLSZWidget.LlszMenu.deconvolution.value==True, "Deconvolution is set to False. Tick the box to activate deconvolution."
+                
+                psf_paths = [psf_ch1_path,psf_ch2_path,psf_ch3_path,psf_ch4_path]
+                #remove empty paths; pathlib returns current directory as "." if None or empty str specified
+                psf_paths = [x for x in psf_paths if x!=WindowsPath(".")]
+                
+                #total no of psf images
+                psf_channels = len(psf_paths)
+                
+                assert psf_channels>0, f"No images detected for PSF. Check the path {psf_paths}"
+                
+                for psf in psf_paths:
+                    if os.path.exists(psf) and psf.is_file():
+                            psf_aics = AICSImage(psf.__str__())
+                            LLSZWidget.LlszMenu.lattice.psf.append(psf_aics.data)
+                            
+                            if psf_aics.dims.C>=1:
+                                    psf_channels = psf_aics.dims.C
 
-            @magicgui(workflow_path = dict(mode='r', label="Choose PSF file"),)
-            def Import_PSF(psf_path:Path= Path.home()):
-                psf_img = AICSImage(psf_path.__str__())
-                if psf_img.dims.C != LLSZWidget.LlszMenu.lattice.channels:
-                    print(f"PSF image has {psf_img.dims.C} one channel, whereas image has {LLSZWidget.LlszMenu.lattice.channels}")
-                LLSZWidget.LlszMenu.psf = psf_img.data
+                #LLSZWidget.LlszMenu.lattice.channels =3
+                if psf_channels != LLSZWidget.LlszMenu.lattice.channels:
+                        print(f"PSF image has {psf_channels} channel/s, whereas image has {LLSZWidget.LlszMenu.lattice.channels}")
+                
+                self["deconvolution_gui"].background_color = "green"
+                self["deconvolution_gui"].text = "PSFs added"
+                
+                return 
                 
                 
 
@@ -177,7 +229,7 @@ def _napari_lattice_widget_wrapper():
                                save_path)
                    return
                
-            @magicclass(name="Crop and Deskew")
+            @magicclass(name="Crop and Deskew",widget_type="scrollable")
             class CropWidget:  
                 
             #add function for previewing cropped image
@@ -343,7 +395,7 @@ def _napari_lattice_widget_wrapper():
                                 print("Cropping and Saving Complete -> ", save_path)
                                 return        
 
-            @magicclass(name="Workflow")
+            @magicclass(name="Workflow",widget_type="scrollable")
             class WorkflowWidget:  
                 @magicclass(name="Preview Workflow",widget_type="scrollable")
                 class PreviewWorkflow:
@@ -692,5 +744,6 @@ def _napari_lattice_widget_wrapper():
     widget = LLSZWidget()
     # aligning collapsible widgets at the top instead of having them centered vertically
     widget._widget._layout.setAlignment(Qt.AlignTop)
-    
+   
+    #widget._widget._layout.setWidgetResizable(True)
     return widget   
