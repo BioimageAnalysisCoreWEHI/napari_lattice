@@ -177,7 +177,6 @@ def read_imagej_roi(roi_zip_path):
 
 #Functions to deal with cle workflow
 #TODO: Clean up this function
-#TODO: Check if tasks in order?
 def get_first_last_image_and_task(user_workflow:Workflow):
     """Get images and tasks for first and last entry
     Args:
@@ -287,6 +286,8 @@ def process_custom_workflow_output(workflow_output,
             save_path = path.join(save_dir,"lattice_measurement_"+str(idx)+".csv")
             print(f"Detected a dictionary as output, saving preview at",save_path)
             df.to_csv(save_path, index=False)
+            return df
+            
         else:
             return df
     elif type(workflow_output) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]:
@@ -334,26 +335,26 @@ def _process_custom_workflow_output_batch(ref_vol,
             output_dict_pd = output_dict_pd.set_index("Channel/Time")
             
             #Save path
-            dict_save_path = os.path.join(save_path,"Measurement_"+str(element))
+            dict_save_path = os.path.join(save_path,"Measurement_"+save_name_prefix)
             if not(os.path.exists(dict_save_path)):
                 os.mkdir(dict_save_path)
-            dict_save_path = os.path.join(dict_save_path,"C" + str(ch) + "T" + str(time_point) + "_measurement.csv")
-            output_dict_pd.to_csv(dict_save_path, index=False)
+            dict_save_path = os.path.join(dict_save_path,"C" + str(ch) + "T" + str(time_point)+"_"+str(element) + "_measurement.csv")
+            output_dict_pd.to_csv(dict_save_path)
         
         elif(array_element_type[element]) in [list]:
             
             output_list_pd = pd.DataFrame(np.vstack(images_array[:,element]),index=row_idx)
             #Save path
-            list_save_path = os.path.join(save_path,"Measurement_"+str(element))
+            list_save_path = os.path.join(save_path,"Measurement_"+save_name_prefix)
             if not(os.path.exists(list_save_path)):
                 os.mkdir(list_save_path)
-            list_save_path = os.path.join(list_save_path,"C" + str(ch) + "T" + str(time_point) + "_measurement.csv")
-            output_list_pd.to_csv(list_save_path, index=False)
+            list_save_path = os.path.join(list_save_path,"C" + str(ch) + "T" + str(time_point)+"_"+str(element) + "_measurement.csv")
+            output_list_pd.to_csv(list_save_path)
         
         elif(array_element_type[element]) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]:
             im_final = np.stack(images_array[:,element]).astype(ref_vol.dtype)
             final_name = os.path.join(save_path,save_name_prefix + "C" + str(ch) + "T" + str(
-                time_point) + "_" + save_name + ".tif")
+                time_point) + "_" + save_name + "_"+str(element) + ".tif")
             #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
             if len(im_final.shape) ==4: #if only one image with no channel, then dimension will 1,z,y,x, so swap 0 and 1
                 im_final = np.swapaxes(im_final,0,1) #was 1,2,but when stacking images, dimension is CZYX

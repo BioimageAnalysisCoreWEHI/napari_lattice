@@ -221,8 +221,9 @@ def save_tiff_workflow(vol,
     
     save_path = save_path.__str__()
     
-    time_range = range(time_start, time_end)
-    channel_range = range(channel_start, channel_end)
+    #adding +1 at the end so the last channel and time is included
+    time_range = range(time_start, time_end+1)
+    channel_range = range(channel_start, channel_end+1)
     
     #Calculate new_pixel size in z
     #convert voxel sixes to an aicsimage physicalpixelsizes object for metadata
@@ -286,6 +287,7 @@ def save_tiff_workflow(vol,
                                                         dx,
                                                         dy,
                                                         new_dz)
+                #return list, concatenate every iteration and create a bigger dataframe
             #check if list and it it contains dict or images
             elif (len(processed_vol)>1) and (type(processed_vol) in [list]) and any([type(i) in [dict,np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array] for i in processed_vol]):
                 _process_custom_workflow_output_batch(raw_vol,

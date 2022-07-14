@@ -546,8 +546,12 @@ def _napari_lattice_widget_wrapper():
                         #The function below saves the tables and adds any images to napari window
                         if type(processed_vol) in [dict,list,tuple]:
                             if(len(processed_vol)>1):
+                                df = pd.DataFrame()
                                 for idx,i in enumerate(processed_vol):
-                                    process_custom_workflow_output(i,parent_dir,idx,LLSZWidget,self,channel,time,preview=True)
+                                    df_temp = process_custom_workflow_output(i,parent_dir,idx,LLSZWidget,self,channel,time,preview=True)
+                                    final_df = pd.concat([df,df_temp])
+                                    #append dataframes from every loop and have table command outside loop?
+                                widgets.Table(value=final_df).show() 
 
                         else:
                             #add image to napari window
