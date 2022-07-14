@@ -12,7 +12,8 @@ from tqdm import tqdm
 import dask.array as da
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
-
+from pathlib import Path
+from .. import config
 
 #define parser class so as to print help message
 class ArgParser(argparse.ArgumentParser): 
@@ -52,25 +53,29 @@ def main():
     skew_dir = args.skew_direction
     processing = args.processing[0].lower() #lowercase
 
-    if processing == "crop":
+    if processing == "crop" or processing == "workflow_crop":
+        assert args.roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
         roi_file = args.roi_file[0]
-        assert roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
         if os.path.isfile(roi_file): #if file make sure it is a zip file
             assert os.path.splitext(roi_file)[1] == ".zip", "ROI file is not a zip file"
     
     if processing == "workflow" or processing == "workflow_crop":
-        workflow_path = args.workflow_path[0]
-        user_workflow = load_workflow(workflow_path)
-        assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"       
-        
+        workflow_path = Path(args.workflow_path[0])
         #load custom modules (*.py) in same directory as workflow file
         import importlib
-        parent_dir = workflow_path+os.sep
+        parent_dir = workflow_path.resolve().parents[0].__str__()+os.sep
+        print(parent_dir)
         sys.path.append(parent_dir)
         custom_py_files = get_all_py_files(parent_dir)
         if len(custom_py_files)>0: 
             modules = map(importlib.import_module,custom_py_files)
             print(f"Custom modules imported {modules}") 
+        
+        
+        user_workflow = load_workflow(workflow_path.__str__())
+        assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"       
+        
+
         
         input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
         print(input_arg_first, input_arg_last, first_task_name,last_task_name)
@@ -88,8 +93,8 @@ def main():
     time_start,time_end = args.time_range
     channel_start, channel_end = args.channel_range
 
-    print(time_start,time_end)
-    print(channel_start, channel_end)
+    #print(time_start,time_end)
+    #print(channel_start, channel_end)
     #Check if input and output paths exist
     assert os.path.exists(input_path), "Cannot find input "+input_path
     assert os.path.exists(output_path), "Cannot find output "+output_path
@@ -134,67 +139,77 @@ def main():
         no_files = len(img_list)
         roi_list =[""]*no_files
     
-    #Setup workflows based on user input 
-    if processing == "workflow" or processing == "workflow_crop":
-        #if workflow involves cropping, assign first task as crop_volume_deskew 
-        if processing == "workflow_crop":
-           deskewed_shape = lattice.deskew_vol_shape
-           deskewed_volume = da.zeros(deskewed_shape)
-           z_start = 0
-           z_end = deskewed_shape[0]
-           roi = "roi"
-           volume = "volume"
-           #Create workflow for cropping and deskewing
-           #volume and roi used will be set dynamically
-           user_workflow.set("crop_deskew",crop_volume_deskew,
-                             original_volume = volume,
-                             deskewed_volume = deskewed_volume,
-                             roi_shape = roi,
-                             angle_in_degrees = deskew_angle,
-                             voxel_size_x = dx,
-                             voxel_size_y= dy,
-                             voxel_size_z = dz, 
-                             z_start = z_start, 
-                             z_end = z_end)
-           #change the first task so it accepts "crop_deskew as input"
-           new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew",workflow=user_workflow)
-           user_workflow.set(task_name_start,new_task) 
-      
-        elif processing == "workflow":
-            #Verify if deskewing function is in workflow; if not, add as first task
-            if user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y,cle.deskew_x):
-                custom_workflow = True
-                input = "input"
-                            #add task to the workflow
-                user_workflow.set("deskew_image",cle.deskew_y, 
-                                            input_image =input,
-                                            angle_in_degrees = deskew_angle,
-                                            voxel_size_x = dx,
-                                            voxel_size_y= dy,
-                                            voxel_size_z = dz)
-                            #Set input of the workflow to be from deskewing
-                            #change the first task so it accepts "deskew_image" as input
-                new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="deskew_image",workflow=user_workflow)
-                user_workflow.set(task_name_start,new_task)
-            else:
-                custom_workflow = False
+
       
       
     
     #loop through list of images and rois
-    for img,roi in zip(img_list,roi_list):  
+    for img,roi_path in zip(img_list,roi_list):  
         print("Processing Image "+img)
+        if processing == "crop" or processing == "workflow_crop":
+            print("Processing ROI "+roi_path)
         aics_img = AICSImage(img)
         lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
 
+        #Override pixel values by reading metadata if file is czi
+        if os.path.splitext(img)[1] == ".czi":
+            dz,dy,dx = lattice.dz, lattice.dy, lattice.dx
+            print(f"Pixel values from metadata (zyx): {dz},{dy},{dx}")
+        
+        #Setup workflows based on user input 
+        if processing == "workflow" or processing == "workflow_crop":
+            #if workflow involves cropping, assign first task as crop_volume_deskew 
+            if processing == "workflow_crop":
+               deskewed_shape = lattice.deskew_vol_shape
+               deskewed_volume = da.zeros(deskewed_shape)
+               z_start = 0
+               z_end = deskewed_shape[0]
+               roi = "roi"
+               volume = "volume"
+               #Create workflow for cropping and deskewing
+               #volume and roi used will be set dynamically
+               user_workflow.set("crop_deskew",crop_volume_deskew,
+                                 original_volume = volume,
+                                 deskewed_volume = deskewed_volume,
+                                 roi_shape = roi,
+                                 angle_in_degrees = deskew_angle,
+                                 voxel_size_x = dx,
+                                 voxel_size_y= dy,
+                                 voxel_size_z = dz, 
+                                 z_start = z_start, 
+                                 z_end = z_end)
+               #change the first task so it accepts "crop_deskew as input"
+               new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew",workflow=user_workflow)
+               user_workflow.set(task_name_start,new_task) 
+
+            elif processing == "workflow":
+                #Verify if deskewing function is in workflow; if not, add as first task
+                if user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y,cle.deskew_x):
+                    custom_workflow = True
+                    input = "input"
+                                #add task to the workflow
+                    user_workflow.set("deskew_image",cle.deskew_y, 
+                                                input_image =input,
+                                                angle_in_degrees = deskew_angle,
+                                                voxel_size_x = dx,
+                                                voxel_size_y= dy,
+                                                voxel_size_z = dz)
+                                #Set input of the workflow to be from deskewing
+                                #change the first task so it accepts "deskew_image" as input
+                    new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="deskew_image",workflow=user_workflow)
+                    user_workflow.set(task_name_start,new_task)
+                else:
+                    custom_workflow = False
+        
         img_data = lattice.data
 
         save_name = os.path.splitext(os.path.basename(img))[0]
 
+        #Channel and time index -1 as 
         if channel_end == 0:
-            channel_end = lattice.channels
+            channel_end = lattice.channels -1
         if time_end == 0:
-            time_end = lattice.time
+            time_end = lattice.time -1
 
         #Create save directory for each image
         save_path = output_path + os.sep + os.path.basename(os.path.splitext(img)[0]) + os.sep
@@ -226,7 +241,7 @@ def main():
         #Crop and deskew
         elif processing == "crop" or processing =="workflow_crop":
 
-            roi_img = read_imagej_roi(roi)
+            roi_img = read_imagej_roi(roi_path)
             
             for idx, roi_layer in enumerate(tqdm(roi_img, desc="ROI:", position=0)):
                 print("Processing ROI "+str(idx)+" of "+str(len(roi_img)))

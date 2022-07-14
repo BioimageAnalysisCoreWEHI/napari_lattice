@@ -322,25 +322,39 @@ def _process_custom_workflow_output_batch(ref_vol,
     for i in range(no_elements):
         for j in channel_range:
             if type(images_array[j,i]) in [dict]:
-                images_array[j,i].update({"Channel/Time":"C"+str(j)+"T"+str(time_point)})
+                #images_array[j,i].update({"Channel/Time":"C"+str(j)+"T"+str(time_point)})
+                images_array[j,i].update({"Channel":"C"+str(j)})
+                images_array[j,i].update({"Time":"T"+str(time_point)})
             elif type(images_array[j,i]) in [list]:
                 row_idx.append("C"+str(j)+"T"+str(time_point))
+                #row_idx.append("C"+str(j))
+                #row_idx.append("T"+str(time_point))
     
     for element in range(no_elements):
         if(array_element_type[element]) in [dict]:
             #convert to pandas dataframe
             output_dict_pd = [pd.DataFrame(i) for i in images_array[:,element]]
+            
             output_dict_pd = pd.concat(output_dict_pd)
             #set index to the channel/time
-            output_dict_pd = output_dict_pd.set_index("Channel/Time")
+            output_dict_pd = output_dict_pd.set_index(["Time","Channel"])
             
             #Save path
             dict_save_path = os.path.join(save_path,"Measurement_"+save_name_prefix)
             if not(os.path.exists(dict_save_path)):
                 os.mkdir(dict_save_path)
-            dict_save_path = os.path.join(dict_save_path,"C" + str(ch) + "T" + str(time_point)+"_"+str(element) + "_measurement.csv")
-            output_dict_pd.to_csv(dict_save_path)
+                
+            #dict_save_path = os.path.join(dict_save_path,"C" + str(ch) + "T" + str(time_point)+"_"+str(element) + "_measurement.csv")
+            dict_save_path = os.path.join(dict_save_path,"Summary_measurement"+str(element)+"_.csv")
+            #Opens csv and appends it if file already exists; not efficient.
+            if os.path.exists(dict_save_path):
+                output_dict_pd_existing = pd.read_csv(dict_save_path,index_col=["Time","Channel"])
+                output_dict_summary = pd.concat((output_dict_pd_existing,output_dict_pd))
+                output_dict_summary.to_csv(dict_save_path)
+            else:
+                output_dict_pd.to_csv(dict_save_path)
         
+        #TODO:modify this so one file saved for measurement
         elif(array_element_type[element]) in [list]:
             
             output_list_pd = pd.DataFrame(np.vstack(images_array[:,element]),index=row_idx)
@@ -353,8 +367,9 @@ def _process_custom_workflow_output_batch(ref_vol,
         
         elif(array_element_type[element]) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]:
             im_final = np.stack(images_array[:,element]).astype(ref_vol.dtype)
-            final_name = os.path.join(save_path,save_name_prefix + "C" + str(ch) + "T" + str(
-                time_point) + "_" + save_name + "_"+str(element) + ".tif")
+            final_name = os.path.join(save_path,save_name_prefix + "_T" + str(
+                time_point) + "_" + save_name + "_"+str(element) + ".tif") 
+            #"C" + str(ch) + 
             #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
             if len(im_final.shape) ==4: #if only one image with no channel, then dimension will 1,z,y,x, so swap 0 and 1
                 im_final = np.swapaxes(im_final,0,1) #was 1,2,but when stacking images, dimension is CZYX
