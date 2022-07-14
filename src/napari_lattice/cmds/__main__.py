@@ -59,37 +59,7 @@ def main():
         if os.path.isfile(roi_file): #if file make sure it is a zip file
             assert os.path.splitext(roi_file)[1] == ".zip", "ROI file is not a zip file"
     
-    if processing == "workflow" or processing == "workflow_crop":
-        workflow_path = Path(args.workflow_path[0])
-        #load custom modules (*.py) in same directory as workflow file
-        import importlib
-        parent_dir = workflow_path.resolve().parents[0].__str__()+os.sep
-        print(parent_dir)
-        sys.path.append(parent_dir)
-        custom_py_files = get_all_py_files(parent_dir)
-        if len(custom_py_files)>0: 
-            modules = map(importlib.import_module,custom_py_files)
-            print(f"Custom modules imported {modules}") 
-        
-        
-        user_workflow = load_workflow(workflow_path.__str__())
-        assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"       
-        
-
-        
-        input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
-        print(input_arg_first, input_arg_last, first_task_name,last_task_name)
-        #get list of tasks
-        task_list = list(user_workflow._tasks.keys())
-        print("Workflow loaded:")
-        print(user_workflow)
-        
-        task_name_start = first_task_name[0]
-        try:
-            task_name_last = last_task_name[0]
-        except IndexError:
-            task_name_last = task_name_start
-         
+     
     time_start,time_end = args.time_range
     channel_start, channel_end = args.channel_range
 
@@ -138,9 +108,6 @@ def main():
         #add list of empty strings so that it can run through for loop
         no_files = len(img_list)
         roi_list =[""]*no_files
-    
-
-      
       
     
     #loop through list of images and rois
@@ -149,6 +116,20 @@ def main():
         if processing == "crop" or processing == "workflow_crop":
             print("Processing ROI "+roi_path)
         aics_img = AICSImage(img)
+        
+        #check if scene valid; if not it iterates through all scenes
+        len_scenes = len(aics_img.scenes)
+        for scene in range(len_scenes):
+            aics_img.set_scene(scene)
+            test = aics_img.get_image_dask_data("YX",T=0,C=0,Z=0)
+            try:
+                test_max = test.max().compute()
+                if test_max:
+                    print(f"Scene {scene} is valid")
+                    break
+            except Exception as e:
+                print(f"Scene {scene} not valid")
+        
         lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
 
         #Override pixel values by reading metadata if file is czi
@@ -158,6 +139,38 @@ def main():
         
         #Setup workflows based on user input 
         if processing == "workflow" or processing == "workflow_crop":
+            #load workflow from path
+            workflow_path = Path(args.workflow_path[0])
+            
+            #load custom modules (*.py) in same directory as workflow file
+            import importlib
+            parent_dir = workflow_path.resolve().parents[0].__str__()+os.sep
+            print(parent_dir)
+            sys.path.append(parent_dir)
+            custom_py_files = get_all_py_files(parent_dir)
+            if len(custom_py_files)>0: 
+                modules = map(importlib.import_module,custom_py_files)
+                print(f"Custom modules imported {modules}") 
+            
+            #workflow has to be reloaded for each image and reinitialised
+            user_workflow = load_workflow(workflow_path.__str__())
+            assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"       
+        
+            input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
+            print(input_arg_first, input_arg_last, first_task_name,last_task_name)
+            
+            #get list of tasks
+            task_list = list(user_workflow._tasks.keys())
+            
+            print("Workflow loaded:")
+            print(user_workflow)
+            
+            task_name_start = first_task_name[0]
+            try:
+                task_name_last = last_task_name[0]
+            except IndexError:
+                task_name_last = task_name_start
+            
             #if workflow involves cropping, assign first task as crop_volume_deskew 
             if processing == "workflow_crop":
                deskewed_shape = lattice.deskew_vol_shape
