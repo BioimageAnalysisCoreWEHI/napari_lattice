@@ -345,7 +345,7 @@ def _process_custom_workflow_output_batch(ref_vol,
                 os.mkdir(dict_save_path)
                 
             #dict_save_path = os.path.join(dict_save_path,"C" + str(ch) + "T" + str(time_point)+"_"+str(element) + "_measurement.csv")
-            dict_save_path = os.path.join(dict_save_path,"Summary_measurement"+str(element)+"_.csv")
+            dict_save_path = os.path.join(dict_save_path,"Summary_measurement_"+save_name_prefix+"_"+str(element)+"_.csv")
             #Opens csv and appends it if file already exists; not efficient.
             if os.path.exists(dict_save_path):
                 output_dict_pd_existing = pd.read_csv(dict_save_path,index_col=["Time","Channel"])
@@ -362,13 +362,19 @@ def _process_custom_workflow_output_batch(ref_vol,
             list_save_path = os.path.join(save_path,"Measurement_"+save_name_prefix)
             if not(os.path.exists(list_save_path)):
                 os.mkdir(list_save_path)
-            list_save_path = os.path.join(list_save_path,"C" + str(ch) + "T" + str(time_point)+"_"+str(element) + "_measurement.csv")
+            list_save_path = os.path.join(list_save_path,"C" + str(ch) + "T" + str(time_point)+"_"+save_name_prefix+"_"+str(element) + "_measurement.csv")
             output_list_pd.to_csv(list_save_path)
         
         elif(array_element_type[element]) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]:
+            
+            #Save path
+            img_save_path = os.path.join(save_path,"Measurement_"+save_name_prefix)
+            if not(os.path.exists(img_save_path)):
+                os.mkdir(img_save_path)
+            
             im_final = np.stack(images_array[:,element]).astype(ref_vol.dtype)
-            final_name = os.path.join(save_path,save_name_prefix + "_T" + str(
-                time_point) + "_" + save_name + "_"+str(element) + ".tif") 
+            final_name = os.path.join(img_save_path,save_name_prefix + "_"+str(element) + "_T" + str(
+                time_point) + "_" + save_name  + ".tif") 
             #"C" + str(ch) + 
             #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
             if len(im_final.shape) ==4: #if only one image with no channel, then dimension will 1,z,y,x, so swap 0 and 1
