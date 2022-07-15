@@ -84,7 +84,10 @@ def _napari_lattice_widget_wrapper():
 
                 self["Choose_Image_Layer"].background_color = "green"
                 self["Choose_Image_Layer"].text = "Plugin Initialised"
-          
+                
+                #Add dimension labels
+                self.parent_viewer.dims.axis_labels = list(('Time',"Channel","Z","Y","X"))
+                
                 return
                 
 
