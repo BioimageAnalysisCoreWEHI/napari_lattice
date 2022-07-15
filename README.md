@@ -58,39 +58,67 @@ All transformations are now powered by clesperanto.
 
 Functions:
 * Deskewing of Zeiss lattice lightsheet images
-  * Ability to preview deskewed image
-* Crop and deskew only a small portion of the image (Saves Time and storage)
+  * Ability to preview deskewed image at channel or timepoint of interest
+* Crop and deskew only a small portion of the image 
 * You can import ROIs created in ImageJ into the plugin for cropping
+* Create image processing workflows using napari-workflows and apply them to lattice data
+* Run napari_lattice from the terminal
 
-
+## Deconvolution not implemented yet!
 
 *****
 ## **Usage**
 
 Once installed, just [start napari](https://napari.org/tutorials/fundamentals/getting_started.html#command-line-usage) and the plugin should be under "Plugins" tab
 
+Note that channels and timepoints start from 0.
+
 ### ****File compatibility**
 
-You can directly open a Zeiss lattice file by dragging the file into napari. Once image has loaded, click `Choose Image Layer`. If its a czi file, you do not need to enter voxel sizes, just choose the corresponding Image Layer and press Ok. Once the button turns green, it means the image is loaded
+* You can directly open a Zeiss lattice file by dragging the file into napari. 
+* You will get a prompt to `Choose Reader`. Select `aicsimageio-out-of-memory` for large datasets that don't fit in memory. 
+* Once image has loaded, click `Initialize Plugin`. If its a czi file, it will load voxel size from the metadata. Once the button turns green, it means the plugin is initialized
 
-### **Previewing data**
+### **Deskewing**
 
-To preview the deskewed output of a single timepoint and channel, choose the layer under the box `img data` and click  `Preview`
+To preview the deskewed output of a single timepoint and channel, choose the layer under the box `img data`, enter the timepoint and channel of interest and click  `Preview`. You can see the status of the processing in the terminal. 
+Once finished, you will see a deskewed image and the corresponding maximum intensity projection as two layers.
 
-### **Previewing cropped data**
+<p align="left">
+<img src="./resources/preview_deskew.png" alt="Deskew Preview" width="500" >
+</p>
 
-Click Initialise shapes layer to enable the buttons for cropping and import ImageJ ROIs. You can draw an ROI for the region you would like to crop. If you have multiple ROIs, select the ROI you would like to deskew.
+To deskew and save a range of timepoints and channels, select the `Deskew` tab. Choose the channel and time ranges, save directory and click `Save`.
 
-You can also import ROIs from an ImageJ ROI file (.zip). You can use a combination of shapes and ImageJ ROIs.
 
-Note: The cropping functionality works by calculating the corresponding coordinates in the raw data and then deskewing only that portion. This should save time if you decide to use `Crop and Save Data` option.
+### **Cropping**
 
-### **Save Data**
+* Click on the `Crop & Deskew` tab. 
+* Clicking on `Click to activate Cropping Preview` will activate the `Import ImageJ ROI` and `Crop Preview` buttons. This will also add a shapes layer for the ROIs or shapes. 
 
-Use this option if you would like to deskew and save a range of timepoints and channels. The output will be printed to the console and the GUI maybe unresponsive till the output is saved. This unresponsiveness will be fixed soon.
+Crop & Deskew (initial)            |  Crop & Deskew (Activated) 
+:-------------------------:|:-------------------------:
+![initial](./resources/crop&deskew_initial.png)  |  ![active](./resources/crop&deskew_active.png)
 
-### **Crop and Save Data**
-Use this option if you would like to deskew and save only the ROIs you've defined in the Shapes layer. If you've selected multiple regions, it deskew and save all of them in order.
+* For cropping regions of interest on the deskewed image, you can either:
+  * draw the regions using shapes layer in napari AND/OR
+  * import ImageJ ROIs an ImageJ ROI file (.zip). 
+* You can use a combination of shapes and ImageJ ROIs if needed.
+* To preview the cropped image, select the ROI and then click `Crop Preview`.
+
+Note: The cropping functionality works by finding the inverse transform of the ROI from the deskewed image and extracting the corresponding data from the skewed or raw image. Only the extracted portion will be deskewed. This saves time and is low on memory compared to deskewing the entire image and then cropping. You can select the range of channels and time poitns you'd like to crop and save under `Crop and Save Data` section.
+
+### **Workflow**
+
+This section uses [napari-workflows](https://github.com/haesleinhuepf/napari-workflows) to implement custom image processing routines on lattice lightsheet datasets. You can create a custom workflow using [napari-assistant](https://www.napari-hub.org/plugins/napari-assistant) and save it. This can then be loaded into the napari_lattice plugin under the `Workflow` tab which can then be applied to the deskewed output.
+
+![workflow](./resources/workflow.png) 
+
+If you'd like to use the shapes layer for cropping and applying a workflow, tick `Crop Data` checkbox. This will crop the data and then apply the workflow. 
+
+You can also use custom python functions with workflows. The function needs to be called within the workflow yml file and the custom function should be a `.py` file in the same directory as the workflow file. An example will be added soon. 
+
+### More details will be added soon.
 
 *******
 
