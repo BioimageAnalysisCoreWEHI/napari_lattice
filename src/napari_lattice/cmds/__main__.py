@@ -34,8 +34,8 @@ def args_parse():
     parser.add_argument('--channel',type=bool,nargs=1,help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",default=False)
     parser.add_argument('--voxel_sizes',type=tuple,nargs=1,help="Enter the voxel sizes as (dz,dy,dx). Make sure they are in brackets",default=(0.3,0.1499219272808386,0.1499219272808386))
     parser.add_argument('--file_extension',type=str,nargs=1,help="If choosing a folder, enter the extension of the files (make sure you enter it with the dot at the start, i.e., .czi or .tif), else .czi and .tif files will be used")
-    parser.add_argument('--time_range',type=int,nargs=2,help="Enter time range to extract ,example 0 10 will extract first 10 timepoints> default is to extract entire timeseries",default=[0,0])
-    parser.add_argument('--channel_range',type=int,nargs=2,help="Enter channel range to extract, default will be all channels. Example 0 1 will extract first two channels. ",default=[0,0])
+    parser.add_argument('--time_range',type=int,nargs=2,help="Enter time range to extract ,example 0 10 will extract first 10 timepoints> default is to extract entire timeseries if no range is specified",default=[0,0])
+    parser.add_argument('--channel_range',type=int,nargs=2,help="Enter channel range to extract, default will be all channels if no range is specified. Example 0 1 will extract first two channels. ",default=[0,0])
     parser.add_argument('--workflow_path',type=str,nargs=1,help="Enter path to the workflow file '.yml")
     args = parser.parse_args()
     return args

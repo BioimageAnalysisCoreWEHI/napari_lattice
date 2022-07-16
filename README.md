@@ -148,9 +148,9 @@ The software can also be used to batch process data in a folder. To run the prog
     --file_extension FILE_EXTENSION
                             If choosing a folder, enter the extension of the files (make sure you enter it with the dot at the start, i.e., .czi or .tif), else .czi and .tif files will be used
     --time_range TIME_RANGE TIME_RANGE
-                            Enter time range to extract ,example 0 10 will extract first 10 timepoints> default is to extract entire timeseries
+                            Enter time range to extract ,example 0 10 will extract first 10 timepoints> default is to extract entire timeseries if no range is specified
     --channel_range CHANNEL_RANGE CHANNEL_RANGE
-                            Enter channel range to extract, default will be all channels. Example 0 1 will extract first two channels.
+                            Enter channel range to extract, default will be all channels if no range is specified. Example 0 1 will extract first two channels.
     --workflow_path WORKFLOW_PATH
                             If using workflow or workflow_crop, enter the path to the workflow file (*.yml)
 
@@ -176,7 +176,7 @@ If you'd like to run cropping and deskew and have a list of ImageJ ROI files (.z
 
 ***Note: The ROI files need to have the same name as the image files.***
 
-You can also replace the `input`, `output`, and `roi_file` with files instead of folders.
+You can also replace the `input`, `output`, and `roi_file` arguments with file locations instead of folders.
 
 Please find sample data for testing in the `sample_data` folder above
 
