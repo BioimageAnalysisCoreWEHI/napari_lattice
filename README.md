@@ -45,13 +45,11 @@ If this version doesn't work, try `pyopencl‑2021.2.9+cl12‑cp39‑cp39‑win_
 *************
 You need to install [napari](https://pypi.org/project/napari/) first. 
 
-Once napari is installed, to install latest version of the napari_lattice plugin, run napari from the terminal by typing `napari`. 
-Go to Plugins -> Install/Uninstall Plugins and type "lattice". It should come up in search results.
+Once napari is installed, to install latest version of the napari_lattice plugin, by typing the following command in the terminal :
 
-<p align="left">
-<img src="./resources/plugin_installation.png" alt="napari_lattice_install_plugin" width="500" >
-</p>
+    pip install git+https://github.com/BioimageAnalysisCoreWEHI/napari_lattice.git
 
+The plugin will be made available by napari-> Install/Uninstall Plugins soon.
 
 *************
 ## **Features**
