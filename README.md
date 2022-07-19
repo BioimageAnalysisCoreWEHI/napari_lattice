@@ -26,11 +26,11 @@ https://napari.org/plugins/index.html
 
 Use a conda environment for installation. You will need [Anaconda Navigator](https://www.anaconda.com/products/individual) or a lighter version [Miniconda](https://docs.conda.io/en/latest/miniconda.html) installed. Click on the Anaconda prompt or terminal and create an environment first:
 
-    conda create -n llsz python=3.9
+    conda create -n napari-lattice python=3.9
 
 You can use any name instead of "llsz". Once an environment is created, activate it by typing with the name you used:
 
-    conda activate llsz
+    conda activate napari-lattice
 
 Start with installing [pyopencl](https://documen.tician.de/pyopencl/)
 
@@ -43,10 +43,15 @@ If you have trouble installing pyopencl on Windows, use a precompiled wheel from
 If this version doesn't work, try `pyopencl‑2021.2.9+cl12‑cp39‑cp39‑win_amd64.whl`
 
 *************
+You need to install [napari](https://pypi.org/project/napari/) first. 
 
-To install latest version of the napari plugin:
+Once napari is installed, to install latest version of the napari_lattice plugin, run napari from the terminal by typing `napari`. 
+Go to Plugins -> Install/Uninstall Plugins and type "lattice". It should come up in search results.
 
-    pip install git+https://github.com/pr4deepr/napari_lattice.git
+<p align="left">
+<img src="./resources/plugin_installation.png" alt="napari_lattice_install_plugin" width="500" >
+</p>
+
 
 *************
 ## **Features**
@@ -194,8 +199,11 @@ the coverage at least stays the same before you submit a pull request.
 
 =======
 Distributed under the terms of the [GPL-3.0 License] license,
-"llsz_napari" is free and open source software
+"napari_lattice" is free and open source software
 
+## Acknowledgment
+
+ This project was supported by funding from the [Rogers Lab at the Centre for Dynamic Imaging at the Walter and Eliza Hall Institute of Medical Research](https://imaging.wehi.edu.au/). This project has been made possible in part by [Napari plugin accelerator grant](https://chanzuckerberg.com/science/programs-resources/imaging/napari/lattice-light-sheet-data-analysis-toolset/) from the Chan Zuckerberg Initiative DAF, an advised fund of the Silicon Valley Community Foundation.
 
 ## Issues
 
