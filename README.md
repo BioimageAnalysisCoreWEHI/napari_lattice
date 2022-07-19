@@ -55,7 +55,7 @@ The plugin will be made available by napari-> Install/Uninstall Plugins soon.
 ## **Features**
 
 <p align="left">
-<img src="./resources/LLSZ_window.png" alt="LLSZ_overview" width="500" >
+<img src="https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/blob/master/resources/LLSZ_window.png" alt="LLSZ_overview" width="500" >
 </p>
 All transformations are now powered by clesperanto.
 
@@ -88,7 +88,7 @@ To preview the deskewed output of a single timepoint and channel, choose the lay
 Once finished, you will see a deskewed image and the corresponding maximum intensity projection as two layers.
 
 <p align="left">
-<img src="./resources/preview_deskew.png" alt="Deskew Preview" width="500" >
+<img src="https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/blob/master/resources/preview_deskew.png" alt="Deskew Preview" width="500" >
 </p>
 
 To deskew and save a range of timepoints and channels, select the `Deskew` tab. Choose the channel and time ranges, save directory and click `Save`.
@@ -101,7 +101,7 @@ To deskew and save a range of timepoints and channels, select the `Deskew` tab. 
 
 Crop & Deskew (initial)            |  Crop & Deskew (Activated) 
 :-------------------------:|:-------------------------:
-![initial](./resources/crop&deskew_initial.png)  |  ![active](./resources/crop&deskew_active.png)
+![initial](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/blob/master/resources/crop&deskew_initial.png)  |  ![active](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/blob/master/resources/crop&deskew_active.png)
 
 * For cropping regions of interest on the deskewed image, you can either:
   * draw the regions using shapes layer in napari AND/OR
@@ -115,7 +115,7 @@ Note: The cropping functionality works by finding the inverse transform of the R
 
 This section uses [napari-workflows](https://github.com/haesleinhuepf/napari-workflows) to implement custom image processing routines on lattice lightsheet datasets. You can create a custom workflow using [napari-assistant](https://www.napari-hub.org/plugins/napari-assistant) and save it. This can then be loaded into the napari_lattice plugin under the `Workflow` tab which can then be applied to the deskewed output.
 
-![workflow](./resources/workflow.png) 
+![workflow](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/blob/master/resources/workflow.png) 
 
 If you'd like to use the shapes layer for cropping and applying a workflow, tick `Crop Data` checkbox. This will crop the data and then apply the workflow. 
 
