@@ -72,7 +72,7 @@ Functions:
 *****
 ## **Usage**
 
-Once installed, just [start napari](https://napari.org/tutorials/fundamentals/getting_started.html#command-line-usage) and the plugin should be under "Plugins" tab
+Once installed, just [start napari](https://napari-staging-site.github.io/tutorials/fundamentals/getting_started.html#command-line-usage) and the plugin should be under "Plugins" tab
 
 Note that channels and timepoints start from 0.
 
