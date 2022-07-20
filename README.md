@@ -30,11 +30,11 @@ https://napari.org/plugins/index.html
 
 2. You can use any name instead of "llsz". Once an environment is created, activate it by typing with the name you used:
 
-    conda activate napari-lattice
+        conda activate napari-lattice
 
 3. Start with installing [pyopencl](https://documen.tician.de/pyopencl/)
 
-    conda install -c conda-forge pyopencl
+        conda install -c conda-forge pyopencl
 
     If you have trouble installing pyopencl on Windows, use a precompiled wheel from [here](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl). As we use python 3.9, you have to download and try the wheels which have cp39 in their name. For example, if we download `pyopencl‑2022.1‑cp39‑cp39‑win_amd64.whl`, then we navigate to the download folder and run:
 
@@ -44,7 +44,7 @@ https://napari.org/plugins/index.html
 
 4. You need to install [napari](https://pypi.org/project/napari/) first. Once napari is installed, to install latest version of the napari_lattice plugin, by typing the following command in the terminal :
 
-    pip install git+https://github.com/BioimageAnalysisCoreWEHI/napari_lattice.git
+        pip install git+https://github.com/BioimageAnalysisCoreWEHI/napari_lattice.git
 
 The plugin will be made available by napari-> Install/Uninstall Plugins soon.
 
@@ -77,6 +77,7 @@ Note that channels and timepoints start from 0.
 
 * You can directly open a Zeiss lattice file by dragging the file into napari. 
 * You will get a prompt to `Choose Reader`. Select `aicsimageio-out-of-memory` for large datasets that don't fit in memory. 
+* If the channels are split into different layers, press `Shift` and select all the channels. Right click on the highlighted layers and then click `Merge to stack`. 
 * Once image has loaded, click `Initialize Plugin`. If its a czi file, it will load voxel size from the metadata. Once the button turns green, it means the plugin is initialized
 
 ### **Deskewing**

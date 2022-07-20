@@ -86,8 +86,13 @@ def _napari_lattice_widget_wrapper():
                 self["Choose_Image_Layer"].text = "Plugin Initialised"
                 
                 #Add dimension labels
-                self.parent_viewer.dims.axis_labels = list(('Time',"Channel","Z","Y","X"))
-                
+                if LLSZWidget.LlszMenu.lattice.channels == 1:
+                    self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
+                elif LLSZWidget.LlszMenu.lattice.channels >1:
+                    self.parent_viewer.dims.axis_labels = list(('Time',"Channel","Z","Y","X"))
+                elif LLSZWidget.LlszMenu.lattice.channels==1 and  LLSZWidget.LlszMenu.lattice.time>1:
+                    self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
+
                 return
                 
 
