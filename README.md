@@ -24,28 +24,25 @@ https://napari.org/plugins/index.html
 ## **Installation**
 
 
-Use a conda environment for installation. You will need [Anaconda Navigator](https://www.anaconda.com/products/individual) or a lighter version [Miniconda](https://docs.conda.io/en/latest/miniconda.html) installed. Click on the Anaconda prompt or terminal and create an environment first:
+1. Use a conda environment for installation. You will need [Anaconda Navigator](https://www.anaconda.com/products/individual) or a lighter version [Miniconda](https://docs.conda.io/en/latest/miniconda.html) installed. Click on the Anaconda prompt or terminal and create an environment first:
 
     conda create -n napari-lattice python=3.9
 
-You can use any name instead of "llsz". Once an environment is created, activate it by typing with the name you used:
+2. You can use any name instead of "llsz". Once an environment is created, activate it by typing with the name you used:
 
     conda activate napari-lattice
 
-Start with installing [pyopencl](https://documen.tician.de/pyopencl/)
+3. Start with installing [pyopencl](https://documen.tician.de/pyopencl/)
 
     conda install -c conda-forge pyopencl
 
-If you have trouble installing pyopencl on Windows, use a precompiled wheel from [here](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl). As we use python 3.9, you have to download and try the wheels which have cp39 in their name. For example, if we download `pyopencl‑2022.1‑cp39‑cp39‑win_amd64.whl`, then we navigate to the download folder and run:
+    If you have trouble installing pyopencl on Windows, use a precompiled wheel from [here](https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyopencl). As we use python 3.9, you have to download and try the wheels which have cp39 in their name. For example, if we download `pyopencl‑2022.1‑cp39‑cp39‑win_amd64.whl`, then we navigate to the download folder and run:
 
-    pip install pyopencl‑2022.1‑cp39‑cp39‑win_amd64.whl
+        pip install pyopencl‑2022.1‑cp39‑cp39‑win_amd64.whl
 
-If this version doesn't work, try `pyopencl‑2021.2.9+cl12‑cp39‑cp39‑win_amd64.whl`
+    If this version doesn't work, try `pyopencl‑2021.2.9+cl12‑cp39‑cp39‑win_amd64.whl`
 
-*************
-You need to install [napari](https://pypi.org/project/napari/) first. 
-
-Once napari is installed, to install latest version of the napari_lattice plugin, by typing the following command in the terminal :
+4. You need to install [napari](https://pypi.org/project/napari/) first. Once napari is installed, to install latest version of the napari_lattice plugin, by typing the following command in the terminal :
 
     pip install git+https://github.com/BioimageAnalysisCoreWEHI/napari_lattice.git
 
