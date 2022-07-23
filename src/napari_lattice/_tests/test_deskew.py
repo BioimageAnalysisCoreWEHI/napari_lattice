@@ -10,7 +10,7 @@ def test_deskew():
  
     deskewed = cle.deskew_y(raw,angle_in_degrees=60)
 
-    assert deskewed.shape == (4,7,5)
+    assert deskewed.shape == (4,8,5)
     assert deskewed[3,2,0] == 1
 
     
