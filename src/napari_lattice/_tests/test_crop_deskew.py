@@ -13,7 +13,7 @@ def test_crop_deskew():
 
 
     #Crop area of interest
-    ref_crop_deskew_img = deskewed[1:2,3:5,3:5]
+    ref_crop_deskew_img = deskewed[1:3,3:5,3:5]
 
     #roi generated from crop array (x,y)
     roi = np.array(((3,3),(3,5),(5,5),(5,3)))

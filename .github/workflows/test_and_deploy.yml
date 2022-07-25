@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ['3.7', '3.8', '3.9']
+        python-version: ['3.8', '3.9', '3.10']
 
     steps:
       - uses: actions/checkout@v2
@@ -32,11 +32,11 @@ jobs:
           python --version
           conda install -y pyopencl pocl
           python -m pip install --upgrade pip
-          pip install setuptools wheel pytest pytest-cov
+          python -m pip install setuptools tox tox-gh-actions wheel pytest pytest-cov pytest-qt pyqt5
           pip install -e .
       - name: Test
         shell: bash -l {0}
-        run: pytest -v --cov=./ --cov-report=xml
+        run: pytest -v --color=yes --cov=napari_lattice --cov-report=xml
       - name: Coverage
         uses: codecov/codecov-action@v1
 
