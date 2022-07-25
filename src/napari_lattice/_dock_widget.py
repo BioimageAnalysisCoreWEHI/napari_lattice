@@ -219,14 +219,17 @@ def _napari_lattice_widget_wrapper():
                        time_end=dict(label="Time End:", value=1),
                        ch_start=dict(label="Channel Start:"),
                        ch_end=dict(label="Channel End:", value=1),
+                       save_as_type={"label":"Save as filetype:","choices":["tif","h5"]},
                        save_path=dict(mode='d', label="Directory to save"),
                        call_button="Save")
+
                def Deskew_Save(self,
                                header,
                                time_start: int,
                                time_end: int,
                                ch_start: int,
                                ch_end: int,
+                               save_as_type: str,
                                save_path: Path = Path(history.get_save_history()[0])):
 
                    _Deskew_Save(LLSZWidget,
@@ -234,6 +237,7 @@ def _napari_lattice_widget_wrapper():
                                time_end,
                                ch_start,
                                ch_end,
+                               save_as_type,
                                save_path)
                    return
                
@@ -333,16 +337,18 @@ def _napari_lattice_widget_wrapper():
                     class CropSaveData:
                         @magicgui(header=dict(widget_type="Label", label="<h3>Crop and Save Data</h3>"),
                                   time_start=dict(label="Time Start:"),
-                                time_end=dict(label="Time End:", value=1),
-                                ch_start=dict(label="Channel Start:"),
-                                ch_end=dict(label="Channel End:", value=1),
-                                save_path=dict(mode='d', label="Directory to save "))
+                                  time_end=dict(label="Time End:", value=1),
+                                  ch_start=dict(label="Channel Start:"),
+                                  ch_end=dict(label="Channel End:", value=1),
+                                  save_as_type={"label":"Save as filetype:","choices":["tif","h5"]},
+                                  save_path=dict(mode='d', label="Directory to save "))
                         def Crop_Save(self,
                                         header,
                                         time_start: int, 
                                         time_end: int, 
                                         ch_start: int, 
                                         ch_end: int,
+                                        save_as_type: str,
                                         roi_layer_list: ShapesData, 
                                         save_path: Path = Path(history.get_save_history()[0])):
 
@@ -385,6 +391,7 @@ def _napari_lattice_widget_wrapper():
                                         channel_end = ch_end,
                                         save_name_prefix  = "ROI_" + str(idx),
                                         save_path = save_path,
+                                        save_file_type = save_as_type,
                                         save_name= LLSZWidget.LlszMenu.lattice.save_name,
                                         dx = dx,
                                         dy = dy,

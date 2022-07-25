@@ -71,6 +71,7 @@ def _Deskew_Save(LLSZWidget,
                  time_end: int,
                  ch_start: int,
                  ch_end: int,
+                 save_as_type: str,
                  save_path: Path):
 
                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
@@ -99,6 +100,7 @@ def _Deskew_Save(LLSZWidget,
                           time_end = time_end,
                           channel_start = ch_start,
                           channel_end = ch_end,
+                          save_file_type = save_as_type,
                           save_path = save_path,
                           save_name= LLSZWidget.LlszMenu.lattice.save_name,
                           dx = dx,

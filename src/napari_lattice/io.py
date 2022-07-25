@@ -28,6 +28,8 @@ from napari_workflows import Workflow
 from tqdm import tqdm
 from tifffile import imsave
 
+import npy2bdv
+
 
 def convert_imgdata_aics(img_data:ImageData):
     """Return AICSimage object from napari ImageData type
@@ -80,6 +82,7 @@ def save_tiff(vol,
               time_end:int,
               channel_start:int,
               channel_end:int,
+              save_file_type:str,
               save_path:Path,
               save_name_prefix:str = "",
               save_name:str = "img",
@@ -97,6 +100,7 @@ def save_tiff(vol,
         time_end (int): _description_
         channel_start (int): _description_
         channel_end (int): _description_
+        save_file_type (str): either 'tif' or 'h5'
         save_path (Path): _description_
         save_name_prefix (str, optional): Add a prefix to name. For example, if processng ROIs, add ROI_1_. Defaults to "".
         save_name (str, optional): name of file being saved. Defaults to "img".
@@ -128,7 +132,26 @@ def save_tiff(vol,
         #if not os.path.exists(save_path):
             #os.makedirs(save_path)
         im_final=[]
-    
+
+    #setup bdvwriter
+    if save_file_type == 'h5':
+        if func is crop_volume_deskew:
+            save_path_h5 = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".h5"
+        else:
+            save_path_h5 = save_path + os.sep + save_name + ".h5"
+
+        if os.path.exists(save_path_h5):
+            print("h5 exists, overwriting")
+            os.remove(save_path_h5)
+        else:
+            pass
+
+        print("There are %i channels." % len(channel_range))
+        bdv_writer = npy2bdv.BdvWriter(save_path_h5, compression='gzip', nchannels=len(channel_range))
+    else:
+        print("saving as tif")
+
+
     #loop is ordered so image is saved in order TCZYX for ometiffwriter
     for time_point in tqdm(time_range, desc="Time", position=0): 
         images_array = []
@@ -144,7 +167,7 @@ def save_tiff(vol,
                 print("Check shape of volume. Expected volume with shape 3,4 or 5. Got ",vol.shape) 
             
             image_type = raw_vol.dtype
-            
+
             #Apply function to a volume
             if func is cle.deskew_y:
                 #process_vol = raw_vol.map_blocks(func,input_image = raw_vol, dtype=image_type,*args,**kwargs)
@@ -153,22 +176,39 @@ def save_tiff(vol,
                 processed_vol = func(original_volume = raw_vol, *args,**kwargs).astype(image_type)
             else:
                 processed_vol = func( *args,**kwargs).astype(image_type)
-            
+
+
+            if save_file_type == "h5":
+                pvol = da.asarray(processed_vol)
+                bdv_writer.append_view(pvol,
+                                   time=time_point,
+                                   channel=ch,
+                                   voxel_size_xyz=(0.145, 0.145, 0.145),
+                                   voxel_units='um')
+
+                print("\nAppending volume to h5\n")
+
             images_array.append(processed_vol)
-        
+
         images_array = np.array(images_array)   
         #For functions other than cropping save each timepoint
-        if func != crop_volume_deskew: 
-            final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
-                            time_point) + "_" +save_name+ ".tif"
-            #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
-            imsave(final_name,images_array, bigtiff=True, resolution=(1./dx, 1./dy),
-               metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'})#imagej=True
-        elif func is crop_volume_deskew:
-            im_final.append(images_array)
-            
+        if save_file_type == 'tif':
+            if func != crop_volume_deskew:
+                final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
+                                time_point) + "_" +save_name+ ".tif"
+                #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+                imsave(final_name,images_array, bigtiff=True, resolution=(1./dx, 1./dy),
+                   metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'})#imagej=True
+            elif func is crop_volume_deskew:
+                im_final.append(images_array)
+
+    # close the writer
+    if save_file_type == 'h5':
+        bdv_writer.write_xml()
+        bdv_writer.close()
+
     #if using cropping, save whole stack instead of individual timepoints
-    if func is crop_volume_deskew:
+    if func is crop_volume_deskew and save_file_type == 'tif':
         im_final = np.array(im_final)
         final_name = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".tif"
         #OmeTiffWriter.save(im_final, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
