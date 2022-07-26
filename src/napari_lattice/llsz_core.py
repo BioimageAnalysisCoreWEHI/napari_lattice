@@ -264,7 +264,7 @@ def rotate_around_vol_mat(ref_vol,angle_in_degrees:float=30.0):
 
 #https://github.com/rosalindfranklininstitute/RedLionfish/blob/19ff16fe307343e417039627240224b29b4f4a95/RedLionfishDeconv/napari_plugin.py#L97
 #adapted the redfishlion napari plugin
-def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAlgorithm=True):
+def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAlgorithm=True, callbkTickFunc = None):
     """Apply Richardson Lucy Deconvolution using the redfishlion library
 
     Args:
@@ -281,15 +281,18 @@ def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAl
     assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
     assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
     
+    image = np.asarray(image)
+    
     if method.lower() == "cpu":
         method = "cpu"
     else:
         method = "gpu"
     
-    decon_data = rl.doRLDeconvolutionFromNpArrays(data = image, 
-                                                  psfdata = psf, 
+    decon_data = rl.doRLDeconvolutionFromNpArrays(data_np = image, 
+                                                  psf_np = psf, 
                                                   niter= niter, 
                                                   method = method ,
                                                   resAsUint8=resAsUint8,
-                                                  useBlockAlgorithm=useBlockAlgorithm)
+                                                  useBlockAlgorithm=useBlockAlgorithm,
+                                                  callbkTickFunc = callbkTickFunc)
     return decon_data

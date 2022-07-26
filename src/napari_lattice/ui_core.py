@@ -14,12 +14,15 @@ from napari.utils import history
 import pyclesperanto_prototype as cle
 from .io import LatticeData,  save_tiff
 
+from napari_lattice.llsz_core import rl_decon
 
+    
 def _Preview(LLSZWidget,
             self_class,
             time:int,
             channel:int,
             img_data: ImageData):
+    
     print("Previewing deskewed channel and time")
     assert img_data.size, "No image open or selected"
     assert time< LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
@@ -28,16 +31,28 @@ def _Preview(LLSZWidget,
     assert str.upper(LLSZWidget.LlszMenu.lattice.skew) in ('Y', 'X'), \
         "Skew direction not recognised. Enter either Y or X"
 
-    print("Deskewing for Time:", time,"and Channel: ", channel)
 
     vol = LLSZWidget.LlszMenu.lattice.data
 
     vol_zyx= vol[time,channel,:,:,:]
 
     # Deskew using pyclesperanto
+    #Apply deconvolution if needed
     
     
-    deskew_final = cle.deskew_y(vol_zyx, 
+    
+    if LLSZWidget.LlszMenu.deconvolution.value:
+        print(f"Deskewing for Time:{time} and Channel: {channel} with deconvolution")
+        psf = LLSZWidget.LlszMenu.lattice.psf[channel]
+        decon_data = rl_decon(image = vol_zyx,psf = psf,niter = 10,method = LLSZWidget.LlszMenu.lattice.decon_processing)
+        deskew_final = cle.deskew_y(decon_data, 
+                                angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
+                                voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
+                                voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
+                                voxel_size_z=LLSZWidget.LlszMenu.lattice.dz).astype(vol.dtype)
+    else:
+        print("Deskewing for Time:", time,"and Channel: ", channel)
+        deskew_final = cle.deskew_y(vol_zyx, 
                                 angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
                                 voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
                                 voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
@@ -93,7 +108,7 @@ def _Deskew_Save(LLSZWidget,
                 img_data = LLSZWidget.LlszMenu.lattice.data
                 
                 #pass arguments for save tiff, callable and function arguments
-                save_tiff(img_data,
+                save_tiff(vol = img_data,
                           func = cle.deskew_y,
                           time_start = time_start,
                           time_end = time_end,
@@ -108,8 +123,8 @@ def _Deskew_Save(LLSZWidget,
                           angle_in_degrees = angle,
                           voxel_size_x=dx,
                           voxel_size_y=dy,
-                          voxel_size_z=dz
-                          )
+                          voxel_size_z=dz,
+                          LLSZWidget = LLSZWidget)
                 
                 print("Deskewing and Saving Complete -> ", save_path)
                 return    
