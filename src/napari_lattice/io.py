@@ -142,14 +142,15 @@ def save_tiff(vol,
 
         if os.path.exists(save_path_h5):
             print("h5 exists, overwriting")
+            #SHOULD THIS BE THE DEFAULT BEHAVIOUR?
             os.remove(save_path_h5)
         else:
             pass
 
-        print("There are %i channels." % len(channel_range))
         bdv_writer = npy2bdv.BdvWriter(save_path_h5, compression='gzip', nchannels=len(channel_range))
+        #bdv_writer = npy2bdv.BdvWriter(save_path_h5, compression=None, nchannels=len(channel_range)) #~30% faster, but up to 10x bigger filesize
     else:
-        print("saving as tif")
+        pass
 
 
     #loop is ordered so image is saved in order TCZYX for ometiffwriter
@@ -367,7 +368,7 @@ def save_tiff_workflow(vol,
                 output_list_pd.to_csv(list_save_path, index=False)
         
                 
-        #processing as an iamge    
+        #processing as an image
         else:
             
             final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(

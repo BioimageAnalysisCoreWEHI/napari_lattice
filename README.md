@@ -89,7 +89,9 @@ Once finished, you will see a deskewed image and the corresponding maximum inten
 <img src="https://raw.githubusercontent.com/BioimageAnalysisCoreWEHI/napari_lattice/master/resources/preview_deskew.png" alt="Deskew Preview" width="500" >
 </p>
 
-To deskew and save a range of timepoints and channels, select the `Deskew` tab. Choose the channel and time ranges, save directory and click `Save`.
+To deskew and save a range of timepoints and channels, select the `Deskew` tab. Choose the channel and time ranges, 
+save directory and click `Save`. You can also select to save as tif or h5. Tif will save as individual timepoints, h5 
+will be a single file using default chunk size and gzip compression. 
 
 
 ### **Cropping**
@@ -154,6 +156,8 @@ The software can also be used to batch process data in a folder. To run the prog
                             Enter channel range to extract, default will be all channels if no range is specified. Example 0 1 will extract first two channels.
     --workflow_path WORKFLOW_PATH
                             If using workflow or workflow_crop, enter the path to the workflow file (*.yml)
+    --output_file_type OUTPUT_FILE_TYPE
+                            Save as either raw "tif" or "h5" with gzip compression, default is "tif"
 
 As an example, if you would like to deskew a bunch of files in a folder, you would need to define the `input folder`, `save location` and `processing` option (deskew). The skew direction by default is `Y` and `deskew angle` is 30.
 

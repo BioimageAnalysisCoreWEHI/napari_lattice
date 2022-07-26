@@ -37,6 +37,7 @@ def args_parse():
     parser.add_argument('--time_range',type=int,nargs=2,help="Enter time range to extract ,example 0 10 will extract first 10 timepoints> default is to extract entire timeseries if no range is specified",default=[0,0])
     parser.add_argument('--channel_range',type=int,nargs=2,help="Enter channel range to extract, default will be all channels if no range is specified. Example 0 1 will extract first two channels. ",default=[0,0])
     parser.add_argument('--workflow_path',type=str,nargs=1,help="Enter path to the workflow file '.yml")
+    parser.add_argument('--output_file_type',type=str,nargs=1,help="Save as either tif or h5, defaults to tif")
     args = parser.parse_args()
     return args
 
@@ -229,10 +230,16 @@ def main():
         if not os.path.exists(save_path):
             os.mkdir(save_path)
         print("Saving at ",save_path)
-        
+
+        if not args.output_file_type:
+            output_file_type = 'tif'
+        else:
+            output_file_type = args.output_file_type[0]
+
+        print(output_file_type)
+
         #Deskewing only
         if processing == "deskew": 
-
             save_tiff(vol = img_data,
                         func = cle.deskew_y,
                         time_start = time_start,
@@ -241,6 +248,7 @@ def main():
                         channel_end = channel_end,
                         save_path = save_path,
                         save_name= save_name,
+                        save_file_type = output_file_type,
                         dx = dx,
                         dy = dy,
                         dz = dz,
@@ -277,6 +285,7 @@ def main():
                                 save_name_prefix  = "ROI_" + str(idx)+"_",
                                 save_path = save_path,
                                 save_name= save_name,
+                                save_file_type=output_file_type,
                                 dx = dx,
                                 dy = dy,
                                 dz = dz,
