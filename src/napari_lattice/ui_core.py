@@ -14,7 +14,7 @@ from napari.utils import history
 import pyclesperanto_prototype as cle
 from .io import LatticeData,  save_tiff
 
-from napari_lattice.llsz_core import rl_decon
+from napari_lattice.llsz_core import rl_decon,cuda_decon
 
     
 def _Preview(LLSZWidget,
@@ -44,7 +44,11 @@ def _Preview(LLSZWidget,
     if LLSZWidget.LlszMenu.deconvolution.value:
         print(f"Deskewing for Time:{time} and Channel: {channel} with deconvolution")
         psf = LLSZWidget.LlszMenu.lattice.psf[channel]
-        decon_data = rl_decon(image = vol_zyx,psf = psf,niter = 10,method = LLSZWidget.LlszMenu.lattice.decon_processing)
+        if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+            decon_data = cuda_decon(image = vol_zyx,psf = psf,niter = 10)
+        else:
+            decon_data = rl_decon(image = vol_zyx,psf = psf,niter = 10,method = LLSZWidget.LlszMenu.lattice.decon_processing)
+        
         deskew_final = cle.deskew_y(decon_data, 
                                 angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
                                 voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,

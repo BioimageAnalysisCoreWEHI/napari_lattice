@@ -30,6 +30,8 @@ def args_parse():
     parser.add_argument('--skew_direction',type=str,nargs=1,help="Enter the direction of skew (default is Y)",default="Y")
     parser.add_argument('--deskew_angle',type=float,nargs=1,help="Enter the agnel of deskew (default is 30)",default=30)
     parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop", required=True)
+    parser.add_argument('--deconvolution',type=str,nargs=1,help="To use deconvolution, use this argument and also specify device",default="gpu")
+    parser.add_argument('--deconvolution_psf',type=str,nargs=1,help="Enter path to psf file")
     parser.add_argument('--roi_file',type=str,nargs=1,help="Enter the path to the ROI file for cropping")
     parser.add_argument('--channel',type=bool,nargs=1,help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",default=False)
     parser.add_argument('--voxel_sizes',type=tuple,nargs=1,help="Enter the voxel sizes as (dz,dy,dx). Make sure they are in brackets",default=(0.3,0.1499219272808386,0.1499219272808386))
