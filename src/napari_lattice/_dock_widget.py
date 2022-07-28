@@ -143,7 +143,7 @@ def _napari_lattice_widget_wrapper():
                          psf_ch2_path={"widget_type": "FileEdit","label":"Channel 2"},
                          psf_ch3_path={"widget_type": "FileEdit","label":"Channel 3"},
                          psf_ch4_path={"widget_type": "FileEdit","label":"Channel 4"},
-                         use_gpu_decon = {"widget_type": "ComboBox","label":"Choose processing device","choices":["cpu","gpu"]}
+                         use_gpu_decon = {"widget_type": "ComboBox","label":"Choose processing device","choices":["cpu","gpu","cuda_gpu"]}
                          )
             def deconvolution_gui(self,
                                     header,
@@ -157,7 +157,18 @@ def _napari_lattice_widget_wrapper():
                         #index corresponds to channel no
                 from pathlib import PureWindowsPath
                 assert LLSZWidget.LlszMenu.deconvolution.value==True, "Deconvolution is set to False. Tick the box to activate deconvolution."
+                
+                #Use CUDA for deconvolution
+                if use_gpu_decon == "cuda_gpu":
+                    import importlib
+                    cucim_import = importlib.util.find_spec("cucim")
+                    cupy_import = importlib.util.find_spec("cupy")
+                    assert cucim_import and cupy_import, f"Please install cucim and cupy. Otherwise, please select another option"
+                 
+                
                 LLSZWidget.LlszMenu.lattice.decon_processing = use_gpu_decon
+                
+                 
                 
                 psf_paths = [psf_ch1_path,psf_ch2_path,psf_ch3_path,psf_ch4_path]
                 #remove empty paths; pathlib returns current directory as "." if None or empty str specified
