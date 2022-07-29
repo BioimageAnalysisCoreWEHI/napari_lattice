@@ -18,7 +18,7 @@ from dask.cache import Cache
 
 from napari_lattice.utils import etree_to_dict
 from napari_lattice.utils import get_deskewed_shape,_process_custom_workflow_output_batch
-from napari_lattice.llsz_core import crop_volume_deskew, rl_decon
+from napari_lattice.llsz_core import crop_volume_deskew, rl_deconvolution
 from napari_lattice import config
 
 import os
@@ -148,11 +148,10 @@ def save_tiff(vol,
             
             image_type = raw_vol.dtype
             
+            #deconvolution
             if LLSZWidget.LlszMenu.deconvolution.value:
-                psf = LLSZWidget.LlszMenu.lattice.psf[ch]
-                processing_device = LLSZWidget.LlszMenu.lattice.decon_processing
-                raw_vol = rl_decon(image = raw_vol, psf = psf, niter = 10, method = processing_device, useBlockAlgorithm=False)
-            
+                raw_vol = rl_deconvolution(LLSZWidget,raw_vol,ch)
+ 
             #Apply function to a volume
             if func is cle.deskew_y:
                 processed_vol = func(input_image = raw_vol, *args,**kwargs).astype(image_type)

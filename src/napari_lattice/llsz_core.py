@@ -337,3 +337,16 @@ def cuda_decon(image,psf,niter:int=10,clip = False, filter_epsilon = 1e-14):
     pinned_mempool.free_all_blocks()
     
     return decon_data
+
+def rl_deconvolution(LLSZWidget=None,
+                          vol_zyx=None,
+                          channel=None):
+
+    #getting psf corresponding to the channel
+    psf = np.squeeze(LLSZWidget.LlszMenu.lattice.psf[channel])
+    if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+        decon_data = cuda_decon(image = vol_zyx,psf = psf,niter = 10)
+    else:
+        decon_data = rl_decon(image = vol_zyx,psf = psf,niter = 10,method = LLSZWidget.LlszMenu.lattice.decon_processing)
+    
+    return decon_data

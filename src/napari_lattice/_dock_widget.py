@@ -21,7 +21,7 @@ from .ui_core import _Preview, _Deskew_Save
 
 from napari.types import ImageData, ShapesData
 from .utils import read_imagej_roi
-from .llsz_core import crop_volume_deskew, rl_decon
+from .llsz_core import crop_volume_deskew, rl_deconvolution
 from tqdm import tqdm
 
 from .io import LatticeData,  save_tiff, save_tiff_workflow
@@ -165,10 +165,7 @@ def _napari_lattice_widget_wrapper():
                     cupy_import = importlib.util.find_spec("cupy")
                     assert cucim_import and cupy_import, f"Please install cucim and cupy. Otherwise, please select another option"
                  
-                
                 LLSZWidget.LlszMenu.lattice.decon_processing = use_gpu_decon
-                
-                 
                 
                 psf_paths = [psf_ch1_path,psf_ch2_path,psf_ch3_path,psf_ch4_path]
                 #remove empty paths; pathlib returns current directory as "." if None or empty str specified
@@ -185,8 +182,6 @@ def _napari_lattice_widget_wrapper():
                             from aicspylibczi import CziFile
                             psf_czi = CziFile(psf.__str__())
                             psf_aics = psf_czi.read_image()
-                            if len(psf_aics[0])>=1:
-                                psf_channels = len(psf_aics[0])
                             #make sure shape is 3D
                             psf_aics = psf_aics[0][0]#np.expand_dims(psf_aics[0],axis=0)
                             assert len(psf_aics.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
@@ -196,12 +191,11 @@ def _napari_lattice_widget_wrapper():
                             psf_aics = AICSImage(psf.__str__())
                             LLSZWidget.LlszMenu.lattice.psf.append(psf_aics.data)
                             
-                            if psf_aics.dims.C>=1:
-                                    psf_channels = psf_aics.dims.C
 
+                psf_channels = len(LLSZWidget.LlszMenu.lattice.psf)
                 #LLSZWidget.LlszMenu.lattice.channels =3
                 if psf_channels != LLSZWidget.LlszMenu.lattice.channels:
-                        print(f"PSF image has {psf_channels} channel/s, whereas image has {LLSZWidget.LlszMenu.lattice.channels}")
+                        print(f"PSF contains {psf_channels} channel/s, whereas image has {LLSZWidget.LlszMenu.lattice.channels}")
                 
                 self["deconvolution_gui"].background_color = "green"
                 self["deconvolution_gui"].text = "PSFs added"
@@ -337,7 +331,12 @@ def _napari_lattice_widget_wrapper():
                             roi_choice = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_choice]
                             print("Previewing ROI ", roi_idx)
                             
-                            crop_roi_vol_desk= crop_volume_deskew(original_volume = vol_zyx,
+                            if LLSZWidget.LlszMenu.deconvolution.value:
+                                print(f"Cropping for Time:{time} and Channel: {channel} with deconvolution")
+                                decon_data = rl_deconvolution(LLSZWidget,vol_zyx,channel)
+                            
+                            
+                            crop_roi_vol_desk= crop_volume_deskew(original_volume = decon_data,
                                                                         deskewed_volume=deskewed_volume, 
                                                                         roi_shape = roi_choice, 
                                                                         angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
