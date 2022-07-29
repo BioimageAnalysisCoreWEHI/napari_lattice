@@ -405,6 +405,7 @@ def _napari_lattice_widget_wrapper():
                                         voxel_size_x=dx,
                                         voxel_size_y=dy,
                                         voxel_size_z=dz,
+                                        LLSZWidget=LLSZWidget,
                                         )
 
                                 print("Cropping and Saving Complete -> ", save_path)

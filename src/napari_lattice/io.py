@@ -90,6 +90,7 @@ def save_tiff(vol,
               dy:float = 1,
               dz:float = 1,
               angle:float = None,
+              LLSZWidget = None,
               *args,**kwargs):
     """
     Applies a function as described in callable
