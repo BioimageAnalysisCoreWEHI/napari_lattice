@@ -264,7 +264,7 @@ def rotate_around_vol_mat(ref_vol,angle_in_degrees:float=30.0):
 
 #https://github.com/rosalindfranklininstitute/RedLionfish/blob/19ff16fe307343e417039627240224b29b4f4a95/RedLionfishDeconv/napari_plugin.py#L97
 #adapted the redfishlion napari plugin
-def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAlgorithm=True):
+def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAlgorithm=True, callbkTickFunc = None):
     """Apply Richardson Lucy Deconvolution using the redfishlion library
 
     Args:
@@ -281,15 +281,59 @@ def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAl
     assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
     assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
     
+    image = np.asarray(image)
+    
     if method.lower() == "cpu":
         method = "cpu"
     else:
         method = "gpu"
     
-    decon_data = rl.doRLDeconvolutionFromNpArrays(data = image, 
-                                                  psfdata = psf, 
+    decon_data = rl.doRLDeconvolutionFromNpArrays(data_np = image, 
+                                                  psf_np = psf, 
                                                   niter= niter, 
                                                   method = method ,
                                                   resAsUint8=resAsUint8,
-                                                  useBlockAlgorithm=useBlockAlgorithm)
+                                                  useBlockAlgorithm=useBlockAlgorithm,
+                                                  callbkTickFunc = callbkTickFunc)
+    return decon_data
+
+
+#Ideally we want to use OpenCL, but in the case of deconvolution most CUDA based
+#libraries are better designed.. Atleast until  RL deconvolution is available in pyclesperant
+# using CUDA for decon when RedFishLion library GPu operations become slow
+#need to install cucim, cuda 11 or above, cupy and also need cuda toolkit installed on PC or conda environment
+def cuda_decon(image,psf,niter:int=10,clip = False, filter_epsilon = 1e-14):
+    """Apply Richardson Lucy Deconvolution using the CUDA with RapidsAI cucim library
+
+    Args:
+        image (np.ndarray or dask array): Image to deconvolve
+        psf (_type_): PSF to be used for deconvolution
+        niter (int): No. of iterations
+        filter_epsilon:value below which intermediate results become 0 to avoid division by small numbers
+    Returns:
+        np.array: Deconvolved image
+    """    
+    assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
+    assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
+    
+    import cupy as cp 
+    from cucim.skimage.restoration  import richardson_lucy
+    
+    #coinvert numpy array to cupy array
+    psf_cp =  cp.asarray(psf)
+    data_cp = cp.asarray(image)
+    decon_data = richardson_lucy(data_cp, psf_cp, num_iter=10, clip=False, filter_epsilon=0)
+    
+    #convert decon image back to numpy
+    decon_data = cp.asnumpy(decon_data)
+
+    #Should we define a GPU memory limit as not all memory is released back
+    
+    #free gpu memory
+    mempool = cp.get_default_memory_pool()
+    pinned_mempool = cp.get_default_pinned_memory_pool()
+
+    mempool.free_all_blocks()
+    pinned_mempool.free_all_blocks()
+    
     return decon_data

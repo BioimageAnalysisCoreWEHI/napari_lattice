@@ -16,10 +16,10 @@ import pandas as pd
 from dask.distributed import Client
 from dask.cache import Cache
 
-from .utils import etree_to_dict
-from .utils import get_deskewed_shape,_process_custom_workflow_output_batch
-from .llsz_core import crop_volume_deskew
-from . import config
+from napari_lattice.utils import etree_to_dict
+from napari_lattice.utils import get_deskewed_shape,_process_custom_workflow_output_batch
+from napari_lattice.llsz_core import crop_volume_deskew, rl_decon, cuda_decon
+from napari_lattice import config
 
 import os
 import numpy as np
@@ -108,7 +108,8 @@ def save_tiff(vol,
         dx (float, optional): _description_. Defaults to 1.
         dy (float, optional): _description_. Defaults to 1.
         dz (float, optional): _description_. Defaults to 1.
-        angle_in_degrees(float, optional) = Deskewing angle in degrees, used to calculate new z
+        angle(float, optional) = Deskewing angle in degrees, used to calculate new z
+        LLSZWidget(class,optional) = LLSZWidget class
     """              
     
     save_path = save_path.__str__()
@@ -133,6 +134,7 @@ def save_tiff(vol,
         #if not os.path.exists(save_path):
             #os.makedirs(save_path)
         im_final=[]
+
 
     #setup bdvwriter
     if save_file_type == 'h5':
@@ -170,9 +172,19 @@ def save_tiff(vol,
             
             image_type = raw_vol.dtype
 
+            
+            if LLSZWidget.LlszMenu.deconvolution.value:
+                psf = LLSZWidget.LlszMenu.lattice.psf[ch]
+               
+                if LLSZWidget.LlszMenu.lattice.decon_processing =="cuda_gpu":
+                    raw_vol = cuda_decon(image = raw_vol, psf = psf,niter = 10)
+                else:
+                    processing_device = LLSZWidget.LlszMenu.lattice.decon_processing
+                    raw_vol = rl_decon(image = raw_vol, psf = psf, niter = 10, method = processing_device, useBlockAlgorithm=False)
+            
+
             #Apply function to a volume
             if func is cle.deskew_y:
-                #process_vol = raw_vol.map_blocks(func,input_image = raw_vol, dtype=image_type,*args,**kwargs)
                 processed_vol = func(input_image = raw_vol, *args,**kwargs).astype(image_type)
             elif func is crop_volume_deskew:
                 processed_vol = func(original_volume = raw_vol, *args,**kwargs).astype(image_type)

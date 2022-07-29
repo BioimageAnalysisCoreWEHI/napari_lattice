@@ -73,7 +73,7 @@ def _napari_lattice_widget_wrapper():
 
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
                 
-                #list to store psf images
+                #list to store psf images for each channel
                 LLSZWidget.LlszMenu.lattice.psf = []
                 
                 LLSZWidget.LlszMenu.open_file = True
@@ -125,7 +125,7 @@ def _napari_lattice_widget_wrapper():
                 return
 
             #Redfishlion library for deconvolution
-            deconvolution = vfield(bool, options={"enabled": False}, name="Use Deconvolution (RL) NOT ACTIVE")
+            deconvolution = vfield(bool, name="Use Deconvolution") # options={"enabled": True},
             deconvolution.value = False
             @deconvolution.connect
             def _set_decon(self):
@@ -142,23 +142,37 @@ def _napari_lattice_widget_wrapper():
                          psf_ch1_path={"widget_type": "FileEdit","label":"Channel 1/Multichannel PSF:"},
                          psf_ch2_path={"widget_type": "FileEdit","label":"Channel 2"},
                          psf_ch3_path={"widget_type": "FileEdit","label":"Channel 3"},
-                         psf_ch4_path={"widget_type": "FileEdit","label":"Channel 4"}
+                         psf_ch4_path={"widget_type": "FileEdit","label":"Channel 4"},
+                         use_gpu_decon = {"widget_type": "ComboBox","label":"Choose processing device","choices":["cpu","gpu","cuda_gpu"]}
                          )
             def deconvolution_gui(self,
                                     header,
                                     psf_ch1_path:Path,
                                     psf_ch2_path:Path,
                                     psf_ch3_path:Path,
-                                    psf_ch4_path:Path):
+                                    psf_ch4_path:Path,
+                                    use_gpu_decon:str):
                         #move function to ui_core; 
                         #create list with psf image arrays for each channel
                         #index corresponds to channel no
-                from pathlib import WindowsPath
+                from pathlib import PureWindowsPath
                 assert LLSZWidget.LlszMenu.deconvolution.value==True, "Deconvolution is set to False. Tick the box to activate deconvolution."
+                
+                #Use CUDA for deconvolution
+                if use_gpu_decon == "cuda_gpu":
+                    import importlib
+                    cucim_import = importlib.util.find_spec("cucim")
+                    cupy_import = importlib.util.find_spec("cupy")
+                    assert cucim_import and cupy_import, f"Please install cucim and cupy. Otherwise, please select another option"
+                 
+                
+                LLSZWidget.LlszMenu.lattice.decon_processing = use_gpu_decon
+                
+                 
                 
                 psf_paths = [psf_ch1_path,psf_ch2_path,psf_ch3_path,psf_ch4_path]
                 #remove empty paths; pathlib returns current directory as "." if None or empty str specified
-                psf_paths = [x for x in psf_paths if x!=WindowsPath(".")]
+                psf_paths = [x for x in psf_paths if x!=PureWindowsPath(".")]
                 
                 #total no of psf images
                 psf_channels = len(psf_paths)
@@ -167,6 +181,18 @@ def _napari_lattice_widget_wrapper():
                 
                 for psf in psf_paths:
                     if os.path.exists(psf) and psf.is_file():
+                        if os.path.splitext(psf.__str__())[1] == ".czi":
+                            from aicspylibczi import CziFile
+                            psf_czi = CziFile(psf.__str__())
+                            psf_aics = psf_czi.read_image()
+                            if len(psf_aics[0])>=1:
+                                psf_channels = len(psf_aics[0])
+                            #make sure shape is 3D
+                            psf_aics = psf_aics[0][0]#np.expand_dims(psf_aics[0],axis=0)
+                            assert len(psf_aics.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
+                            LLSZWidget.LlszMenu.lattice.psf.append(psf_aics)
+                            
+                        else:
                             psf_aics = AICSImage(psf.__str__())
                             LLSZWidget.LlszMenu.lattice.psf.append(psf_aics.data)
                             
@@ -202,6 +228,7 @@ def _napari_lattice_widget_wrapper():
                     header ([type]): [description]
                     img_data (ImageData): [description]
                 """
+   
                 _Preview(LLSZWidget,
                         self,
                         time,
@@ -383,7 +410,8 @@ def _napari_lattice_widget_wrapper():
                                     #pass arguments for save tiff, callable and function arguments
                                     print("Processing ROI ",idx)
                                     #pass parameters for the crop_volume_deskew function
-                                    save_tiff(img_data,
+
+                                    save_tiff(vol = img_data,
                                         func = crop_volume_deskew,
                                         time_start = time_start,
                                         time_end = time_end,
@@ -407,6 +435,7 @@ def _napari_lattice_widget_wrapper():
                                         voxel_size_z=dz,
                                         LLSZWidget=LLSZWidget
                                         )
+
 
                                 print("Cropping and Saving Complete -> ", save_path)
                                 return        
