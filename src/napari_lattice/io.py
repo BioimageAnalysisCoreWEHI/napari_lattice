@@ -110,8 +110,8 @@ def save_tiff(vol,
     
     save_path = save_path.__str__()
     
-    time_range = range(time_start, time_end)
-    channel_range = range(channel_start, channel_end)
+    time_range = range(time_start, time_end + 1)
+    channel_range = range(channel_start, channel_end + 1)
     
     #Calculate new_pixel size in z
     #convert voxel sixes to an aicsimage physicalpixelsizes object for metadata
@@ -166,7 +166,7 @@ def save_tiff(vol,
         #For functions other than cropping save each timepoint
         if func != crop_volume_deskew: 
             final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
-                            time_point) + "_" +save_name+ ".tif"
+                            time_point) + "_" +save_name+".tif"
             #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
             imsave(final_name,images_array, bigtiff=True, resolution=(1./dx, 1./dy),
                metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'})#imagej=True
@@ -228,8 +228,9 @@ def save_tiff_workflow(vol,
     save_path = save_path.__str__()
     
     #adding +1 at the end so the last channel and time is included
-    time_range = range(time_start, time_end+1)
-    channel_range = range(channel_start, channel_end+1)
+    
+    time_range = range(time_start, time_end + 1)
+    channel_range = range(channel_start, channel_end + 1)
     
     #Calculate new_pixel size in z
     #convert voxel sixes to an aicsimage physicalpixelsizes object for metadata

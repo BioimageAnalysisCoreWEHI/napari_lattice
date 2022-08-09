@@ -220,12 +220,6 @@ def main():
 
         save_name = os.path.splitext(os.path.basename(img))[0]
 
-        #Channel and time index -1 as 
-        if channel_end == 0:
-            channel_end = lattice.channels -1
-        if time_end == 0:
-            time_end = lattice.time -1
-
         #Create save directory for each image
         save_path = output_path + os.sep + os.path.basename(os.path.splitext(img)[0]) + os.sep
         if not os.path.exists(save_path):
