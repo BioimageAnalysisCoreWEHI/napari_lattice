@@ -1,0 +1,14 @@
+!!python/object:napari_workflows._workflow.Workflow
+_tasks:
+  Result of Voronoi-Otsu-labeling (clesperanto): !!python/tuple
+  - !!python/name:napari_pyclesperanto_assistant._napari_cle_functions.voronoi_otsu_labeling ''
+  - Result of gaussian_blur (clesperanto)
+  - 5.0
+  - 0.2
+  Result of gaussian_blur (clesperanto): !!python/tuple
+  - !!python/name:pyclesperanto_prototype.gaussian_blur ''
+  - crop_roi_vol_desk
+  - null
+  - 1.0
+  - 1.0
+  - 1.0
