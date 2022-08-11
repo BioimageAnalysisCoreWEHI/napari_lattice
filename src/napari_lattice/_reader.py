@@ -2,6 +2,8 @@
 reader plugin for h5 saved using np2bdv
 https://github.com/nvladimus/npy2bdv
 #TODO: pass pyramidal layer to napari
+##use ilevel parameter in read_view to access different subsamples/pyramids
+#pass a list of images with different resolution for pyramid; use is_pyramid=True flag in napari.add_image
 """
 
 import dask.array as da
@@ -45,14 +47,15 @@ def bdv_h5_reader(path):
     first_timepoint = h5_file.read_view(time=0,channel=0)
 
     for time in range(h5_file.ntimes):
-        for ch in range(h5_file.nchannels):
+        for ch in range(h5_file.nchannels):         
             image = da.from_delayed(
                         delayed(h5_file.read_view)(time=time,channel=ch), shape=first_timepoint.shape, dtype=first_timepoint.dtype
                     )
             img.append(image)
-            #ta = da.asarray(h5_file.read_view(time=time,channel=ch))
+           
     images = da.stack(img)
 
+    
     # optional kwargs for the corresponding viewer.add_* method
     add_kwargs = {}
 
