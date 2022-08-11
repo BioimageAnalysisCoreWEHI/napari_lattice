@@ -12,7 +12,7 @@ from napari.types import ImageData
 from napari.utils import history
 
 import pyclesperanto_prototype as cle
-from .io import LatticeData,  save_tiff
+from .io import LatticeData,  save_img
 
 from napari_lattice.llsz_core import rl_decon,cuda_decon
 
@@ -95,9 +95,9 @@ def _Deskew_Save(LLSZWidget,
 
                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
                 assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be 0 or same as total time: "+str(LLSZWidget.LlszMenu.lattice.time)
-                assert 0< time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be >0 or same as total time: "+str(LLSZWidget.LlszMenu.lattice.time)
+                assert 0<= time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be >0 or same as total time: "+str(LLSZWidget.LlszMenu.lattice.time)
                 assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or same as no. of channels: "+str(LLSZWidget.LlszMenu.lattice.channels)
-                assert 0< ch_end <= LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels: " +str(LLSZWidget.LlszMenu.lattice.channels)
+                assert 0<= ch_end <= LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels: " +str(LLSZWidget.LlszMenu.lattice.channels)
               
                 #time_range = range(time_start, time_end)
                 #channel_range = range(ch_start, ch_end)
@@ -113,7 +113,7 @@ def _Deskew_Save(LLSZWidget,
                 img_data = LLSZWidget.LlszMenu.lattice.data
                 
                 #pass arguments for save tiff, callable and function arguments
-                save_tiff(vol = img_data,
+                save_img(vol = img_data,
                           func = cle.deskew_y,
                           time_start = time_start,
                           time_end = time_end,

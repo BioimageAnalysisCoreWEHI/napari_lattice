@@ -3,7 +3,7 @@
 #Example for deskewing files in a folder
 #python lattice_processing.py --input /home/pradeep/to_deskew --output /home/pradeep/output_save/ --processing deskew
 import argparse,os,glob,sys
-from napari_lattice.io import LatticeData, save_tiff, save_tiff_workflow
+from napari_lattice.io import LatticeData, save_img, save_img_workflow
 from napari_lattice.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task,modify_workflow_task
 from napari_lattice.llsz_core import crop_volume_deskew
 from aicsimageio import AICSImage
@@ -242,7 +242,7 @@ def main():
 
         #Deskewing only
         if processing == "deskew": 
-            save_tiff(vol = img_data,
+            save_img(vol = img_data,
                         func = cle.deskew_y,
                         time_start = time_start,
                         time_end = time_end,
@@ -278,7 +278,7 @@ def main():
                 
                 if processing == "crop":
                     
-                    save_tiff(img_data,
+                    save_img(img_data,
                                 func = crop_volume_deskew,
                                 time_start = time_start,
                                 time_end = time_end,
@@ -305,7 +305,7 @@ def main():
                 elif processing =="workflow_crop":
 
                     user_workflow.set(roi,roi_layer)
-                    save_tiff_workflow(vol=img_data,
+                    save_img_workflow(vol=img_data,
                                        workflow = user_workflow,
                                        input_arg = volume,
                                        first_task = "crop_deskew",
@@ -325,7 +325,7 @@ def main():
         elif processing == "workflow":
             #if deskew_image task set above manually
             if custom_workflow:
-                save_tiff_workflow(vol=img_data,
+                save_img_workflow(vol=img_data,
                                    workflow = user_workflow,
                                    input_arg = input,
                                    first_task = "deskew_image",
@@ -341,7 +341,7 @@ def main():
                                    dz = dz,
                                    angle = deskew_angle)
             else:
-                save_tiff_workflow(vol=img_data,
+                save_img_workflow(vol=img_data,
                                     workflow = user_workflow,
                                     input_arg = input_arg_first,
                                     first_task = first_task_name,

@@ -26,7 +26,7 @@ import numpy as np
 from napari.types import ImageData
 from napari_workflows import Workflow
 from tqdm import tqdm
-from tifffile import imsave
+from tifffile import imwrite
 
 import npy2bdv
 
@@ -76,7 +76,7 @@ def check_metadata(img_path):
 
 #TODO: write save function for deskew and for crop
 
-def save_tiff(vol,
+def save_img(vol,
               func:callable,
               time_start:int,
               time_end:int,
@@ -114,8 +114,12 @@ def save_tiff(vol,
     
     save_path = save_path.__str__()
     
-    time_range = range(time_start, time_end)
-    channel_range = range(channel_start, channel_end)
+    #replace any : with _ and remove spaces in case it hasn't been processed/skipped
+    save_name =save_name.replace(":","_").replace(" ","")
+    
+    time_range = range(time_start, time_end+1)
+    
+    channel_range = range(channel_start, channel_end+1)
     
     #Calculate new_pixel size in z after deskewing
     if angle>0:
@@ -132,7 +136,7 @@ def save_tiff(vol,
             #os.makedirs(save_path)
         im_final=[]
 
-
+    
     #setup bdvwriter
     if save_file_type == 'h5':
         if func is crop_volume_deskew:
@@ -146,8 +150,12 @@ def save_tiff(vol,
             os.remove(save_path_h5)
         else:
             pass
-
-        bdv_writer = npy2bdv.BdvWriter(save_path_h5, compression='gzip', nchannels=len(channel_range))
+        
+        bdv_writer = npy2bdv.BdvWriter(save_path_h5, 
+                                       compression='gzip',
+                                       nchannels=len(channel_range),
+                                       subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)))
+        
         #bdv_writer = npy2bdv.BdvWriter(save_path_h5, compression=None, nchannels=len(channel_range)) #~30% faster, but up to 10x bigger filesize
     else:
         pass
@@ -165,7 +173,9 @@ def save_tiff(vol,
                 elif len(vol.shape) == 5:
                     raw_vol = vol[time_point, ch, :, :, :]
             except IndexError:
-                print("Check shape of volume. Expected volume with shape 3,4 or 5. Got ",vol.shape) 
+                assert vol.shape in [3,4,5], f"Check shape of volume. Expected volume with shape 3,4 or 5. Got {vol.shape}"
+                print(f"Using time points {time_point} and channel {ch}")
+                exit() 
             
             image_type = raw_vol.dtype
 
@@ -188,30 +198,35 @@ def save_tiff(vol,
                 #if its not deskew or crop/deskew, apply the user-passed function and any specific parameters
                 processed_vol = func( *args,**kwargs).astype(image_type)
 
-
+            processed_vol = cle.pull_zyx(processed_vol)
+            
             if save_file_type == "h5":
                 #convert opencl array to dask array
-                pvol = da.asarray(processed_vol)
-                bdv_writer.append_view(pvol,
+                #pvol = da.asarray(processed_vol)
+                bdv_writer.append_view(processed_vol,
                                    time=time_point,
                                    channel=ch,
                                    voxel_size_xyz=(dx, dy, new_dz),
                                    voxel_units='um')
-                #TODO: ADD option to create pyramid
+                
                 print("\nAppending volume to h5\n")
             else:
                 images_array.append(processed_vol)
         
         #if function is not for cropping, then dataset can be quite large, so save each channel and timepoint separately
         #otherwise, append it into im_final
+        
         if func != crop_volume_deskew and save_file_type == 'tif': 
             final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
                             time_point) + "_" +save_name+".tif"
-            imsave(final_name,
-                   np.array(images_array),
+            images_array = np.array(images_array)
+            images_array = np.expand_dims(images_array,axis=0)
+            images_array = np.swapaxes(images_array,1,2)
+            imwrite(final_name,
+                   images_array,
                    bigtiff=True,
                    resolution=(1./dx, 1./dy),
-                   metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'})#imagej=True       
+                   metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},imagej=True)
         elif save_file_type == 'tif':
             #convert list of arrays into a numpy array and then append to im_final
             im_final.append(np.array(images_array))
@@ -221,20 +236,23 @@ def save_tiff(vol,
         bdv_writer.write_xml()
         bdv_writer.close()
         
-    elif func is crop_volume_deskew and save_file_type == 'tif' :
+    elif func is crop_volume_deskew and save_file_type == 'tif':
         im_final = np.array(im_final)
         final_name = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".tif"
-        #OmeTiffWriter.save(im_final, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
+        print(im_final.shape)
         im_final = np.swapaxes(im_final,1,2)
         #imagej=True; ImageJ hyperstack axes must be in TZCYXS order
-        
-        imsave(final_name,im_final, bigtiff=True, resolution=(1./dx, 1./dy),
-               metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'})#imagej=True
+        print(im_final.shape)
+        imwrite(final_name,
+                im_final,
+                bigtiff=True,
+                resolution=(1./dx, 1./dy),
+                metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},imagej=True)
         im_final = None
    
     return
 
-def save_tiff_workflow(vol,
+def save_img_workflow(vol,
               workflow:Workflow,
               input_arg:str,
               first_task:str,
@@ -243,6 +261,7 @@ def save_tiff_workflow(vol,
               time_end:int,
               channel_start:int,
               channel_end:int,
+              save_file_type:str,
               save_path:Path,
               save_name_prefix:str = "",
               save_name:str = "img",
@@ -272,7 +291,12 @@ def save_tiff_workflow(vol,
         angle(float, optional) = Deskewing angle in degrees, used to calculate new z
     """              
     
+    #TODO: Implement h5 saving
+    
     save_path = save_path.__str__()
+    
+    #replace any : with _ and remove spaces in case it hasn't been processed/skipped
+    save_name =save_name.replace(":","_").replace(" ","")
     
     #adding +1 at the end so the last channel and time is included
     time_range = range(time_start, time_end+1)
@@ -288,6 +312,9 @@ def save_tiff_workflow(vol,
         #aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
         new_dz = dz
 
+
+    #get list of all functions in the workflow
+    workflow_functions = [i[0] for i in workflow._tasks.values()]
     
     for time_point in tqdm(time_range, desc="Time", position=0):
         images_array = []
@@ -335,6 +362,7 @@ def save_tiff_workflow(vol,
                                                         save_path,
                                                         time_point,
                                                         ch,
+                                                        save_file_type,
                                                         save_name_prefix,
                                                         save_name,
                                                         dx,
@@ -351,6 +379,7 @@ def save_tiff_workflow(vol,
                                                         save_path,
                                                         time_point,
                                                         ch,
+                                                        save_file_type,
                                                         save_name_prefix,
                                                         save_name,
                                                         dx,
@@ -390,7 +419,7 @@ def save_tiff_workflow(vol,
             #print(images_array.shape)
             images_array = np.swapaxes(images_array,0,1).astype(raw_vol.dtype)
             #imagej=True; ImageJ hyperstack axes must be in TZCYXS order
-            imsave(final_name,images_array, bigtiff=True, imagej=True, resolution=(1./dx,1./dy),
+            imwrite(final_name,images_array, bigtiff=True, imagej=True, resolution=(1./dx,1./dy),
                metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'ZCYX'})#imagej=True
             #images_array = None
     
@@ -444,7 +473,10 @@ class LatticeData():
                 self.save_name = '_'.join(self.save_name.split()) #replace any group of spaces with "_"
                 
             else:
-                self.save_name = img.name
+                file_name_noext = os.path.basename(img.source.path)
+                file_name = os.path.splitext(file_name_noext)[0]
+                self.save_name = file_name.replace(":","").strip() #remove colon (:) and any leading spaces
+                self.save_name = '_'.join(self.save_name.split()) #replace any group of spaces with "_"
 
         elif type(img) in [np.ndarray,da.core.Array]:
             img_data_aics = aicsimageio.AICSImage(img.data)

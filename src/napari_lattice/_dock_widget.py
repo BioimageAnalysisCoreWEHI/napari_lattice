@@ -24,7 +24,7 @@ from .utils import read_imagej_roi
 from .llsz_core import crop_volume_deskew, rl_decon
 from tqdm import tqdm
 
-from .io import LatticeData,  save_tiff, save_tiff_workflow
+from .io import LatticeData,  save_img, save_img_workflow
 
 from .utils import read_imagej_roi, get_first_last_image_and_task,modify_workflow_task,get_all_py_files, as_type, process_custom_workflow_output
 from . import config
@@ -384,9 +384,9 @@ def _napari_lattice_widget_wrapper():
                             else:
                                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
                                 assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be >0 or same as total time "+str(CropWidget.CropMenu.lattice.time)
-                                assert 0< time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be between 0 and total time "+str(CropWidget.CropMenu.lattice.time)
+                                assert 0<=time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be between 0 and total time "+str(CropWidget.CropMenu.lattice.time)
                                 assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(CropWidget.CropMenu.lattice.channels)
-                                assert 0< ch_end <= LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(CropWidget.CropMenu.lattice.channels)
+                                assert 0<= ch_end <= LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(CropWidget.CropMenu.lattice.channels)
                         
                                 angle = LLSZWidget.LlszMenu.lattice.angle
                                 dx = LLSZWidget.LlszMenu.lattice.dx
@@ -411,7 +411,7 @@ def _napari_lattice_widget_wrapper():
                                     print("Processing ROI ",idx)
                                     #pass parameters for the crop_volume_deskew function
 
-                                    save_tiff(vol = img_data,
+                                    save_img(vol = img_data,
                                         func = crop_volume_deskew,
                                         time_start = time_start,
                                         time_end = time_end,
@@ -720,7 +720,7 @@ def _napari_lattice_widget_wrapper():
                             for idx, roi_layer in enumerate(tqdm(roi_layer_list, desc="ROI:", position=0)):
                                 print("Processing ROI ",idx)
                                 user_workflow.set(roi,roi_layer)
-                                save_tiff_workflow(vol=vol,
+                                save_img_workflow(vol=vol,
                                                     workflow = user_workflow,
                                                     input_arg = volume,
                                                     first_task = "crop_deskew",
@@ -752,7 +752,7 @@ def _napari_lattice_widget_wrapper():
                             new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="deskew_image",workflow=user_workflow)
                             user_workflow.set(task_name_start,new_task)
 
-                            save_tiff_workflow(vol=vol,
+                            save_img_workflow(vol=vol,
                                                     workflow = user_workflow,
                                                     input_arg = input,
                                                     first_task = "deskew_image",
@@ -772,7 +772,7 @@ def _napari_lattice_widget_wrapper():
 
 
                             #we pass first argument as input
-                            save_tiff_workflow(vol=vol,
+                            save_img_workflow(vol=vol,
                                                     workflow = user_workflow,
                                                     input_arg = input_arg_first,
                                                     first_task = first_task_name,
