@@ -1,6 +1,7 @@
 """
 reader plugin for h5 saved using np2bdv
 https://github.com/nvladimus/npy2bdv
+#TODO: pass pyramidal layer to napari
 """
 
 import dask.array as da
