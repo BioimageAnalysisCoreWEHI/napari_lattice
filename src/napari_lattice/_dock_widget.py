@@ -614,6 +614,7 @@ def _napari_lattice_widget_wrapper():
                               Use_Cropping = dict(widget_type="Checkbox",label="Crop Data",value = False),
                               get_active_workflow = dict(widget_type="Checkbox",label="Get active workflow in napari-workflow",value = False),
                               workflow_path=dict(mode='r', label="Load custom workflow (.yaml/yml)"),
+                              save_as_type={"label":"Save as filetype:","choices":["tif","h5"]},
                               save_path=dict(mode='d', label="Directory to save "),
                               #custom_module=dict(widget_type="Checkbox",label="Load custom module (same dir as workflow)",value = False),
                               call_button="Apply Workflow and Save Result")            
@@ -628,6 +629,7 @@ def _napari_lattice_widget_wrapper():
                                                 get_active_workflow:bool=False,
                                                 workflow_path:Path= Path.home(),
                                                 #custom_module:bool=False,
+                                                save_as_type:str="tif",
                                                 save_path: Path = Path(history.get_save_history()[0])):
                         """
                         Apply a user-defined analysis workflow using napari-workflows
@@ -729,6 +731,7 @@ def _napari_lattice_widget_wrapper():
                                                     time_end = time_end,
                                                     channel_start = ch_start,
                                                     channel_end = ch_end,
+                                                    save_file_type = save_as_type,
                                                     save_path = save_path,
                                                     #roi_layer = roi_layer,
                                                     save_name_prefix = "ROI_"+str(idx),
@@ -761,6 +764,7 @@ def _napari_lattice_widget_wrapper():
                                                     time_end = time_end,
                                                     channel_start = ch_start,
                                                     channel_end = ch_end,
+                                                    save_file_type = save_as_type,
                                                     save_path = save_path,
                                                     save_name =  LLSZWidget.LlszMenu.lattice.save_name,
                                                     dx = dx,
@@ -781,6 +785,7 @@ def _napari_lattice_widget_wrapper():
                                                     time_end = time_end,
                                                     channel_start = ch_start,
                                                     channel_end = ch_end,
+                                                    save_file_type = save_as_type,
                                                     save_path = save_path,
                                                     save_name =  LLSZWidget.LlszMenu.lattice.save_name,
                                                     dx = dx,

@@ -26,7 +26,7 @@ import numpy as np
 from napari.types import ImageData
 from napari_workflows import Workflow
 from tqdm import tqdm
-from tifffile import imwrite
+from tifffile import imwrite, TiffWriter
 
 import npy2bdv
 
@@ -245,9 +245,10 @@ def save_img(vol,
         print(im_final.shape)
         imwrite(final_name,
                 im_final,
-                bigtiff=True,
                 resolution=(1./dx, 1./dy),
-                metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},imagej=True)
+                metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},
+                imagej=True,
+                resolutionunit="MICROMETER") #specify resolution unit for consistent metadata)
         im_final = None
    
     return
@@ -312,117 +313,144 @@ def save_img_workflow(vol,
         #aics_image_pixel_sizes = PhysicalPixelSizes(dz,dy,dx)
         new_dz = dz
 
+    final_save_path = save_path + os.sep +save_name_prefix+ "_" +save_name+ "."+ save_file_type
+
+    #setup writer based on user choice of filetype
+    if save_file_type == 'h5':
+        if os.path.exists(final_save_path):
+            print("h5 exists, overwriting")
+            #SHOULD THIS BE THE DEFAULT BEHAVIOUR?
+            os.remove(final_save_path)
+        else:
+            pass
+        
+        writer = npy2bdv.BdvWriter(final_save_path, 
+                                       compression='gzip',
+                                       nchannels=len(channel_range),
+                                       subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)))
+    else:
+        writer = TiffWriter(final_save_path)
+
 
     #get list of all functions in the workflow
     workflow_functions = [i[0] for i in workflow._tasks.values()]
     
-    for time_point in tqdm(time_range, desc="Time", position=0):
-        images_array = []
-        data_table = []     
-        for ch in tqdm(channel_range, desc="Channels", position=1,leave=False):
+    with writer as file_writer:
+        for time_point in tqdm(time_range, desc="Time", position=0):
+            images_array = []
+            data_table = []     
+            for ch in tqdm(channel_range, desc="Channels", position=1,leave=False):
 
-            if len(vol.shape) == 3:
-                raw_vol = vol
-            else:
-                raw_vol = vol[time_point, ch, :, :, :]
-            
-            #to access current time and channel, create a file config.py in same dir as workflow or in home directory
-            #add "channel = 0" and "time=0" in the file and save
-            #https://docs.python.org/3/faq/programming.html?highlight=global#how-do-i-share-global-variables-across-modules
-            
-            config.channel = ch
-            config.time = time_point
-
-            
-            #Set input to the workflow to be volume from each time point and channel
-            workflow.set(input_arg,raw_vol)
-            #execute workflow
-            processed_vol = workflow.get(last_task)
-
-            images_array.append(processed_vol)    
-        
-        images_array = np.array(images_array)
-        
-        #check if output from workflow a list of dicts, list and/or images
-        no_elements = len(processed_vol)
-        if type(processed_vol) not in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]:
-            array_element_type = [type(images_array[0,i]) for i in range(no_elements)]
-        else:
-            array_element_type = type(processed_vol)
-            
-        #check if output from workflow a list of dicts, list and/or images
-        
-        if any([i in [dict,list,tuple] for i in array_element_type]):
-            if (len(processed_vol)>1) and (type(processed_vol) in [tuple]):
-                _process_custom_workflow_output_batch(raw_vol,
-                                                      no_elements,
-                                                        array_element_type,
-                                                        channel_range,
-                                                        images_array,
-                                                        save_path,
-                                                        time_point,
-                                                        ch,
-                                                        save_file_type,
-                                                        save_name_prefix,
-                                                        save_name,
-                                                        dx,
-                                                        dy,
-                                                        new_dz)
-                #return list, concatenate every iteration and create a bigger dataframe
-            #check if list and it it contains dict or images
-            elif (len(processed_vol)>1) and (type(processed_vol) in [list]) and any([type(i) in [dict,np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array] for i in processed_vol]):
-                _process_custom_workflow_output_batch(raw_vol,
-                                                        no_elements,
-                                                        array_element_type,
-                                                        channel_range,
-                                                        images_array,
-                                                        save_path,
-                                                        time_point,
-                                                        ch,
-                                                        save_file_type,
-                                                        save_name_prefix,
-                                                        save_name,
-                                                        dx,
-                                                        dy,
-                                                        new_dz)         
-            #if a single dict or   list of dicts
-            elif type(images_array) in [dict] or type(images_array[0]) in [dict]:
-                #convert to pandas dataframe
-                for j in channel_range:
-                    images_array[j].update({"Channel/Time":"C"+str(j)+"T"+str(time_point)})
-                output_dict_pd = [pd.DataFrame(i) for i in images_array]
-                output_dict_pd = pd.concat(output_dict_pd)
-                #set index to the channel/time
-                output_dict_pd = output_dict_pd.set_index("Channel/Time")            
-                dict_save_path = os.path.join(save_path,"C" + str(ch) + "T" + str(time_point) + "_measurement.csv")
-                output_dict_pd.to_csv(dict_save_path, index=False)
-            
-            #if a single list or list of lists
-            elif type(images_array) in [list] or type(images_array[0]) in [list]:
-                row_idx=[]
-                for j in channel_range:
-                    row_idx.append("C"+str(j)+"T"+str(time_point))
-                    
-                output_list_pd = pd.DataFrame(np.vstack(images_array),index=row_idx)
-                #Save path
-                list_save_path = os.path.join(save_path,"C" + str(ch) + "T" + str(time_point) + "_measurement.csv")
-                output_list_pd.to_csv(list_save_path, index=False)
-        
+                if len(vol.shape) == 3:
+                    raw_vol = vol
+                else:
+                    raw_vol = vol[time_point, ch, :, :, :]
                 
-        #processing as an image
-        else:
+                #to access current time and channel, create a file config.py in same dir as workflow or in home directory
+                #add "channel = 0" and "time=0" in the file and save
+                #https://docs.python.org/3/faq/programming.html?highlight=global#how-do-i-share-global-variables-across-modules
+                
+                config.channel = ch
+                config.time = time_point
+
+                
+                #Set input to the workflow to be volume from each time point and channel
+                workflow.set(input_arg,raw_vol)
+                #execute workflow
+                processed_vol = workflow.get(last_task)
+
+                images_array.append(processed_vol)    
             
-            final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
-                            time_point) + "_" + save_name + ".tif"
-            #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
-            #images from above are returned as czyx, so swap 
-            #print(images_array.shape)
-            images_array = np.swapaxes(images_array,0,1).astype(raw_vol.dtype)
-            #imagej=True; ImageJ hyperstack axes must be in TZCYXS order
-            imwrite(final_name,images_array, bigtiff=True, imagej=True, resolution=(1./dx,1./dy),
-               metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'ZCYX'})#imagej=True
-            #images_array = None
-    
+            images_array = np.array(images_array)
+            
+            #check if output from workflow a list of dicts, list and/or images
+            no_elements = len(processed_vol)
+            if type(processed_vol) not in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]:
+                array_element_type = [type(images_array[0,i]) for i in range(no_elements)]
+            else:
+                array_element_type = type(processed_vol)
+                
+            #check if output from workflow a list of dicts, list and/or images
+            
+            if any([i in [dict,list,tuple] for i in array_element_type]):
+                if (len(processed_vol)>1) and (type(processed_vol) in [tuple]):
+                    _process_custom_workflow_output_batch(raw_vol,
+                                                        no_elements,
+                                                            array_element_type,
+                                                            channel_range,
+                                                            images_array,
+                                                            save_path,
+                                                            time_point,
+                                                            ch,
+                                                            save_file_type,
+                                                            save_name_prefix,
+                                                            save_name,
+                                                            dx,
+                                                            dy,
+                                                            new_dz)
+                    #return list, concatenate every iteration and create a bigger dataframe
+                #check if list and it it contains dict or images
+                elif (len(processed_vol)>1) and (type(processed_vol) in [list]) and any([type(i) in [dict,np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array] for i in processed_vol]):
+                    _process_custom_workflow_output_batch(raw_vol,
+                                                            no_elements,
+                                                            array_element_type,
+                                                            channel_range,
+                                                            images_array,
+                                                            save_path,
+                                                            time_point,
+                                                            ch,
+                                                            save_file_type,
+                                                            save_name_prefix,
+                                                            save_name,
+                                                            dx,
+                                                            dy,
+                                                            new_dz)         
+                #if a single dict or   list of dicts
+                elif type(images_array) in [dict] or type(images_array[0]) in [dict]:
+                    #convert to pandas dataframe
+                    for j in channel_range:
+                        images_array[j].update({"Channel/Time":"C"+str(j)+"T"+str(time_point)})
+                    output_dict_pd = [pd.DataFrame(i) for i in images_array]
+                    output_dict_pd = pd.concat(output_dict_pd)
+                    #set index to the channel/time
+                    output_dict_pd = output_dict_pd.set_index("Channel/Time")            
+                    dict_save_path = os.path.join(save_path,"C" + str(ch) + "T" + str(time_point) + "_measurement.csv")
+                    output_dict_pd.to_csv(dict_save_path, index=False)
+                
+                #if a single list or list of lists
+                elif type(images_array) in [list] or type(images_array[0]) in [list]:
+                    row_idx=[]
+                    for j in channel_range:
+                        row_idx.append("C"+str(j)+"T"+str(time_point))
+                        
+                    output_list_pd = pd.DataFrame(np.vstack(images_array),index=row_idx)
+                    #Save path
+                    list_save_path = os.path.join(save_path,"C" + str(ch) + "T" + str(time_point) + "_measurement.csv")
+                    output_list_pd.to_csv(list_save_path, index=False)
+            
+                    
+            #processing as an image
+            else:
+                if save_file_type == 'h5':
+                    file_writer.append_view(images_array,
+                                   time=time_point,
+                                   channel=ch,
+                                   voxel_size_xyz=(dx, dy, new_dz),
+                                   voxel_units='um')
+                else:
+                    images_array = np.swapaxes(images_array,0,1).astype(raw_vol.dtype)
+                    file_writer.write(final_save_path,  #imwrite(
+                                images_array, 
+                                #bigtiff=True, 
+                                imagej=True, 
+                                resolution=(1./dx,1./dy),
+                                metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'ZCYX'},
+                                resolutionunit="MICROMETER") #specify resolution unit for consistent metadata
+        
+        #write h5 metadata
+        if save_file_type == 'h5':
+            writer.write_xml()
+
     return
 
 #class for initilazing lattice data and setting metadata
