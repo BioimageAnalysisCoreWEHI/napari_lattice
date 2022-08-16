@@ -392,13 +392,13 @@ def save_img_workflow(vol,
                                                     subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)))
                         writer_list.append(bdv_writer)
                     else:
-                        writer_list.append(TiffWriter(final_save_path))
+                        writer_list.append(TiffWriter(final_save_path,bigtiff=True)) #imagej =true throws an error
         
         #handle image saving
         if len(image_element_index) > 0:
             for writer_idx, image_idx in enumerate(image_element_index):
                 #access the image
-                im_final = np.stack(output_array[:,element]).astype(processed_vol.dtype)
+                im_final = np.stack(output_array[:,image_idx]).astype(raw_vol.dtype)
                 if save_file_type == 'h5':
                     writer_list[writer_idx].append_view(im_final,
                                time=time_point,
@@ -413,9 +413,7 @@ def save_img_workflow(vol,
                         im_final = np.swapaxes(im_final,1,2).astype(raw_vol.dtype) #if image with multiple channels, , it will be 1,c,z,y,x
                     #imagej=True; ImageJ hyperstack axes must be in TZCYXS order
                     #images_array = np.swapaxes(images_array,0,1).astype(raw_vol.dtype)
-                    writer_list[writer_idx].write(im_final, 
-                                                    #bigtiff=True, 
-                                                    imagej=True, 
+                    writer_list[writer_idx].write(im_final,
                                                     resolution=(1./dx,1./dy),
                                                     metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'ZCYX'},
                                                     resolutionunit="MICROMETER") #specify resolution unit for consistent metadata
@@ -427,8 +425,8 @@ def save_img_workflow(vol,
             #Iterate through the dict  output from workflow and add columns for Channel and timepoint
             for element in dict_element_index:
                 for j in channel_range:
-                    output_array[:,element].update({"Channel":"C"+str(j)})
-                    output_array[:,element].update({"Time":"T"+str(time_point)})
+                    output_array[j,element].update({"Channel":"C"+str(j)})
+                    output_array[j,element].update({"Time":"T"+str(time_point)})
                 
                 #convert to pandas dataframe
                 output_dict_pd = [pd.DataFrame(i) for i in output_array[:,element]]
