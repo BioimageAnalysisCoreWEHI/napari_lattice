@@ -411,7 +411,8 @@ def save_img_workflow(vol,
                 if save_file_type == 'h5':
                     for ch_idx in channel_range:
                         #write h5 images as 3D stacks
-                        writer_list[writer_idx].append_view(im_final,
+                        im_channel = im_final[ch_idx,...]
+                        writer_list[writer_idx].append_view(im_channel,
                                 time=time_point,
                                 channel=ch_idx,
                                 voxel_size_xyz=(dx, dy, new_dz),
