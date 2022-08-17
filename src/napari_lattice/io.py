@@ -409,11 +409,13 @@ def save_img_workflow(vol,
                 #access the image
                 im_final = np.stack(output_array[:,image_idx]).astype(raw_vol.dtype)
                 if save_file_type == 'h5':
-                    writer_list[writer_idx].append_view(im_final,
-                               time=time_point,
-                               channel=ch,
-                               voxel_size_xyz=(dx, dy, new_dz),
-                               voxel_units='um')
+                    for ch_idx in channel_range:
+                        #write h5 images as 3D stacks
+                        writer_list[writer_idx].append_view(im_final,
+                                time=time_point,
+                                channel=ch_idx,
+                                voxel_size_xyz=(dx, dy, new_dz),
+                                voxel_units='um')
                 else: #default to tif
                     if len(im_final.shape) ==4: #if only one image with no channel, then dimension will 1,z,y,x, so swap 0 and 1
                         im_final = np.swapaxes(im_final,0,1).astype(raw_vol.dtype) #was 1,2,but when stacking images, dimension is CZYX
