@@ -89,7 +89,11 @@ def _napari_lattice_widget_wrapper():
                 if LLSZWidget.LlszMenu.lattice.channels == 1:
                     self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
                 elif LLSZWidget.LlszMenu.lattice.channels >1:
-                    self.parent_viewer.dims.axis_labels = list(('Time',"Channel","Z","Y","X"))
+                    #If merge to stack is used, channel slider goes to the bottom
+                    if int(self.parent_viewer.dims.dict()["range"][0][1]) == LLSZWidget.LlszMenu.lattice.channels:
+                        self.parent_viewer.dims.axis_labels = list(('Channel',"Time","Z","Y","X"))
+                    else:
+                        self.parent_viewer.dims.axis_labels = list(('Time',"Channel","Z","Y","X"))
                 elif LLSZWidget.LlszMenu.lattice.channels==1 and  LLSZWidget.LlszMenu.lattice.time>1:
                     self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
 
