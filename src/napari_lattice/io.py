@@ -316,6 +316,9 @@ def save_img_workflow(vol,
     #get list of all functions in the workflow
     workflow_functions = [i[0] for i in workflow._tasks.values()]
     
+    #iterate through time and channels and apply workflow
+    #TODO: add error handling so the image writers will "close",if an error causes the program to exit
+    #try except?
     for time_point in tqdm(time_range, desc="Time", position=0):
         output_array = []
         data_table = []     
@@ -343,22 +346,27 @@ def save_img_workflow(vol,
         
         output_array = np.array(output_array)
         
+        # if workflow returns multiple objects (images, dictionaries, lsits etc..), each object can be accessed by
+        #output_array[:,index_of_object]
+
         #use data from first timepoint to get the output type from workflow
-        #initialize writers if there are images in the output
+        #check if multiple objects in the workflow output, if so, get the index for each item
+        #currently, images, lists and dictionaries are supported
         if time_point == 0:
             
             #get no of elements
             no_elements = len(processed_vol)
             #initialize lsits to hold indexes for each datatype
-            list_element_index =[]
-            dict_element_index =[]
-            image_element_index =[]
+            list_element_index =[] #store indices of lists
+            dict_element_index =[] #store indices of dicts
+            image_element_index =[] #store indices of images (numpy array, dask array and pyclesperanto array)
             
             #single output and is just dictionary
             if type(processed_vol) in [dict]: 
                 dict_element_index = [0]
             #multiple elements
-            #list with values returns no_elements>0 so verify this 
+            #list with values returns no_elements>1 so make sure its actually a list with different objects
+            #test this with different workflows 
             elif no_elements>1 and type(processed_vol[0]) not in [np.int16,np.int32,np.float16,np.float32,np.float64,int,float]:
                 array_element_type = [type(output_array[0,i]) for i in range(no_elements)]
                 image_element_index = [idx for idx,data_type in enumerate(array_element_type) if data_type in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]]
@@ -372,7 +380,7 @@ def save_img_workflow(vol,
 
             #setup required image writers
             if len(image_element_index) > 0:
-                #pass list of images and index to fucntion
+                #pass list of images and index to function
                 writer_list = []
                 #create an image writer for each image
                 for element in range(len(image_element_index)):
@@ -394,8 +402,9 @@ def save_img_workflow(vol,
                     else:
                         writer_list.append(TiffWriter(final_save_path,bigtiff=True)) #imagej =true throws an error
         
-        #handle image saving
+        #handle image saving: either h5 or tiff saving
         if len(image_element_index) > 0:
+            #writer_idx is for each writers, image_idx will be the index of images
             for writer_idx, image_idx in enumerate(image_element_index):
                 #access the image
                 im_final = np.stack(output_array[:,image_idx]).astype(raw_vol.dtype)
@@ -420,7 +429,7 @@ def save_img_workflow(vol,
                     im_final = None
         
         #handle dict saving
-        #convert to pandas dataframe; update columsn with channel and time
+        #convert to pandas dataframe; update columns with channel and time
         if len(dict_element_index)>0:
             #Iterate through the dict  output from workflow and add columns for Channel and timepoint
             for element in dict_element_index:
