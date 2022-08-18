@@ -426,9 +426,9 @@ def save_img_workflow(vol,
                     #imagej=True; ImageJ hyperstack axes must be in TZCYXS order
                     #images_array = np.swapaxes(images_array,0,1).astype(raw_vol.dtype)
                     writer_list[writer_idx].write(im_final,
-                                                    resolution=(1./dx,1./dy),
-                                                    metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'ZCYX'},
-                                                    resolutionunit="MICROMETER") #specify resolution unit for consistent metadata
+                                                    resolution=(1./dx,1./dy,"MICROMETER"),
+                                                    metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'ZCYX','PhysicalSizeX': dx,
+                                                                'PhysicalSizeXUnit': 'µm','PhysicalSizeY': dy,'PhysicalSizeYUnit': 'µm'})
                     im_final = None
         
         #handle dict saving
