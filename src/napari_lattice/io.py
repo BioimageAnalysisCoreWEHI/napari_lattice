@@ -225,7 +225,7 @@ def save_img(vol,
             imwrite(final_name,
                    images_array,
                    bigtiff=True,
-                   resolution=(1./dx, 1./dy),
+                   resolution=(1./dx, 1./dy,"MICROMETER"),
                    metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},imagej=True)
         elif save_file_type == 'tif':
             #convert list of arrays into a numpy array and then append to im_final
@@ -245,7 +245,7 @@ def save_img(vol,
         print(im_final.shape)
         imwrite(final_name,
                 im_final,
-                resolution=(1./dx, 1./dy),
+                resolution=(1./dx, 1./dy,"MICROMETER"),
                 metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},
                 imagej=True,
                 resolutionunit="MICROMETER") #specify resolution unit for consistent metadata)
@@ -418,16 +418,17 @@ def save_img_workflow(vol,
                                 voxel_size_xyz=(dx, dy, new_dz),
                                 voxel_units='um')
                 else: #default to tif
-                    if len(im_final.shape) ==4: #if only one image with no channel, then dimension will 1,z,y,x, so swap 0 and 1
-                        im_final = np.swapaxes(im_final,0,1).astype(raw_vol.dtype) #was 1,2,but when stacking images, dimension is CZYX
-                        im_final = im_final[np.newaxis,...] #adding extra dimension for T
-                    elif len(im_final.shape)>4:
-                        im_final = np.swapaxes(im_final,1,2).astype(raw_vol.dtype) #if image with multiple channels, , it will be 1,c,z,y,x
+                    #Use below with imagej=True
+                    #if len(im_final.shape) ==4: #if only one image with no channel, then dimension will 1,z,y,x, so swap 0 and 1
+                    #    im_final = np.swapaxes(im_final,0,1).astype(raw_vol.dtype) #was 1,2,but when stacking images, dimension is CZYX
+                    #    im_final = im_final[np.newaxis,...] #adding extra dimension for T
+                    #elif len(im_final.shape)>4:
+                    #    im_final = np.swapaxes(im_final,1,2).astype(raw_vol.dtype) #if image with multiple channels, , it will be 1,c,z,y,x
                     #imagej=True; ImageJ hyperstack axes must be in TZCYXS order
                     #images_array = np.swapaxes(images_array,0,1).astype(raw_vol.dtype)
                     writer_list[writer_idx].write(im_final,
                                                     resolution=(1./dx,1./dy,"MICROMETER"),
-                                                    metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'ZCYX','PhysicalSizeX': dx,
+                                                    metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX','PhysicalSizeX': dx,
                                                                 'PhysicalSizeXUnit': 'µm','PhysicalSizeY': dy,'PhysicalSizeYUnit': 'µm'})
                     im_final = None
         

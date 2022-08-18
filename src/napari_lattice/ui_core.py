@@ -16,6 +16,9 @@ from .io import LatticeData,  save_img
 
 from napari_lattice.llsz_core import rl_decon,cuda_decon
 
+from aicsimageio import AICSImage
+
+
     
 def _Preview(LLSZWidget,
             self_class,
@@ -134,3 +137,58 @@ def _Deskew_Save(LLSZWidget,
                 
                 print("Deskewing and Saving Complete -> ", save_path)
                 return    
+
+
+def _read_psf(LLSZWidget,
+              psf_ch1_path:Path,
+              psf_ch2_path:Path,
+              psf_ch3_path:Path,
+              psf_ch4_path:Path,
+              use_gpu_decon:str):
+
+    from pathlib import PureWindowsPath
+    assert LLSZWidget.LlszMenu.deconvolution.value==True, "Deconvolution is set to False. Tick the box to activate deconvolution."
+
+    #Use CUDA for deconvolution
+    if use_gpu_decon == "cuda_gpu":
+        import importlib
+        cucim_import = importlib.util.find_spec("cucim")
+        cupy_import = importlib.util.find_spec("cupy")
+        assert cucim_import and cupy_import, f"Please install cucim and cupy. Otherwise, please select another option"
+    
+    LLSZWidget.LlszMenu.lattice.decon_processing = use_gpu_decon
+
+    
+    psf_paths = [psf_ch1_path,psf_ch2_path,psf_ch3_path,psf_ch4_path]
+    #remove empty paths; pathlib returns current directory as "." if None or empty str specified
+    psf_paths = [x for x in psf_paths if x!=PureWindowsPath(".")]
+
+    #total no of psf images
+    psf_channels = len(psf_paths)
+
+    assert psf_channels>0, f"No images detected for PSF. Check the path {psf_paths}"
+
+    for psf in psf_paths:
+        if os.path.exists(psf) and psf.is_file():
+            if os.path.splitext(psf.__str__())[1] == ".czi":
+                from aicspylibczi import CziFile
+                psf_czi = CziFile(psf.__str__())
+                psf_aics = psf_czi.read_image()
+                if len(psf_aics[0])>=1:
+                    psf_channels = len(psf_aics[0])
+                #make sure shape is 3D
+                psf_aics = psf_aics[0][0]#np.expand_dims(psf_aics[0],axis=0)
+                assert len(psf_aics.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
+                LLSZWidget.LlszMenu.lattice.psf.append(psf_aics)
+                
+            else:
+                psf_aics = AICSImage(psf.__str__())
+                LLSZWidget.LlszMenu.lattice.psf.append(psf_aics.data)
+                
+                if psf_aics.dims.C>=1:
+                        psf_channels = psf_aics.dims.C
+    #LLSZWidget.LlszMenu.lattice.channels =3
+    if psf_channels != LLSZWidget.LlszMenu.lattice.channels:
+            print(f"PSF image has {psf_channels} channel/s, whereas image has {LLSZWidget.LlszMenu.lattice.channels}")
+
+    return

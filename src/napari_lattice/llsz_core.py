@@ -278,6 +278,9 @@ def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAl
     Returns:
         np.array: Deconvolved image
     """    
+    psf = np.squeeze(psf) #remove unit dimensions
+    image = np.squeeze(image)
+
     assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
     assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
     
@@ -297,6 +300,17 @@ def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAl
                                                   callbkTickFunc = callbkTickFunc)
     return decon_data
 
+def _yield_arr_slice(img):
+    """
+    Create an array generator that yields each z slice
+    """
+    img = np.squeeze(img)
+    assert img.ndim == 3, f"Image needs to be 3D. Got {img.ndim}"
+
+    for slice in img:
+        yield slice
+
+
 
 #Ideally we want to use OpenCL, but in the case of deconvolution most CUDA based
 #libraries are better designed.. Atleast until  RL deconvolution is available in pyclesperant
@@ -313,14 +327,21 @@ def cuda_decon(image,psf,niter:int=10,clip = False, filter_epsilon = 1e-14):
     Returns:
         np.array: Deconvolved image
     """    
+    psf = np.squeeze(psf) #remove unit dimensions
+    image = np.squeeze(image)
+
     assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
     assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
     
     import cupy as cp 
     from cucim.skimage.restoration  import richardson_lucy
     
-    #coinvert numpy array to cupy array
+    out = []
+
+    #convert numpy array to cupy array
     psf_cp =  cp.asarray(psf)
+
+    
     data_cp = cp.asarray(image)
     decon_data = richardson_lucy(data_cp, psf_cp, num_iter=10, clip=False, filter_epsilon=0)
     

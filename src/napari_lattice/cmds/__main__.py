@@ -15,12 +15,16 @@ from napari_workflows._io_yaml_v1 import load_workflow
 from pathlib import Path
 from .. import config
 
+from .ui_core import _read_psf
+
 #define parser class so as to print help message
 class ArgParser(argparse.ArgumentParser): 
    def error(self, message):
       sys.stderr.write('error: %s\n' % message)
       self.print_help()
       sys.exit(2)
+
+#TODO: Implement deconvolution
 
 def args_parse():
     """ Parse input arguments"""
@@ -55,6 +59,7 @@ def main():
     channel_dimension = args.channel
     skew_dir = args.skew_direction
     processing = args.processing[0].lower() #lowercase
+
 
     if processing == "crop" or processing == "workflow_crop":
         assert args.roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
@@ -134,6 +139,11 @@ def main():
                 print(f"Scene {scene} not valid")
         
         lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
+
+        #implement deconvolution
+        #if args.deconvolution[0]:
+            
+
 
         #Override pixel values by reading metadata if file is czi
         if os.path.splitext(img)[1] == ".czi":
