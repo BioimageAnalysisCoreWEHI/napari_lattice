@@ -161,6 +161,7 @@ def _napari_lattice_widget_wrapper():
                         #create list with psf image arrays for each channel
                         #index corresponds to channel no
                 LLSZWidget.LlszMenu.lattice.decon_processing = use_gpu_decon
+                
                 _read_psf(psf_ch1_path,
                           psf_ch2_path,
                           psf_ch3_path,
@@ -306,7 +307,26 @@ def _napari_lattice_widget_wrapper():
                             roi_choice = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_choice]
                             print("Previewing ROI ", roi_idx)
                             
-                            crop_roi_vol_desk= crop_volume_deskew(original_volume = vol_zyx,
+                            if LLSZWidget.LlszMenu.deconvolution.value:
+                                print(f"Deskewing for Time:{time} and Channel: {channel} with deconvolution")
+                                psf = LLSZWidget.LlszMenu.lattice.psf[channel]
+                                if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                                    decon_data = cuda_decon(image = vol_zyx,psf = psf,niter = 10)
+                                else:
+                                    decon_data = rl_decon(image = vol_zyx,psf = psf,niter = 10,method = LLSZWidget.LlszMenu.lattice.decon_processing)
+                                
+                                deskew_final = crop_volume_deskew(original_volume = decon_data,
+                                                                        deskewed_volume=deskewed_volume, 
+                                                                        roi_shape = roi_choice, 
+                                                                        angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
+                                                                        voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
+                                                                        voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
+                                                                        voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
+                                                                        z_start = z_start, 
+                                                                        z_end = z_end).astype(vol_zyx.dtype)
+                            else:
+                                                    
+                                crop_roi_vol_desk= crop_volume_deskew(original_volume = vol_zyx,
                                                                         deskewed_volume=deskewed_volume, 
                                                                         roi_shape = roi_choice, 
                                                                         angle_in_degrees=LLSZWidget.LlszMenu.angle_value,

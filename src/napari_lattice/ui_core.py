@@ -139,10 +139,10 @@ def _Deskew_Save(LLSZWidget,
                 return    
 
 
-def _read_psf(psf_ch1_path:Path=Path(""),
-              psf_ch2_path:Path=Path(""),
-              psf_ch3_path:Path=Path(""),
-              psf_ch4_path:Path=Path(""),
+def _read_psf(psf_ch1_path:Path,
+              psf_ch2_path:Path,
+              psf_ch3_path:Path,
+              psf_ch4_path:Path,
               use_gpu_decon:str="cpu",
               LLSZWidget = None,
               lattice = None,
@@ -163,7 +163,6 @@ def _read_psf(psf_ch1_path:Path=Path(""),
     #if terminal, use decon_value instead of  LLSZWidget.LLszMenu.deconvolution.value
     #use lattice.decon_processing instead of LLSZWidget.LlszMenu.lattice.decon_processing
     #use lattice.psf instead of LLSZWidget.LlszMenu.lattice.psf
-    from pathlib import PureWindowsPath, PosixPath
     assert decon_value==True, "Deconvolution is set to False. Tick the box to activate deconvolution."
 
     #Use CUDA for deconvolution
@@ -174,10 +173,16 @@ def _read_psf(psf_ch1_path:Path=Path(""),
         assert cucim_import and cupy_import, f"Please install cucim and cupy. Otherwise, please select another option"
     
 
-    
     psf_paths = [psf_ch1_path,psf_ch2_path,psf_ch3_path,psf_ch4_path]
+    
     #remove empty paths; pathlib returns current directory as "." if None or empty str specified
-    psf_paths = [x for x in psf_paths if x!=PureWindowsPath(".") and x!=PosixPath(".")]
+    import platform
+    from pathlib import PureWindowsPath, PosixPath
+    
+    if platform.system() =="Linux":
+        psf_paths = [x for x in psf_paths if x!=PosixPath(".")]
+    elif platform.system()=="Windows":
+        psf_paths = [x for x in psf_paths if x!=PureWindowsPath(".")]
 
     #total no of psf images
     psf_channels = len(psf_paths)
