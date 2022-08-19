@@ -91,6 +91,8 @@ def save_img(vol,
               dz:float = 1,
               angle:float = None,
               LLSZWidget = None,
+              terminal:bool=False,
+              lattice = None,
               *args,**kwargs):
     """
     Applies a function as described in callable
@@ -160,7 +162,19 @@ def save_img(vol,
     else:
         pass
 
-
+    
+    if terminal:
+        if lattice.decon_processing:
+            decon_value = True
+            decon_option = lattice.decon_processing
+            lattice_class = lattice
+    else:
+        decon_value = LLSZWidget.LlszMenu.deconvolution.value
+        lattice_class = LLSZWidget.LlszMenu.lattice
+        decon_option = LLSZWidget.LlszMenu.lattice.decon_processing
+        
+    
+    
     #loop is ordered so image is saved in order TCZYX for ometiffwriter
     for time_point in tqdm(time_range, desc="Time", position=0): 
         images_array = []
@@ -180,13 +194,13 @@ def save_img(vol,
             image_type = raw_vol.dtype
 
             #If deconvolution is checked
-            if LLSZWidget.LlszMenu.deconvolution.value:
-                psf = LLSZWidget.LlszMenu.lattice.psf[ch]
+            if decon_value:
+                psf = lattice_class.psf[ch]
                 #Use Redfishlion or CUDA for deconvolution based on user choice
-                if LLSZWidget.LlszMenu.lattice.decon_processing =="cuda_gpu":
+                if decon_option =="cuda_gpu":
                     raw_vol = cuda_decon(image = raw_vol, psf = psf,niter = 10)
                 else:
-                    processing_device = LLSZWidget.LlszMenu.lattice.decon_processing
+                    processing_device = decon_option
                     raw_vol = rl_decon(image = raw_vol, psf = psf, niter = 10, method = processing_device, useBlockAlgorithm=False)          
 
             #The following will apply the user-passed function to the input image
