@@ -15,7 +15,7 @@ from napari_workflows._io_yaml_v1 import load_workflow
 from pathlib import Path
 from .. import config
 
-from .ui_core import _read_psf
+from ..ui_core import _read_psf
 
 #define parser class so as to print help message
 class ArgParser(argparse.ArgumentParser): 
@@ -34,8 +34,8 @@ def args_parse():
     parser.add_argument('--skew_direction',type=str,nargs=1,help="Enter the direction of skew (default is Y)",default="Y")
     parser.add_argument('--deskew_angle',type=float,nargs=1,help="Enter the agnel of deskew (default is 30)",default=30)
     parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop", required=True)
-    parser.add_argument('--deconvolution',type=str,nargs=1,help="To use deconvolution, use this argument and also specify device",default="gpu")
-    parser.add_argument('--deconvolution_psf',type=str,nargs=1,help="Enter path to psf file")
+    parser.add_argument('--deconvolution',type=str,nargs=1,help="To use deconvolution, use this argument and also specify device. Default is cpu. Options are gpu or cuda_gpu")
+    parser.add_argument('--deconvolution_psf',type=str,nargs="+",help="Enter paths to psf file/s separated by commas or you can enter each path with double quotes") #use + for nargs for flexible no of args
     parser.add_argument('--roi_file',type=str,nargs=1,help="Enter the path to the ROI file for cropping")
     parser.add_argument('--channel',type=bool,nargs=1,help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",default=False)
     parser.add_argument('--voxel_sizes',type=tuple,nargs=1,help="Enter the voxel sizes as (dz,dy,dx). Make sure they are in brackets",default=(0.3,0.1499219272808386,0.1499219272808386))
@@ -141,9 +141,38 @@ def main():
         lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
 
         #implement deconvolution
-        #if args.deconvolution[0]:
-            
+        #implement deconvolution
+        if args.deconvolution[0]:
+            lattice.decon_processing = args.deconvolution[0].lower()
+            #define the psf paths
+            psf_ch1_path = ""
+            psf_ch2_path = ""
+            psf_ch3_path = ""
+            psf_ch4_path = ""
 
+            #assign psf paths to variables
+            #if doesn't exist, skip
+            try:
+                psf_ch1_path = args.deconvolution_psf[0].replace(",","").strip()
+                psf_ch2_path = args.deconvolution_psf[1].replace(",","").strip()
+                psf_ch3_path = args.deconvolution_psf[2].replace(",","").strip()
+                psf_ch4_path = args.deconvolution_psf[3].replace(",","").strip()
+            except IndexError:
+                pass
+            
+            #add a terminal flag for when calling commands that are used in gui
+            lattice.psf = []
+            _read_psf(psf_ch1_path,
+                psf_ch2_path,
+                psf_ch3_path,
+                psf_ch4_path,
+                use_gpu_decon = lattice.decon_processing,
+                LLSZWidget = None,
+                lattice = lattice,
+                terminal = True,
+                )
+        else:
+            lattice.decon_processing = None
 
         #Override pixel values by reading metadata if file is czi
         if os.path.splitext(img)[1] == ".czi":
@@ -252,7 +281,32 @@ def main():
 
         #Deskewing only
         if processing == "deskew": 
-            save_img(vol = img_data,
+            
+            #deconvolution
+            if lattice.decon_processing:
+                save_img(vol = img_data,
+                        func = cle.deskew_y,
+                        time_start = time_start,
+                        time_end = time_end,
+                        channel_start = channel_start,
+                        channel_end = channel_end,
+                        save_path = save_path,
+                        save_name= save_name,
+                        save_file_type = output_file_type,
+                        dx = dx,
+                        dy = dy,
+                        dz = dz,
+                        angle = deskew_angle,
+                        terminal = True,
+                        lattice = lattice,
+                        angle_in_degrees = deskew_angle,
+                        voxel_size_x=dx,
+                        voxel_size_y=dy,
+                        voxel_size_z=dz
+                        )    
+                
+            else:
+                save_img(vol = img_data,
                         func = cle.deskew_y,
                         time_start = time_start,
                         time_end = time_end,
@@ -287,30 +341,57 @@ def main():
                 z_end = deskewed_shape[0]
                 
                 if processing == "crop":
-                    
-                    save_img(img_data,
-                                func = crop_volume_deskew,
-                                time_start = time_start,
-                                time_end = time_end,
-                                channel_start = channel_start,
-                                channel_end = channel_end,
-                                save_name_prefix  = "ROI_" + str(idx)+"_",
-                                save_path = save_path,
-                                save_name= save_name,
-                                save_file_type=output_file_type,
-                                dx = dx,
-                                dy = dy,
-                                dz = dz,
-                                angle = deskew_angle,
-                                deskewed_volume=deskewed_volume,
-                                roi_shape = roi_layer,
-                                angle_in_degrees = deskew_angle,
-                                z_start = z_start,
-                                z_end = z_end,
-                                voxel_size_x=dx,
-                                voxel_size_y=dy,
-                                voxel_size_z=dz,
-                                )
+                    #deconvolution
+                    if lattice.decon_processing:
+                        save_img(img_data,
+                                    func = crop_volume_deskew,
+                                    time_start = time_start,
+                                    time_end = time_end,
+                                    channel_start = channel_start,
+                                    channel_end = channel_end,
+                                    save_name_prefix  = "ROI_" + str(idx)+"_",
+                                    save_path = save_path,
+                                    save_name= save_name,
+                                    save_file_type=output_file_type,
+                                    dx = dx,
+                                    dy = dy,
+                                    dz = dz,
+                                    angle = deskew_angle,
+                                    terminal = True,
+                                    lattice = lattice,
+                                    deskewed_volume=deskewed_volume,
+                                    roi_shape = roi_layer,
+                                    angle_in_degrees = deskew_angle,
+                                    z_start = z_start,
+                                    z_end = z_end,
+                                    voxel_size_x=dx,
+                                    voxel_size_y=dy,
+                                    voxel_size_z=dz,
+                                    )
+                    else:
+                        save_img(img_data,
+                                    func = crop_volume_deskew,
+                                    time_start = time_start,
+                                    time_end = time_end,
+                                    channel_start = channel_start,
+                                    channel_end = channel_end,
+                                    save_name_prefix  = "ROI_" + str(idx)+"_",
+                                    save_path = save_path,
+                                    save_name= save_name,
+                                    save_file_type=output_file_type,
+                                    dx = dx,
+                                    dy = dy,
+                                    dz = dz,
+                                    angle = deskew_angle,
+                                    deskewed_volume=deskewed_volume,
+                                    roi_shape = roi_layer,
+                                    angle_in_degrees = deskew_angle,
+                                    z_start = z_start,
+                                    z_end = z_end,
+                                    voxel_size_x=dx,
+                                    voxel_size_y=dy,
+                                    voxel_size_z=dz,
+                                    )
                     
                 elif processing =="workflow_crop":
 

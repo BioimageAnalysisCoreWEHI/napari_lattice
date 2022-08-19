@@ -75,6 +75,7 @@ def _napari_lattice_widget_wrapper():
                 
                 #list to store psf images for each channel
                 LLSZWidget.LlszMenu.lattice.psf = []
+                LLSZWidget.LlszMenu.lattice.decon_processing = "cpu"
                 
                 LLSZWidget.LlszMenu.open_file = True
                 print("Pixel size (ZYX): ",(LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx))
@@ -159,12 +160,13 @@ def _napari_lattice_widget_wrapper():
                         #move function to ui_core; 
                         #create list with psf image arrays for each channel
                         #index corresponds to channel no
-                _read_psf(LLSZWidget,
-                          psf_ch1_path,
+                LLSZWidget.LlszMenu.lattice.decon_processing = use_gpu_decon
+                _read_psf(psf_ch1_path,
                           psf_ch2_path,
                           psf_ch3_path,
                           psf_ch4_path,
-                          use_gpu_decon)
+                          use_gpu_decon,
+                          LLSZWidget)
                 
                 self["deconvolution_gui"].background_color = "green"
                 self["deconvolution_gui"].text = "PSFs added"
