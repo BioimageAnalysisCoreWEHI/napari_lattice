@@ -212,7 +212,7 @@ def modify_workflow_task(old_arg,task_key:str,new_arg,workflow):
         old_arg (_type_): The argument in the workflow that needs to be modified
         new_arg (_type_): New argument
         task_key (str): Name of the task within the workflow
-        workflow (_type_): Workflow
+        workflow (napari-workflow): Workflow
 
     Returns:
         tuple: Modified task with name task_key

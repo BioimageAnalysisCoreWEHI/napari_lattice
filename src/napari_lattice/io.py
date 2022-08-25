@@ -18,7 +18,7 @@ from dask.cache import Cache
 
 from napari_lattice.utils import etree_to_dict
 from napari_lattice.utils import get_deskewed_shape,_process_custom_workflow_output_batch
-from napari_lattice.llsz_core import crop_volume_deskew, rl_decon, cuda_decon
+from napari_lattice.llsz_core import crop_volume_deskew, skimage_decon, pycuda_decon
 from napari_lattice import config
 
 import os
@@ -145,18 +145,12 @@ def save_img(vol,
             save_path_h5 = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".h5"
         else:
             save_path_h5 = save_path + os.sep + save_name + ".h5"
-
-        if os.path.exists(save_path_h5):
-            print("h5 exists, overwriting")
-            #SHOULD THIS BE THE DEFAULT BEHAVIOUR?
-            os.remove(save_path_h5)
-        else:
-            pass
-        
+     
         bdv_writer = npy2bdv.BdvWriter(save_path_h5, 
                                        compression='gzip',
                                        nchannels=len(channel_range),
-                                       subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)))
+                                       subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)),
+                                       overwrite=False)
         
         #bdv_writer = npy2bdv.BdvWriter(save_path_h5, compression=None, nchannels=len(channel_range)) #~30% faster, but up to 10x bigger filesize
     else:
@@ -187,21 +181,28 @@ def save_img(vol,
                 elif len(vol.shape) == 5:
                     raw_vol = vol[time_point, ch, :, :, :]
             except IndexError:
-                assert vol.shape in [3,4,5], f"Check shape of volume. Expected volume with shape 3,4 or 5. Got {vol.shape}"
+                assert vol.shape in [3,4,5], f"Check shape of volume. Expected volume with shape 3,4 or 5. Got {vol.shape} with shape {len(vol.shape)}"
                 print(f"Using time points {time_point} and channel {ch}")
                 exit() 
             
+            raw_vol = np.array(raw_vol)
             image_type = raw_vol.dtype
 
             #If deconvolution is checked
             if decon_value:
-                psf = lattice_class.psf[ch]
-                #Use Redfishlion or CUDA for deconvolution based on user choice
+                #Use CUDA or skimage for deconvolution based on user choice
                 if decon_option =="cuda_gpu":
-                    raw_vol = cuda_decon(image = raw_vol, psf = psf,niter = 10)
+                    raw_vol = pycuda_decon(image = raw_vol, 
+                                           otf_path = LLSZWidget.LlszMenu.lattice.otf_path[ch],
+                                           dzdata=LLSZWidget.LlszMenu.lattice.dz,
+                                           dxdata=LLSZWidget.LlszMenu.lattice.dx,
+                                           dzpsf=LLSZWidget.LlszMenu.lattice.dz,
+                                           dxpsf=LLSZWidget.LlszMenu.lattice.dx)
                 else:
-                    processing_device = decon_option
-                    raw_vol = rl_decon(image = raw_vol, psf = psf, niter = 10, method = processing_device, useBlockAlgorithm=False)          
+                    raw_vol = skimage_decon(vol_zyx=raw_vol, 
+                                            psf=LLSZWidget.LlszMenu.lattice.psf, 
+                                            num_iter=10, clip=False, filter_epsilon=0, boundary='nearest')
+      
 
             #The following will apply the user-passed function to the input image
             if func is cle.deskew_y:
@@ -253,16 +254,15 @@ def save_img(vol,
     elif func is crop_volume_deskew and save_file_type == 'tif':
         im_final = np.array(im_final)
         final_name = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".tif"
-        print(im_final.shape)
+
         im_final = np.swapaxes(im_final,1,2)
         #imagej=True; ImageJ hyperstack axes must be in TZCYXS order
-        print(im_final.shape)
+
         imwrite(final_name,
                 im_final,
-                resolution=(1./dx, 1./dy,"MICROMETER"),
+                resolution=(1./dx, 1./dy,"MICROMETER"),    #specify resolution unit for consistent metadata)
                 metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},
-                imagej=True,
-                resolutionunit="MICROMETER") #specify resolution unit for consistent metadata)
+                imagej=True) 
         im_final = None
    
     return
@@ -283,7 +283,11 @@ def save_img_workflow(vol,
               dx:float = 1,
               dy:float = 1,
               dz:float = 1,
-              angle:float = None):
+              angle:float = None,
+              deconvolution:bool=False,
+              decon_processing:str=None,
+              psf=None,
+              otf_path=None):
     """
     Applies a workflow to the image and saves the output
     Use of workflows ensures its agnostic to the processing operation
@@ -343,12 +347,20 @@ def save_img_workflow(vol,
             else:
                 raw_vol = vol[time_point, ch, :, :, :]
             
+            raw_vol = np.array(raw_vol)
             #to access current time and channel, create a file config.py in same dir as workflow or in home directory
             #add "channel = 0" and "time=0" in the file and save
             #https://docs.python.org/3/faq/programming.html?highlight=global#how-do-i-share-global-variables-across-modules
             
             config.channel = ch
             config.time = time_point
+
+            #if deconvolution, need to define psf and choose the channel appropriate one
+            if deconvolution:
+                if decon_processing == "cuda_gpu":
+                    workflow.set("otf_path",otf_path[ch])
+                else:
+                    workflow.set("psf",psf[ch])
 
             
             #Set input to the workflow to be volume from each time point and channel
@@ -388,7 +400,7 @@ def save_img_workflow(vol,
                 list_element_index = [idx for idx,data_type in enumerate(array_element_type) if data_type in [list]]
             elif type(processed_vol) is list:
                 list_element_index = [0]
-            elif type(processed_vol) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array]: 
+            elif type(processed_vol) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Arrayresource_backed_dask_array.ResourceBackedDaskArray]: 
                 image_element_index = [0]
 
 
@@ -401,17 +413,11 @@ def save_img_workflow(vol,
                     final_save_path = save_path + os.sep +save_name_prefix + "_"+str(element)+"_" +save_name+ "."+ save_file_type
                     #setup writer based on user choice of filetype
                     if save_file_type == 'h5':
-                        if os.path.exists(final_save_path):
-                            print("h5 exists, overwriting")
-                            #SHOULD THIS BE THE DEFAULT BEHAVIOUR?
-                            os.remove(final_save_path)
-                        else:
-                            pass
-                        
                         bdv_writer = npy2bdv.BdvWriter(final_save_path, 
                                                     compression='gzip',
                                                     nchannels=len(channel_range),
-                                                    subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)))
+                                                    subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)),
+                                                    overwrite=True) #overwrite set to True; is this good practice?
                         writer_list.append(bdv_writer)
                     else:
                         writer_list.append(TiffWriter(final_save_path,bigtiff=True)) #imagej =true throws an error
@@ -425,7 +431,10 @@ def save_img_workflow(vol,
                 if save_file_type == 'h5':
                     for ch_idx in channel_range:
                         #write h5 images as 3D stacks
-                        im_channel = im_final[ch_idx,...]
+                        if len(im_final.shape)==3:
+                            im_channel = im_final
+                        else:
+                            im_channel = im_final[ch_idx,...]
                         writer_list[writer_idx].append_view(im_channel,
                                 time=time_point,
                                 channel=ch_idx,
@@ -502,7 +511,7 @@ def save_img_workflow(vol,
 
     return
 
-#class for initilazing lattice data and setting metadata
+#class for initiliazing lattice data and setting metadata
 #TODO: handle scenes
 class LatticeData():
     def __init__(self,img,angle,skew,dx,dy,dz,channel_dimension) -> None:
@@ -555,7 +564,7 @@ class LatticeData():
                 self.save_name = file_name.replace(":","").strip() #remove colon (:) and any leading spaces
                 self.save_name = '_'.join(self.save_name.split()) #replace any group of spaces with "_"
 
-        elif type(img) in [np.ndarray,da.core.Array]:
+        elif type(img) in [np.ndarray,da.core.Array,resource_backed_dask_array.ResourceBackedDaskArray]:
             img_data_aics = aicsimageio.AICSImage(img.data)
             self.data = img_data_aics.dask_data
             self.dx = dx
