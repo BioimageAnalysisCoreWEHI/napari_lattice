@@ -357,8 +357,7 @@ def pycuda_decon(image,otf_path=None,dzdata=0.3,dxdata=0.1449922,dzpsf=0.3,dxpsf
     #if dask array, convert to numpy array 
     if type(image) in [da.core.Array,resource_backed_dask_array.ResourceBackedDaskArray]:
         image = np.array(image)
-    print(type(image))
-    
+
     import math
     orig_img_shape = image.shape
     
@@ -396,6 +395,14 @@ def pycuda_decon(image,otf_path=None,dzdata=0.3,dxdata=0.1449922,dzpsf=0.3,dxpsf
     #print(decon_res.shape)
     #remove padding; get shape difference and use this shape difference to remove padding
     shape_diff = np.array(decon_res.shape) - np.array(orig_img_shape)
+    #if above is negative, 
+    if shape_diff[0]==0:
+        shape_diff[0] = -orig_img_shape[0]
+    if shape_diff[1]==0:
+        shape_diff[1] = -orig_img_shape[1]
+    if shape_diff[2]==0:
+        shape_diff[2] = -orig_img_shape[2]
+        
     #print(shape_diff)
     decon_res = decon_res[:-shape_diff[0],:-shape_diff[1],:-shape_diff[2]]
 
