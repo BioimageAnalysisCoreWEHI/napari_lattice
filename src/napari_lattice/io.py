@@ -192,15 +192,17 @@ def save_img(vol,
             if decon_value:
                 #Use CUDA or skimage for deconvolution based on user choice
                 if decon_option =="cuda_gpu":
+                    print("cuda")
                     raw_vol = pycuda_decon(image = raw_vol, 
-                                           otf_path = LLSZWidget.LlszMenu.lattice.otf_path[ch],
+                                           #otf_path = LLSZWidget.LlszMenu.lattice.otf_path[ch],
+                                           psf = LLSZWidget.LlszMenu.lattice.psf[ch],
                                            dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                            dxdata=LLSZWidget.LlszMenu.lattice.dx,
                                            dzpsf=LLSZWidget.LlszMenu.lattice.dz,
                                            dxpsf=LLSZWidget.LlszMenu.lattice.dx)
                 else:
                     raw_vol = skimage_decon(vol_zyx=raw_vol, 
-                                            psf=LLSZWidget.LlszMenu.lattice.psf, 
+                                            psf=LLSZWidget.LlszMenu.lattice.psf[ch], 
                                             num_iter=10, clip=False, filter_epsilon=0, boundary='nearest')
       
 
