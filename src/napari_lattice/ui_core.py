@@ -35,6 +35,7 @@ def _Preview(LLSZWidget,
 
     vol = LLSZWidget.LlszMenu.lattice.data
 
+    
     vol_zyx= np.array(vol[time,channel,:,:,:])
 
     #apply deconvolution if checked
@@ -118,7 +119,7 @@ def _Deskew_Save(LLSZWidget,
                 
                 #pass arguments for save tiff, callable and function arguments
                 save_img(vol = img_data,
-                          func = cle.deskew_y,
+                          func = LLSZWidget.LlszMenu.deskew_func,
                           time_start = time_start,
                           time_end = time_end,
                           channel_start = ch_start,

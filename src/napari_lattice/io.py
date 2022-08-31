@@ -1,15 +1,14 @@
 #Opening and saving files
-from multiprocessing.dummy import Array
 import aicsimageio
-from aicsimageio.writers import OmeTiffWriter
-from aicsimageio.types import PhysicalPixelSizes
+
 from pathlib import Path
 
 import pyclesperanto_prototype as cle
 import sys
 import dask
 import dask.array as da
-from napari.layers import image, Layer
+import resource_backed_dask_array
+from napari.layers import image
 import dask.array as da
 import pandas as pd
 
@@ -17,7 +16,7 @@ from dask.distributed import Client
 from dask.cache import Cache
 
 from napari_lattice.utils import etree_to_dict
-from napari_lattice.utils import get_deskewed_shape,_process_custom_workflow_output_batch
+from napari_lattice.utils import get_deskewed_shape
 from napari_lattice.llsz_core import crop_volume_deskew, skimage_decon, pycuda_decon
 from napari_lattice import config
 
@@ -185,7 +184,7 @@ def save_img(vol,
                 print(f"Using time points {time_point} and channel {ch}")
                 exit() 
             
-            raw_vol = np.array(raw_vol)
+            #raw_vol = np.array(raw_vol)
             image_type = raw_vol.dtype
 
             #If deconvolution is checked
@@ -288,6 +287,7 @@ def save_img_workflow(vol,
               angle:float = None,
               deconvolution:bool=False,
               decon_processing:str=None,
+              psf_arg=None,
               psf=None,
               otf_path=None):
     """
@@ -349,7 +349,7 @@ def save_img_workflow(vol,
             else:
                 raw_vol = vol[time_point, ch, :, :, :]
             
-            raw_vol = np.array(raw_vol)
+            #raw_vol = np.array(raw_vol)
             #to access current time and channel, create a file config.py in same dir as workflow or in home directory
             #add "channel = 0" and "time=0" in the file and save
             #https://docs.python.org/3/faq/programming.html?highlight=global#how-do-i-share-global-variables-across-modules
@@ -359,10 +359,11 @@ def save_img_workflow(vol,
 
             #if deconvolution, need to define psf and choose the channel appropriate one
             if deconvolution:
-                if decon_processing == "cuda_gpu":
-                    workflow.set("otf_path",otf_path[ch])
-                else:
-                    workflow.set("psf",psf[ch])
+                workflow.set(psf_arg,psf[ch])
+                #if decon_processing == "cuda_gpu":
+                    #workflow.set("psf",psf[ch])
+                #else:
+                    #workflow.set("psf",psf[ch])
 
             
             #Set input to the workflow to be volume from each time point and channel
@@ -392,6 +393,9 @@ def save_img_workflow(vol,
             #single output and is just dictionary
             if type(processed_vol) in [dict]: 
                 dict_element_index = [0]
+            #if image
+            elif type(processed_vol) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array,resource_backed_dask_array.ResourceBackedDaskArray]: 
+                image_element_index = [0]
             #multiple elements
             #list with values returns no_elements>1 so make sure its actually a list with different objects
             #test this with different workflows 
@@ -402,8 +406,7 @@ def save_img_workflow(vol,
                 list_element_index = [idx for idx,data_type in enumerate(array_element_type) if data_type in [list]]
             elif type(processed_vol) is list:
                 list_element_index = [0]
-            elif type(processed_vol) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Arrayresource_backed_dask_array.ResourceBackedDaskArray]: 
-                image_element_index = [0]
+            
 
 
             #setup required image writers

@@ -5,7 +5,6 @@ import dask.array as da
 import resource_backed_dask_array
 from typing import Union
 from napari.layers.shapes import shapes
-import RedLionfishDeconv as rl
 
 from .utils import calculate_crop_bbox
 
@@ -127,7 +126,7 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
     if deconvolution:
         if decon_processing == "cuda_gpu":
             crop_volume = pycuda_decon(image = crop_volume, 
-                                   otf_path = otf_path,
+                                   psf = psf,
                                    dzdata=voxel_size_z,
                                    dxdata=voxel_size_x,
                                    dzpsf=voxel_size_z,
@@ -282,43 +281,6 @@ def rotate_around_vol_mat(ref_vol,angle_in_degrees:float=30.0):
     #print(rotate_mat)
     return rotate_mat
 
-#https://github.com/rosalindfranklininstitute/RedLionfish/blob/19ff16fe307343e417039627240224b29b4f4a95/RedLionfishDeconv/napari_plugin.py#L97
-#adapted the redfishlion napari plugin
-def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAlgorithm=True, callbkTickFunc = None):
-    """Apply Richardson Lucy Deconvolution using the redfishlion library
-
-    Args:
-        image (_type_): Image to deconvolve
-        psf (_type_): PSF to be used for deconvolution
-        niter (int): No. of iterations
-        method (str, optional): . Defaults to "gpu".
-        resAsUint8 (bool, optional): int8 as output.
-        useBlockAlgorithm (bool, optional): process images as blocks. Allows large arrays to be processed in gpu memory
-
-    Returns:
-        np.array: Deconvolved image
-    """    
-    psf = np.squeeze(psf) #remove unit dimensions
-    image = np.squeeze(image)
-
-    assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
-    assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
-    
-    image = np.asarray(image)
-    
-    if method.lower() == "cpu":
-        method = "cpu"
-    else:
-        method = "gpu"
-    
-    decon_data = rl.doRLDeconvolutionFromNpArrays(data_np = image, 
-                                                  psf_np = psf, 
-                                                  niter= niter, 
-                                                  method = method ,
-                                                  resAsUint8=resAsUint8,
-                                                  useBlockAlgorithm=useBlockAlgorithm,
-                                                  callbkTickFunc = callbkTickFunc)
-    return decon_data
 
 def _yield_arr_slice(img):
     """
@@ -338,7 +300,7 @@ def _yield_arr_slice(img):
 def pycuda_decon(image,otf_path=None,dzdata=0.3,dxdata=0.1449922,dzpsf=0.3,dxpsf=0.1449922,psf=None):
     """Perform deconvolution using pycudadecon
     pycudadecon can return cropped images, so we pad the iamges before deconvolution
-
+    if providing psf, will use that first, if not uses otf_path
 
     Args:
         image (np.array): _description_
@@ -375,11 +337,13 @@ def pycuda_decon(image,otf_path=None,dzdata=0.3,dxdata=0.1449922,dzpsf=0.3,dxpsf
     image = np.pad(image,((0,padding_even[0]),(0,padding_even[1]),(0,padding_even[2])))
 
     if type(psf) in [np.ndarray,np.array,da.core.Array,resource_backed_dask_array.ResourceBackedDaskArray,cle._tier0._pycl.OCLArray]:
-        from pycudadecon import decon
+        from pycudadecon import RLContext,TemporaryOTF,rl_decon
         psf = np.squeeze(psf) #remove unit dimensions
         assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
-        # decon also accepts numpy arrays
-        decon_res = decon(image, psf)
+        #Temporary OTF generation; RLContext ensures memory cleanup (runs rl_init and rl_cleanup)
+        with TemporaryOTF(psf) as otf:
+            with RLContext(rawdata_shape=image.shape, otfpath=otf.path, dzdata=dzdata, dxdata=dxdata,dzpsf=dzpsf,dxpsf=dxpsf) as ctx:
+                decon_res = rl_decon(im=image, output_shape = ctx.out_shape)
 
     else:  
         from pycudadecon import rl_decon,rl_init,rl_cleanup

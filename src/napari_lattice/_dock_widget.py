@@ -326,7 +326,7 @@ def _napari_lattice_widget_wrapper():
                                                                                 z_end = z_end,
                                                                                 deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                                                 decon_processing = LLSZWidget.LlszMenu.lattice.decon_processing,
-                                                                                otf_path=LLSZWidget.LlszMenu.lattice.otf_path[channel]).astype(vol_zyx.dtype)
+                                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel]).astype(vol_zyx.dtype)
                                 else:
                                     crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx,
                                                                                 deskewed_volume=deskewed_volume, 
@@ -515,8 +515,8 @@ def _napari_lattice_widget_wrapper():
                         print(user_workflow)
                         
                         #when using fields, self.time_preview.value 
-                        assert time_preview < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
-                        assert chan_preview < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
+                        assert time_preview <= LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
+                        assert chan_preview <= LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
 
                         time = time_preview
                         channel = chan_preview
@@ -538,6 +538,17 @@ def _napari_lattice_widget_wrapper():
                         except IndexError:
                             task_name_last = task_name_start
                         
+                        #variables to hold task name, initialize it as None
+                        #if gpu, set otf_path, otherwise use psf
+                        psf = None
+                        otf_path = None 
+                        
+                        if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                            otf_path = "otf_path"
+                        else:
+                            psf = "psf"
+                            
+                        #if cropping, set that as first task
                         #get the function associated with the first task and check if its deskewing
                         if Use_Cropping:
                             #use deskewed volume for cropping function
@@ -568,8 +579,13 @@ def _napari_lattice_widget_wrapper():
                                                             voxel_size_y =LLSZWidget.LlszMenu.lattice.dy, 
                                                             voxel_size_z =LLSZWidget.LlszMenu.lattice.dz, 
                                                             z_start = z_start, 
-                                                            z_end = z_end)
-                                #Set input of the workflow to be from crop_deskewing
+                                                            z_end = z_end,
+                                                            deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
+                                                            decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
+                                                            otf_path=otf_path,
+                                                            psf=LLSZWidget.LlszMenu.lattice.psf[channel])
+                                
+                                #Set input of the workflow to be  crop_deskewing, i.e., the original first operation will now have crop_deskew_image as an input (becoming second instead)
                                 user_workflow.set(input_arg_first,"crop_deskew_image")
                             else:
                                 user_workflow.set(input_arg_first,vol_zyx)
@@ -585,46 +601,50 @@ def _napari_lattice_widget_wrapper():
                                     user_workflow.set("deconvolution",
                                                     pycuda_decon,
                                                     image = vol_zyx,
-                                                    otf_path = LLSZWidget.LlszMenu.lattice.otf_path[channel],
+                                                    psf = LLSZWidget.LlszMenu.lattice.psf[channel],
                                                     dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxdata=LLSZWidget.LlszMenu.lattice.dx,
                                                     dzpsf=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxpsf=LLSZWidget.LlszMenu.lattice.dx)
-                                    user_workflow.set(input_arg_first_decon,"deconvolution")
+                                    #user_workflow.set(input_arg_first_decon,"deconvolution")
                                 else:
                                     user_workflow.set("deconvolution",
                                                     skimage_decon,
                                                     vol_zyx=vol_zyx,
-                                                    psf=psf,
+                                                    psf=LLSZWidget.LlszMenu.lattice.psf[channel],
                                                     num_iter=10,
                                                     clip=False,
                                                     filter_epsilon=0,
                                                     boundary='nearest')
-                                    user_workflow.set(input_arg_first_decon,"deconvolution")
-                                    
-                                user_workflow.set("deskew_image",cle.deskew_y, "deconvolution",
-                                                    angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle,
-                                                    voxel_size_x = LLSZWidget.LlszMenu.lattice.dx,
-                                                    voxel_size_y= LLSZWidget.LlszMenu.lattice.dy,
-                                                    voxel_size_z = LLSZWidget.LlszMenu.lattice.dz)
-                                user_workflow.set("change_bitdepth",as_type,"deskew_image",vol_zyx)
-                                #Set input of the workflow to be from deskewing
-                                user_workflow.set(input_arg_first,"deconvolution")
+                                    #user_workflow.set(input_arg_first_decon,"deconvolution")
+                                   
+                                user_workflow.set("deskew_image",
+                                                  LLSZWidget.LlszMenu.deskew_func, #cle.deskew_y or cle.deskew_x
+                                                  "deconvolution",
+                                                  angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle,
+                                                  voxel_size_x = LLSZWidget.LlszMenu.lattice.dx,
+                                                  voxel_size_y= LLSZWidget.LlszMenu.lattice.dy,
+                                                  voxel_size_z = LLSZWidget.LlszMenu.lattice.dz)
+                                
+                                #user_workflow.set("change_bitdepth",as_type,"deskew_image",vol_zyx)
+                                #Set input of the workflow to be from deskewing output with same bit depth as original volume
+                                #user_workflow.set(input_arg_first,"change_bitdepth")
                             
                             else:
-                                user_workflow.set("deskew_image",cle.deskew_y, 
+                                user_workflow.set("deskew_image",
+                                                    LLSZWidget.LlszMenu.deskew_func, 
                                                     vol_zyx,
                                                     angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle,
                                                     voxel_size_x = LLSZWidget.LlszMenu.lattice.dx,
                                                     voxel_size_y= LLSZWidget.LlszMenu.lattice.dy,
                                                     voxel_size_z = LLSZWidget.LlszMenu.lattice.dz)
                                 #Set input of the workflow to be from deskewing
-                                user_workflow.set(input_arg_first,"deskew_image")
+                                #user_workflow.set(input_arg_first,"deskew_image")
                             
 
-        
-                            #Set input of the workflow to be from deskewing
-                            #user_workflow.set(input_arg_first,"change_bitdepth")
+                            user_workflow.set("change_bitdepth",as_type,"deskew_image",vol_zyx)
+                            #Set input of the workflow to be from deskewing with same bit depth as original volume
+                            user_workflow.set(input_arg_first,"change_bitdepth")
                             
                         else:  
                             #if deskew already in workflow, just check if deconvolution needs to be added
@@ -633,33 +653,30 @@ def _napari_lattice_widget_wrapper():
                             if LLSZWidget.LlszMenu.deconvolution.value:
                                 psf = LLSZWidget.LlszMenu.lattice.psf[channel]
                                 input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
+                                
                                 if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
                                     user_workflow.set("deconvolution",
                                                     pycuda_decon,
                                                     image = vol_zyx,
-                                                    otf_path = LLSZWidget.LlszMenu.lattice.otf_path[channel],
+                                                    psf = LLSZWidget.LlszMenu.lattice.psf[channel],
                                                     dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxdata=LLSZWidget.LlszMenu.lattice.dx,
                                                     dzpsf=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxpsf=LLSZWidget.LlszMenu.lattice.dx)
-                                    user_workflow.set(input_arg_first,"deconvolution")
+                                    #user_workflow.set(input_arg_first,"deconvolution")
                                 else:
                                     user_workflow.set("deconvolution",
                                                     skimage_decon,
                                                     vol_zyx=vol_zyx,
-                                                    psf=psf,
+                                                    psf=LLSZWidget.LlszMenu.lattice.psf[channel],
                                                     num_iter=10,
                                                     clip=False,
                                                     filter_epsilon=0,
                                                     boundary='nearest')
-                                    
-                                user_workflow.set("change_bitdepth",as_type,"deconvolution",vol_zyx)
-                            else:
-                                user_workflow.set("change_bitdepth",as_type,"deskew_image",vol_zyx)
- 
-                            #Set input of the workflow to be from deskewing
-                            user_workflow.set(input_arg_first,"change_bitdepth")
-                         
+                                
+                                #set input to subsequent task as deconvolution output
+                                user_workflow.set(input_arg_first,"deconvolution")
+
                         print("Workflow to be executed:")
                         print(user_workflow)
                         #Execute workflow
@@ -779,9 +796,12 @@ def _napari_lattice_widget_wrapper():
                         otf_path = None 
                         
                         if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
-                            otf_path = "otf_path"
+                            #otf_path = "otf_path"
+                            psf_arg = "psf"
+                            psf = LLSZWidget.LlszMenu.lattice.psf
                         else:
-                            psf = "psf"
+                            psf_arg = "psf"
+                            psf = LLSZWidget.LlszMenu.lattice.psf
                         #if cropping, set that as first task
                         
                         if Use_Cropping:
@@ -811,8 +831,7 @@ def _napari_lattice_widget_wrapper():
                                                 z_end = z_end,
                                                 deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                 decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
-                                                otf_path=otf_path,
-                                                psf=psf)
+                                                psf=psf_arg)
 
                             #change the first task so it accepts "crop_deskew as input"
                             new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew_image",workflow=user_workflow)
@@ -842,13 +861,15 @@ def _napari_lattice_widget_wrapper():
                                                     deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                     decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
                                                     otf_path=otf_path,
+                                                    psf_arg = psf_arg,
                                                     psf=psf)
                                 
                         #IF just deskewing and its not in the tasks, add that as first task
                         elif user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y,cle.deskew_x):
                             input = "input"
                             #add task to the workflow
-                            user_workflow.set("deskew_image",cle.deskew_y, 
+                            user_workflow.set("deskew_image",
+                                            LLSZWidget.LlszMenu.deskew_func, 
                                             input_image =input,
                                             angle_in_degrees = angle,
                                             voxel_size_x = dx,
@@ -870,17 +891,17 @@ def _napari_lattice_widget_wrapper():
                                     user_workflow.set("deconvolution",
                                                     pycuda_decon,
                                                     image = input,
-                                                    otf_path = otf_path,#"LLSZWidget.LlszMenu.lattice.otf_path[channel]",
+                                                    psf = psf_arg,#"LLSZWidget.LlszMenu.lattice.otf_path[channel]",
                                                     dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxdata=LLSZWidget.LlszMenu.lattice.dx,
                                                     dzpsf=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxpsf=LLSZWidget.LlszMenu.lattice.dx)
-                                    user_workflow.set(input_arg_first,"deconvolution")
+                                    #user_workflow.set(input_arg_first,"deconvolution")
                                 else:
                                     user_workflow.set("deconvolution",
                                                     skimage_decon,
                                                     vol_zyx=input,
-                                                    psf=psf,
+                                                    psf=psf_arg,
                                                     num_iter=10,
                                                     clip=False,
                                                     filter_epsilon=0,
@@ -910,6 +931,7 @@ def _napari_lattice_widget_wrapper():
                                                     deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                     decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
                                                     otf_path=otf_path,
+                                                    psf_arg = psf_arg,
                                                     psf=psf)
                             
                         ##If deskewing is already as a task, then set the first argument to input so we can modify that later
@@ -925,17 +947,17 @@ def _napari_lattice_widget_wrapper():
                                     user_workflow.set("deconvolution",
                                                     pycuda_decon,
                                                     image = input,
-                                                    otf_path = otf_path,#"LLSZWidget.LlszMenu.lattice.otf_path[channel]",
+                                                    psf = psf_arg,#"LLSZWidget.LlszMenu.lattice.otf_path[channel]",
                                                     dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxdata=LLSZWidget.LlszMenu.lattice.dx,
                                                     dzpsf=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxpsf=LLSZWidget.LlszMenu.lattice.dx)
-                                    user_workflow.set(input_arg_first,"deconvolution")
+                                    #user_workflow.set(input_arg_first,"deconvolution")
                                 else:
                                     user_workflow.set("deconvolution",
                                                     skimage_decon,
                                                     vol_zyx=input,
-                                                    psf=psf,
+                                                    psf=psf_arg,
                                                     num_iter=10,
                                                     clip=False,
                                                     filter_epsilon=0,
@@ -966,6 +988,7 @@ def _napari_lattice_widget_wrapper():
                                               deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                               decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
                                               otf_path=otf_path,
+                                              psf_arg = psf_arg,
                                               psf=psf)
 
                         print("Workflow complete")
