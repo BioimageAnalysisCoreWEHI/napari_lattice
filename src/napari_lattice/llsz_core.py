@@ -372,7 +372,6 @@ def pycuda_decon(image,otf_path=None,dzdata=0.3,dxdata=0.1449922,dzpsf=0.3,dxpsf
 
     #make sure image shapes could be different. 
     assert decon_res.shape == orig_img_shape, f"Deconvolved {decon_res.shape} and original image shape {orig_img_shape} do not match."
-    
     return decon_res
 
 def skimage_decon(vol_zyx,psf,num_iter:int,clip:bool,filter_epsilon,boundary:str):

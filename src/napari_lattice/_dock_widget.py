@@ -22,6 +22,7 @@ from .ui_core import _Preview, _Deskew_Save, _read_psf
 from napari.types import ImageData, ShapesData
 from .utils import read_imagej_roi
 from .llsz_core import crop_volume_deskew, pycuda_decon,skimage_decon
+
 from tqdm import tqdm
 
 from .io import LatticeData,  save_img, save_img_workflow
@@ -181,7 +182,7 @@ def _napari_lattice_widget_wrapper():
         @magicclass
         class Preview:          
             @magicgui(header=dict(widget_type="Label",label="<h3>Preview Deskew</h3>"),
-                      time=dict(label="Time:"),
+                      time=dict(label="Time:",max= 2**20),
                       channel=dict(label="Channel:"),
                       call_button="Preview")
             def Preview_Deskew(self, 
@@ -210,8 +211,8 @@ def _napari_lattice_widget_wrapper():
             @magicclass(name="Deskew",widget_type="scrollable")
             class DeskewWidget:
                @magicgui(header=dict(widget_type="Label", label="<h3>Deskew and Save</h3>"),
-                       time_start=dict(label="Time Start:"),
-                       time_end=dict(label="Time End:", value=1),
+                       time_start=dict(label="Time Start:",max= 2**20),
+                       time_end=dict(label="Time End:", value=1,max= 2**20),
                        ch_start=dict(label="Channel Start:"),
                        ch_end=dict(label="Channel End:", value=1),
                        save_as_type={"label":"Save as filetype:","choices":["tif","h5"]},
@@ -265,7 +266,7 @@ def _napari_lattice_widget_wrapper():
                                                                                 face_color=[1, 1, 1, 0])
                         return
                         
-                    time_crop = field(int, options={"min": 0, "step": 1}, name="Time")
+                    time_crop = field(int, options={"min": 0, "step": 1,"max" : 2**20}, name="Time")
                     chan_crop = field(int, options={"min": 0, "step": 1}, name="Channels")
                     heading_roi = widgets.Label(value="If there are multiple ROIs, select the ROI before clicking button below")
                     #roi_idx = field(int, options={"min": 0, "step": 1}, name="ROI number")
@@ -349,8 +350,7 @@ def _napari_lattice_widget_wrapper():
                                                                             voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
                                                                             voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
                                                                             z_start = z_start, 
-                                                                            z_end = z_end).astype(vol_zyx.dtype)
-                            
+                                                                            z_end = z_end).astype(vol_zyx.dtype)         
                             crop_roi_vol_desk = cle.pull(crop_roi_vol_desk)
                             
                              
@@ -372,6 +372,7 @@ def _napari_lattice_widget_wrapper():
                                   ch_end=dict(label="Channel End:", value=1),
                                   save_as_type={"label":"Save as filetype:","choices":["tif","h5"]},
                                   save_path=dict(mode='d', label="Directory to save "))
+
                         def Crop_Save(self,
                                         header,
                                         time_start: int, 
@@ -450,7 +451,7 @@ def _napari_lattice_widget_wrapper():
                     #time_preview= field(int, options={"min": 0, "step": 1}, name="Time")
                     #chan_preview = field(int, options={"min": 0, "step": 1}, name="Channels")
                     @magicgui(header=dict(widget_type="Label", label="<h3>Preview Workflow</h3>"),
-                              time_preview = dict(label="Time:"),
+                              time_preview = dict(label="Time:",max= 2**20),
                               chan_preview = dict(label="Channel:"),
                               get_active_workflow = dict(widget_type="Checkbox",label="Get active workflow in napari-workflow",value = False),
                             workflow_path = dict(mode='r', label="Load custom workflow (.yaml/yml)"),
@@ -702,8 +703,8 @@ def _napari_lattice_widget_wrapper():
                         return
                     
                     @magicgui(header=dict(widget_type="Label", label="<h3>Apply Workflow and Save Output</h3>"),
-                              time_start=dict(label="Time Start:"),
-                              time_end=dict(label="Time End:", value=1),
+                              time_start=dict(label="Time Start:",max= 2**20),
+                              time_end=dict(label="Time End:", value=1,max= 2**20),
                               ch_start=dict(label="Channel Start:"),
                               ch_end=dict(label="Channel End:", value=1),
                               Use_Cropping = dict(widget_type="Checkbox",label="Crop Data",value = False),

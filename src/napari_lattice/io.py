@@ -18,6 +18,7 @@ from dask.cache import Cache
 from napari_lattice.utils import etree_to_dict
 from napari_lattice.utils import get_deskewed_shape
 from napari_lattice.llsz_core import crop_volume_deskew, skimage_decon, pycuda_decon
+
 from napari_lattice import config
 
 import os
@@ -253,6 +254,7 @@ def save_img(vol,
         bdv_writer.close()
         
     elif func is crop_volume_deskew and save_file_type == 'tif':
+
         im_final = np.array(im_final)
         final_name = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".tif"
 
@@ -320,8 +322,9 @@ def save_img_workflow(vol,
     save_name =save_name.replace(":","_").replace(" ","")
     
     #adding +1 at the end so the last channel and time is included
-    time_range = range(time_start, time_end+1)
-    channel_range = range(channel_start, channel_end+1)
+    
+    time_range = range(time_start, time_end + 1)
+    channel_range = range(channel_start, channel_end + 1)
     
     #Calculate new_pixel size in z
     #convert voxel sixes to an aicsimage physicalpixelsizes object for metadata
