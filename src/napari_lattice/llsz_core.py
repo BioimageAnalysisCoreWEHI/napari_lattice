@@ -2,16 +2,16 @@
 import numpy as np
 import pyclesperanto_prototype as cle
 import dask.array as da
+import resource_backed_dask_array
 from typing import Union
 from napari.layers.shapes import shapes
-import RedLionfishDeconv as rl
 
 from .utils import calculate_crop_bbox
 
 
 #pass shapes data from single ROI to crop the volume from original data
-def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0._pycl.OCLArray], 
-                        deskewed_volume:Union[da.core.Array,np.ndarray,cle._tier0._pycl.OCLArray], 
+def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0._pycl.OCLArray,resource_backed_dask_array.ResourceBackedDaskArray], 
+                        deskewed_volume:Union[da.core.Array,np.ndarray,cle._tier0._pycl.OCLArray,resource_backed_dask_array.ResourceBackedDaskArray], 
                         roi_shape:Union[shapes.Shapes,list,np.array], 
                         angle_in_degrees:float=30, 
                         voxel_size_x:float=1, 
@@ -19,7 +19,11 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
                         voxel_size_z:float=1, 
                         z_start:int=0, 
                         z_end:int=1,
-                        debug:bool=False):
+                        debug:bool=False,
+                        deconvolution:bool = False,
+                        decon_processing:str=None,
+                        psf=None,
+                        otf_path=None):
 
     """
         Uses coordinates from deskewed space to find corresponding coordinates in original volume 
@@ -68,7 +72,7 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
     crop_transform_bbox = np.asarray(list(map(lambda x: reverse_aff._matrix @ x,crop_bounding_box)))
 
     #get shape of original volume in xyz
-    orig_shape = original_volume.shape[::-1]
+    orig_img_shape = original_volume.shape[::-1]
 
 
     #Take min and max of the cropped bounding boxes to define min and max coordinates
@@ -80,21 +84,21 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
     #get min and max in each position
     #clip them to avoid negative values and any values outside the bounding box of original volume
     x_start = min_coordinate[0].astype(int)
-    x_start = np.clip(x_start, 0,orig_shape[0])
+    x_start = np.clip(x_start, 0,orig_img_shape[0])
     x_end = max_coordinate[0].astype(int)
-    x_end = np.clip(x_end, 0,orig_shape[0])
+    x_end = np.clip(x_end, 0,orig_img_shape[0])
 
     y_start = min_coordinate[1].astype(int)
-    y_start = np.clip(y_start, 0,orig_shape[1])
+    y_start = np.clip(y_start, 0,orig_img_shape[1])
     
     y_end = max_coordinate[1].astype(int)
-    y_end = np.clip(y_end, 0,orig_shape[1])
+    y_end = np.clip(y_end, 0,orig_img_shape[1])
     
     z_start_vol_prelim = min_coordinate[2].astype(int)
-    z_start_vol = np.clip(z_start_vol_prelim, 0,orig_shape[2]) #clip to z bounds of original volume
+    z_start_vol = np.clip(z_start_vol_prelim, 0,orig_img_shape[2]) #clip to z bounds of original volume
     
     z_end_vol_prelim = max_coordinate[2].astype(int)
-    z_end_vol = np.clip(z_end_vol_prelim, 0,orig_shape[2]) #clip to z bounds of original volume
+    z_end_vol = np.clip(z_end_vol_prelim, 0,orig_img_shape[2]) #clip to z bounds of original volume
     
     #If the coordinates are out of bound, then the final volume needs adjustment in Y axis
     #if skew in X direction, then use y axis for finding correction factor instead
@@ -112,15 +116,30 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
     
     #After getting the coordinates, crop from original volume and deskew only the cropped volume
     
-    if type(original_volume) is da.core.Array:
+    if type(original_volume) in [da.core.Array,resource_backed_dask_array.ResourceBackedDaskArray]:
         #If using dask, use .map_blocks(np.copy) to copy subset (faster)
         crop_volume = original_volume[z_start_vol:z_end_vol,y_start:y_end,x_start:x_end].map_blocks(np.copy).squeeze()
     else:
         crop_volume = original_volume[z_start_vol:z_end_vol,y_start:y_end,x_start:x_end]
 
+    #check if deconvolution is checked
+    if deconvolution:
+        if decon_processing == "cuda_gpu":
+            crop_volume = pycuda_decon(image = crop_volume, 
+                                   psf = psf,
+                                   dzdata=voxel_size_z,
+                                   dxdata=voxel_size_x,
+                                   dzpsf=voxel_size_z,
+                                   dxpsf=voxel_size_x)
+        else:
+            crop_volume = skimage_decon(vol_zyx=crop_volume, 
+                                    psf=psf, 
+                                    num_iter=10, clip=False, filter_epsilon=0, boundary='nearest')
+      
     deskewed_prelim = cle.affine_transform(crop_volume, 
                                            transform =deskew_transform,
                                            auto_size=True)
+    
     #The height of deskewed_prelim will be larger than specified shape
     # as the coordinates of the ROI are skewed in the original volume
     #IF CLIPPING HAPPENS FOR Y_START or Y_END, use difference to calculate offset
@@ -207,7 +226,7 @@ def _deskew_y_vol_transform(original_volume, angle_in_degrees:float = 30, voxel_
     
     
     # make voxels isotropic, calculate the new scaling factor for Z after shearing
-    # https://github.com/tlambert03/napari-ndtiffs/blob/092acbd92bfdbf3ecb1eb9c7fc146411ad9e6aae/napari_ndtiffs/affine.py#L57
+    # https://github.com/tlamberimage3/napari-ndtiffs/blob/092acbd92bfdbf3ecb1eb9c7fc146411ad9e6aae/napari_ndtiffs/affine.py#L57
     new_dz = math.sin(angle_in_degrees * math.pi / 180.0) * voxel_size_z
     scale_factor_z = (new_dz / voxel_size_y) * scale_factor
     transform.scale(scale_x=scale_factor, scale_y=scale_factor, scale_z=scale_factor_z)
@@ -262,91 +281,116 @@ def rotate_around_vol_mat(ref_vol,angle_in_degrees:float=30.0):
     #print(rotate_mat)
     return rotate_mat
 
-#https://github.com/rosalindfranklininstitute/RedLionfish/blob/19ff16fe307343e417039627240224b29b4f4a95/RedLionfishDeconv/napari_plugin.py#L97
-#adapted the redfishlion napari plugin
-def rl_decon(image,psf,niter:int=10,method:str="gpu",resAsUint8=False,useBlockAlgorithm=True, callbkTickFunc = None):
-    """Apply Richardson Lucy Deconvolution using the redfishlion library
 
-    Args:
-        image (_type_): Image to deconvolve
-        psf (_type_): PSF to be used for deconvolution
-        niter (int): No. of iterations
-        method (str, optional): . Defaults to "gpu".
-        resAsUint8 (bool, optional): int8 as output.
-        useBlockAlgorithm (bool, optional): process images as blocks. Allows large arrays to be processed in gpu memory
+def _yield_arr_slice(img):
+    """
+    Create an array generator that yields each z slice
+    """
+    img = np.squeeze(img)
+    assert img.ndim == 3, f"Image needs to be 3D. Got {img.ndim}"
 
-    Returns:
-        np.array: Deconvolved image
-    """    
-    assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
-    assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
-    
-    image = np.asarray(image)
-    
-    if method.lower() == "cpu":
-        method = "cpu"
-    else:
-        method = "gpu"
-    
-    decon_data = rl.doRLDeconvolutionFromNpArrays(data_np = image, 
-                                                  psf_np = psf, 
-                                                  niter= niter, 
-                                                  method = method ,
-                                                  resAsUint8=resAsUint8,
-                                                  useBlockAlgorithm=useBlockAlgorithm,
-                                                  callbkTickFunc = callbkTickFunc)
-    return decon_data
+    for slice in img:
+        yield slice
+
 
 
 #Ideally we want to use OpenCL, but in the case of deconvolution most CUDA based
 #libraries are better designed.. Atleast until  RL deconvolution is available in pyclesperant
-# using CUDA for decon when RedFishLion library GPu operations become slow
-#need to install cucim, cuda 11 or above, cupy and also need cuda toolkit installed on PC or conda environment
-def cuda_decon(image,psf,niter:int=10,clip = False, filter_epsilon = 1e-14):
-    """Apply Richardson Lucy Deconvolution using the CUDA with RapidsAI cucim library
+# Talley Lamberts pycudadecon is a great library and highly optimised.
+def pycuda_decon(image,otf_path=None,dzdata=0.3,dxdata=0.1449922,dzpsf=0.3,dxpsf=0.1449922,psf=None):
+    """Perform deconvolution using pycudadecon
+    pycudadecon can return cropped images, so we pad the iamges before deconvolution
+    if providing psf, will use that first, if not uses otf_path
 
     Args:
-        image (np.ndarray or dask array): Image to deconvolve
-        psf (_type_): PSF to be used for deconvolution
-        niter (int): No. of iterations
-        filter_epsilon:value below which intermediate results become 0 to avoid division by small numbers
+        image (np.array): _description_
+        otf_path : (path to the generated otf file)
+        dzdata : (pixel size in z in microns)
+        dxdata : (pixel size in xy  in microns)
+        dzpsf : (pixel size of original psf file in z  microns)
+        dxpsf : (pixel size of original psf file in xy microns)
+        psf (tiff): option to provide psf instead of the otfpath, this can be used when calling decon function
     Returns:
-        np.array: Deconvolved image
-    """    
+        np.array: _description_
+    """
+    image = np.squeeze(image)
     assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
-    assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
     
-    import cupy as cp 
-    from cucim.skimage.restoration  import richardson_lucy
-    
-    #coinvert numpy array to cupy array
-    psf_cp =  cp.asarray(psf)
-    data_cp = cp.asarray(image)
-    decon_data = richardson_lucy(data_cp, psf_cp, num_iter=10, clip=False, filter_epsilon=0)
-    
-    #convert decon image back to numpy
-    decon_data = cp.asnumpy(decon_data)
+    #if dask array, convert to numpy array 
+    if type(image) in [da.core.Array,resource_backed_dask_array.ResourceBackedDaskArray]:
+        image = np.array(image)
 
-    #Should we define a GPU memory limit as not all memory is released back
+    import math
+    orig_img_shape = image.shape
     
-    #free gpu memory
-    mempool = cp.get_default_memory_pool()
-    pinned_mempool = cp.get_default_pinned_memory_pool()
+    #round to nearest 100 as the images get cropped after pycudadecon
+    rounded_shape = tuple([math.ceil(dim/100)*100 for dim in orig_img_shape])
+    #get required padding
+    padding = np.array(rounded_shape) - np.array(orig_img_shape)
 
-    mempool.free_all_blocks()
-    pinned_mempool.free_all_blocks()
+    #add padding to image shape
+    padding = np.add(np.array(padding),np.array(orig_img_shape))
+
+    padding_even = [math.ceil(dim // 2) * 2 for dim in padding]
+    padding_even = np.array(padding_even) - np.array(orig_img_shape)
     
-    return decon_data
+    image = np.pad(image,((0,padding_even[0]),(0,padding_even[1]),(0,padding_even[2])))
 
-def rl_deconvolution(LLSZWidget=None,
-                          vol_zyx=None,
-                          channel=None):
+    if type(psf) in [np.ndarray,np.array,da.core.Array,resource_backed_dask_array.ResourceBackedDaskArray,cle._tier0._pycl.OCLArray]:
+        from pycudadecon import RLContext,TemporaryOTF,rl_decon
+        psf = np.squeeze(psf) #remove unit dimensions
+        assert psf.ndim == 3, f"PSF needs to be 3D. Got {psf.ndim}"
+        #Temporary OTF generation; RLContext ensures memory cleanup (runs rl_init and rl_cleanup)
+        with TemporaryOTF(psf) as otf:
+            with RLContext(rawdata_shape=image.shape, otfpath=otf.path, dzdata=dzdata, dxdata=dxdata,dzpsf=dzpsf,dxpsf=dxpsf) as ctx:
+                decon_res = rl_decon(im=image, output_shape = ctx.out_shape)
 
-    #getting psf corresponding to the channel
-    psf = np.squeeze(LLSZWidget.LlszMenu.lattice.psf[channel])
-    if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
-        decon_data = cuda_decon(image = vol_zyx,psf = psf,niter = 10)
-    else:
-        decon_data = rl_decon(image = vol_zyx,psf = psf,niter = 10,method = LLSZWidget.LlszMenu.lattice.decon_processing)
-    
+    else:  
+        from pycudadecon import rl_decon,rl_init,rl_cleanup
+        rl_init(rawdata_shape=image.shape,
+                otfpath=otf_path,
+                dzdata=dzdata,
+                dxdata=dxdata,
+                dzpsf=dzpsf,
+                dxpsf=dxpsf,
+                )
+        decon_res = rl_decon(image)
+        rl_cleanup()
+    #print(decon_res.shape)
+    #remove padding; get shape difference and use this shape difference to remove padding
+    shape_diff = np.array(decon_res.shape) - np.array(orig_img_shape)
+    #if above is negative, 
+    if shape_diff[0]==0:
+        shape_diff[0] = -orig_img_shape[0]
+    if shape_diff[1]==0:
+        shape_diff[1] = -orig_img_shape[1]
+    if shape_diff[2]==0:
+        shape_diff[2] = -orig_img_shape[2]
+        
+    #print(shape_diff)
+    decon_res = decon_res[:-shape_diff[0],:-shape_diff[1],:-shape_diff[2]]
+
+    #make sure image shapes could be different. 
+    assert decon_res.shape == orig_img_shape, f"Deconvolved {decon_res.shape} and original image shape {orig_img_shape} do not match."
+    return decon_res
+
+def skimage_decon(vol_zyx,psf,num_iter:int,clip:bool,filter_epsilon,boundary:str):
+    """Deconvolution using scikit image
+
+    Args:
+        vol_zyx (_type_): _description_
+        psf (_type_): _description_
+        num_iter (_type_): _description_
+        clip (_type_): _description_
+        filter_epsilon (_type_): _description_
+        boundary (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """    
+    from skimage.restoration import richardson_lucy as rl_decon_skimage
+    depth = tuple(np.array(psf.shape)//2)
+    if type(vol_zyx) not in [da.core.Array,resource_backed_dask_array.ResourceBackedDaskArray]:
+        vol_zyx = da.asarray(vol_zyx)
+    decon_data = vol_zyx.map_overlap(rl_decon_skimage, psf=psf, num_iter=num_iter, clip=clip, filter_epsilon=filter_epsilon, boundary=boundary, depth=depth, trim=True)
     return decon_data

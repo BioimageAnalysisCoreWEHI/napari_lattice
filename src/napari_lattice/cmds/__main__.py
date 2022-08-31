@@ -3,7 +3,7 @@
 #Example for deskewing files in a folder
 #python lattice_processing.py --input /home/pradeep/to_deskew --output /home/pradeep/output_save/ --processing deskew
 import argparse,os,glob,sys
-from napari_lattice.io import LatticeData, save_tiff, save_tiff_workflow
+from napari_lattice.io import LatticeData, save_img, save_img_workflow
 from napari_lattice.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task,modify_workflow_task
 from napari_lattice.llsz_core import crop_volume_deskew
 from aicsimageio import AICSImage
@@ -15,12 +15,16 @@ from napari_workflows._io_yaml_v1 import load_workflow
 from pathlib import Path
 from .. import config
 
+from ..ui_core import _read_psf
+
 #define parser class so as to print help message
 class ArgParser(argparse.ArgumentParser): 
    def error(self, message):
       sys.stderr.write('error: %s\n' % message)
       self.print_help()
       sys.exit(2)
+
+#TODO: Implement deconvolution
 
 def args_parse():
     """ Parse input arguments"""
@@ -30,8 +34,8 @@ def args_parse():
     parser.add_argument('--skew_direction',type=str,nargs=1,help="Enter the direction of skew (default is Y)",default="Y")
     parser.add_argument('--deskew_angle',type=float,nargs=1,help="Enter the agnel of deskew (default is 30)",default=30)
     parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop", required=True)
-    parser.add_argument('--deconvolution',type=str,nargs=1,help="To use deconvolution, use this argument and also specify device",default="gpu")
-    parser.add_argument('--deconvolution_psf',type=str,nargs=1,help="Enter path to psf file")
+    parser.add_argument('--deconvolution',type=str,nargs=1,help="To use deconvolution, use this argument and also specify device. Default is cpu. Options are gpu or cuda_gpu")
+    parser.add_argument('--deconvolution_psf',type=str,nargs="+",help="Enter paths to psf file/s separated by commas or you can enter each path with double quotes") #use + for nargs for flexible no of args
     parser.add_argument('--roi_file',type=str,nargs=1,help="Enter the path to the ROI file for cropping")
     parser.add_argument('--channel',type=bool,nargs=1,help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",default=False)
     parser.add_argument('--voxel_sizes',type=tuple,nargs=1,help="Enter the voxel sizes as (dz,dy,dx). Make sure they are in brackets",default=(0.3,0.1499219272808386,0.1499219272808386))
@@ -39,6 +43,7 @@ def args_parse():
     parser.add_argument('--time_range',type=int,nargs=2,help="Enter time range to extract ,example 0 10 will extract first 10 timepoints> default is to extract entire timeseries if no range is specified",default=[0,0])
     parser.add_argument('--channel_range',type=int,nargs=2,help="Enter channel range to extract, default will be all channels if no range is specified. Example 0 1 will extract first two channels. ",default=[0,0])
     parser.add_argument('--workflow_path',type=str,nargs=1,help="Enter path to the workflow file '.yml")
+    parser.add_argument('--output_file_type',type=str,nargs=1,help="Save as either tif or h5, defaults to tif")
     args = parser.parse_args()
     return args
 
@@ -54,6 +59,7 @@ def main():
     channel_dimension = args.channel
     skew_dir = args.skew_direction
     processing = args.processing[0].lower() #lowercase
+
 
     if processing == "crop" or processing == "workflow_crop":
         assert args.roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
@@ -133,6 +139,40 @@ def main():
                 print(f"Scene {scene} not valid")
         
         lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
+
+        #implement deconvolution
+        #implement deconvolution
+        if args.deconvolution[0]:
+            lattice.decon_processing = args.deconvolution[0].lower()
+            #define the psf paths
+            psf_ch1_path = ""
+            psf_ch2_path = ""
+            psf_ch3_path = ""
+            psf_ch4_path = ""
+
+            #assign psf paths to variables
+            #if doesn't exist, skip
+            try:
+                psf_ch1_path = args.deconvolution_psf[0].replace(",","").strip()
+                psf_ch2_path = args.deconvolution_psf[1].replace(",","").strip()
+                psf_ch3_path = args.deconvolution_psf[2].replace(",","").strip()
+                psf_ch4_path = args.deconvolution_psf[3].replace(",","").strip()
+            except IndexError:
+                pass
+            
+            #add a terminal flag for when calling commands that are used in gui
+            lattice.psf = []
+            _read_psf(psf_ch1_path,
+                psf_ch2_path,
+                psf_ch3_path,
+                psf_ch4_path,
+                use_gpu_decon = lattice.decon_processing,
+                LLSZWidget = None,
+                lattice = lattice,
+                terminal = True,
+                )
+        else:
+            lattice.decon_processing = None
 
         #Override pixel values by reading metadata if file is czi
         if os.path.splitext(img)[1] == ".czi":
@@ -220,16 +260,31 @@ def main():
 
         save_name = os.path.splitext(os.path.basename(img))[0]
 
+        #Channel and time index -1 as 
+        if channel_end == 0:
+            channel_end = lattice.channels -1
+        if time_end == 0:
+            time_end = lattice.time -1
+
         #Create save directory for each image
         save_path = output_path + os.sep + os.path.basename(os.path.splitext(img)[0]) + os.sep
         if not os.path.exists(save_path):
             os.mkdir(save_path)
         print("Saving at ",save_path)
-        
+
+        if not args.output_file_type:
+            output_file_type = 'tif'
+        else:
+            output_file_type = args.output_file_type[0]
+
+        print(output_file_type)
+
         #Deskewing only
         if processing == "deskew": 
-
-            save_tiff(vol = img_data,
+            
+            #deconvolution
+            if lattice.decon_processing:
+                save_img(vol = img_data,
                         func = cle.deskew_y,
                         time_start = time_start,
                         time_end = time_end,
@@ -237,6 +292,29 @@ def main():
                         channel_end = channel_end,
                         save_path = save_path,
                         save_name= save_name,
+                        save_file_type = output_file_type,
+                        dx = dx,
+                        dy = dy,
+                        dz = dz,
+                        angle = deskew_angle,
+                        terminal = True,
+                        lattice = lattice,
+                        angle_in_degrees = deskew_angle,
+                        voxel_size_x=dx,
+                        voxel_size_y=dy,
+                        voxel_size_z=dz
+                        )    
+                
+            else:
+                save_img(vol = img_data,
+                        func = cle.deskew_y,
+                        time_start = time_start,
+                        time_end = time_end,
+                        channel_start = channel_start,
+                        channel_end = channel_end,
+                        save_path = save_path,
+                        save_name= save_name,
+                        save_file_type = output_file_type,
                         dx = dx,
                         dy = dy,
                         dz = dz,
@@ -263,34 +341,62 @@ def main():
                 z_end = deskewed_shape[0]
                 
                 if processing == "crop":
-                    
-                    save_tiff(img_data,
-                                func = crop_volume_deskew,
-                                time_start = time_start,
-                                time_end = time_end,
-                                channel_start = channel_start,
-                                channel_end = channel_end,
-                                save_name_prefix  = "ROI_" + str(idx)+"_",
-                                save_path = save_path,
-                                save_name= save_name,
-                                dx = dx,
-                                dy = dy,
-                                dz = dz,
-                                angle = deskew_angle,
-                                deskewed_volume=deskewed_volume,
-                                roi_shape = roi_layer,
-                                angle_in_degrees = deskew_angle,
-                                z_start = z_start,
-                                z_end = z_end,
-                                voxel_size_x=dx,
-                                voxel_size_y=dy,
-                                voxel_size_z=dz,
-                                )
+                    #deconvolution
+                    if lattice.decon_processing:
+                        save_img(img_data,
+                                    func = crop_volume_deskew,
+                                    time_start = time_start,
+                                    time_end = time_end,
+                                    channel_start = channel_start,
+                                    channel_end = channel_end,
+                                    save_name_prefix  = "ROI_" + str(idx)+"_",
+                                    save_path = save_path,
+                                    save_name= save_name,
+                                    save_file_type=output_file_type,
+                                    dx = dx,
+                                    dy = dy,
+                                    dz = dz,
+                                    angle = deskew_angle,
+                                    terminal = True,
+                                    lattice = lattice,
+                                    deskewed_volume=deskewed_volume,
+                                    roi_shape = roi_layer,
+                                    angle_in_degrees = deskew_angle,
+                                    z_start = z_start,
+                                    z_end = z_end,
+                                    voxel_size_x=dx,
+                                    voxel_size_y=dy,
+                                    voxel_size_z=dz,
+                                    )
+                    else:
+                        save_img(img_data,
+                                    func = crop_volume_deskew,
+                                    time_start = time_start,
+                                    time_end = time_end,
+                                    channel_start = channel_start,
+                                    channel_end = channel_end,
+                                    save_name_prefix  = "ROI_" + str(idx)+"_",
+                                    save_path = save_path,
+                                    save_name= save_name,
+                                    save_file_type=output_file_type,
+                                    dx = dx,
+                                    dy = dy,
+                                    dz = dz,
+                                    angle = deskew_angle,
+                                    deskewed_volume=deskewed_volume,
+                                    roi_shape = roi_layer,
+                                    angle_in_degrees = deskew_angle,
+                                    z_start = z_start,
+                                    z_end = z_end,
+                                    voxel_size_x=dx,
+                                    voxel_size_y=dy,
+                                    voxel_size_z=dz,
+                                    )
                     
                 elif processing =="workflow_crop":
 
                     user_workflow.set(roi,roi_layer)
-                    save_tiff_workflow(vol=img_data,
+                    save_img_workflow(vol=img_data,
                                        workflow = user_workflow,
                                        input_arg = volume,
                                        first_task = "crop_deskew",
@@ -310,7 +416,7 @@ def main():
         elif processing == "workflow":
             #if deskew_image task set above manually
             if custom_workflow:
-                save_tiff_workflow(vol=img_data,
+                save_img_workflow(vol=img_data,
                                    workflow = user_workflow,
                                    input_arg = input,
                                    first_task = "deskew_image",
@@ -326,7 +432,7 @@ def main():
                                    dz = dz,
                                    angle = deskew_angle)
             else:
-                save_tiff_workflow(vol=img_data,
+                save_img_workflow(vol=img_data,
                                     workflow = user_workflow,
                                     input_arg = input_arg_first,
                                     first_task = first_task_name,

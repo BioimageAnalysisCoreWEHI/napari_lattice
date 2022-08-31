@@ -17,14 +17,15 @@ from napari.utils import history
 
 import pyclesperanto_prototype as cle
 from .io import LatticeData
-from .ui_core import _Preview, _Deskew_Save
+from .ui_core import _Preview, _Deskew_Save, _read_psf
 
 from napari.types import ImageData, ShapesData
 from .utils import read_imagej_roi
-from .llsz_core import crop_volume_deskew, rl_deconvolution
+from .llsz_core import crop_volume_deskew, pycuda_decon,skimage_decon
+
 from tqdm import tqdm
 
-from .io import LatticeData,  save_tiff, save_tiff_workflow
+from .io import LatticeData,  save_img, save_img_workflow
 
 from .utils import read_imagej_roi, get_first_last_image_and_task,modify_workflow_task,get_all_py_files, as_type, process_custom_workflow_output
 from . import config
@@ -75,6 +76,9 @@ def _napari_lattice_widget_wrapper():
                 
                 #list to store psf images for each channel
                 LLSZWidget.LlszMenu.lattice.psf = []
+                #list to store otf paths for each channel
+                LLSZWidget.LlszMenu.lattice.otf_path = []
+                LLSZWidget.LlszMenu.lattice.decon_processing = "cpu"
                 
                 LLSZWidget.LlszMenu.open_file = True
                 print("Pixel size (ZYX): ",(LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx))
@@ -89,7 +93,11 @@ def _napari_lattice_widget_wrapper():
                 if LLSZWidget.LlszMenu.lattice.channels == 1:
                     self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
                 elif LLSZWidget.LlszMenu.lattice.channels >1:
-                    self.parent_viewer.dims.axis_labels = list(('Time',"Channel","Z","Y","X"))
+                    #If merge to stack is used, channel slider goes to the bottom
+                    if int(self.parent_viewer.dims.dict()["range"][0][1]) == LLSZWidget.LlszMenu.lattice.channels:
+                        self.parent_viewer.dims.axis_labels = list(('Channel',"Time","Z","Y","X"))
+                    else:
+                        self.parent_viewer.dims.axis_labels = list(('Time',"Channel","Z","Y","X"))
                 elif LLSZWidget.LlszMenu.lattice.channels==1 and  LLSZWidget.LlszMenu.lattice.time>1:
                     self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
 
@@ -143,7 +151,7 @@ def _napari_lattice_widget_wrapper():
                          psf_ch2_path={"widget_type": "FileEdit","label":"Channel 2"},
                          psf_ch3_path={"widget_type": "FileEdit","label":"Channel 3"},
                          psf_ch4_path={"widget_type": "FileEdit","label":"Channel 4"},
-                         use_gpu_decon = {"widget_type": "ComboBox","label":"Choose processing device","choices":["cpu","gpu","cuda_gpu"]}
+                         use_gpu_decon = {"widget_type": "ComboBox","label":"Choose processing device","choices":["cpu","cuda_gpu"]}
                          )
             def deconvolution_gui(self,
                                     header,
@@ -155,47 +163,14 @@ def _napari_lattice_widget_wrapper():
                         #move function to ui_core; 
                         #create list with psf image arrays for each channel
                         #index corresponds to channel no
-                from pathlib import PureWindowsPath
-                assert LLSZWidget.LlszMenu.deconvolution.value==True, "Deconvolution is set to False. Tick the box to activate deconvolution."
-                
-                #Use CUDA for deconvolution
-                if use_gpu_decon == "cuda_gpu":
-                    import importlib
-                    cucim_import = importlib.util.find_spec("cucim")
-                    cupy_import = importlib.util.find_spec("cupy")
-                    assert cucim_import and cupy_import, f"Please install cucim and cupy. Otherwise, please select another option"
-                 
                 LLSZWidget.LlszMenu.lattice.decon_processing = use_gpu_decon
                 
-                psf_paths = [psf_ch1_path,psf_ch2_path,psf_ch3_path,psf_ch4_path]
-                #remove empty paths; pathlib returns current directory as "." if None or empty str specified
-                psf_paths = [x for x in psf_paths if x!=PureWindowsPath(".")]
-                
-                #total no of psf images
-                psf_channels = len(psf_paths)
-                
-                assert psf_channels>0, f"No images detected for PSF. Check the path {psf_paths}"
-                
-                for psf in psf_paths:
-                    if os.path.exists(psf) and psf.is_file():
-                        if os.path.splitext(psf.__str__())[1] == ".czi":
-                            from aicspylibczi import CziFile
-                            psf_czi = CziFile(psf.__str__())
-                            psf_aics = psf_czi.read_image()
-                            #make sure shape is 3D
-                            psf_aics = psf_aics[0][0]#np.expand_dims(psf_aics[0],axis=0)
-                            assert len(psf_aics.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
-                            LLSZWidget.LlszMenu.lattice.psf.append(psf_aics)
-                            
-                        else:
-                            psf_aics = AICSImage(psf.__str__())
-                            LLSZWidget.LlszMenu.lattice.psf.append(psf_aics.data)
-                            
-
-                psf_channels = len(LLSZWidget.LlszMenu.lattice.psf)
-                #LLSZWidget.LlszMenu.lattice.channels =3
-                if psf_channels != LLSZWidget.LlszMenu.lattice.channels:
-                        print(f"PSF contains {psf_channels} channel/s, whereas image has {LLSZWidget.LlszMenu.lattice.channels}")
+                _read_psf(psf_ch1_path,
+                          psf_ch2_path,
+                          psf_ch3_path,
+                          psf_ch4_path,
+                          use_gpu_decon,
+                          LLSZWidget)
                 
                 self["deconvolution_gui"].background_color = "green"
                 self["deconvolution_gui"].text = "PSFs added"
@@ -240,14 +215,17 @@ def _napari_lattice_widget_wrapper():
                        time_end=dict(label="Time End:", value=1,max= 2**20),
                        ch_start=dict(label="Channel Start:"),
                        ch_end=dict(label="Channel End:", value=1),
+                       save_as_type={"label":"Save as filetype:","choices":["tif","h5"]},
                        save_path=dict(mode='d', label="Directory to save"),
                        call_button="Save")
+
                def Deskew_Save(self,
                                header,
                                time_start: int,
                                time_end: int,
                                ch_start: int,
                                ch_end: int,
+                               save_as_type: str,
                                save_path: Path = Path(history.get_save_history()[0])):
 
                    _Deskew_Save(LLSZWidget,
@@ -255,6 +233,7 @@ def _napari_lattice_widget_wrapper():
                                time_end,
                                ch_start,
                                ch_end,
+                               save_as_type,
                                save_path)
                    return
                
@@ -309,7 +288,8 @@ def _napari_lattice_widget_wrapper():
                             
                             vol = LLSZWidget.LlszMenu.lattice.data
                             vol_zyx= vol[time,channel,...]
-
+                            vol_zyx = np.array(vol_zyx)
+                            
                             deskewed_shape = LLSZWidget.LlszMenu.lattice.deskew_vol_shape
                             #Create a dask array same shape as deskewed image
                             deskewed_volume = da.zeros(deskewed_shape)
@@ -331,23 +311,51 @@ def _napari_lattice_widget_wrapper():
                             roi_choice = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_choice]
                             print("Previewing ROI ", roi_idx)
                             
+                            #crop 
                             if LLSZWidget.LlszMenu.deconvolution.value:
-                                print(f"Cropping for Time:{time} and Channel: {channel} with deconvolution")
-                                decon_data = rl_deconvolution(LLSZWidget,vol_zyx,channel)
-                            
-                            
-                            crop_roi_vol_desk= crop_volume_deskew(original_volume = decon_data,
-                                                                        deskewed_volume=deskewed_volume, 
-                                                                        roi_shape = roi_choice, 
-                                                                        angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
-                                                                        voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
-                                                                        voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
-                                                                        voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
-                                                                        z_start = z_start, 
-                                                                        z_end = z_end).astype(vol_zyx.dtype)
-                            
-                            #get array back from gpu or addding cle array to napari can throw errors
+                                print(f"Deskewing for Time:{time} and Channel: {channel} with deconvolution")
+                                psf = LLSZWidget.LlszMenu.lattice.psf[channel]
+                                if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                                    crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx,
+                                                                                deskewed_volume=deskewed_volume, 
+                                                                                roi_shape = roi_choice, 
+                                                                                angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
+                                                                                voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
+                                                                                voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
+                                                                                voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
+                                                                                z_start = z_start, 
+                                                                                z_end = z_end,
+                                                                                deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
+                                                                                decon_processing = LLSZWidget.LlszMenu.lattice.decon_processing,
+                                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel]).astype(vol_zyx.dtype)
+                                else:
+                                    crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx,
+                                                                                deskewed_volume=deskewed_volume, 
+                                                                                roi_shape = roi_choice, 
+                                                                                angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
+                                                                                voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
+                                                                                voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
+                                                                                voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
+                                                                                z_start = z_start, 
+                                                                                z_end = z_end,
+                                                                                deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
+                                                                                decon_processing = LLSZWidget.LlszMenu.lattice.decon_processing,
+                                                                                psf=psf).astype(vol_zyx.dtype)
+                            else:
+                                crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx,
+                                                                            deskewed_volume=deskewed_volume, 
+                                                                            roi_shape = roi_choice, 
+                                                                            angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
+                                                                            voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
+                                                                            voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
+                                                                            voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
+                                                                            z_start = z_start, 
+                                                                            z_end = z_end).astype(vol_zyx.dtype)         
                             crop_roi_vol_desk = cle.pull(crop_roi_vol_desk)
+                            
+                             
+                            #get array back from gpu or addding cle array to napari can throw errors
+                            
                             scale = (LLSZWidget.LlszMenu.lattice.new_dz,
                                     LLSZWidget.LlszMenu.lattice.dy,
                                     LLSZWidget.LlszMenu.lattice.dx)
@@ -359,16 +367,19 @@ def _napari_lattice_widget_wrapper():
                     class CropSaveData:
                         @magicgui(header=dict(widget_type="Label", label="<h3>Crop and Save Data</h3>"),
                                   time_start=dict(label="Time Start:"),
-                                time_end=dict(label="Time End:", value=1,max= 2**20),
-                                ch_start=dict(label="Channel Start:"),
-                                ch_end=dict(label="Channel End:", value=1),
-                                save_path=dict(mode='d', label="Directory to save "))
+                                  time_end=dict(label="Time End:", value=1),
+                                  ch_start=dict(label="Channel Start:"),
+                                  ch_end=dict(label="Channel End:", value=1),
+                                  save_as_type={"label":"Save as filetype:","choices":["tif","h5"]},
+                                  save_path=dict(mode='d', label="Directory to save "))
+
                         def Crop_Save(self,
                                         header,
                                         time_start: int, 
                                         time_end: int, 
                                         ch_start: int, 
                                         ch_end: int,
+                                        save_as_type: str,
                                         roi_layer_list: ShapesData, 
                                         save_path: Path = Path(history.get_save_history()[0])):
 
@@ -377,7 +388,7 @@ def _napari_lattice_widget_wrapper():
                             else:
                                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
                                 assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be >0 or same as total time "+str(CropWidget.CropMenu.lattice.time)
-                                assert 0<= time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be between 0 and total time "+str(CropWidget.CropMenu.lattice.time)
+                                assert 0<=time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be between 0 and total time "+str(CropWidget.CropMenu.lattice.time)
                                 assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(CropWidget.CropMenu.lattice.channels)
                                 assert 0<= ch_end <= LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(CropWidget.CropMenu.lattice.channels)
                         
@@ -403,29 +414,32 @@ def _napari_lattice_widget_wrapper():
                                     #pass arguments for save tiff, callable and function arguments
                                     print("Processing ROI ",idx)
                                     #pass parameters for the crop_volume_deskew function
-                                    save_tiff(vol = img_data,
-                                              func = crop_volume_deskew,
-                                              time_start = time_start,
-                                              time_end = time_end,
-                                              channel_start = ch_start,
-                                              channel_end = ch_end,
-                                              save_name_prefix  = "ROI_" + str(idx),
-                                              save_path = save_path,
-                                              save_name= LLSZWidget.LlszMenu.lattice.save_name,
-                                              dx = dx,
-                                              dy = dy,
-                                              dz = dz,
-                                              angle = angle,
-                                              deskewed_volume=deskewed_volume,
-                                              roi_shape = roi_layer,
-                                              angle_in_degrees = angle,
-                                              z_start = z_start,
-                                              z_end = z_end,
-                                              voxel_size_x=dx,
-                                              voxel_size_y=dy,
-                                              voxel_size_z=dz,
-                                              LLSZWidget=LLSZWidget
-                                              )
+
+                                    save_img(vol = img_data,
+                                        func = crop_volume_deskew,
+                                        time_start = time_start,
+                                        time_end = time_end,
+                                        channel_start = ch_start,
+                                        channel_end = ch_end,
+                                        save_name_prefix  = "ROI_" + str(idx),
+                                        save_path = save_path,
+                                        save_file_type = save_as_type,
+                                        save_name= LLSZWidget.LlszMenu.lattice.save_name,
+                                        dx = dx,
+                                        dy = dy,
+                                        dz = dz,
+                                        angle = angle,
+                                        deskewed_volume=deskewed_volume,
+                                        roi_shape = roi_layer,
+                                        angle_in_degrees = angle,
+                                        z_start = z_start,
+                                        z_end = z_end,
+                                        voxel_size_x=dx,
+                                        voxel_size_y=dy,
+                                        voxel_size_z=dz,
+                                        LLSZWidget=LLSZWidget
+                                        )
+
 
                                 print("Cropping and Saving Complete -> ", save_path)
                                 return        
@@ -495,14 +509,15 @@ def _napari_lattice_widget_wrapper():
                         assert type(user_workflow) is Workflow, "Workflow loading error. Check if file is workflow or if required libraries are installed"
                         
                         input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
-                        print(input_arg_first, input_arg_last, first_task_name,last_task_name )
+                        #print(input_arg_first, input_arg_last, first_task_name,last_task_name )
                         #get list of tasks
                         task_list = list(user_workflow._tasks.keys())
                         print("Workflow loaded:")
                         print(user_workflow)
+                        
                         #when using fields, self.time_preview.value 
-                        assert time_preview < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
-                        assert chan_preview < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
+                        assert time_preview <= LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
+                        assert chan_preview <= LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
 
                         time = time_preview
                         channel = chan_preview
@@ -516,13 +531,25 @@ def _napari_lattice_widget_wrapper():
                         vol = LLSZWidget.LlszMenu.lattice.data
 
                         vol_zyx= vol[time,channel,...]
-
+                        vol_zyx = np.array(vol_zyx)
+                        
                         task_name_start = first_task_name[0]
                         try:
                             task_name_last = last_task_name[0]
                         except IndexError:
                             task_name_last = task_name_start
                         
+                        #variables to hold task name, initialize it as None
+                        #if gpu, set otf_path, otherwise use psf
+                        psf = None
+                        otf_path = None 
+                        
+                        if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                            otf_path = "otf_path"
+                        else:
+                            psf = "psf"
+                            
+                        #if cropping, set that as first task
                         #get the function associated with the first task and check if its deskewing
                         if Use_Cropping:
                             #use deskewed volume for cropping function
@@ -544,7 +571,8 @@ def _napari_lattice_widget_wrapper():
                                 roi_choice = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_choice]
                                 print("Previewing ROI ", roi_idx)
                                 
-                                user_workflow.set("crop_deskew_image",crop_volume_deskew,original_volume = vol_zyx, 
+                                user_workflow.set("crop_deskew_image",crop_volume_deskew,
+                                                            original_volume = vol_zyx, 
                                                             deskewed_volume=deskewed_volume, 
                                                             roi_shape = roi_choice, 
                                                             angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle, 
@@ -552,27 +580,105 @@ def _napari_lattice_widget_wrapper():
                                                             voxel_size_y =LLSZWidget.LlszMenu.lattice.dy, 
                                                             voxel_size_z =LLSZWidget.LlszMenu.lattice.dz, 
                                                             z_start = z_start, 
-                                                            z_end = z_end)
-                                #Set input of the workflow to be from crop_deskewing
+                                                            z_end = z_end,
+                                                            deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
+                                                            decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
+                                                            otf_path=otf_path,
+                                                            psf=LLSZWidget.LlszMenu.lattice.psf[channel])
+                                
+                                #Set input of the workflow to be  crop_deskewing, i.e., the original first operation will now have crop_deskew_image as an input (becoming second instead)
                                 user_workflow.set(input_arg_first,"crop_deskew_image")
                             else:
                                 user_workflow.set(input_arg_first,vol_zyx)
-                                
+                        #Not cropping; If deskew not in workflow, append to start
                         elif user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y,cle.deskew_x):
+                 
+                            #if deconvolution checked, add it to start of workflow (add upstream of deskewing)
+                            if LLSZWidget.LlszMenu.deconvolution.value:
+                                psf = LLSZWidget.LlszMenu.lattice.psf[channel]
+                                input_arg_first_decon, input_arg_last_decon, first_task_name_decon, last_task_name_decon = get_first_last_image_and_task(user_workflow)
+                                
+                                if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                                    user_workflow.set("deconvolution",
+                                                    pycuda_decon,
+                                                    image = vol_zyx,
+                                                    psf = LLSZWidget.LlszMenu.lattice.psf[channel],
+                                                    dzdata=LLSZWidget.LlszMenu.lattice.dz,
+                                                    dxdata=LLSZWidget.LlszMenu.lattice.dx,
+                                                    dzpsf=LLSZWidget.LlszMenu.lattice.dz,
+                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx)
+                                    #user_workflow.set(input_arg_first_decon,"deconvolution")
+                                else:
+                                    user_workflow.set("deconvolution",
+                                                    skimage_decon,
+                                                    vol_zyx=vol_zyx,
+                                                    psf=LLSZWidget.LlszMenu.lattice.psf[channel],
+                                                    num_iter=10,
+                                                    clip=False,
+                                                    filter_epsilon=0,
+                                                    boundary='nearest')
+                                    #user_workflow.set(input_arg_first_decon,"deconvolution")
+                                   
+                                user_workflow.set("deskew_image",
+                                                  LLSZWidget.LlszMenu.deskew_func, #cle.deskew_y or cle.deskew_x
+                                                  "deconvolution",
+                                                  angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle,
+                                                  voxel_size_x = LLSZWidget.LlszMenu.lattice.dx,
+                                                  voxel_size_y= LLSZWidget.LlszMenu.lattice.dy,
+                                                  voxel_size_z = LLSZWidget.LlszMenu.lattice.dz)
+                                
+                                #user_workflow.set("change_bitdepth",as_type,"deskew_image",vol_zyx)
+                                #Set input of the workflow to be from deskewing output with same bit depth as original volume
+                                #user_workflow.set(input_arg_first,"change_bitdepth")
                             
-                            user_workflow.set("deskew_image",cle.deskew_y, vol_zyx,
-                                            angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle,
-                                            voxel_size_x = LLSZWidget.LlszMenu.lattice.dx,
-                                            voxel_size_y= LLSZWidget.LlszMenu.lattice.dy,
-                                            voxel_size_z = LLSZWidget.LlszMenu.lattice.dz)
+                            else:
+                                user_workflow.set("deskew_image",
+                                                    LLSZWidget.LlszMenu.deskew_func, 
+                                                    vol_zyx,
+                                                    angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle,
+                                                    voxel_size_x = LLSZWidget.LlszMenu.lattice.dx,
+                                                    voxel_size_y= LLSZWidget.LlszMenu.lattice.dy,
+                                                    voxel_size_z = LLSZWidget.LlszMenu.lattice.dz)
+                                #Set input of the workflow to be from deskewing
+                                #user_workflow.set(input_arg_first,"deskew_image")
+                            
+
                             user_workflow.set("change_bitdepth",as_type,"deskew_image",vol_zyx)
-                            #Set input of the workflow to be from deskewing
+                            #Set input of the workflow to be from deskewing with same bit depth as original volume
                             user_workflow.set(input_arg_first,"change_bitdepth")
+                            
                         else:  
-                            #set the first input image to be the volume user has chosen
-                            user_workflow.set(input_arg_first,vol_zyx)
-                        
-                        print("Workflow executed:")
+                            #if deskew already in workflow, just check if deconvolution needs to be added
+                            #repitition of above (maybe create a function?)
+                            #if deconvolution checked, add it to start of workflow (add upstream of deskewing)
+                            if LLSZWidget.LlszMenu.deconvolution.value:
+                                psf = LLSZWidget.LlszMenu.lattice.psf[channel]
+                                input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
+                                
+                                if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                                    user_workflow.set("deconvolution",
+                                                    pycuda_decon,
+                                                    image = vol_zyx,
+                                                    psf = LLSZWidget.LlszMenu.lattice.psf[channel],
+                                                    dzdata=LLSZWidget.LlszMenu.lattice.dz,
+                                                    dxdata=LLSZWidget.LlszMenu.lattice.dx,
+                                                    dzpsf=LLSZWidget.LlszMenu.lattice.dz,
+                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx)
+                                    #user_workflow.set(input_arg_first,"deconvolution")
+                                else:
+                                    user_workflow.set("deconvolution",
+                                                    skimage_decon,
+                                                    vol_zyx=vol_zyx,
+                                                    psf=LLSZWidget.LlszMenu.lattice.psf[channel],
+                                                    num_iter=10,
+                                                    clip=False,
+                                                    filter_epsilon=0,
+                                                    boundary='nearest')
+                                
+                                #set input to subsequent task as deconvolution output
+                                user_workflow.set(input_arg_first,"deconvolution")
+
+                        print("Workflow to be executed:")
                         print(user_workflow)
                         #Execute workflow
                         processed_vol = user_workflow.get(task_name_last)
@@ -604,6 +710,7 @@ def _napari_lattice_widget_wrapper():
                               Use_Cropping = dict(widget_type="Checkbox",label="Crop Data",value = False),
                               get_active_workflow = dict(widget_type="Checkbox",label="Get active workflow in napari-workflow",value = False),
                               workflow_path=dict(mode='r', label="Load custom workflow (.yaml/yml)"),
+                              save_as_type={"label":"Save as filetype:","choices":["tif","h5"]},
                               save_path=dict(mode='d', label="Directory to save "),
                               #custom_module=dict(widget_type="Checkbox",label="Load custom module (same dir as workflow)",value = False),
                               call_button="Apply Workflow and Save Result")            
@@ -618,6 +725,7 @@ def _napari_lattice_widget_wrapper():
                                                 get_active_workflow:bool=False,
                                                 workflow_path:Path= Path.home(),
                                                 #custom_module:bool=False,
+                                                save_as_type:str="tif",
                                                 save_path: Path = Path(history.get_save_history()[0])):
                         """
                         Apply a user-defined analysis workflow using napari-workflows
@@ -673,52 +781,76 @@ def _napari_lattice_widget_wrapper():
                         print(user_workflow)
 
                         vol = LLSZWidget.LlszMenu.lattice.data
-                        #convert Roi pixel coordinates to canvas coordinates
-                        #necessary only when scale is used for napari.viewer.add_image operations
-                        roi_layer_list = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_layer_list]
+
                         #vol_zyx= vol[time,channel,...]
 
                         task_name_start = first_task_name[0]
+                        
                         try:
                             task_name_last = last_task_name[0]
                         except IndexError:
                             task_name_last = task_name_start
+                        
+                        #variables to hold task name, initialize it as None
+                        #if gpu, set otf_path, otherwise use psf
+                        psf = None
+                        otf_path = None 
+                        
+                        if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                            #otf_path = "otf_path"
+                            psf_arg = "psf"
+                            psf = LLSZWidget.LlszMenu.lattice.psf
+                        else:
+                            psf_arg = "psf"
+                            psf = LLSZWidget.LlszMenu.lattice.psf
                         #if cropping, set that as first task
+                        
                         if Use_Cropping:
+                            #convert Roi pixel coordinates to canvas coordinates
+                            #necessary only when scale is used for napari.viewer.add_image operations
+                            roi_layer_list = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_layer_list]
+                            
                             deskewed_shape = LLSZWidget.LlszMenu.lattice.deskew_vol_shape
                             deskewed_volume = da.zeros(deskewed_shape)
                             z_start = 0
                             z_end = deskewed_shape[0]
                             roi = "roi"
                             volume = "volume"
+                            #Check if decon ticked, if so set as first and crop as second?
+                            
                             #Create workflow for cropping and deskewing
                             #volume and roi used will be set dynamically
-                            user_workflow.set("crop_deskew",crop_volume_deskew,
-                                              original_volume = volume,
-                                              deskewed_volume = deskewed_volume,
-                                              roi_shape = roi,
-                                              angle_in_degrees = angle,
-                                              voxel_size_x = dx,
-                                              voxel_size_y= dy,
-                                              voxel_size_z = dz, 
-                                              z_start = z_start, 
-                                              z_end = z_end)
+                            user_workflow.set("crop_deskew_image",crop_volume_deskew,
+                                                original_volume = volume,
+                                                deskewed_volume = deskewed_volume,
+                                                roi_shape = roi,
+                                                angle_in_degrees = angle,
+                                                voxel_size_x = dx,
+                                                voxel_size_y= dy,
+                                                voxel_size_z = dz, 
+                                                z_start = z_start, 
+                                                z_end = z_end,
+                                                deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
+                                                decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
+                                                psf=psf_arg)
+
                             #change the first task so it accepts "crop_deskew as input"
-                            new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew",workflow=user_workflow)
+                            new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew_image",workflow=user_workflow)
                             user_workflow.set(task_name_start,new_task)
 
                             for idx, roi_layer in enumerate(tqdm(roi_layer_list, desc="ROI:", position=0)):
                                 print("Processing ROI ",idx)
                                 user_workflow.set(roi,roi_layer)
-                                save_tiff_workflow(vol=vol,
+                                save_img_workflow(vol=vol,
                                                     workflow = user_workflow,
                                                     input_arg = volume,
-                                                    first_task = "crop_deskew",
+                                                    first_task = "crop_deskew_image",
                                                     last_task = task_name_last,
                                                     time_start = time_start,
                                                     time_end = time_end,
                                                     channel_start = ch_start,
                                                     channel_end = ch_end,
+                                                    save_file_type = save_as_type,
                                                     save_path = save_path,
                                                     #roi_layer = roi_layer,
                                                     save_name_prefix = "ROI_"+str(idx),
@@ -726,57 +858,139 @@ def _napari_lattice_widget_wrapper():
                                                     dx = dx,
                                                     dy = dy,
                                                     dz = dz,
-                                                    angle = angle)
+                                                    angle = angle,
+                                                    deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
+                                                    decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
+                                                    otf_path=otf_path,
+                                                    psf_arg = psf_arg,
+                                                    psf=psf)
+                                
                         #IF just deskewing and its not in the tasks, add that as first task
                         elif user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y,cle.deskew_x):
                             input = "input"
                             #add task to the workflow
-                            user_workflow.set("deskew_image",cle.deskew_y, 
+                            user_workflow.set("deskew_image",
+                                            LLSZWidget.LlszMenu.deskew_func, 
                                             input_image =input,
                                             angle_in_degrees = angle,
                                             voxel_size_x = dx,
                                             voxel_size_y= dy,
                                             voxel_size_z = dz)
                             #Set input of the workflow to be from deskewing
-                            #change the first task so it accepts "deskew_image" as input
+                            #change workflow task starts from is "deskew_image" and 
                             new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="deskew_image",workflow=user_workflow)
                             user_workflow.set(task_name_start,new_task)
 
-                            save_tiff_workflow(vol=vol,
+                            
+                            #if deconvolution checked, add it to start of workflow (add upstream of deskewing)
+                            if LLSZWidget.LlszMenu.deconvolution.value:
+                                psf = "psf"
+                                otf_path = "otf_path"
+                                input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
+                                
+                                if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                                    user_workflow.set("deconvolution",
+                                                    pycuda_decon,
+                                                    image = input,
+                                                    psf = psf_arg,#"LLSZWidget.LlszMenu.lattice.otf_path[channel]",
+                                                    dzdata=LLSZWidget.LlszMenu.lattice.dz,
+                                                    dxdata=LLSZWidget.LlszMenu.lattice.dx,
+                                                    dzpsf=LLSZWidget.LlszMenu.lattice.dz,
+                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx)
+                                    #user_workflow.set(input_arg_first,"deconvolution")
+                                else:
+                                    user_workflow.set("deconvolution",
+                                                    skimage_decon,
+                                                    vol_zyx=input,
+                                                    psf=psf_arg,
+                                                    num_iter=10,
+                                                    clip=False,
+                                                    filter_epsilon=0,
+                                                    boundary='nearest')
+                                #modify the user workflow so "deconvolution" is accepted 
+                                new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="deconvolution",workflow=user_workflow)
+                                user_workflow.set(task_name_start,new_task)
+                                input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
+                                task_name_start = first_task_name[0]
+                                
+                            save_img_workflow(vol=vol,
                                                     workflow = user_workflow,
                                                     input_arg = input,
-                                                    first_task = "deskew_image",
+                                                    first_task = task_name_start,
                                                     last_task = task_name_last,
                                                     time_start = time_start,
                                                     time_end = time_end,
                                                     channel_start = ch_start,
                                                     channel_end = ch_end,
+                                                    save_file_type = save_as_type,
                                                     save_path = save_path,
                                                     save_name =  LLSZWidget.LlszMenu.lattice.save_name,
                                                     dx = dx,
                                                     dy = dy,
                                                     dz = dz,
-                                                    angle = angle)
+                                                    angle = angle,
+                                                    deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
+                                                    decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
+                                                    otf_path=otf_path,
+                                                    psf_arg = psf_arg,
+                                                    psf=psf)
+                            
                         ##If deskewing is already as a task, then set the first argument to input so we can modify that later
                         else:
-
-
+                            #if deskewing is already first task, then check if deconvolution needed
+                                                        #if deconvolution checked, add it to start of workflow (add upstream of deskewing)
+                            if LLSZWidget.LlszMenu.deconvolution.value:
+                                psf = "psf"
+                                otf_path = "otf_path"
+                                input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
+                                
+                                if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                                    user_workflow.set("deconvolution",
+                                                    pycuda_decon,
+                                                    image = input,
+                                                    psf = psf_arg,#"LLSZWidget.LlszMenu.lattice.otf_path[channel]",
+                                                    dzdata=LLSZWidget.LlszMenu.lattice.dz,
+                                                    dxdata=LLSZWidget.LlszMenu.lattice.dx,
+                                                    dzpsf=LLSZWidget.LlszMenu.lattice.dz,
+                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx)
+                                    #user_workflow.set(input_arg_first,"deconvolution")
+                                else:
+                                    user_workflow.set("deconvolution",
+                                                    skimage_decon,
+                                                    vol_zyx=input,
+                                                    psf=psf_arg,
+                                                    num_iter=10,
+                                                    clip=False,
+                                                    filter_epsilon=0,
+                                                    boundary='nearest')
+                                #modify the user workflow so "deconvolution" is accepted 
+                                new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="deconvolution",workflow=user_workflow)
+                                user_workflow.set(task_name_start,new_task)
+                                input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
+                                task_name_start = first_task_name[0]
+                            
                             #we pass first argument as input
-                            save_tiff_workflow(vol=vol,
-                                                    workflow = user_workflow,
-                                                    input_arg = input_arg_first,
-                                                    first_task = first_task_name,
-                                                    last_task = task_name_last,
-                                                    time_start = time_start,
-                                                    time_end = time_end,
-                                                    channel_start = ch_start,
-                                                    channel_end = ch_end,
-                                                    save_path = save_path,
-                                                    save_name =  LLSZWidget.LlszMenu.lattice.save_name,
-                                                    dx = dx,
-                                                    dy = dy,
-                                                    dz = dz,
-                                                    angle = angle)
+                            save_img_workflow(vol=vol,
+                                              workflow = user_workflow,
+                                              input_arg = input_arg_first,
+                                              first_task = task_name_start,
+                                              last_task = task_name_last,
+                                              time_start = time_start,
+                                              time_end = time_end,
+                                              channel_start = ch_start,
+                                              channel_end = ch_end,
+                                              save_file_type = save_as_type,
+                                              save_path = save_path,
+                                              save_name =  LLSZWidget.LlszMenu.lattice.save_name,
+                                              dx = dx,
+                                              dy = dy,
+                                              dz = dz,
+                                              angle = angle,
+                                              deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
+                                              decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
+                                              otf_path=otf_path,
+                                              psf_arg = psf_arg,
+                                              psf=psf)
 
                         print("Workflow complete")
                         return
