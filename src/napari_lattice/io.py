@@ -384,6 +384,7 @@ def save_img_workflow(vol,
         if time_point == 0:
             
             #get no of elements
+            
             no_elements = len(processed_vol)
             #initialize lsits to hold indexes for each datatype
             list_element_index =[] #store indices of lists
@@ -396,6 +397,7 @@ def save_img_workflow(vol,
             #if image
             elif type(processed_vol) in [np.ndarray,cle._tier0._pycl.OCLArray, da.core.Array,resource_backed_dask_array.ResourceBackedDaskArray]: 
                 image_element_index = [0]
+                no_elements = 1
             #multiple elements
             #list with values returns no_elements>1 so make sure its actually a list with different objects
             #test this with different workflows 
@@ -432,10 +434,14 @@ def save_img_workflow(vol,
             #writer_idx is for each writers, image_idx will be the index of images
             for writer_idx, image_idx in enumerate(image_element_index):
                 #access the image
-                im_final = np.stack(output_array[:,image_idx]).astype(raw_vol.dtype)
+                if len(channel_range)==1:
+                    im_final = np.stack(output_array[image_idx,...]).astype(raw_vol.dtype)
+                else:
+                    im_final = np.stack(output_array[:,image_idx]).astype(raw_vol.dtype)
                 if save_file_type == 'h5':
                     for ch_idx in channel_range:
                         #write h5 images as 3D stacks
+                        
                         if len(im_final.shape)==3:
                             im_channel = im_final
                         else:
