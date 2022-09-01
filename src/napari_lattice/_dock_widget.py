@@ -50,14 +50,15 @@ def _napari_lattice_widget_wrapper():
             @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Initialize Plugin", max_height=75, font_size = 13) 
             @set_options(pixel_size_dx={"widget_type": "FloatSpinBox", "value":0.1449922,"step": 0.000000001},
                          pixel_size_dy={"widget_type": "FloatSpinBox", "value":0.1449922, "step": 0.000000001},
-                         pixel_size_dz={"widget_type": "FloatSpinBox", "value":0.3, "step": 0.000000001}
+                         pixel_size_dz={"widget_type": "FloatSpinBox", "value":0.3, "step": 0.000000001},
+                         last_dimension_channel={"widget_type":"CheckBox","value":False,"label":"Last dimension is channel (use for tiff)","tooltip":"If opening tiff files and last dimension is channel with no time dimension, check this box"}
                          )
             def Choose_Image_Layer(self,
                                       img_layer:Layer,
                                       pixel_size_dx: float = 0.1449922, 
                                       pixel_size_dy: float = 0.1449922,
                                       pixel_size_dz: float = 0.3,
-                                      channel_dimension_present:bool=False, 
+                                      last_dimension_channel:bool=False, 
                                       skew_dir: str="Y"):
                 
                 print("Using existing image layer")
@@ -68,8 +69,13 @@ def _napari_lattice_widget_wrapper():
                 elif skew_dir == "Y":
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_y
 
-                LLSZWidget.LlszMenu.lattice = LatticeData(img_layer, 30.0, skew_dir,pixel_size_dx, pixel_size_dy,
-                                                          pixel_size_dz,channel_dimension_present)
+                LLSZWidget.LlszMenu.lattice = LatticeData(img = img_layer, 
+                                                          angle = 30.0, 
+                                                          skew = skew_dir,
+                                                          dx = pixel_size_dx, 
+                                                          dy = pixel_size_dy,
+                                                          dz = pixel_size_dz,
+                                                          channel_dimension=last_dimension_channel)
                 #LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
 
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default

@@ -564,6 +564,16 @@ class LatticeData():
                     #get the data and convert it into an aicsimage object
                     img_data_aics = aicsimageio.AICSImage(img.data)
                     self.data = img_data_aics.dask_data
+                    if channel_dimension:
+                        if len(img.data.shape)==4:
+                            self.channels = img.data.shape[0]
+                            self.time=0
+                        elif len(img.data.shape)==5:
+                            self.channels = img.data.shape[0]
+                            self.time = img.data.shape[1]
+                    else:
+                        self.time = img.data.shape[0]
+                        self.channels = img.data.shape[1]
                 
                 #read metadata for pixel sizes
                 if None in img_data_aics.physical_pixel_sizes or img_data_aics.physical_pixel_sizes== False:
