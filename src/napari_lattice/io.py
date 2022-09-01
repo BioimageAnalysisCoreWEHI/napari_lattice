@@ -160,8 +160,9 @@ def save_img(vol,
     if terminal:
         if lattice.decon_processing:
             decon_value = True
-            decon_option = lattice.decon_processing
+            decon_option = lattice.decon_processing #decon_processing holds the choice
             lattice_class = lattice
+            
     else:
         decon_value = LLSZWidget.LlszMenu.deconvolution.value
         lattice_class = LLSZWidget.LlszMenu.lattice

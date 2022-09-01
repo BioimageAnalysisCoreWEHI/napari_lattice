@@ -171,6 +171,7 @@ def main():
                 lattice = lattice,
                 terminal = True,
                 )
+            psf_arg = "psf"
         else:
             lattice.decon_processing = None
 
@@ -394,9 +395,12 @@ def main():
                                     )
                     
                 elif processing =="workflow_crop":
-
+                    #deconvolution
                     user_workflow.set(roi,roi_layer)
-                    save_img_workflow(vol=img_data,
+                    
+                    if lattice.decon_processing:
+                        
+                        save_img_workflow(vol=img_data,
                                        workflow = user_workflow,
                                        input_arg = volume,
                                        first_task = "crop_deskew",
@@ -411,12 +415,55 @@ def main():
                                        dx = dx,
                                        dy = dy,
                                        dz = dz,
-                                       angle = deskew_angle)
+                                       angle = deskew_angle,
+                                       deconvolution=True,
+                                       decon_processing=lattice.decon_processing,
+                                       psf=lattice.psf,
+                                       psf_arg=psf_arg)
+                    else:
+                        save_img_workflow(vol=img_data,
+                                       workflow = user_workflow,
+                                       input_arg = volume,
+                                       first_task = "crop_deskew",
+                                       last_task = task_name_last,
+                                       time_start = time_start,
+                                       time_end = time_end,
+                                       channel_start = channel_start,
+                                       channel_end = channel_end,
+                                       save_path = save_path,
+                                       save_name_prefix = "ROI_"+str(idx),
+                                       save_name =  save_name,
+                                       dx = dx,
+                                       dy = dy,
+                                       dz = dz,
+                                       angle = deskew_angle,
+                                       deconvolution=False)
         
         elif processing == "workflow":
             #if deskew_image task set above manually
             if custom_workflow:
-                save_img_workflow(vol=img_data,
+                if lattice.decon_processing:
+                    save_img_workflow(vol=img_data,
+                                   workflow = user_workflow,
+                                   input_arg = input,
+                                   first_task = "deskew_image",
+                                   last_task = task_name_last,
+                                   time_start = time_start,
+                                   time_end = time_end,
+                                   channel_start = channel_start,
+                                   channel_end = channel_end,
+                                   save_path = save_path,
+                                   save_name =  save_name,
+                                   dx = dx,
+                                   dy = dy,
+                                   dz = dz,
+                                   angle = deskew_angle,
+                                   deconvolution=True,
+                                   decon_processing=lattice.decon_processing,
+                                   psf=lattice.psf,
+                                   psf_arg=psf_arg)
+                else:
+                    save_img_workflow(vol=img_data,
                                    workflow = user_workflow,
                                    input_arg = input,
                                    first_task = "deskew_image",
@@ -432,7 +479,28 @@ def main():
                                    dz = dz,
                                    angle = deskew_angle)
             else:
-                save_img_workflow(vol=img_data,
+                if lattice.decon_processing:
+                    save_img_workflow(vol=img_data,
+                                    workflow = user_workflow,
+                                    input_arg = input_arg_first,
+                                    first_task = first_task_name,
+                                    last_task = task_name_last,
+                                    time_start = time_start,
+                                    time_end = time_end,
+                                    channel_start = channel_start,
+                                    channel_end = channel_end,
+                                    save_path = save_path,
+                                    save_name =  save_name,
+                                    dx = dx,
+                                    dy = dy,
+                                    dz = dz,
+                                    angle = deskew_angle,
+                                    deconvolution=True,
+                                    decon_processing=lattice.decon_processing,
+                                    psf=lattice.psf,
+                                    psf_arg=psf_arg)
+                else:
+                    save_img_workflow(vol=img_data,
                                     workflow = user_workflow,
                                     input_arg = input_arg_first,
                                     first_task = first_task_name,
