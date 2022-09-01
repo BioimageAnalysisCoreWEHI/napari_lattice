@@ -32,18 +32,19 @@ def args_parse():
     parser.add_argument('--input',type=str,nargs=1,help="Enter input file", required=True)
     parser.add_argument('--output',type=str,nargs=1,help="Enter save folder", required=True)
     parser.add_argument('--skew_direction',type=str,nargs=1,help="Enter the direction of skew (default is Y)",default="Y")
-    parser.add_argument('--deskew_angle',type=float,nargs=1,help="Enter the agnel of deskew (default is 30)",default=30)
+    parser.add_argument('--deskew_angle',type=float,nargs=1,help="Enter the deskew angle (default is 30)",default=30.0)
     parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop", required=True)
-    parser.add_argument('--deconvolution',type=str,nargs=1,help="To use deconvolution, use this argument and also specify device. Default is cpu. Options are gpu or cuda_gpu")
+    parser.add_argument('--deconvolution',type=str,nargs=1,help="Specify the device to use for deconvolution. Options are cpu or cuda_gpu")
+    parser.add_argument('--deconvolution_num_iter',type=int,nargs=1,help="Enter the number of iterations to run Richardson-Lucy deconvolution (default is 10)")
     parser.add_argument('--deconvolution_psf',type=str,nargs="+",help="Enter paths to psf file/s separated by commas or you can enter each path with double quotes") #use + for nargs for flexible no of args
-    parser.add_argument('--roi_file',type=str,nargs=1,help="Enter the path to the ROI file for cropping")
-    parser.add_argument('--channel',type=bool,nargs=1,help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",default=False)
+    parser.add_argument('--roi_file',type=str,nargs=1,help="Enter the path to the ROI file for performing cropping (only valid for -processing where crop or workflow_crop is specified")
     parser.add_argument('--voxel_sizes',type=tuple,nargs=1,help="Enter the voxel sizes as (dz,dy,dx). Make sure they are in brackets",default=(0.3,0.1499219272808386,0.1499219272808386))
     parser.add_argument('--file_extension',type=str,nargs=1,help="If choosing a folder, enter the extension of the files (make sure you enter it with the dot at the start, i.e., .czi or .tif), else .czi and .tif files will be used")
-    parser.add_argument('--time_range',type=int,nargs=2,help="Enter time range to extract ,example 0 10 will extract first 10 timepoints> default is to extract entire timeseries if no range is specified",default=[0,0])
-    parser.add_argument('--channel_range',type=int,nargs=2,help="Enter channel range to extract, default will be all channels if no range is specified. Example 0 1 will extract first two channels. ",default=[0,0])
+    parser.add_argument('--time_range',type=int,nargs=2,help="Enter time range to extract, default will be entire timeseries if no range is specified. For example, 0 9 will extract first 10 timepoints")
+    parser.add_argument('--channel_range',type=int,nargs=2,help="Enter channel range to extract, default will be all channels if no range is specified. For example, 0 1 will extract first two channels. ")
     parser.add_argument('--workflow_path',type=str,nargs=1,help="Enter path to the workflow file '.yml")
     parser.add_argument('--output_file_type',type=str,nargs=1,help="Save as either tif or h5, defaults to tif")
+    parser.add_argument('--channel',type=bool,nargs=1,help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",default=False)
     args = parser.parse_args()
     return args
 
@@ -52,6 +53,7 @@ def args_parse():
 
 def main():
     args = args_parse()
+    print(args)
     input_path = args.input[0]
     output_path = args.output[0]+os.sep
     dz,dy,dx = args.voxel_sizes
@@ -67,9 +69,7 @@ def main():
         if os.path.isfile(roi_file): #if file make sure it is a zip file
             assert os.path.splitext(roi_file)[1] == ".zip", "ROI file is not a zip file"
     
-     
-    time_start,time_end = args.time_range
-    channel_start, channel_end = args.channel_range
+
 
     #print(time_start,time_end)
     #print(channel_start, channel_end)
@@ -140,6 +140,17 @@ def main():
         
         lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
 
+        if args.time_range:
+            time_start,time_end = args.time_range
+        else:
+            time_start,time_end = 0,lattice.time
+    
+        if args.channel_range:
+            channel_start, channel_end = args.channel_range
+        else:
+            channel_start, channel_end = 0,lattice.channels
+        
+        
         #implement deconvolution
         #implement deconvolution
         if args.deconvolution[0]:
@@ -162,6 +173,13 @@ def main():
             
             #add a terminal flag for when calling commands that are used in gui
             lattice.psf = []
+            lattice.otf_path =[]
+            #set number of iterations
+            if args.deconvolution_num_iter:
+                lattice.psf_num_iter=args.deconvolution_num_iter
+            else:
+                lattice.psf_num_iter=10
+                
             _read_psf(psf_ch1_path,
                 psf_ch2_path,
                 psf_ch3_path,
@@ -172,6 +190,7 @@ def main():
                 terminal = True,
                 )
             psf_arg = "psf"
+            
         else:
             lattice.decon_processing = None
 
@@ -260,12 +279,6 @@ def main():
         img_data = lattice.data
 
         save_name = os.path.splitext(os.path.basename(img))[0]
-
-        #Channel and time index -1 as 
-        if channel_end == 0:
-            channel_end = lattice.channels -1
-        if time_end == 0:
-            time_end = lattice.time -1
 
         #Create save directory for each image
         save_path = output_path + os.sep + os.path.basename(os.path.splitext(img)[0]) + os.sep
@@ -412,6 +425,7 @@ def main():
                                        save_path = save_path,
                                        save_name_prefix = "ROI_"+str(idx),
                                        save_name =  save_name,
+                                       save_file_type=output_file_type,
                                        dx = dx,
                                        dy = dy,
                                        dz = dz,
@@ -431,6 +445,7 @@ def main():
                                        channel_start = channel_start,
                                        channel_end = channel_end,
                                        save_path = save_path,
+                                       save_file_type=output_file_type,
                                        save_name_prefix = "ROI_"+str(idx),
                                        save_name =  save_name,
                                        dx = dx,
@@ -454,6 +469,7 @@ def main():
                                    channel_end = channel_end,
                                    save_path = save_path,
                                    save_name =  save_name,
+                                   save_file_type=output_file_type,
                                    dx = dx,
                                    dy = dy,
                                    dz = dz,
@@ -474,6 +490,7 @@ def main():
                                    channel_end = channel_end,
                                    save_path = save_path,
                                    save_name =  save_name,
+                                   save_file_type=output_file_type,
                                    dx = dx,
                                    dy = dy,
                                    dz = dz,
@@ -491,6 +508,7 @@ def main():
                                     channel_end = channel_end,
                                     save_path = save_path,
                                     save_name =  save_name,
+                                    save_file_type=output_file_type,
                                     dx = dx,
                                     dy = dy,
                                     dz = dz,
@@ -511,6 +529,7 @@ def main():
                                     channel_end = channel_end,
                                     save_path = save_path,
                                     save_name =  save_name,
+                                    save_file_type=output_file_type,
                                     dx = dx,
                                     dy = dy,
                                     dz = dz,

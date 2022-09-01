@@ -173,12 +173,12 @@ def _read_psf(psf_ch1_path:Path,
     from pathlib import PureWindowsPath, PosixPath
     
     if platform.system() =="Linux":
-        psf_paths = [x for x in psf_paths if x!=PosixPath(".")]
+        psf_paths = [Path(x) for x in psf_paths if x!=PosixPath(".")]
     elif platform.system()=="Windows":
-        psf_paths = [x for x in psf_paths if x!=PureWindowsPath(".")]
+        psf_paths = [Path(x) for x in psf_paths if x!=PureWindowsPath(".")]
     #total no of psf images
     psf_channels = len(psf_paths)
-    assert psf_channels>0, f"No images detected for PSF. Check the path {psf_paths}"
+    assert psf_channels>0, f"No images detected for PSF. Check the psf paths -> {psf_paths}"
 
 
     #Use CUDA for deconvolution
@@ -193,7 +193,6 @@ def _read_psf(psf_ch1_path:Path,
         temp_dir = tempfile.gettempdir()+os.sep
      
     for idx,psf in enumerate(psf_paths):
-
         if os.path.exists(psf) and psf.is_file():
             if os.path.splitext(psf.__str__())[1] == ".czi":
                 from aicspylibczi import CziFile

@@ -76,6 +76,7 @@ def _napari_lattice_widget_wrapper():
                 
                 #list to store psf images for each channel
                 LLSZWidget.LlszMenu.lattice.psf = []
+                LLSZWidget.LlszMenu.lattice.psf_num_iter=10
                 #list to store otf paths for each channel
                 LLSZWidget.LlszMenu.lattice.otf_path = []
                 LLSZWidget.LlszMenu.lattice.decon_processing = "cpu"
@@ -151,7 +152,8 @@ def _napari_lattice_widget_wrapper():
                          psf_ch2_path={"widget_type": "FileEdit","label":"Channel 2"},
                          psf_ch3_path={"widget_type": "FileEdit","label":"Channel 3"},
                          psf_ch4_path={"widget_type": "FileEdit","label":"Channel 4"},
-                         use_gpu_decon = {"widget_type": "ComboBox","label":"Choose processing device","choices":["cpu","cuda_gpu"]}
+                         use_gpu_decon = {"widget_type": "ComboBox","label":"Choose processing device","choices":["cpu","cuda_gpu"]},
+                         no_iter = {"widget_type":"SpinBox","label":"No of iterations (Deconvolution)","value":10,"min":1,"max":50,"step":1}
                          )
             def deconvolution_gui(self,
                                     header,
@@ -159,7 +161,8 @@ def _napari_lattice_widget_wrapper():
                                     psf_ch2_path:Path,
                                     psf_ch3_path:Path,
                                     psf_ch4_path:Path,
-                                    use_gpu_decon:str):
+                                    use_gpu_decon:str,
+                                    no_iter:int):
                         #move function to ui_core; 
                         #create list with psf image arrays for each channel
                         #index corresponds to channel no
@@ -171,7 +174,7 @@ def _napari_lattice_widget_wrapper():
                           psf_ch4_path,
                           use_gpu_decon,
                           LLSZWidget)
-                
+                LLSZWidget.LlszMenu.lattice.psf_num_iter = no_iter
                 self["deconvolution_gui"].background_color = "green"
                 self["deconvolution_gui"].text = "PSFs added"
                 
@@ -327,7 +330,8 @@ def _napari_lattice_widget_wrapper():
                                                                                 z_end = z_end,
                                                                                 deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                                                 decon_processing = LLSZWidget.LlszMenu.lattice.decon_processing,
-                                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel]).astype(vol_zyx.dtype)
+                                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel],
+                                                                                num_iter = LLSZWidget.LlszMenu.lattice.psf_num_iter).astype(vol_zyx.dtype)
                                 else:
                                     crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx,
                                                                                 deskewed_volume=deskewed_volume, 
@@ -340,7 +344,8 @@ def _napari_lattice_widget_wrapper():
                                                                                 z_end = z_end,
                                                                                 deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                                                 decon_processing = LLSZWidget.LlszMenu.lattice.decon_processing,
-                                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel]).astype(vol_zyx.dtype)
+                                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel],
+                                                                                num_iter = LLSZWidget.LlszMenu.lattice.psf_num_iter).astype(vol_zyx.dtype)
                             else:
                                 crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx,
                                                                             deskewed_volume=deskewed_volume, 
@@ -606,14 +611,15 @@ def _napari_lattice_widget_wrapper():
                                                     dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxdata=LLSZWidget.LlszMenu.lattice.dx,
                                                     dzpsf=LLSZWidget.LlszMenu.lattice.dz,
-                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx)
+                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx,
+                                                    num_iter=LLSZWidget.LlszMenu.lattice.psf_num_iter)
                                     #user_workflow.set(input_arg_first_decon,"deconvolution")
                                 else:
                                     user_workflow.set("deconvolution",
                                                     skimage_decon,
                                                     vol_zyx=vol_zyx,
                                                     psf=LLSZWidget.LlszMenu.lattice.psf[channel],
-                                                    num_iter=10,
+                                                    num_iter=LLSZWidget.LlszMenu.lattice.psf_num_iter,
                                                     clip=False,
                                                     filter_epsilon=0,
                                                     boundary='nearest')
@@ -663,14 +669,15 @@ def _napari_lattice_widget_wrapper():
                                                     dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxdata=LLSZWidget.LlszMenu.lattice.dx,
                                                     dzpsf=LLSZWidget.LlszMenu.lattice.dz,
-                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx)
+                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx,
+                                                    num_iter=LLSZWidget.LlszMenu.lattice.psf_num_iter)
                                     #user_workflow.set(input_arg_first,"deconvolution")
                                 else:
                                     user_workflow.set("deconvolution",
                                                     skimage_decon,
                                                     vol_zyx=vol_zyx,
                                                     psf=LLSZWidget.LlszMenu.lattice.psf[channel],
-                                                    num_iter=10,
+                                                    num_iter=LLSZWidget.LlszMenu.lattice.psf_num_iter,
                                                     clip=False,
                                                     filter_epsilon=0,
                                                     boundary='nearest')
@@ -896,14 +903,15 @@ def _napari_lattice_widget_wrapper():
                                                     dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxdata=LLSZWidget.LlszMenu.lattice.dx,
                                                     dzpsf=LLSZWidget.LlszMenu.lattice.dz,
-                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx)
+                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx,
+                                                    num_iter=LLSZWidget.LlszMenu.lattice.psf_num_iter)
                                     #user_workflow.set(input_arg_first,"deconvolution")
                                 else:
                                     user_workflow.set("deconvolution",
                                                     skimage_decon,
                                                     vol_zyx=input,
                                                     psf=psf_arg,
-                                                    num_iter=10,
+                                                    num_iter=LLSZWidget.LlszMenu.lattice.psf_num_iter,
                                                     clip=False,
                                                     filter_epsilon=0,
                                                     boundary='nearest')
@@ -952,14 +960,15 @@ def _napari_lattice_widget_wrapper():
                                                     dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                                     dxdata=LLSZWidget.LlszMenu.lattice.dx,
                                                     dzpsf=LLSZWidget.LlszMenu.lattice.dz,
-                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx)
+                                                    dxpsf=LLSZWidget.LlszMenu.lattice.dx,
+                                                    num_iter=LLSZWidget.LlszMenu.lattice.psf_num_iter)
                                     #user_workflow.set(input_arg_first,"deconvolution")
                                 else:
                                     user_workflow.set("deconvolution",
                                                     skimage_decon,
                                                     vol_zyx=input,
                                                     psf=psf_arg,
-                                                    num_iter=10,
+                                                    num_iter=LLSZWidget.LlszMenu.lattice.psf_num_iter,
                                                     clip=False,
                                                     filter_epsilon=0,
                                                     boundary='nearest')

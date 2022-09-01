@@ -23,7 +23,8 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
                         deconvolution:bool = False,
                         decon_processing:str=None,
                         psf=None,
-                        otf_path=None):
+                        otf_path=None,
+                        num_iter:int=10):
 
     """
         Uses coordinates from deskewed space to find corresponding coordinates in original volume 
@@ -130,15 +131,18 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
                                    dzdata=voxel_size_z,
                                    dxdata=voxel_size_x,
                                    dzpsf=voxel_size_z,
-                                   dxpsf=voxel_size_x)
+                                   dxpsf=voxel_size_x,
+                                   num_iter=num_iter)
         else:
             crop_volume = skimage_decon(vol_zyx=crop_volume, 
                                     psf=psf, 
-                                    num_iter=10, clip=False, filter_epsilon=0, boundary='nearest')
+                                    num_iter=num_iter,
+                                    clip=False, filter_epsilon=0, boundary='nearest')
       
     deskewed_prelim = cle.affine_transform(crop_volume, 
                                            transform =deskew_transform,
-                                           auto_size=True)
+                                           auto_size=True)#,
+                                           #linear_interpolation=True)
     
     #The height of deskewed_prelim will be larger than specified shape
     # as the coordinates of the ROI are skewed in the original volume
@@ -297,7 +301,13 @@ def _yield_arr_slice(img):
 #Ideally we want to use OpenCL, but in the case of deconvolution most CUDA based
 #libraries are better designed.. Atleast until  RL deconvolution is available in pyclesperant
 # Talley Lamberts pycudadecon is a great library and highly optimised.
-def pycuda_decon(image,otf_path=None,dzdata=0.3,dxdata=0.1449922,dzpsf=0.3,dxpsf=0.1449922,psf=None):
+def pycuda_decon(image,otf_path=None,
+                 dzdata=0.3,
+                 dxdata=0.1449922,
+                 dzpsf=0.3,
+                 dxpsf=0.1449922,
+                 psf=None,
+                 num_iter:int=10):
     """Perform deconvolution using pycudadecon
     pycudadecon can return cropped images, so we pad the iamges before deconvolution
     if providing psf, will use that first, if not uses otf_path
@@ -343,7 +353,7 @@ def pycuda_decon(image,otf_path=None,dzdata=0.3,dxdata=0.1449922,dzpsf=0.3,dxpsf
         #Temporary OTF generation; RLContext ensures memory cleanup (runs rl_init and rl_cleanup)
         with TemporaryOTF(psf) as otf:
             with RLContext(rawdata_shape=image.shape, otfpath=otf.path, dzdata=dzdata, dxdata=dxdata,dzpsf=dzpsf,dxpsf=dxpsf) as ctx:
-                decon_res = rl_decon(im=image, output_shape = ctx.out_shape)
+                decon_res = rl_decon(im=image, output_shape = ctx.out_shape,n_iters=num_iter)
 
     else:  
         from pycudadecon import rl_decon,rl_init,rl_cleanup

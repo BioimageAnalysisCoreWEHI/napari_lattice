@@ -196,15 +196,17 @@ def save_img(vol,
                     print("cuda")
                     raw_vol = pycuda_decon(image = raw_vol, 
                                            #otf_path = LLSZWidget.LlszMenu.lattice.otf_path[ch],
-                                           psf = LLSZWidget.LlszMenu.lattice.psf[ch],
-                                           dzdata=LLSZWidget.LlszMenu.lattice.dz,
-                                           dxdata=LLSZWidget.LlszMenu.lattice.dx,
-                                           dzpsf=LLSZWidget.LlszMenu.lattice.dz,
-                                           dxpsf=LLSZWidget.LlszMenu.lattice.dx)
+                                           psf = lattice_class.psf[ch],
+                                           dzdata=lattice_class.dz,
+                                           dxdata=lattice_class.dx,
+                                           dzpsf=lattice_class.dz,
+                                           dxpsf=lattice_class.dx,
+                                           num_iter=lattice_class.psf_num_iter)
                 else:
                     raw_vol = skimage_decon(vol_zyx=raw_vol, 
-                                            psf=LLSZWidget.LlszMenu.lattice.psf[ch], 
-                                            num_iter=10, clip=False, filter_epsilon=0, boundary='nearest')
+                                            psf=lattice_class.psf[ch], 
+                                            num_iter=lattice_class.psf_num_iter,
+                                            clip=False, filter_epsilon=0, boundary='nearest')
             
 
             #The following will apply the user-passed function to the input image
@@ -215,6 +217,7 @@ def save_img(vol,
                                      deconvolution=decon_value,
                                      decon_processing = decon_option,
                                      psf=lattice_class.psf[ch],
+                                     num_iter=lattice_class.psf_num_iter,
                                      *args,**kwargs).astype(image_type)
             elif func is crop_volume_deskew:
                 processed_vol = func(original_volume = raw_vol, *args,**kwargs).astype(image_type)
