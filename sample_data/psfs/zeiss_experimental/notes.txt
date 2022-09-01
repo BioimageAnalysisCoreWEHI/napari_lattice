@@ -1,5 +1,0 @@
-created using PSF wizard in Zen 3.4
-from 30x1000 _3color.czi
-
-100 nm beads
-3 channels
