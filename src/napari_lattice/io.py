@@ -189,7 +189,7 @@ def save_img(vol,
             image_type = raw_vol.dtype
 
             #If deconvolution is checked
-            if decon_value:
+            if decon_value and func != crop_volume_deskew:
                 #Use CUDA or skimage for deconvolution based on user choice
                 if decon_option =="cuda_gpu":
                     print("cuda")
@@ -204,11 +204,17 @@ def save_img(vol,
                     raw_vol = skimage_decon(vol_zyx=raw_vol, 
                                             psf=LLSZWidget.LlszMenu.lattice.psf[ch], 
                                             num_iter=10, clip=False, filter_epsilon=0, boundary='nearest')
-      
+            
 
             #The following will apply the user-passed function to the input image
             if func is cle.deskew_y:
                 processed_vol = func(input_image = raw_vol, *args,**kwargs).astype(image_type)
+            elif func is crop_volume_deskew and decon_value==True:
+                processed_vol = func(original_volume = raw_vol,
+                                     deconvolution=decon_value,
+                                     decon_processing = decon_option,
+                                     psf=lattice_class.psf[ch],
+                                     *args,**kwargs).astype(image_type)
             elif func is crop_volume_deskew:
                 processed_vol = func(original_volume = raw_vol, *args,**kwargs).astype(image_type)
             else:

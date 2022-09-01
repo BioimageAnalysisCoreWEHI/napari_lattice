@@ -340,7 +340,7 @@ def _napari_lattice_widget_wrapper():
                                                                                 z_end = z_end,
                                                                                 deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                                                 decon_processing = LLSZWidget.LlszMenu.lattice.decon_processing,
-                                                                                psf=psf).astype(vol_zyx.dtype)
+                                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel]).astype(vol_zyx.dtype)
                             else:
                                 crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx,
                                                                             deskewed_volume=deskewed_volume, 
