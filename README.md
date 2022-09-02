@@ -42,17 +42,22 @@ https://napari.org/plugins/index.html
 
     If this version doesn't work, try `pyopencl‑2021.2.9+cl12‑cp39‑cp39‑win_amd64.whl`
 
-4. You need to install [napari](https://pypi.org/project/napari/) first. Once napari is installed, to install latest version of the napari_lattice plugin, by typing the following command in the terminal :
-
-        pip install git+https://github.com/BioimageAnalysisCoreWEHI/napari_lattice.git
-
-The plugin will be made available by napari-> Install/Uninstall Plugins soon.
-
-5. If you have an NVIDIA graphics card, you can make deconvolution fast by installing Talley Lamberts' library `pycudadecon`.
+4. You need to install [napari](https://pypi.org/project/napari/) first. Once napari is installed, you can find napari-lattice by going to Plugins -> Install/Uninstall Plugins, and typing "lattice" into the search bar. Once napari-lattice pops up under "Available Plugins", click the install button on the far right.
+   
+5. If you have an NVIDIA graphics card, you can make deconvolution much faster by installing Talley Lamberts' `pycudadecon` library.
 
         conda install -c conda-forge pycudadecon
 
 Check the [pycudadecon github page](https://github.com/tlambert03/pycudadecon)  if you're having trouble with installation.
+
+**************
+
+Alternatively, if you'd like to install latest version of the napari_lattice plugin, type the following command in the terminal :
+
+        pip install git+https://github.com/BioimageAnalysisCoreWEHI/napari_lattice.git
+
+
+
 
 *************
 ## **Features**
