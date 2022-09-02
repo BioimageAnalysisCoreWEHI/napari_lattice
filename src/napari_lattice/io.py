@@ -21,6 +21,7 @@ from napari_lattice.llsz_core import crop_volume_deskew, skimage_decon, pycuda_d
 
 from napari_lattice import config
 
+
 import os
 import numpy as np
 from napari.types import ImageData
@@ -362,7 +363,10 @@ def save_img_workflow(vol,
             else:
                 raw_vol = vol[time_point, ch, :, :, :]
             
-            #raw_vol = np.array(raw_vol)
+            #TODO: disable if support for resourc backed dask array is added
+            if type(raw_vol) in [resource_backed_dask_array]:
+                raw_vol = raw_vol.compute() #convert to numpy array as resource backed dask array not su
+            
             #to access current time and channel, create a file config.py in same dir as workflow or in home directory
             #add "channel = 0" and "time=0" in the file and save
             #https://docs.python.org/3/faq/programming.html?highlight=global#how-do-i-share-global-variables-across-modules
