@@ -581,21 +581,32 @@ def _napari_lattice_widget_wrapper():
                                 #roi to from micron to canvas/world coordinates
                                 roi_choice = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_choice]
                                 print("Previewing ROI ", roi_idx)
-                                
-                                user_workflow.set("crop_deskew_image",crop_volume_deskew,
-                                                            original_volume = vol_zyx, 
-                                                            deskewed_volume=deskewed_volume, 
-                                                            roi_shape = roi_choice, 
-                                                            angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle, 
-                                                            voxel_size_x =LLSZWidget.LlszMenu.lattice.dx, 
-                                                            voxel_size_y =LLSZWidget.LlszMenu.lattice.dy, 
-                                                            voxel_size_z =LLSZWidget.LlszMenu.lattice.dz, 
-                                                            z_start = z_start, 
-                                                            z_end = z_end,
-                                                            deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
-                                                            decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
-                                                            otf_path=otf_path,
-                                                            psf=LLSZWidget.LlszMenu.lattice.psf[channel])
+                                if LLSZWidget.LlszMenu.deconvolution.value:
+                                    user_workflow.set("crop_deskew_image",crop_volume_deskew,
+                                                                original_volume = vol_zyx, 
+                                                                deskewed_volume=deskewed_volume, 
+                                                                roi_shape = roi_choice, 
+                                                                angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle, 
+                                                                voxel_size_x =LLSZWidget.LlszMenu.lattice.dx, 
+                                                                voxel_size_y =LLSZWidget.LlszMenu.lattice.dy, 
+                                                                voxel_size_z =LLSZWidget.LlszMenu.lattice.dz, 
+                                                                z_start = z_start, 
+                                                                z_end = z_end,
+                                                                deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
+                                                                decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
+                                                                otf_path=otf_path,
+                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel])
+                                else:
+                                    user_workflow.set("crop_deskew_image",crop_volume_deskew,
+                                                                original_volume = vol_zyx, 
+                                                                deskewed_volume=deskewed_volume, 
+                                                                roi_shape = roi_choice, 
+                                                                angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle, 
+                                                                voxel_size_x =LLSZWidget.LlszMenu.lattice.dx, 
+                                                                voxel_size_y =LLSZWidget.LlszMenu.lattice.dy, 
+                                                                voxel_size_z =LLSZWidget.LlszMenu.lattice.dz, 
+                                                                z_start = z_start, 
+                                                                z_end = z_end)
                                 
                                 #Set input of the workflow to be  crop_deskewing, i.e., the original first operation will now have crop_deskew_image as an input (becoming second instead)
                                 user_workflow.set(input_arg_first,"crop_deskew_image")
