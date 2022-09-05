@@ -561,20 +561,35 @@ class LatticeData():
                     img_data_aics = img.metadata['aicsimage']
                     self.data = img_data_aics.dask_data
                     self.dims = img_data_aics.dims
-                    self.time = img_data_aics.dims.T
-                    self.channels = img_data_aics.dims.C
+                    #if aicsimageio tiffreader assigns last dim as time when it should be channel, user can override this
+                    if channel_dimension:
+                        print("User override: last dimension is channel")
+                        if len(img.data.shape)==4:
+                            self.channels = img.data.shape[0]
+                            self.time=0
+                            
+                        elif len(self.data.shape)==5:
+                            self.channels = img.data.shape[0]
+                            self.time = img.data.shape[1]
+                        #if last axes is channel, then need to swap axes for channel and time
+                        self.data = np.swapaxes(self.data,0,1)
+                    else:
+                        self.time = img_data_aics.dims.T
+                        self.channels = img_data_aics.dims.C
                 else: 
                     #if no aicsimageio key in metadata
                     #get the data and convert it into an aicsimage object
                     img_data_aics = aicsimageio.AICSImage(img.data)
                     self.data = img_data_aics.dask_data
                     if channel_dimension:
+                        print("User override: last dimension is channel")
                         if len(img.data.shape)==4:
                             self.channels = img.data.shape[0]
                             self.time=0
                         elif len(img.data.shape)==5:
                             self.channels = img.data.shape[0]
                             self.time = img.data.shape[1]
+
                     else:
                         self.time = img.data.shape[0]
                         self.channels = img.data.shape[1]
@@ -635,7 +650,7 @@ class LatticeData():
                 
         #process the file to get shape of final deskewed image
         self.deskew_vol_shape = get_deskewed_shape(self.data, self.angle,self.dx,self.dy,self.dz)
-
+        print(f"Channels: {self.channels}, Time: {self.time}")
         pass 
 
     def get_angle(self):

@@ -26,8 +26,8 @@ def _Preview(LLSZWidget,
     
     print("Previewing deskewed channel and time")
     assert img_data.size, "No image open or selected"
-    assert time< LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
-    assert channel < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
+    assert time<= LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
+    assert channel <= LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
     
     assert str.upper(LLSZWidget.LlszMenu.lattice.skew) in ('Y', 'X'), \
         "Skew direction not recognised. Enter either Y or X"

@@ -51,14 +51,16 @@ def _napari_lattice_widget_wrapper():
             @set_options(pixel_size_dx={"widget_type": "FloatSpinBox", "value":0.1449922,"step": 0.000000001},
                          pixel_size_dy={"widget_type": "FloatSpinBox", "value":0.1449922, "step": 0.000000001},
                          pixel_size_dz={"widget_type": "FloatSpinBox", "value":0.3, "step": 0.000000001},
-                         last_dimension_channel={"widget_type":"CheckBox","value":False,"label":"Last dimension is channel (use for tiff)","tooltip":"If opening tiff files and last dimension is channel with no time dimension, check this box"}
+                         last_dimension_channel = {"widget_type":"CheckBox","value":False,"label":"Last dimension is channel (use for tiff)","tooltip":"If opening tiff files and last dimension is channel with no time dimension, check this box"},
+                         merge_all_channel_layers = {"widget_type":"CheckBox","value":False,"label":"Merge all napari layers as channels","tooltip":"Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"}
                          )
             def Choose_Image_Layer(self,
                                       img_layer:Layer,
                                       pixel_size_dx: float = 0.1449922, 
                                       pixel_size_dy: float = 0.1449922,
                                       pixel_size_dz: float = 0.3,
-                                      last_dimension_channel:bool=False, 
+                                      last_dimension_channel:bool=False,
+                                      merge_all_channel_layers:bool=False, 
                                       skew_dir: str="Y"):
                 
                 print("Using existing image layer")
@@ -69,6 +71,23 @@ def _napari_lattice_widget_wrapper():
                 elif skew_dir == "Y":
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_y
 
+                
+                #merge all napari image layers as one multidimensional image
+                if merge_all_channel_layers:
+                    from napari.layers.utils.stack_utils import images_to_stack
+                    #get list of napari layers as a list
+                    layer_list = list(self.parent_viewer.layers)
+                    #convert the list of images into a stack
+                    new_layer = images_to_stack(layer_list)
+                    #select all current layers
+                    self.parent_viewer.layers.select_all()
+                    #remove selected layers
+                    self.parent_viewer.layers.remove_selected()
+                    #add the new composite image layer
+                    self.parent_viewer.add_layer(new_layer)
+                    img_layer = new_layer
+                
+                
                 LLSZWidget.LlszMenu.lattice = LatticeData(img = img_layer, 
                                                           angle = 30.0, 
                                                           skew = skew_dir,
@@ -88,16 +107,19 @@ def _napari_lattice_widget_wrapper():
                 LLSZWidget.LlszMenu.lattice.decon_processing = "cpu"
                 
                 LLSZWidget.LlszMenu.open_file = True
+                
+
+                
                 print("Pixel size (ZYX): ",(LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx))
                 print("Dimensions of image layer (ZYX): ",list(LLSZWidget.LlszMenu.lattice.data.shape[-3:]))
                 print("Dimensions of deskewed image (ZYX): ",LLSZWidget.LlszMenu.lattice.deskew_vol_shape)
-                print("Initialised")
 
-                self["Choose_Image_Layer"].background_color = "green"
-                self["Choose_Image_Layer"].text = "Plugin Initialised"
                 
                 #Add dimension labels
-                if LLSZWidget.LlszMenu.lattice.channels == 1:
+                #if only one channel or time dimension
+                if LLSZWidget.LlszMenu.lattice.time == 0 and last_dimension_channel and LLSZWidget.LlszMenu.lattice.channels>0:
+                    self.parent_viewer.dims.axis_labels = list(('Channel',"Z","Y","X"))
+                elif LLSZWidget.LlszMenu.lattice.channels == 0 and LLSZWidget.LlszMenu.lattice.time > 0:
                     self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
                 elif LLSZWidget.LlszMenu.lattice.channels >1:
                     #If merge to stack is used, channel slider goes to the bottom
@@ -108,6 +130,10 @@ def _napari_lattice_widget_wrapper():
                 elif LLSZWidget.LlszMenu.lattice.channels==1 and  LLSZWidget.LlszMenu.lattice.time>1:
                     self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
 
+                print("Initialised")
+                self["Choose_Image_Layer"].background_color = "green"
+                self["Choose_Image_Layer"].text = "Plugin Initialised"
+                
                 return
                 
 
