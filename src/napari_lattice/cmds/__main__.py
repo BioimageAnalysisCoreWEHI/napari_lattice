@@ -268,7 +268,8 @@ def main():
                                                 angle_in_degrees = deskew_angle,
                                                 voxel_size_x = dx,
                                                 voxel_size_y= dy,
-                                                voxel_size_z = dz)
+                                                voxel_size_z = dz,
+                                                linear_interpolation=True)
                                 #Set input of the workflow to be from deskewing
                                 #change the first task so it accepts "deskew_image" as input
                     new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="deskew_image",workflow=user_workflow)
@@ -316,7 +317,8 @@ def main():
                         angle_in_degrees = deskew_angle,
                         voxel_size_x=dx,
                         voxel_size_y=dy,
-                        voxel_size_z=dz
+                        voxel_size_z=dz,
+                        linear_interpolation=True
                         )    
                 
             else:

@@ -141,8 +141,8 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
       
     deskewed_prelim = cle.affine_transform(crop_volume, 
                                            transform =deskew_transform,
-                                           auto_size=True)#,
-                                           #linear_interpolation=True)
+                                           auto_size=True,
+                                           linear_interpolation=True)
     
     #The height of deskewed_prelim will be larger than specified shape
     # as the coordinates of the ROI are skewed in the original volume

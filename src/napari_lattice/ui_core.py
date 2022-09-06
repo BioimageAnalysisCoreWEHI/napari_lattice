@@ -58,14 +58,16 @@ def _Preview(LLSZWidget,
                                 angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
                                 voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
                                 voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
-                                voxel_size_z=LLSZWidget.LlszMenu.lattice.dz).astype(vol.dtype)
+                                voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
+                                linear_interpolation=True).astype(vol.dtype)
     else:
         print("Deskewing for Time:", time,"and Channel: ", channel)
         deskew_final = cle.deskew_y(vol_zyx, 
                                 angle_in_degrees=LLSZWidget.LlszMenu.angle_value,
                                 voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
                                 voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
-                                voxel_size_z=LLSZWidget.LlszMenu.lattice.dz).astype(vol.dtype)
+                                voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
+                                linear_interpolation=True).astype(vol.dtype)
 
     # if getting an error LogicError: clSetKernelArg failed:    #INVALID_ARG_SIZE - when processing arg#13 (1-based)
     # make sure array is pulled from GPU
@@ -135,6 +137,7 @@ def _Deskew_Save(LLSZWidget,
                           voxel_size_x=dx,
                           voxel_size_y=dy,
                           voxel_size_z=dz,
+                          linear_interpolation=True,
                           LLSZWidget = LLSZWidget)
                 
                 print("Deskewing and Saving Complete -> ", save_path)
