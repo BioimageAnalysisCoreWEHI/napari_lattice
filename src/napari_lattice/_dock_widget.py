@@ -51,8 +51,8 @@ def _napari_lattice_widget_wrapper():
             @set_options(pixel_size_dx={"widget_type": "FloatSpinBox", "value":0.1449922,"step": 0.000000001},
                          pixel_size_dy={"widget_type": "FloatSpinBox", "value":0.1449922, "step": 0.000000001},
                          pixel_size_dz={"widget_type": "FloatSpinBox", "value":0.3, "step": 0.000000001},
-                         last_dimension_channel = {"widget_type":"CheckBox","value":False,"label":"Last dimension is channel (use for tiff)","tooltip":"If opening tiff files and last dimension is channel with no time dimension, check this box"},
-                         merge_all_channel_layers = {"widget_type":"CheckBox","value":False,"label":"Merge all napari layers as channels","tooltip":"Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"}
+                         last_dimension_channel = {"widget_type": "ComboBox","choices":["Channel","Time","Get_from_metadata"],"value":"Get_from_metadata","label":"Set Last dimension (channel/time)","tooltip":"If the last dimension is initialised incorrectly, you can assign it as either channel/time"},
+                         merge_all_channel_layers = {"widget_type":"CheckBox","value":True,"label":"Merge all napari layers as channels","tooltip":"Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"}
                          )
             def Choose_Image_Layer(self,
                                       img_layer:Layer,
@@ -71,21 +71,25 @@ def _napari_lattice_widget_wrapper():
                 elif skew_dir == "Y":
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_y
 
-                
+                if last_dimension_channel == "Get_from_metadata":
+                    last_dimension_channel = None
+                    
                 #merge all napari image layers as one multidimensional image
                 if merge_all_channel_layers:
                     from napari.layers.utils.stack_utils import images_to_stack
                     #get list of napari layers as a list
                     layer_list = list(self.parent_viewer.layers)
-                    #convert the list of images into a stack
-                    new_layer = images_to_stack(layer_list)
-                    #select all current layers
-                    self.parent_viewer.layers.select_all()
-                    #remove selected layers
-                    self.parent_viewer.layers.remove_selected()
-                    #add the new composite image layer
-                    self.parent_viewer.add_layer(new_layer)
-                    img_layer = new_layer
+                    #if more than one layer
+                    if len(layer_list)>1:
+                        #convert the list of images into a stack
+                        new_layer = images_to_stack(layer_list)
+                        #select all current layers
+                        self.parent_viewer.layers.select_all()
+                        #remove selected layers
+                        self.parent_viewer.layers.remove_selected()
+                        #add the new composite image layer
+                        self.parent_viewer.add_layer(new_layer)
+                        img_layer = new_layer
                 
                 
                 LLSZWidget.LlszMenu.lattice = LatticeData(img = img_layer, 
@@ -94,7 +98,7 @@ def _napari_lattice_widget_wrapper():
                                                           dx = pixel_size_dx, 
                                                           dy = pixel_size_dy,
                                                           dz = pixel_size_dz,
-                                                          channel_dimension=last_dimension_channel)
+                                                          last_dimension=last_dimension_channel)
                 #LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
 
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
@@ -116,17 +120,20 @@ def _napari_lattice_widget_wrapper():
 
                 
                 #Add dimension labels
-                #if only one channel or time dimension
-                if LLSZWidget.LlszMenu.lattice.time == 0 and last_dimension_channel and LLSZWidget.LlszMenu.lattice.channels>0:
+                #if channel, and not time
+                if LLSZWidget.LlszMenu.lattice.time == 0 and (last_dimension_channel or LLSZWidget.LlszMenu.lattice.channels>0):
                     self.parent_viewer.dims.axis_labels = list(('Channel',"Z","Y","X"))
+                #if no channel, but has time
                 elif LLSZWidget.LlszMenu.lattice.channels == 0 and LLSZWidget.LlszMenu.lattice.time > 0:
                     self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
+                #if it has channels
                 elif LLSZWidget.LlszMenu.lattice.channels >1:
                     #If merge to stack is used, channel slider goes to the bottom
                     if int(self.parent_viewer.dims.dict()["range"][0][1]) == LLSZWidget.LlszMenu.lattice.channels:
                         self.parent_viewer.dims.axis_labels = list(('Channel',"Time","Z","Y","X"))
                     else:
                         self.parent_viewer.dims.axis_labels = list(('Time',"Channel","Z","Y","X"))
+                #if channels initialized by aicsimagio, then channels is 1
                 elif LLSZWidget.LlszMenu.lattice.channels==1 and  LLSZWidget.LlszMenu.lattice.time>1:
                     self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
 
@@ -674,7 +681,8 @@ def _napari_lattice_widget_wrapper():
                                                   angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle,
                                                   voxel_size_x = LLSZWidget.LlszMenu.lattice.dx,
                                                   voxel_size_y= LLSZWidget.LlszMenu.lattice.dy,
-                                                  voxel_size_z = LLSZWidget.LlszMenu.lattice.dz)
+                                                  voxel_size_z = LLSZWidget.LlszMenu.lattice.dz,
+                                                  linear_interpolation=True)
                                 
                                 #user_workflow.set("change_bitdepth",as_type,"deskew_image",vol_zyx)
                                 #Set input of the workflow to be from deskewing output with same bit depth as original volume
@@ -687,7 +695,8 @@ def _napari_lattice_widget_wrapper():
                                                     angle_in_degrees = LLSZWidget.LlszMenu.lattice.angle,
                                                     voxel_size_x = LLSZWidget.LlszMenu.lattice.dx,
                                                     voxel_size_y= LLSZWidget.LlszMenu.lattice.dy,
-                                                    voxel_size_z = LLSZWidget.LlszMenu.lattice.dz)
+                                                    voxel_size_z = LLSZWidget.LlszMenu.lattice.dz,
+                                                    linear_interpolation=True)
                                 #Set input of the workflow to be from deskewing
                                 #user_workflow.set(input_arg_first,"deskew_image")
                             
@@ -925,7 +934,8 @@ def _napari_lattice_widget_wrapper():
                                             angle_in_degrees = angle,
                                             voxel_size_x = dx,
                                             voxel_size_y= dy,
-                                            voxel_size_z = dz)
+                                            voxel_size_z = dz,
+                                            linear_interpolation=True)
                             #Set input of the workflow to be from deskewing
                             #change workflow task starts from is "deskew_image" and 
                             new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="deskew_image",workflow=user_workflow)

@@ -114,7 +114,7 @@ def save_img(vol,
         angle(float, optional) = Deskewing angle in degrees, used to calculate new z
         LLSZWidget(class,optional) = LLSZWidget class
     """              
-    
+
     save_path = save_path.__str__()
     
     #replace any : with _ and remove spaces in case it hasn't been processed/skipped
@@ -539,10 +539,10 @@ def save_img_workflow(vol,
 
     return
 
-#class for initiliazing lattice data and setting metadata
+#class for initializing lattice data and setting metadata
 #TODO: handle scenes
 class LatticeData():
-    def __init__(self,img,angle,skew,dx,dy,dz,channel_dimension) -> None:
+    def __init__(self,img,angle,skew,dx,dy,dz,last_dimension) -> None:
         self.angle = angle
         self.skew = skew
         #if image layer
@@ -562,17 +562,21 @@ class LatticeData():
                     self.data = img_data_aics.dask_data
                     self.dims = img_data_aics.dims
                     #if aicsimageio tiffreader assigns last dim as time when it should be channel, user can override this
-                    if channel_dimension:
-                        print("User override: last dimension is channel")
+                    if last_dimension:
                         if len(img.data.shape)==4:
-                            self.channels = img.data.shape[0]
-                            self.time=0
-                            
-                        elif len(self.data.shape)==5:
-                            self.channels = img.data.shape[0]
-                            self.time = img.data.shape[1]
-                        #if last axes is channel, then need to swap axes for channel and time
-                        self.data = np.swapaxes(self.data,0,1)
+                            if last_dimension.lower() == "channel":
+                                self.channels = img.data.shape[0]
+                                self.time=0
+                            elif last_dimension.lower() == "time":
+                                self.time = img.data.shape[0]
+                                self.channels=0
+                        elif len(img.data.shape)==5:
+                            if last_dimension.lower() == "channel":
+                                self.channels = img.data.shape[0]
+                                self.time = img.data.shape[1]
+                            elif last_dimension.lower() == "time":
+                                self.time = img.data.shape[0]
+                                self.channels = img.data.shape[1]                       
                     else:
                         self.time = img_data_aics.dims.T
                         self.channels = img_data_aics.dims.C
@@ -581,19 +585,43 @@ class LatticeData():
                     #get the data and convert it into an aicsimage object
                     img_data_aics = aicsimageio.AICSImage(img.data)
                     self.data = img_data_aics.dask_data
-                    if channel_dimension:
-                        print("User override: last dimension is channel")
+                    #if user has specified ch
+                    if last_dimension:
                         if len(img.data.shape)==4:
-                            self.channels = img.data.shape[0]
-                            self.time=0
+                            if last_dimension.lower() == "channel":
+                                self.channels = img.data.shape[0]
+                                self.time=0
+                            elif last_dimension.lower() == "time":
+                                self.time = img.data.shape[0]
+                                self.channels=0
                         elif len(img.data.shape)==5:
-                            self.channels = img.data.shape[0]
-                            self.time = img.data.shape[1]
-
+                            if last_dimension.lower() == "channel":
+                                self.channels = img.data.shape[0]
+                                self.time = img.data.shape[1]
+                            elif last_dimension.lower() == "time":
+                                self.time = img.data.shape[0]
+                                self.channels = img.data.shape[1]
                     else:
-                        self.time = img.data.shape[0]
-                        self.channels = img.data.shape[1]
-                
+                        if last_dimension:
+                            if len(img.data.shape)==4:
+                                if last_dimension.lower() == "channel":
+                                    self.channels = img.data.shape[0]
+                                    self.time=0
+                                elif last_dimension.lower() == "time":
+                                    self.time = img.data.shape[0]
+                                    self.channels=0
+                            elif len(img.data.shape)==5:
+                                if last_dimension.lower() == "channel":
+                                    self.channels = img.data.shape[0]
+                                    self.time = img.data.shape[1]
+                                elif last_dimension.lower() == "time":
+                                    self.time = img.data.shape[0]
+                                    self.channels = img.data.shape[1]
+                        else:
+                            
+                            self.time = img.data.shape[0]
+                            self.channels = img.data.shape[1]
+                            
                 #read metadata for pixel sizes
                 if None in img_data_aics.physical_pixel_sizes or img_data_aics.physical_pixel_sizes== False:
                     self.dx = dx
@@ -601,12 +629,16 @@ class LatticeData():
                     self.dz = dz
                 else:
                     self.dz,self.dy,self.dx = img.data.physical_pixel_sizes
-                #if not channel_dimension:
+                #if not last_dimension:
                 #if xarray, access data using .data method
                     #if type(img.data) in [xarray.core.dataarray.DataArray,np.ndarray]:
                         #img = img.data
                 #img = dask_expand_dims(img,axis=1) ##if no channel dimension specified, then expand axis at index 1
             #if no path returned by source.path, get image name with colon and spaces removed
+            #if last axes of "aicsimage data" shape is not equal to time, then swap channel and time
+            if self.data.shape[0]!= self.time or self.data.shape[1]!= self.channels:
+                self.data = np.swapaxes(self.data,0,1)
+            
             if img.source.path is None:
                 self.save_name = img.name.replace(":","").strip() #remove colon (:) and any leading spaces
                 self.save_name = '_'.join(self.save_name.split()) #replace any group of spaces with "_"
@@ -651,6 +683,7 @@ class LatticeData():
         #process the file to get shape of final deskewed image
         self.deskew_vol_shape = get_deskewed_shape(self.data, self.angle,self.dx,self.dy,self.dz)
         print(f"Channels: {self.channels}, Time: {self.time}")
+        print("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
         pass 
 
     def get_angle(self):
