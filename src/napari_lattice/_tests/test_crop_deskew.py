@@ -26,7 +26,8 @@ def test_crop_deskew():
                                             roi_shape = roi,
                                             angle_in_degrees = deskew_angle,
                                             z_start = z1, 
-                                            z_end = z2).astype(raw.dtype)
+                                            z_end = z2,
+                                            linear_interpolation=False).astype(raw.dtype)
     #check if both crops have matching value at position 0,1,0
     assert ref_crop_deskew_img[0,1,0] ==1
     assert cropped_deskew_img[0,1,0] ==1
