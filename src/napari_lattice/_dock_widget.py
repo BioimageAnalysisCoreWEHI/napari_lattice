@@ -1,5 +1,4 @@
 import os, sys, yaml
-from aicsimageio import AICSImage
 import numpy as np
 from pathlib import Path
 import dask.array as da
@@ -751,7 +750,11 @@ def _napari_lattice_widget_wrapper():
                                     df_temp = process_custom_workflow_output(i,parent_dir,idx,LLSZWidget,self,channel,time,preview=True)
                                     final_df = pd.concat([df,df_temp])
                                     #append dataframes from every loop and have table command outside loop?
-                                widgets.Table(value=final_df).show() 
+                                #TODO: Figure out why table is not displaying
+                                from napari_spreadsheet import _widget
+                                table_viewer = _widget.TableViewerWidget(show=True)
+                                table_viewer.add_spreadsheet(final_df)
+                                #widgets.Table(value=final_df).show() 
 
                         else:
                             #add image to napari window
@@ -759,7 +762,7 @@ def _napari_lattice_widget_wrapper():
                             process_custom_workflow_output(processed_vol,parent_dir,0,LLSZWidget,self,channel,time)
 
                         print("Workflow complete")
-                        return
+                        pass
                     
                     @magicgui(header=dict(widget_type="Label", label="<h3>Apply Workflow and Save Output</h3>"),
                               time_start=dict(label="Time Start:",max= 2**20),

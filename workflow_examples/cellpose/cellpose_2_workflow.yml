@@ -1,0 +1,7 @@
+!!python/object:napari_workflows._workflow.Workflow
+_tasks:
+  cellpose_multich: !!python/tuple
+  - !!python/name:cellpose_2.predict_cellpose_multich ''
+  - input
+  - nuclei
+  - cyto2

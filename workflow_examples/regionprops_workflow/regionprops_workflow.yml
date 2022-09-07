@@ -1,0 +1,18 @@
+!!python/object:napari_workflows._workflow.Workflow
+_tasks:
+  gaussian: !!python/tuple
+  - !!python/name:pyclesperanto_prototype.gaussian_blur ''
+  - input_img
+  - null
+  - 1
+  - 1
+  - 0
+  region_props: !!python/tuple
+  - !!python/name:measure_regionprops.measure_region_properties ''
+  - voronoi-otsu
+  voronoi-otsu: !!python/tuple
+  - !!python/name:pyclesperanto_prototype.voronoi_otsu_labeling ''
+  - gaussian
+  - null
+  - 14
+  - 0

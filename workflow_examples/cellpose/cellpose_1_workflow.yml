@@ -1,0 +1,6 @@
+!!python/object:napari_workflows._workflow.Workflow
+_tasks:
+  cellpose: !!python/tuple
+  - !!python/name:cellpose_1.predict_cellpose ''
+  - input
+  - cyto
