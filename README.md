@@ -16,19 +16,31 @@ Check the [Wiki page](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice
 
 
 *************
-## **Features**
+
 
 <p align="left">
 <img src="https://raw.githubusercontent.com/BioimageAnalysisCoreWEHI/napari_lattice/master/resources/LLSZ_window.png" alt="LLSZ_overview" width="500" >
 </p>
 
-Functions:
+**Functions**
+
 * Deskewing and deconvolution of Zeiss lattice lightsheet images
   * Ability to preview deskewed image at channel or timepoint of interest
-* Crop and deskew only a small portion of the image 
-* You can import ROIs created in ImageJ into the plugin for cropping
-* Create image processing workflows using napari-workflows and apply them to lattice lightsheet data
+* Crop and process only a small portion of the image 
+* Import ImageJ ROIs for cropping
+* Create image processing workflows using napari-workflows
 * Run deskewing, deconvolution and custom image processing workflows from the terminal
+* Files can be saved as h5 (BigDataViewer/BigStitcher) or tiff files
+
+**Key Features**
+
+Apply custom image processing workflows using `napari-workflows`. 
+* [Interactive workflow generation (no coding experience needed)](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki/5.-Workflows-(Interactive:-no-coding)#workflow)
+* [Use custom python functions/modules within workflows](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki/5.1-Workflows-(Custom-workflow))
+* [How to use Cellpose for cell segmentation](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki/5.1-Workflows-(Custom-workflow)#cellpose)
+
+
+Support will be added for ome-zarr files in the future.
 
 ----------------------------------
 
