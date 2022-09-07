@@ -75,7 +75,7 @@ Distributed under the terms of the [GPL-3.0 License] license,
 
 ## Issues
 
-If you encounter any problems, please [file an issue] along with a detailed description.
+If you encounter any problems, please [file an issue](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues) along with a detailed description.
 
 [napari]: https://github.com/napari/napari
 [Cookiecutter]: https://github.com/audreyr/cookiecutter
