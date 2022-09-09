@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/pypi/l/napari-lattice.svg?color=green)](https://github.com/githubuser/napari_lattice/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/napari-lattice.svg?color=green)](https://pypi.org/project/napari_lattice)
 [![Python Version](https://img.shields.io/pypi/pyversions/napari-lattice.svg?color=green)](https://python.org)
-[![tests](https://github.com/githubuser/napari-lattice/workflows/tests/badge.svg)](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/actions)
+[![tests](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/actions/workflows/test_and_deploy.yml/badge.svg)](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/actions/workflows/test_and_deploy.yml)
 [![codecov](https://codecov.io/gh/githubuser/napari-lattice/branch/main/graph/badge.svg)](https://codecov.io/gh/githubuser/napari-lattice)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-lattice)](https://napari-hub.org/plugins/napari-lattice)
 
@@ -75,7 +75,7 @@ Distributed under the terms of the [GPL-3.0 License] license,
 
 ## Issues
 
-If you encounter any problems, please [file an issue] along with a detailed description.
+If you encounter any problems, please [file an issue](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues) along with a detailed description.
 
 [napari]: https://github.com/napari/napari
 [Cookiecutter]: https://github.com/audreyr/cookiecutter
