@@ -54,7 +54,8 @@ def get_deskewed_shape(volume,
                         voxel_size_y_in_microns:float,
                         voxel_size_z_in_microns:float):
     """
-    Calculate shape of deskewed volume
+    Calculate shape of deskewed volume 
+    Also, returns affine transform
 
     Args:
         volume ([type]): Volume to deskew
@@ -65,6 +66,7 @@ def get_deskewed_shape(volume,
 
     Returns:
         tuple: Shape of deskewed volume in zyx
+        np.array: Affine transform for deskewing
     """
     from pyclesperanto_prototype._tier8._affine_transform import _determine_translation_and_bounding_box
 
@@ -80,7 +82,7 @@ def get_deskewed_shape(volume,
         volume = volume[0,0,...]
 
     new_shape, new_deskew_transform, _ = _determine_translation_and_bounding_box(volume, deskew_transform)
-    return new_shape
+    return new_shape, new_deskew_transform
 
 
 #https://stackoverflow.com/a/10076823

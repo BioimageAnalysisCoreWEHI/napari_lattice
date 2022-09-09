@@ -681,9 +681,10 @@ class LatticeData():
             self.new_dz = math.sin(self.angle * math.pi / 180.0) * self.dz
                 
         #process the file to get shape of final deskewed image
-        self.deskew_vol_shape = get_deskewed_shape(self.data, self.angle,self.dx,self.dy,self.dz)
+        self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(self.data, self.angle,self.dx,self.dy,self.dz)
         print(f"Channels: {self.channels}, Time: {self.time}")
         print("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
+
         pass 
 
     def get_angle(self):
