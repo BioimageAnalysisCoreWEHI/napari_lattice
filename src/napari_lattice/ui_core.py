@@ -26,8 +26,8 @@ def _Preview(LLSZWidget,
     
     print("Previewing deskewed channel and time")
     assert img_data.size, "No image open or selected"
-    assert time<= LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
-    assert channel <= LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
+    assert time< LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
+    assert channel < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
     
     assert str.upper(LLSZWidget.LlszMenu.lattice.skew) in ('Y', 'X'), \
         "Skew direction not recognised. Enter either Y or X"
@@ -101,10 +101,10 @@ def _Deskew_Save(LLSZWidget,
                  save_path: Path):
 
                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
-                assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be 0 or same as total time: "+str(LLSZWidget.LlszMenu.lattice.time)
-                assert 0<= time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be >0 or same as total time: "+str(LLSZWidget.LlszMenu.lattice.time)
+                assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Indexing starts from zero. Time start should be 0 or same as total time: "+str(LLSZWidget.LlszMenu.lattice.time)
+                assert 0<= time_end <LLSZWidget.LlszMenu.lattice.time, "Indexing ends at time-1. Time end should be 0 or  total time: "+str(LLSZWidget.LlszMenu.lattice.time -1)
                 assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or same as no. of channels: "+str(LLSZWidget.LlszMenu.lattice.channels)
-                assert 0<= ch_end <= LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels: " +str(LLSZWidget.LlszMenu.lattice.channels)
+                assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be 0 or or less than no. of channels: " +str(LLSZWidget.LlszMenu.lattice.channels -1)
               
                 #time_range = range(time_start, time_end)
                 #channel_range = range(ch_start, ch_end)

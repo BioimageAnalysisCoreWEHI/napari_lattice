@@ -183,7 +183,9 @@ def save_img(vol,
                 elif len(vol.shape) == 5:
                     raw_vol = vol[time_point, ch, :, :, :]
             except IndexError:
-                assert vol.shape in [3,4,5], f"Check shape of volume. Expected volume with shape 3,4 or 5. Got {vol.shape} with shape {len(vol.shape)}"
+                assert ch <=channel_end,f"Channel out of range. Got {ch}, but image has channels {channel_end+1}"
+                assert time_point <=channel_end,f"Channel out of range. Got {ch}, but image has channels {channel_end+1}"
+                assert len(vol.shape) in [3,4,5], f"Check shape of volume. Expected volume with shape 3,4 or 5. Got {vol.shape} with shape {len(vol.shape)}"
                 print(f"Using time points {time_point} and channel {ch}")
                 exit() 
             

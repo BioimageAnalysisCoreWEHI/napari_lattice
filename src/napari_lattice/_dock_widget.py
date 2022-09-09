@@ -431,9 +431,9 @@ def _napari_lattice_widget_wrapper():
                             else:
                                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
                                 assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be >0 or same as total time "+str(CropWidget.CropMenu.lattice.time)
-                                assert 0<=time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be between 0 and total time "+str(CropWidget.CropMenu.lattice.time)
+                                assert 0<=time_end <LLSZWidget.LlszMenu.lattice.time, "Time end should be between 0 and total time "+str(CropWidget.CropMenu.lattice.time)
                                 assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(CropWidget.CropMenu.lattice.channels)
-                                assert 0<= ch_end <= LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(CropWidget.CropMenu.lattice.channels)
+                                assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(CropWidget.CropMenu.lattice.channels)
                         
                                 angle = LLSZWidget.LlszMenu.lattice.angle
                                 dx = LLSZWidget.LlszMenu.lattice.dx
@@ -805,9 +805,9 @@ def _napari_lattice_widget_wrapper():
                         """                
                         assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
                         assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be 0 or >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time)
-                        assert 0<= time_end <=LLSZWidget.LlszMenu.lattice.time, "Time end should be >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time)
+                        assert 0<= time_end <LLSZWidget.LlszMenu.lattice.time, "Time end should be >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time)
                         assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(LLSZWidget.LlszMenu.lattice.channels)
-                        assert 0<= ch_end <= LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(LLSZWidget.LlszMenu.lattice.channels)
+                        assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(LLSZWidget.LlszMenu.lattice.channels)
 
                         #Get parameters
                         angle = LLSZWidget.LlszMenu.lattice.angle
