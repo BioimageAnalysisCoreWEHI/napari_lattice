@@ -37,7 +37,7 @@ def bdv_h5_reader(path):
     
     os.environ["HDF5_USE_FILE_LOCKING"] = "FALSE"
     
-    print(path)
+    #print(path)
     import npy2bdv
     h5_file = npy2bdv.npy2bdv.BdvEditor(path)
 
@@ -46,14 +46,36 @@ def bdv_h5_reader(path):
     #get dimensions of first image
     first_timepoint = h5_file.read_view(time=0,channel=0)
 
-    for time in range(h5_file.ntimes):
-        for ch in range(h5_file.nchannels):         
-            image = da.from_delayed(
-                        delayed(h5_file.read_view)(time=time,channel=ch), shape=first_timepoint.shape, dtype=first_timepoint.dtype
-                    )
-            img.append(image)
-           
-    images = da.stack(img)
+    #Threshold to figure out when to use out-of-memory loading/dask 
+    #Got the idea from napari-aicsimageio 
+    #https://github.com/AllenCellModeling/napari-aicsimageio/blob/22934757c2deda30c13f39ec425343182fa91a89/napari_aicsimageio/core.py#L222
+    mem_threshold_bytes = 4e9
+    mem_per_threshold = 0.3
+    
+    from psutil import virtual_memory
+    
+    file_size = os.path.getsize(path)
+    avail_mem = virtual_memory().available
+
+    #if file size <30% of available memory and <4GB, open 
+    if file_size<=mem_per_threshold*avail_mem and file_size<mem_threshold_bytes:
+        in_memory=True
+    else:
+        in_memory=False
+    
+    if in_memory:
+        for time in range(h5_file.ntimes):
+            for ch in range(h5_file.nchannels):
+                images = h5_file.read_view(time=time,channel=ch)
+    else:
+        for time in range(h5_file.ntimes):
+            for ch in range(h5_file.nchannels):         
+                image = da.from_delayed(
+                            delayed(h5_file.read_view)(time=time,channel=ch), shape=first_timepoint.shape, dtype=first_timepoint.dtype
+                        )
+                img.append(image)
+            
+        images = da.stack(img)
 
     
     # optional kwargs for the corresponding viewer.add_* method
