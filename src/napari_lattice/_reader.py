@@ -9,6 +9,8 @@ https://github.com/nvladimus/npy2bdv
 import dask.array as da
 import dask.delayed as delayed
 import os 
+import numpy as np
+
 def napari_get_reader(path):
     """Check if file ends with h5 and returns reader function if true
     Parameters
@@ -66,7 +68,10 @@ def bdv_h5_reader(path):
     if in_memory:
         for time in range(h5_file.ntimes):
             for ch in range(h5_file.nchannels):
-                images = h5_file.read_view(time=time,channel=ch)
+                image = h5_file.read_view(time=time,channel=ch)
+                img.append(image)
+        images=np.stack(img)
+        
     else:
         for time in range(h5_file.ntimes):
             for ch in range(h5_file.nchannels):         
