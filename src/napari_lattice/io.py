@@ -285,7 +285,7 @@ def save_img(vol,
                 metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},
                 imagej=True)
         im_final = None
-   
+
     return
 
 def save_img_workflow(vol,
@@ -553,8 +553,9 @@ class LatticeData():
         self.angle = angle
         self.skew = skew
         #if image layer
+
         if type(img) is image.Image: #napari layer image
-            #check if its an aicsimageio object and has voxel size info            
+            #check if its an aicsimageio object and has voxel size info
             if 'aicsimage' in img.metadata.keys() and img.metadata['aicsimage'].physical_pixel_sizes != (None,None,None):
                 img_data_aics = img.metadata['aicsimage']
                 self.data = img_data_aics.dask_data

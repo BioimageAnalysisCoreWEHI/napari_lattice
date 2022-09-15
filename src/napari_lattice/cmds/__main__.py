@@ -60,6 +60,10 @@ def args_parse():
 def main():
     args = args_parse()
     print(args)
+
+    #IF using a config file, set a lot of parameters here
+    #the rest are scattered throughout the code when needed
+    #could be worth bringing everything up top
     if args.config:
         with open(args.config[0],'r') as con:
             try:
@@ -83,7 +87,7 @@ def main():
         file_extension = processing_parameters.get('file_extension', [".czi",".tif",".tiff"])
 
 
-
+    #setting (some - see above) parameters from CLI
     else:
         input_path = args.input[0]
         output_path = args.output[0] + os.sep
@@ -401,7 +405,7 @@ def main():
                         voxel_size_x=dx,
                         voxel_size_y=dy,
                         voxel_size_z=dz,
-                        LLSZWidget = _napari_lattice_widget_wrapper(),
+                        LLSZWidget = None
                         )
 
         #Crop and deskew
