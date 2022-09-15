@@ -1,5 +1,5 @@
 #lattice_processing.py
-#Run processing on command line instead of napari. 
+#Run processing on command line instead of napari.
 #Example for deskewing files in a folder
 #python lattice_processing.py --input /home/pradeep/to_deskew --output /home/pradeep/output_save/ --processing deskew
 import argparse,os,glob,sys
@@ -13,12 +13,16 @@ import dask.array as da
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
 from pathlib import Path
+import yaml
 from .. import config
+
+from .._dock_widget import _napari_lattice_widget_wrapper
+
 
 from ..ui_core import _read_psf
 
 #define parser class so as to print help message
-class ArgParser(argparse.ArgumentParser): 
+class ArgParser(argparse.ArgumentParser):
    def error(self, message):
       sys.stderr.write('error: %s\n' % message)
       self.print_help()
@@ -29,11 +33,11 @@ class ArgParser(argparse.ArgumentParser):
 def args_parse():
     """ Parse input arguments"""
     parser = argparse.ArgumentParser(description="Lattice Data processing")
-    parser.add_argument('--input',type=str,nargs=1,help="Enter input file", required=True)
-    parser.add_argument('--output',type=str,nargs=1,help="Enter save folder", required=True)
+    parser.add_argument('--input',type=str,nargs=1,help="Enter input file", required=False)
+    parser.add_argument('--output',type=str,nargs=1,help="Enter save folder", required=False)
     parser.add_argument('--skew_direction',type=str,nargs=1,help="Enter the direction of skew (default is Y)",default="Y")
     parser.add_argument('--deskew_angle',type=float,nargs=1,help="Enter the deskew angle (default is 30)",default=30.0)
-    parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop", required=True)
+    parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop", required=False)
     parser.add_argument('--deconvolution',type=str,nargs=1,help="Specify the device to use for deconvolution. Options are cpu or cuda_gpu")
     parser.add_argument('--deconvolution_num_iter',type=int,nargs=1,help="Enter the number of iterations to run Richardson-Lucy deconvolution (default is 10)")
     parser.add_argument('--deconvolution_psf',type=str,nargs="+",help="Enter paths to psf file/s separated by commas or you can enter each path with double quotes") #use + for nargs for flexible no of args
@@ -45,6 +49,8 @@ def args_parse():
     parser.add_argument('--workflow_path',type=str,nargs=1,help="Enter path to the workflow file '.yml")
     parser.add_argument('--output_file_type',type=str,nargs=1,help="Save as either tif or h5, defaults to tif")
     parser.add_argument('--channel',type=bool,nargs=1,help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",default=False)
+    parser.add_argument('--config',type=str,nargs=1,help="Location of config file, all other arguments will be ignored and overwriten by those in the yaml file")
+
     args = parser.parse_args()
     return args
 
@@ -54,34 +60,56 @@ def args_parse():
 def main():
     args = args_parse()
     print(args)
-    input_path = args.input[0]
-    output_path = args.output[0]+os.sep
-    dz,dy,dx = args.voxel_sizes
-    deskew_angle = args.deskew_angle
-    channel_dimension = args.channel
-    skew_dir = args.skew_direction
-    processing = args.processing[0].lower() #lowercase
+    if args.config:
+        with open(args.config[0],'r') as con:
+            try:
+                processing_parameters = yaml.safe_load(con)
+            except yaml.YAMLError as exc:
+                print(exc)
+
+        input_path = processing_parameters['input']
+        output_path = processing_parameters['output']
+        dz, dy, dx = processing_parameters.get('voxel_sizes',args.voxel_sizes)
+        channel_dimension = processing_parameters.get('channel',args.channel)
+        skew_dir = processing_parameters.get('skew_direction',args.skew_direction)
+        deskew_angle = processing_parameters.get('deskew_angle',30.0)
+        processing = processing_parameters.get('processing').lower()
+        if processing == "crop" or processing == "workflow_crop":
+            roi_file = processing_parameters.get('roi_file',False)
+            assert roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
+            print(roi_file)
+        assert os.path.exists(input_path), "Cannot find input " + input_path
+        assert os.path.exists(output_path), "Cannot find output " + output_path
+        file_extension = processing_parameters.get('file_extension', [".czi",".tif",".tiff"])
 
 
-    if processing == "crop" or processing == "workflow_crop":
-        assert args.roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
-        roi_file = args.roi_file[0]
-        if os.path.isfile(roi_file): #if file make sure it is a zip file
-            assert os.path.splitext(roi_file)[1] == ".zip", "ROI file is not a zip file"
-    
 
-
-    #print(time_start,time_end)
-    #print(channel_start, channel_end)
-    #Check if input and output paths exist
-    assert os.path.exists(input_path), "Cannot find input "+input_path
-    assert os.path.exists(output_path), "Cannot find output "+output_path
-
-    if not args.file_extension:
-        file_extension = [".czi",".tif",".tiff"]
     else:
-        file_extension = args.file_extension
-    
+        input_path = args.input[0]
+        output_path = args.output[0] + os.sep
+        dz, dy, dx = args.voxel_sizes
+        deskew_angle = args.deskew_angle
+        channel_dimension = args.channel
+        skew_dir = args.skew_direction
+        processing = args.processing[0].lower() #lowercase
+
+        if processing == "crop" or processing == "workflow_crop":
+            assert args.roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
+            roi_file = args.roi_file[0]
+            if os.path.isfile(roi_file): #if file make sure it is a zip file
+                assert os.path.splitext(roi_file)[1] == ".zip", "ROI file is not a zip file"
+
+        #print(time_start,time_end)
+        #print(channel_start, channel_end)
+        #Check if input and output paths exist
+        assert os.path.exists(input_path), "Cannot find input "+input_path
+        assert os.path.exists(output_path), "Cannot find output "+output_path
+
+        if not args.file_extension:
+            file_extension = [".czi",".tif",".tiff"]
+        else:
+            file_extension = args.file_extension
+
     #Initialise list of images and ROIs
     img_list= []
     roi_list= []
@@ -101,13 +129,13 @@ def main():
         if os.path.isdir(roi_file):
             for img in img_list:
                 img_name = os.path.basename(os.path.splitext(img)[0])
-                roi_temp = roi_file +os.sep+ img_name + ".zip" 
+                roi_temp = roi_file +os.sep+ img_name + ".zip"
 
                 if os.path.exists(roi_temp):
                     roi_list.append(roi_temp)
                 else:
                     sys.exit("Cannot find ROI file for "+img)
-                    
+
             print("List of ROIs: ", roi_list)
         elif os.path.isfile(roi_file):
             roi_list.append(roi_file)
@@ -116,15 +144,15 @@ def main():
         #add list of empty strings so that it can run through for loop
         no_files = len(img_list)
         roi_list =[""]*no_files
-      
-    
+
+
     #loop through list of images and rois
-    for img,roi_path in zip(img_list,roi_list):  
+    for img,roi_path in zip(img_list,roi_list):
         print("Processing Image "+img)
         if processing == "crop" or processing == "workflow_crop":
             print("Processing ROI "+roi_path)
         aics_img = AICSImage(img)
-        
+
         #check if scene valid; if not it iterates through all scenes
         len_scenes = len(aics_img.scenes)
         for scene in range(len_scenes):
@@ -137,24 +165,27 @@ def main():
                     break
             except Exception as e:
                 print(f"Scene {scene} not valid")
-        
+
         lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
 
         if args.time_range:
             time_start,time_end = args.time_range
+        elif args.config and 'time_range' in processing_parameters:
+            time_start,time_end = processing_parameters['time_range']
         else:
             time_start,time_end = 0,lattice.time
-    
+
         if args.channel_range:
             channel_start, channel_end = args.channel_range
+        elif args.config and 'channel_range' in processing_parameters:
+            channel_start, channel_end = processing_parameters['channel_range']
         else:
             channel_start, channel_end = 0,lattice.channels
-        
-        
+
         #implement deconvolution
-        #implement deconvolution
-        if args.deconvolution[0]:
+        if args.deconvolution:
             lattice.decon_processing = args.deconvolution[0].lower()
+
             #define the psf paths
             psf_ch1_path = ""
             psf_ch2_path = ""
@@ -170,7 +201,7 @@ def main():
                 psf_ch4_path = args.deconvolution_psf[3].replace(",","").strip()
             except IndexError:
                 pass
-            
+
             #add a terminal flag for when calling commands that are used in gui
             lattice.psf = []
             lattice.otf_path =[]
@@ -179,7 +210,7 @@ def main():
                 lattice.psf_num_iter=args.deconvolution_num_iter
             else:
                 lattice.psf_num_iter=10
-                
+
             _read_psf(psf_ch1_path,
                 psf_ch2_path,
                 psf_ch3_path,
@@ -190,7 +221,29 @@ def main():
                 terminal = True,
                 )
             psf_arg = "psf"
-            
+
+        elif args.config and 'decon_processing' in processing_parameters:
+            lattice.decon_processing = processing_parameters['decon_processing']
+
+            # define the psf paths
+            psf_ch1_path = ""
+            psf_ch2_path = ""
+            psf_ch3_path = ""
+            psf_ch4_path = ""
+
+            # assign psf paths to variables
+            # if doesn't exist, skip
+            try:
+                psfs = processing_parameters['deconvolution_psf']
+                psf_ch1_path = psfs[0].replace(",", "").strip()
+                psf_ch2_path = psfs[1].replace(",", "").strip()
+                psf_ch3_path = psfs[2].replace(",", "").strip()
+                psf_ch4_path = psfs[3].replace(",", "").strip()
+            except IndexError:
+                pass
+            except KeyError:
+                pass
+
         else:
             lattice.decon_processing = None
 
@@ -198,42 +251,45 @@ def main():
         if os.path.splitext(img)[1] == ".czi":
             dz,dy,dx = lattice.dz, lattice.dy, lattice.dx
             print(f"Pixel values from metadata (zyx): {dz},{dy},{dx}")
-        
-        #Setup workflows based on user input 
+
+        #Setup workflows based on user input
         if processing == "workflow" or processing == "workflow_crop":
             #load workflow from path
-            workflow_path = Path(args.workflow_path[0])
-            
+            if args.config and 'workflow_path' in processing_parameters:
+                workflow_path = Path(processing_parameters['workflow_path'])
+            else:
+                workflow_path = Path(args.workflow_path[0])
+
             #load custom modules (*.py) in same directory as workflow file
             import importlib
             parent_dir = workflow_path.resolve().parents[0].__str__()+os.sep
             print(parent_dir)
             sys.path.append(parent_dir)
             custom_py_files = get_all_py_files(parent_dir)
-            if len(custom_py_files)>0: 
+            if len(custom_py_files)>0:
                 modules = map(importlib.import_module,custom_py_files)
-                print(f"Custom modules imported {modules}") 
-            
+                print(f"Custom modules imported {modules}")
+
             #workflow has to be reloaded for each image and reinitialised
             user_workflow = load_workflow(workflow_path.__str__())
-            assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"       
-        
+            assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"
+
             input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
             print(input_arg_first, input_arg_last, first_task_name,last_task_name)
-            
+
             #get list of tasks
             task_list = list(user_workflow._tasks.keys())
-            
+
             print("Workflow loaded:")
             print(user_workflow)
-            
+
             task_name_start = first_task_name[0]
             try:
                 task_name_last = last_task_name[0]
             except IndexError:
                 task_name_last = task_name_start
-            
-            #if workflow involves cropping, assign first task as crop_volume_deskew 
+
+            #if workflow involves cropping, assign first task as crop_volume_deskew
             if processing == "workflow_crop":
                deskewed_shape = lattice.deskew_vol_shape
                deskewed_volume = da.zeros(deskewed_shape)
@@ -250,12 +306,12 @@ def main():
                                  angle_in_degrees = deskew_angle,
                                  voxel_size_x = dx,
                                  voxel_size_y= dy,
-                                 voxel_size_z = dz, 
-                                 z_start = z_start, 
+                                 voxel_size_z = dz,
+                                 z_start = z_start,
                                  z_end = z_end)
                #change the first task so it accepts "crop_deskew as input"
                new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew",workflow=user_workflow)
-               user_workflow.set(task_name_start,new_task) 
+               user_workflow.set(task_name_start,new_task)
 
             elif processing == "workflow":
                 #Verify if deskewing function is in workflow; if not, add as first task
@@ -263,7 +319,7 @@ def main():
                     custom_workflow = True
                     input = "input"
                                 #add task to the workflow
-                    user_workflow.set("deskew_image",cle.deskew_y, 
+                    user_workflow.set("deskew_image",cle.deskew_y,
                                                 input_image =input,
                                                 angle_in_degrees = deskew_angle,
                                                 voxel_size_x = dx,
@@ -276,7 +332,7 @@ def main():
                     user_workflow.set(task_name_start,new_task)
                 else:
                     custom_workflow = False
-        
+
         img_data = lattice.data
 
         save_name = os.path.splitext(os.path.basename(img))[0]
@@ -287,16 +343,22 @@ def main():
             os.mkdir(save_path)
         print("Saving at ",save_path)
 
-        if not args.output_file_type:
-            output_file_type = 'tif'
+        if not args.config:
+            if not args.output_file_type:
+                output_file_type = 'tif'
+            else:
+                output_file_type = args.output_file_type[0]
         else:
-            output_file_type = args.output_file_type[0]
+            if 'output_file_type' not in processing_parameters:
+                output_file_type = 'tif'
+            else:
+                output_file_type = processing_parameters['output_file_type']
 
         print(output_file_type)
 
         #Deskewing only
-        if processing == "deskew": 
-            
+        if processing == "deskew":
+
             #deconvolution
             if lattice.decon_processing:
                 save_img(vol = img_data,
@@ -319,8 +381,8 @@ def main():
                         voxel_size_y=dy,
                         voxel_size_z=dz,
                         linear_interpolation=True
-                        )    
-                
+                        )
+
             else:
                 save_img(vol = img_data,
                         func = cle.deskew_y,
@@ -338,24 +400,25 @@ def main():
                         angle_in_degrees = deskew_angle,
                         voxel_size_x=dx,
                         voxel_size_y=dy,
-                        voxel_size_z=dz
+                        voxel_size_z=dz,
+                        LLSZWidget = _napari_lattice_widget_wrapper(),
                         )
-        
+
         #Crop and deskew
         elif processing == "crop" or processing =="workflow_crop":
 
             roi_img = read_imagej_roi(roi_path)
-            
+
             for idx, roi_layer in enumerate(tqdm(roi_img, desc="ROI:", position=0)):
                 print("Processing ROI "+str(idx)+" of "+str(len(roi_img)))
                 deskewed_shape = lattice.deskew_vol_shape
                 deskewed_volume = da.zeros(deskewed_shape)
 
-                
+
                 #Can modify for entering custom z values
                 z_start = 0
                 z_end = deskewed_shape[0]
-                
+
                 if processing == "crop":
                     #deconvolution
                     if lattice.decon_processing:
@@ -408,13 +471,13 @@ def main():
                                     voxel_size_y=dy,
                                     voxel_size_z=dz,
                                     )
-                    
+
                 elif processing =="workflow_crop":
                     #deconvolution
                     user_workflow.set(roi,roi_layer)
-                    
+
                     if lattice.decon_processing:
-                        
+
                         save_img_workflow(vol=img_data,
                                        workflow = user_workflow,
                                        input_arg = volume,
@@ -455,7 +518,7 @@ def main():
                                        dz = dz,
                                        angle = deskew_angle,
                                        deconvolution=False)
-        
+
         elif processing == "workflow":
             #if deskew_image task set above manually
             if custom_workflow:
@@ -536,7 +599,7 @@ def main():
                                     dy = dy,
                                     dz = dz,
                                     angle = deskew_angle)
-            
+
 
 if __name__ == '__main__':
     main()

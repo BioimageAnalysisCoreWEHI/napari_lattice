@@ -165,9 +165,14 @@ def save_img(vol,
             lattice_class = lattice
             
     else:
-        decon_value = LLSZWidget.LlszMenu.deconvolution.value
-        lattice_class = LLSZWidget.LlszMenu.lattice
-        decon_option = LLSZWidget.LlszMenu.lattice.decon_processing
+        try:
+            decon_value = LLSZWidget.LlszMenu.deconvolution.value
+            lattice_class = LLSZWidget.LlszMenu.lattice
+            decon_option = LLSZWidget.LlszMenu.lattice.decon_processing
+        except:
+            decon_value = 0
+            lattice_class = 0
+            decon_option = 0
         
     
     
@@ -278,7 +283,7 @@ def save_img(vol,
                 im_final,
                 resolution=(1./dx, 1./dy,"MICROMETER"),    #specify resolution unit for consistent metadata)
                 metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},
-                imagej=True) 
+                imagej=True)
         im_final = None
    
     return
