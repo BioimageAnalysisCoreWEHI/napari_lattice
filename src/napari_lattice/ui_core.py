@@ -195,7 +195,6 @@ def _read_psf(psf_ch1_path:Path,
             if psf.suffix == ".czi":
                 from aicspylibczi import CziFile
                 psf_czi = CziFile(psf.__str__())
-                print(psf_czi.get_dims_shape)
                 psf_aics = psf_czi.read_image()
                 #make sure shape is 3D
                 psf_aics = psf_aics[0][0]#np.expand_dims(psf_aics[0],axis=0)
@@ -207,13 +206,11 @@ def _read_psf(psf_ch1_path:Path,
                 lattice_class.psf.append(psf_aics)              
             else:
                 psf_aics = AICSImage(psf.__str__())
+                psf_aics = pad_image_nearest_multiple(img=psf_aics,nearest_multiple=16)
                 lattice_class.psf.append(psf_aics.data)
                 if psf_aics.dims.C>=1:
                         psf_channels = psf_aics.dims.C
-                if decon_option == "cuda_gpu":
-                    from pycudadecon import make_otf
-                    create_otf = make_otf(psf=psf.__str__(), outpath=temp_dir+otf_names[idx], dzpsf=lattice_class.dz,dxpsf=lattice_class.dz,wavelength=channels[idx])
-                    lattice_class.otf_path.append(create_otf)
+                
     
     #LLSZWidget.LlszMenu.lattice.channels =3
     if psf_channels != lattice_class.channels:

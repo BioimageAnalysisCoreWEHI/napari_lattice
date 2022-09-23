@@ -389,8 +389,7 @@ def pycuda_decon(image,otf_path=None,
                  psf=None,
                  num_iter:int=10):
     """Perform deconvolution using pycudadecon
-    pycudadecon can return cropped images, so we pad the iamges before deconvolution
-    if providing psf, will use that first, if not uses otf_path
+    pycudadecon can return cropped images, so we pad the images with dimensions that are a multiple of 64
 
     Args:
         image (np.array): _description_
@@ -412,8 +411,9 @@ def pycuda_decon(image,otf_path=None,
 
     orig_img_shape = image.shape
 
-    #pad image to a multiple of 32
-    image = pad_image_nearest_multiple(img = image,nearest_multiple=32)
+    #pad image to a multiple of 64
+    image = pad_image_nearest_multiple(img = image,nearest_multiple=64)
+    
     
     if type(psf) in [np.ndarray,np.array,da.core.Array,resource_backed_dask_array.ResourceBackedDaskArray,cle._tier0._pycl.OCLArray]:
         from pycudadecon import RLContext,TemporaryOTF,rl_decon
