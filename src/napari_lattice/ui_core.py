@@ -183,7 +183,7 @@ def _read_psf(psf_ch1_path:Path,
     if decon_option == "cuda_gpu":
         import importlib
         pycudadecon_import = importlib.util.find_spec("pycudadecon")
-        assert pycudadecon_import, f"Please install pycudadecon using: conda install -c conda-forge pycudadecon"
+        assert pycudadecon_import, f"Pycudadecon not detected. Please install using: conda install -c conda-forge pycudadecon"
         otf_names = ["ch1","ch2","ch3","ch4"]
         channels =[488,561,640,123]
         #get temp directory to save generated otf
@@ -192,35 +192,19 @@ def _read_psf(psf_ch1_path:Path,
      
     for idx,psf in enumerate(psf_paths):
         if os.path.exists(psf) and psf.is_file():
-            if os.path.splitext(psf.__str__())[1] == ".czi":
+            if psf.suffix == ".czi":
                 from aicspylibczi import CziFile
                 psf_czi = CziFile(psf.__str__())
+                print(psf_czi.get_dims_shape)
                 psf_aics = psf_czi.read_image()
-                if len(psf_aics[0])>=1:
-                    psf_channels = len(psf_aics[0])
                 #make sure shape is 3D
                 psf_aics = psf_aics[0][0]#np.expand_dims(psf_aics[0],axis=0)
+                #if len(psf_aics[0])>=1:
+                    #psf_channels = len(psf_aics[0])
                 assert len(psf_aics.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
                 #pad psf to multiple of 16 for decon
                 psf_aics = pad_image_nearest_multiple(img=psf_aics,nearest_multiple=16)
-                lattice_class.psf.append(psf_aics)
-                if decon_option == "cuda_gpu":
-                    from pycudadecon import make_otf
-                    otf_path = temp_dir+otf_names[idx]+"_otf.tif"
-                    if os.path.exists(otf_path):
-                        os.remove(otf_path)
-                        
-                    #appens _otf.tif to otf filename
-                    #numerical aperture is based on Zeiss lattice detection objective
-                    #water immersion, so refractive index is 1.3
-                    create_otf = make_otf(psf=psf.__str__(), 
-                                          outpath=otf_path,
-                                          dzpsf=lattice_class.dz,
-                                          dxpsf=lattice_class.dz,
-                                          wavelength=channels[idx],
-                                          na = 1)
-                    lattice_class.otf_path.append(create_otf)
-                
+                lattice_class.psf.append(psf_aics)              
             else:
                 psf_aics = AICSImage(psf.__str__())
                 lattice_class.psf.append(psf_aics.data)

@@ -189,7 +189,7 @@ def _napari_lattice_widget_wrapper():
             
             @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Click to select PSFs for deconvolution", max_height=75, font_size = 11)
             @set_options(header = dict(widget_type="Label",label="<h3>Enter path to the PSF images</h3>"),
-                         psf_ch1_path={"widget_type": "FileEdit","label":"Channel 1/Multichannel PSF:"},
+                         psf_ch1_path={"widget_type": "FileEdit","label":"Channel 1:"},
                          psf_ch2_path={"widget_type": "FileEdit","label":"Channel 2"},
                          psf_ch3_path={"widget_type": "FileEdit","label":"Channel 3"},
                          psf_ch4_path={"widget_type": "FileEdit","label":"Channel 4"},
