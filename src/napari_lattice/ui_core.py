@@ -2,21 +2,16 @@ import os
 import numpy as np
 from pathlib import Path
 
-from magicclass.wrappers import set_design
-from magicgui import magicgui, widgets
-from magicclass import magicclass, vfield, set_options
-from qtpy.QtCore import Qt
-
-from napari.layers import Layer
+from aicsimageio import AICSImage
 from napari.types import ImageData
-from napari.utils import history
 
 import pyclesperanto_prototype as cle
-from .io import LatticeData,  save_img
+from .io import save_img
+from .utils import pad_image_nearest_multiple
 
 from napari_lattice.llsz_core import pycuda_decon, skimage_decon
 
-from aicsimageio import AICSImage
+
     
 def _Preview(LLSZWidget,
             self_class,
@@ -206,6 +201,8 @@ def _read_psf(psf_ch1_path:Path,
                 #make sure shape is 3D
                 psf_aics = psf_aics[0][0]#np.expand_dims(psf_aics[0],axis=0)
                 assert len(psf_aics.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
+                #pad psf to multiple of 16 for decon
+                psf_aics = pad_image_nearest_multiple(img=psf_aics,nearest_multiple=16)
                 lattice_class.psf.append(psf_aics)
                 if decon_option == "cuda_gpu":
                     from pycudadecon import make_otf
@@ -223,7 +220,6 @@ def _read_psf(psf_ch1_path:Path,
                                           wavelength=channels[idx],
                                           na = 1)
                     lattice_class.otf_path.append(create_otf)
-                    print(create_otf)
                 
             else:
                 psf_aics = AICSImage(psf.__str__())

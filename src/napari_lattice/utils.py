@@ -389,3 +389,20 @@ def _process_custom_workflow_output_batch(ref_vol,
             im_final = None
     return
 
+def pad_image_nearest_multiple(img:np.ndarray,nearest_multiple:int):
+    """pad an Image to the nearest multiple of provided number
+
+    Args:
+        img (np.ndarray): 
+        nearest_multiple (int): Multiple of number to be padded
+
+    Returns:
+        np.ndarray: Padded image
+    """    
+    import math
+    
+    rounded_shape = tuple([math.ceil(dim/nearest_multiple)*nearest_multiple for dim in img.shape])
+    #get required padding
+    padding = np.array(rounded_shape) - np.array(img.shape)
+    padded_img = np.pad(img,((0,padding[0]),(0,padding[1]),(0,padding[2])))
+    return padded_img
