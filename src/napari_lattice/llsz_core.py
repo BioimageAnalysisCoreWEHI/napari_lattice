@@ -140,7 +140,8 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
                                    dxdata=voxel_size_x,
                                    dzpsf=voxel_size_z,
                                    dxpsf=voxel_size_x,
-                                   num_iter=num_iter)
+                                   num_iter=num_iter,
+                                   cropping=True)
         else:
             crop_volume_processed = skimage_decon(vol_zyx=crop_volume, 
                                     psf=psf, 
@@ -387,7 +388,8 @@ def pycuda_decon(image,otf_path=None,
                  dzpsf=0.3,
                  dxpsf=0.1449922,
                  psf=None,
-                 num_iter:int=10):
+                 num_iter:int=10,
+                 cropping:bool=False):
     """Perform deconvolution using pycudadecon
     pycudadecon can return cropped images, so we pad the images with dimensions that are a multiple of 64
 
@@ -410,10 +412,12 @@ def pycuda_decon(image,otf_path=None,
         image = np.array(image)
 
     orig_img_shape = image.shape
-
-    #pad image y dimensionswith half of psf shape
-    z_psf_pad,y_psf_pad,x_psf_pad = np.array(psf.shape) //2
-    image = np.pad(image,((z_psf_pad,z_psf_pad),(y_psf_pad,y_psf_pad),(x_psf_pad,x_psf_pad)),mode="reflect")
+    
+    #if cropping, add extra padding to avoid edge artefact
+    if cropping:
+        #pad image y dimensionswith half of psf shape
+        z_psf_pad,y_psf_pad,x_psf_pad = np.array(psf.shape) //2
+        image = np.pad(image,((z_psf_pad,z_psf_pad),(y_psf_pad,y_psf_pad),(x_psf_pad,x_psf_pad)),mode="reflect")
     
     #pad image to a multiple of 64
     image = pad_image_nearest_multiple(img = image,nearest_multiple=64)
@@ -440,10 +444,10 @@ def pycuda_decon(image,otf_path=None,
         decon_res = rl_decon(image)
         rl_cleanup()
     
-
-    #remove psf padding
-    decon_res = decon_res[z_psf_pad:-z_psf_pad,y_psf_pad:-y_psf_pad,x_psf_pad:-x_psf_pad]
-    
+    if cropping:
+        #remove psf padding if cropping was chosen
+        decon_res = decon_res[z_psf_pad:-z_psf_pad,y_psf_pad:-y_psf_pad,x_psf_pad:-x_psf_pad]
+        
     #remove padding; get shape difference and use this shape difference to remove padding
     shape_diff = np.array(decon_res.shape) - np.array(orig_img_shape)
     #if above is negative, 
