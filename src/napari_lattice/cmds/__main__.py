@@ -31,7 +31,7 @@ def args_parse():
     parser = argparse.ArgumentParser(description="Lattice Data processing")
     parser.add_argument('--input',type=str,nargs=1,help="Enter input file", required=True)
     parser.add_argument('--output',type=str,nargs=1,help="Enter save folder", required=True)
-    parser.add_argument('--skew_direction',type=str,nargs=1,help="Enter the direction of skew (default is Y)",default="Y")
+    parser.add_argument('--skew_direction',type=str,nargs=1,help="Enter the direction of skew (default is Y), X or Y",default="Y")
     parser.add_argument('--deskew_angle',type=float,nargs=1,help="Enter the deskew angle (default is 30)",default=30.0)
     parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop", required=True)
     parser.add_argument('--deconvolution',type=str,nargs=1,help="Specify the device to use for deconvolution. Options are cpu or cuda_gpu")
@@ -59,7 +59,7 @@ def main():
     dz,dy,dx = args.voxel_sizes
     deskew_angle = args.deskew_angle
     channel_dimension = args.channel
-    skew_dir = args.skew_direction
+    skew_dir = args.skew_direction.upper()
     processing = args.processing[0].lower() #lowercase
 
 
@@ -252,7 +252,8 @@ def main():
                                  voxel_size_y= dy,
                                  voxel_size_z = dz, 
                                  z_start = z_start, 
-                                 z_end = z_end)
+                                 z_end = z_end,
+                                 skew_dir=lattice.skew)
                #change the first task so it accepts "crop_deskew as input"
                new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew",workflow=user_workflow)
                user_workflow.set(task_name_start,new_task) 

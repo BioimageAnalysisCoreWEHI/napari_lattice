@@ -51,7 +51,8 @@ def _napari_lattice_widget_wrapper():
                          pixel_size_dy={"widget_type": "FloatSpinBox", "value":0.1449922, "step": 0.000000001},
                          pixel_size_dz={"widget_type": "FloatSpinBox", "value":0.3, "step": 0.000000001},
                          last_dimension_channel = {"widget_type": "ComboBox","choices":["Channel","Time","Get_from_metadata"],"value":"Get_from_metadata","label":"Set Last dimension (channel/time)","tooltip":"If the last dimension is initialised incorrectly, you can assign it as either channel/time"},
-                         merge_all_channel_layers = {"widget_type":"CheckBox","value":True,"label":"Merge all napari layers as channels","tooltip":"Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"}
+                         merge_all_channel_layers = {"widget_type":"CheckBox","value":True,"label":"Merge all napari layers as channels","tooltip":"Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"},
+                         skew_dir = {"widget_type": "ComboBox","choices":["Y","X"],"value":"Y","label":"Direction of skew (Y or X)","tooltip":"Skew direction when image is acquired. Ask your microscopist for details"}
                          )
             def Choose_Image_Layer(self,
                                       img_layer:Layer,
@@ -67,9 +68,11 @@ def _napari_lattice_widget_wrapper():
                 assert skew_dir in ('Y', 'X'), "Skew direction not recognised. Enter either Y or X"
                 if skew_dir == "X":
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_x
+                    LLSZWidget.LlszMenu.skew_dir = skew_dir
                 elif skew_dir == "Y":
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_y
-
+                    LLSZWidget.LlszMenu.skew_dir = skew_dir
+                    
                 if last_dimension_channel == "Get_from_metadata":
                     last_dimension_channel = None
                     
@@ -321,7 +324,7 @@ def _napari_lattice_widget_wrapper():
                             # TODO: Add assertion to check if bbox layer or coordinates
                             time = self.time_crop.value
                             channel = self.chan_crop.value
-
+                            
                             assert time < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
                             assert channel < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
                             
@@ -430,10 +433,10 @@ def _napari_lattice_widget_wrapper():
                                 print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
                             else:
                                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
-                                assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time)
-                                assert 0<=time_end <LLSZWidget.LlszMenu.lattice.time, "Time end should be between 0 and total time "+str(LLSZWidget.LlszMenu.lattice.time)
-                                assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(LLSZWidget.LlszMenu.lattice.channels)
-                                assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(LLSZWidget.LlszMenu.lattice.channels)
+                                assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time-1)
+                                assert 0<=time_end <LLSZWidget.LlszMenu.lattice.time, "Time end should be between 0 and total time "+str(LLSZWidget.LlszMenu.lattice.time-1)
+                                assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(LLSZWidget.LlszMenu.lattice.channels-1)
+                                assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be 0 or total no. of channels -1 " +str(LLSZWidget.LlszMenu.lattice.channels-1)
                         
                                 angle = LLSZWidget.LlszMenu.lattice.angle
                                 dx = LLSZWidget.LlszMenu.lattice.dx
@@ -627,7 +630,8 @@ def _napari_lattice_widget_wrapper():
                                                                 deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                                 decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
                                                                 otf_path=otf_path,
-                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel])
+                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel],
+                                                                skew_dir=LLSZWidget.LlszMenu.skew_dir)
                                 else:
                                     user_workflow.set("crop_deskew_image",crop_volume_deskew,
                                                                 original_volume = vol_zyx, 
@@ -638,7 +642,8 @@ def _napari_lattice_widget_wrapper():
                                                                 voxel_size_y =LLSZWidget.LlszMenu.lattice.dy, 
                                                                 voxel_size_z =LLSZWidget.LlszMenu.lattice.dz, 
                                                                 z_start = z_start, 
-                                                                z_end = z_end)
+                                                                z_end = z_end,
+                                                                skew_dir=LLSZWidget.LlszMenu.skew_dir)
                                 
                                 #Set input of the workflow to be  crop_deskewing, i.e., the original first operation will now have crop_deskew_image as an input (becoming second instead)
                                 user_workflow.set(input_arg_first,"crop_deskew_image")
@@ -894,7 +899,8 @@ def _napari_lattice_widget_wrapper():
                                                 z_end = z_end,
                                                 deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                 decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
-                                                psf=psf_arg)
+                                                psf=psf_arg,
+                                                skew_dir=LLSZWidget.LlszMenu.skew_dir)
 
                             #change the first task so it accepts "crop_deskew as input"
                             new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew_image",workflow=user_workflow)
