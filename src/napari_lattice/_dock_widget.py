@@ -26,7 +26,7 @@ from tqdm import tqdm
 
 from .io import LatticeData,  save_img, save_img_workflow
 
-from .utils import read_imagej_roi, get_first_last_image_and_task,modify_workflow_task,get_all_py_files, as_type, process_custom_workflow_output
+from .utils import read_imagej_roi, get_first_last_image_and_task,modify_workflow_task,get_all_py_files, as_type, process_custom_workflow_output,check_dimensions
 from . import config
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
@@ -433,11 +433,9 @@ def _napari_lattice_widget_wrapper():
                                 print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
                             else:
                                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
-                                assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time-1)
-                                assert 0<=time_end <LLSZWidget.LlszMenu.lattice.time, "Time end should be between 0 and total time "+str(LLSZWidget.LlszMenu.lattice.time-1)
-                                assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(LLSZWidget.LlszMenu.lattice.channels-1)
-                                assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be 0 or total no. of channels -1 " +str(LLSZWidget.LlszMenu.lattice.channels-1)
-                        
+                                
+                                check_dimensions(time_start,time_end,ch_start,ch_end,LLSZWidget.LlszMenu.lattice.channels,LLSZWidget.LlszMenu.lattice.time)
+                                
                                 angle = LLSZWidget.LlszMenu.lattice.angle
                                 dx = LLSZWidget.LlszMenu.lattice.dx
                                 dy = LLSZWidget.LlszMenu.lattice.dy
@@ -562,8 +560,8 @@ def _napari_lattice_widget_wrapper():
                         print(user_workflow)
                         
                         #when using fields, self.time_preview.value 
-                        assert time_preview <= LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
-                        assert chan_preview <= LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
+                        assert time_preview < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
+                        assert chan_preview < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
 
                         time = time_preview
                         channel = chan_preview
@@ -809,11 +807,9 @@ def _napari_lattice_widget_wrapper():
                             save_path (Path, optional): Path to save resulting data
                         """                
                         assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
-                        assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be 0 or >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time)
-                        assert 0<= time_end <LLSZWidget.LlszMenu.lattice.time, "Time end should be >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time)
-                        assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(LLSZWidget.LlszMenu.lattice.channels)
-                        assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(LLSZWidget.LlszMenu.lattice.channels)
-
+                        
+                        check_dimensions(time_start,time_end,ch_start,ch_end,LLSZWidget.LlszMenu.lattice.channels,LLSZWidget.LlszMenu.lattice.time)
+                        
                         #Get parameters
                         angle = LLSZWidget.LlszMenu.lattice.angle
                         dx = LLSZWidget.LlszMenu.lattice.dx

@@ -7,7 +7,7 @@ from napari.types import ImageData
 
 import pyclesperanto_prototype as cle
 from .io import save_img
-from .utils import pad_image_nearest_multiple
+from .utils import pad_image_nearest_multiple, check_dimensions
 
 from napari_lattice.llsz_core import pycuda_decon, skimage_decon
 
@@ -96,11 +96,7 @@ def _Deskew_Save(LLSZWidget,
                  save_path: Path):
 
                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
-                assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Indexing starts from zero. Time start should be 0 or same as total time: "+str(LLSZWidget.LlszMenu.lattice.time)
-                assert 0<= time_end <LLSZWidget.LlszMenu.lattice.time, "Indexing ends at time-1. Time end should be 0 or  total time: "+str(LLSZWidget.LlszMenu.lattice.time -1)
-                assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or same as no. of channels: "+str(LLSZWidget.LlszMenu.lattice.channels)
-                assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be 0 or or less than no. of channels: " +str(LLSZWidget.LlszMenu.lattice.channels -1)
-              
+                check_dimensions(time_start,time_end,ch_start,ch_end,LLSZWidget.LlszMenu.lattice.channels,LLSZWidget.LlszMenu.lattice.time)
                 #time_range = range(time_start, time_end)
                 #channel_range = range(ch_start, ch_end)
                 angle = LLSZWidget.LlszMenu.lattice.angle
@@ -206,8 +202,9 @@ def _read_psf(psf_ch1_path:Path,
                 lattice_class.psf.append(psf_aics)              
             else:
                 psf_aics = AICSImage(psf.__str__())
-                psf_aics = pad_image_nearest_multiple(img=psf_aics,nearest_multiple=16)
-                lattice_class.psf.append(psf_aics.data)
+                psf_aics_data = psf_aics.data[0][0]
+                psf_aics_data = pad_image_nearest_multiple(img=psf_aics_data,nearest_multiple=16)
+                lattice_class.psf.append(psf_aics_data)
                 if psf_aics.dims.C>=1:
                         psf_channels = psf_aics.dims.C
                 

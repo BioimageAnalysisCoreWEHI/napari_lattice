@@ -170,11 +170,11 @@ def save_img(vol,
         decon_option = LLSZWidget.LlszMenu.lattice.decon_processing
         
     
-    
+
     #loop is ordered so image is saved in order TCZYX for ometiffwriter
-    for time_point in tqdm(time_range, desc="Time", position=0): 
+    for loop_time_idx, time_point in enumerate(tqdm(time_range, desc="Time", position=0)): 
         images_array = []
-        for ch in tqdm(channel_range, desc="Channels", position=1,leave=False):
+        for loop_ch_idx, ch in enumerate(tqdm(channel_range, desc="Channels", position=1,leave=False)):
             try:
                 if len(vol.shape) == 3:
                     raw_vol = vol
@@ -192,6 +192,17 @@ def save_img(vol,
             #raw_vol = np.array(raw_vol)
             image_type = raw_vol.dtype
 
+            #Add a check for last timepoint, in case acquisition incomplete
+            if time_point == time_end:
+                orig_shape = raw_vol.shape
+                raw_vol = raw_vol.compute()
+                if raw_vol.shape != orig_shape:
+                    print(f"Time {time_point}, channel {ch} is incomplete. Actual shape {orig_shape}, got {raw_vol.shape}")
+                    z_diff,y_diff,x_diff = np.subtract(orig_shape,raw_vol.shape)
+                    print(f"Padding with{z_diff,y_diff,x_diff}")
+                    raw_vol = np.pad(raw_vol,((0,z_diff),(0,y_diff),(0,x_diff)))
+                    assert raw_vol.shape == orig_shape, f"Shape of last timepoint still doesn't match. Got {raw_vol.shape}"
+            
             #If deconvolution is checked
             if decon_value and func != crop_volume_deskew:
                 #Use CUDA or skimage for deconvolution based on user choice
@@ -233,16 +244,18 @@ def save_img(vol,
             if save_file_type == "h5":
                 #convert opencl array to dask array
                 #pvol = da.asarray(processed_vol)
+                #channel and time index are based on loop iteration
                 bdv_writer.append_view(processed_vol,
-                                   time=time_point,
-                                   channel=ch,
+                                   time=loop_time_idx,
+                                   channel=loop_ch_idx,
                                    voxel_size_xyz=(dx, dy, new_dz),
                                    voxel_units='um')
                 
                 print("\nAppending volume to h5\n")
             else:
                 images_array.append(processed_vol)
-        
+
+
         #if function is not for cropping, then dataset can be quite large, so save each channel and timepoint separately
         #otherwise, append it into im_final
         
@@ -355,10 +368,10 @@ def save_img_workflow(vol,
     #iterate through time and channels and apply workflow
     #TODO: add error handling so the image writers will "close",if an error causes the program to exit
     #try except?
-    for time_point in tqdm(time_range, desc="Time", position=0):
+    for loop_time_idx, time_point in enumerate(tqdm(time_range, desc="Time", position=0)):
         output_array = []
         data_table = []     
-        for ch in tqdm(channel_range, desc="Channels", position=1,leave=False):
+        for loop_ch_idx, ch in enumerate(tqdm(channel_range, desc="Channels", position=1,leave=False)):
 
             if len(vol.shape) == 3:
                 raw_vol = vol
@@ -366,8 +379,8 @@ def save_img_workflow(vol,
                 raw_vol = vol[time_point, ch, :, :, :]
             
             #TODO: disable if support for resourc backed dask array is added
-            if type(raw_vol) in [resource_backed_dask_array]:
-                raw_vol = raw_vol.compute() #convert to numpy array as resource backed dask array not su
+            #if type(raw_vol) in [resource_backed_dask_array]:
+            #raw_vol = raw_vol.compute() #convert to numpy array as resource backed dask array not su
             
             #to access current time and channel, create a file config.py in same dir as workflow or in home directory
             #add "channel = 0" and "time=0" in the file and save
@@ -383,7 +396,17 @@ def save_img_workflow(vol,
                     #workflow.set("psf",psf[ch])
                 #else:
                     #workflow.set("psf",psf[ch])
-
+           
+            #Add a check for last timepoint, in case acquisition incomplete or an incomplete frame
+            if time_point == time_end:
+                orig_shape = raw_vol.shape
+                raw_vol = raw_vol.compute()
+                if raw_vol.shape != orig_shape:
+                    print(f"Time {time_point}, channel {ch} is incomplete. Actual shape {orig_shape}, got {raw_vol.shape}")
+                    z_diff,y_diff,x_diff = np.subtract(orig_shape,raw_vol.shape)
+                    print(f"Padding with{z_diff,y_diff,x_diff}")
+                    raw_vol = np.pad(raw_vol,((0,z_diff),(0,y_diff),(0,x_diff)))
+                    assert raw_vol.shape == orig_shape, f"Shape of last timepoint still doesn't match. Got {raw_vol.shape}"
             
             #Set input to the workflow to be volume from each time point and channel
             workflow.set(input_arg,raw_vol)
@@ -466,8 +489,8 @@ def save_img_workflow(vol,
                         else:
                             im_channel = im_final[ch_idx,...]
                         writer_list[writer_idx].append_view(im_channel,
-                                time=time_point,
-                                channel=ch_idx,
+                                time=loop_time_idx,
+                                channel=loop_ch_idx,
                                 voxel_size_xyz=(dx, dy, new_dz),
                                 voxel_units='um')
                 else: #default to tif
@@ -547,6 +570,7 @@ class LatticeData():
     def __init__(self,img,angle,skew,dx,dy,dz,last_dimension) -> None:
         self.angle = angle
         self.skew = skew
+        
         #if image layer
         if type(img) is image.Image: #napari layer image
             #check if its an aicsimageio object and has voxel size info            
