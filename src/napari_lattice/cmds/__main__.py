@@ -4,7 +4,7 @@
 #python lattice_processing.py --input /home/pradeep/to_deskew --output /home/pradeep/output_save/ --processing deskew
 import argparse,os,glob,sys
 from napari_lattice.io import LatticeData, save_img, save_img_workflow
-from napari_lattice.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task,modify_workflow_task
+from napari_lattice.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task,modify_workflow_task,check_dimensions
 from napari_lattice.llsz_core import crop_volume_deskew
 from aicsimageio import AICSImage
 import pyclesperanto_prototype as cle
@@ -24,7 +24,6 @@ class ArgParser(argparse.ArgumentParser):
       self.print_help()
       sys.exit(2)
 
-#TODO: Implement deconvolution
 
 def args_parse():
     """ Parse input arguments"""
@@ -140,6 +139,15 @@ def main():
         
         lattice = LatticeData(aics_img,deskew_angle,skew_dir,dx,dy,dz,channel_dimension)
 
+        #Chance deskew function absed on skew direction
+        if lattice.skew =="Y":
+            lattice.deskew_func = cle.deskew_y
+            lattice.skew_dir = "Y"
+        elif lattice.skew =="X":
+            lattice.deskew_func = cle.deskew_x
+            lattice.skew_dir = "X"        
+
+        
         if args.time_range:
             time_start,time_end = args.time_range
         else:
@@ -150,6 +158,8 @@ def main():
         else:
             channel_start, channel_end = 0,lattice.channels
         
+        #Verify dimensions
+        check_dimensions(time_start,time_end,channel_start,channel_end,lattice.channels,lattice.time)
         
         #implement deconvolution
         #implement deconvolution
@@ -264,7 +274,7 @@ def main():
                     custom_workflow = True
                     input = "input"
                                 #add task to the workflow
-                    user_workflow.set("deskew_image",cle.deskew_y, 
+                    user_workflow.set("deskew_image",lattice.deskew_func, 
                                                 input_image =input,
                                                 angle_in_degrees = deskew_angle,
                                                 voxel_size_x = dx,
@@ -301,7 +311,7 @@ def main():
             #deconvolution
             if lattice.decon_processing:
                 save_img(vol = img_data,
-                        func = cle.deskew_y,
+                        func = lattice.deskew_func,
                         time_start = time_start,
                         time_end = time_end,
                         channel_start = channel_start,
@@ -324,7 +334,7 @@ def main():
                 
             else:
                 save_img(vol = img_data,
-                        func = cle.deskew_y,
+                        func = lattice.deskew_func,
                         time_start = time_start,
                         time_end = time_end,
                         channel_start = channel_start,

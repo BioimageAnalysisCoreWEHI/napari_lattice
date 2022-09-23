@@ -52,7 +52,8 @@ def get_deskewed_shape(volume,
                         angle,
                         voxel_size_x_in_microns:float,
                         voxel_size_y_in_microns:float,
-                        voxel_size_z_in_microns:float):
+                        voxel_size_z_in_microns:float,
+                        skew_dir:str = "Y"):
     """
     Calculate shape of deskewed volume 
     Also, returns affine transform
@@ -63,6 +64,7 @@ def get_deskewed_shape(volume,
         voxel_size_x_in_microns ([type])
         voxel_size_y_in_microns ([type])
         voxel_size_z_in_microns ([type])
+        skew_dir (str)
 
     Returns:
         tuple: Shape of deskewed volume in zyx
@@ -72,11 +74,18 @@ def get_deskewed_shape(volume,
 
     deskew_transform = cle.AffineTransform3D()
 
-    deskew_transform._deskew_y(angle_in_degrees=angle,
+    if skew_dir == "Y":
+    
+        deskew_transform._deskew_y(angle_in_degrees=angle,
                                 voxel_size_x=voxel_size_x_in_microns,
                                 voxel_size_y=voxel_size_y_in_microns,
                                 voxel_size_z=voxel_size_z_in_microns)
-    
+    elif skew_dir == "X":
+        deskew_transform._deskew_x(angle_in_degrees=angle,
+                                voxel_size_x=voxel_size_x_in_microns,
+                                voxel_size_y=voxel_size_y_in_microns,
+                                voxel_size_z=voxel_size_z_in_microns)
+        
     #TODO:need better handling of aics dask array
     if len(volume.shape) == 5:
         volume = volume[0,0,...]
@@ -404,5 +413,45 @@ def pad_image_nearest_multiple(img:np.ndarray,nearest_multiple:int):
     rounded_shape = tuple([math.ceil(dim/nearest_multiple)*nearest_multiple for dim in img.shape])
     #get required padding
     padding = np.array(rounded_shape) - np.array(img.shape)
-    padded_img = np.pad(img,((0,padding[0]),(0,padding[1]),(0,padding[2])))
+    padded_img = np.pad(img,((0,padding[0]),(0,padding[1]),(0,padding[2])),mode="reflect")
     return padded_img
+
+
+def check_dimensions(user_time_start:int,user_time_end,user_channel_start:int,user_channel_end:int,total_channels:int,total_time:int):
+    
+    if total_time == 1 or total_time == 2:
+        max_time = 1
+    else: #max time should be index - 1
+        max_time = total_time - 1
+        
+    if total_channels == 1 or total_channels == 2:
+        max_channels = 1
+    else: #max time should be index - 1
+        max_channels = total_channels - 1
+    
+    #Assert time and channel starts are valid
+    assert 0<=user_time_start<=max_time, f"Time start should be 0 or end time: {total_time-1}"
+    assert 0<=user_channel_start<=max_channels, f"Channel start should be 0 or end channels: {total_channels-1}"
+    
+    #Not everyone will be aware that indexing starts at zero and ends at channel-1 or time -1
+    #below only accounts for ending
+    
+    #If user enters total channel number as last channel, correct for indexing by subtracting it by 1
+    if user_time_end == total_time:
+        print(f"Detected end time as {user_time_end}, but Python indexing starts at zero so last timepoint should be {total_time-1}")
+        user_time_end = user_time_end-1
+        print(f"Adjusting end time to {user_time_end}")
+        
+    #If user enters total time as last time, correct for indexing by subtracting it by 1
+    if user_channel_end == total_channels:
+        print(f"Detected end channel as {user_channel_end}, but Python indexing starts at zero so last channel should be {total_channels-1}")
+        user_channel_end = user_channel_end-1
+        print(f"Adjusting channel end to {user_channel_end}")
+    
+    assert 0<= user_time_end <= max_time, f"Time is out of range. End time: {max_time}"
+    assert 0<= user_channel_end <= max_channels, f"Channel is out of range. End channels: {max_channels}"
+    
+    print(f"Time start,end: {user_time_start,user_time_end}, Channel start,end: {user_channel_start,user_channel_end}")
+    
+    return None
+                            
