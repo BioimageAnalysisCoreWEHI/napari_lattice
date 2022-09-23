@@ -411,6 +411,10 @@ def pycuda_decon(image,otf_path=None,
 
     orig_img_shape = image.shape
 
+    #pad image y dimensionswith half of psf shape
+    z_psf_pad,y_psf_pad,x_psf_pad = np.array(psf.shape) //2
+    image = np.pad(image,((z_psf_pad,z_psf_pad),(y_psf_pad,y_psf_pad),(x_psf_pad,x_psf_pad)),mode="reflect")
+    
     #pad image to a multiple of 64
     image = pad_image_nearest_multiple(img = image,nearest_multiple=64)
     
@@ -436,6 +440,10 @@ def pycuda_decon(image,otf_path=None,
         decon_res = rl_decon(image)
         rl_cleanup()
     
+
+    #remove psf padding
+    decon_res = decon_res[z_psf_pad:-z_psf_pad,y_psf_pad:-y_psf_pad,x_psf_pad:-x_psf_pad]
+    
     #remove padding; get shape difference and use this shape difference to remove padding
     shape_diff = np.array(decon_res.shape) - np.array(orig_img_shape)
     #if above is negative, 
@@ -447,7 +455,7 @@ def pycuda_decon(image,otf_path=None,
         shape_diff[2] = -orig_img_shape[2]
 
     decon_res = decon_res[:-shape_diff[0],:-shape_diff[1],:-shape_diff[2]]
-
+    #print(orig_img_shape)
     #make sure the decon image and the original image shapes are the same 
     assert decon_res.shape == orig_img_shape, f"Deconvolved {decon_res.shape} and original image shape {orig_img_shape} do not match."
     return decon_res
