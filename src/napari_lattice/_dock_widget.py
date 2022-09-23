@@ -31,6 +31,7 @@ from . import config
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
 
+
 def _napari_lattice_widget_wrapper():
     #split widget type enables a resizable widget
     @magicclass(widget_type="split")
@@ -43,7 +44,7 @@ def _napari_lattice_widget_wrapper():
             dask = False
             file_name = ""
             save_name = ""
-
+            
             main_heading = widgets.Label(value="<h3>Napari Lattice: Visualization & Analysis</h3>")
             heading1 = widgets.Label(value="Drag and drop an image file onto napari.\nOnce image has opened, initialize the\nplugin by clicking the button below.\nEnsure the image layer and voxel sizes are accurate in the prompt.\n If everything initalises properly, the button turns green.")
             @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Initialize Plugin", max_height=75, font_size = 13) 
@@ -119,8 +120,7 @@ def _napari_lattice_widget_wrapper():
                 print("Pixel size (ZYX): ",(LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx))
                 print("Dimensions of image layer (ZYX): ",list(LLSZWidget.LlszMenu.lattice.data.shape[-3:]))
                 print("Dimensions of deskewed image (ZYX): ",LLSZWidget.LlszMenu.lattice.deskew_vol_shape)
-
-                
+              
                 #Add dimension labels
                 #if channel, and not time
                 if LLSZWidget.LlszMenu.lattice.time == 0 and (last_dimension_channel or LLSZWidget.LlszMenu.lattice.channels>0):
@@ -174,7 +174,7 @@ def _napari_lattice_widget_wrapper():
                 LLSZWidget.LlszMenu.dask = not use_GPU
                 return
 
-            #Redfishlion library for deconvolution
+            #Pycudadecon library for deconvolution
             deconvolution = vfield(bool, name="Use Deconvolution") # options={"enabled": True},
             deconvolution.value = False
             @deconvolution.connect
@@ -223,10 +223,10 @@ def _napari_lattice_widget_wrapper():
                 
                 
 
-        @magicclass
+        @magicclass(widget_type="collapsible")
         class Preview:          
             @magicgui(header=dict(widget_type="Label",label="<h3>Preview Deskew</h3>"),
-                      time=dict(label="Time:",max= 2**20),
+                      time=dict(label="Time:",max= 2**15),
                       channel=dict(label="Channel:"),
                       call_button="Preview")
             def Preview_Deskew(self, 
@@ -280,7 +280,7 @@ def _napari_lattice_widget_wrapper():
                                save_as_type,
                                save_path)
                    return
-               
+            
             @magicclass(name="Crop and Deskew",widget_type="scrollable")
             class CropWidget:  
                 
@@ -409,7 +409,7 @@ def _napari_lattice_widget_wrapper():
                             return
                 
                 
-                    @magicclass(name="Crop and Save Data",widget_type="scrollable")
+                    @magicclass(name="Crop and Save Data")
                     class CropSaveData:
                         @magicgui(header=dict(widget_type="Label", label="<h3>Crop and Save Data</h3>"),
                                   time_start=dict(label="Time Start:"),
@@ -1064,6 +1064,7 @@ def _napari_lattice_widget_wrapper():
                         
                 pass
     LLSZWidget.WidgetContainer.DeskewWidget.max_width = 100
+    LLSZWidget.WidgetContainer.CropWidget.Preview_Crop_Menu.max_width = 100
     #max_height = 50
     #Important to have this or napari won't recognize the classes and magicclass qidgets
     widget = LLSZWidget()
