@@ -40,7 +40,9 @@ Apply custom image processing workflows using `napari-workflows`.
 * [How to use Cellpose for cell segmentation](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki/5.1-Workflows-(Custom-workflow)#cellpose)
 
 
-Support will be added for ome-zarr files in the future.
+Support will be added for more file formats in the future.
+
+Sample lattice lightsheet data download: https://doi.org/10.5281/zenodo.7117784
 
 ----------------------------------
 
