@@ -251,7 +251,7 @@ def save_img(vol,
                                    voxel_size_xyz=(dx, dy, new_dz),
                                    voxel_units='um')
                 
-                print("\nAppending volume to h5\n")
+                #print("\nAppending volume to h5\n")
             else:
                 images_array.append(processed_vol)
 

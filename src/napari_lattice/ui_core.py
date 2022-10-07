@@ -11,7 +11,10 @@ from .utils import pad_image_nearest_multiple, check_dimensions
 
 from napari_lattice.llsz_core import pycuda_decon, skimage_decon
 
-
+#Enable Logging
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
     
 def _Preview(LLSZWidget,
             self_class,
@@ -163,13 +166,17 @@ def _read_psf(psf_ch1_path:Path,
     psf_paths = [psf_ch1_path,psf_ch2_path,psf_ch3_path,psf_ch4_path]
 
     #remove empty paths; pathlib returns current directory as "." if None or empty str specified
+    #When running batch processing,empty directory will be an empty string
+    
     import platform
     from pathlib import PureWindowsPath, PosixPath
     
     if platform.system() =="Linux":
-        psf_paths = [Path(x) for x in psf_paths if x!=PosixPath(".")]
+        psf_paths = [Path(x) for x in psf_paths if x!=PosixPath(".") and x!=""]
     elif platform.system()=="Windows":
-        psf_paths = [Path(x) for x in psf_paths if x!=PureWindowsPath(".")]
+        psf_paths = [Path(x) for x in psf_paths if x!=PureWindowsPath(".") and x!=""]
+        
+    logging.debug(f"PSF paths are {psf_paths}")
     #total no of psf images
     psf_channels = len(psf_paths)
     assert psf_channels>0, f"No images detected for PSF. Check the psf paths -> {psf_paths}"
@@ -207,7 +214,7 @@ def _read_psf(psf_ch1_path:Path,
                 lattice_class.psf.append(psf_aics_data)
                 if psf_aics.dims.C>=1:
                         psf_channels = psf_aics.dims.C
-                
+    
     
     #LLSZWidget.LlszMenu.lattice.channels =3
     if psf_channels != lattice_class.channels:

@@ -2,7 +2,7 @@
 #Run processing on command line instead of napari. 
 #Example for deskewing files in a folder
 #python lattice_processing.py --input /home/pradeep/to_deskew --output /home/pradeep/output_save/ --processing deskew
-import argparse,os,glob,sys
+import argparse,os,glob,sys,re
 from napari_lattice.io import LatticeData, save_img, save_img_workflow
 from napari_lattice.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task,modify_workflow_task,check_dimensions
 from napari_lattice.llsz_core import crop_volume_deskew
@@ -35,7 +35,7 @@ def args_parse():
     parser.add_argument('--processing',type=str,nargs=1,help="Enter the processing option: deskew, crop, workflow or workflow_crop", required=True)
     parser.add_argument('--deconvolution',type=str,nargs=1,help="Specify the device to use for deconvolution. Options are cpu or cuda_gpu")
     parser.add_argument('--deconvolution_num_iter',type=int,nargs=1,help="Enter the number of iterations to run Richardson-Lucy deconvolution (default is 10)")
-    parser.add_argument('--deconvolution_psf',type=str,nargs="+",help="Enter paths to psf file/s separated by commas or you can enter each path with double quotes") #use + for nargs for flexible no of args
+    parser.add_argument('--deconvolution_psf',type=str,nargs="+",help="Enter paths to psf file/s in double quotes separated by commas or semi-colons") #use + for nargs for flexible no of args
     parser.add_argument('--roi_file',type=str,nargs=1,help="Enter the path to the ROI file for performing cropping (only valid for -processing where crop or workflow_crop is specified")
     parser.add_argument('--voxel_sizes',type=tuple,nargs=1,help="Enter the voxel sizes as (dz,dy,dx). Make sure they are in brackets",default=(0.3,0.1499219272808386,0.1499219272808386))
     parser.add_argument('--file_extension',type=str,nargs=1,help="If choosing a folder, enter the extension of the files (make sure you enter it with the dot at the start, i.e., .czi or .tif), else .czi and .tif files will be used")
@@ -47,7 +47,10 @@ def args_parse():
     args = parser.parse_args()
     return args
 
-
+#Enable Logging
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def main():
@@ -151,18 +154,17 @@ def main():
         if args.time_range:
             time_start,time_end = args.time_range
         else:
-            time_start,time_end = 0,lattice.time
+            time_start,time_end = 0,lattice.time - 1
     
         if args.channel_range:
             channel_start, channel_end = args.channel_range
         else:
-            channel_start, channel_end = 0,lattice.channels
+            channel_start, channel_end = 0,lattice.channels - 1
         
         #Verify dimensions
         check_dimensions(time_start,time_end,channel_start,channel_end,lattice.channels,lattice.time)
         
-        #implement deconvolution
-        #implement deconvolution
+        #deconvolution
         if args.deconvolution[0]:
             lattice.decon_processing = args.deconvolution[0].lower()
             #define the psf paths
@@ -170,14 +172,18 @@ def main():
             psf_ch2_path = ""
             psf_ch3_path = ""
             psf_ch4_path = ""
-
+            
+            #Split paths based on a comma or semicolon
+            psf_paths = re.split(';|,', args.deconvolution_psf[0])
+            logging.debug(psf_paths)
+            
             #assign psf paths to variables
             #if doesn't exist, skip
             try:
-                psf_ch1_path = args.deconvolution_psf[0].replace(",","").strip()
-                psf_ch2_path = args.deconvolution_psf[1].replace(",","").strip()
-                psf_ch3_path = args.deconvolution_psf[2].replace(",","").strip()
-                psf_ch4_path = args.deconvolution_psf[3].replace(",","").strip()
+                psf_ch1_path = psf_paths[0]
+                psf_ch2_path = psf_paths[1]
+                psf_ch3_path = psf_paths[2]
+                psf_ch4_path = psf_paths[3]
             except IndexError:
                 pass
             
@@ -207,7 +213,7 @@ def main():
         #Override pixel values by reading metadata if file is czi
         if os.path.splitext(img)[1] == ".czi":
             dz,dy,dx = lattice.dz, lattice.dy, lattice.dx
-            print(f"Pixel values from metadata (zyx): {dz},{dy},{dx}")
+            logging.info(f"Pixel values from metadata (zyx): {dz},{dy},{dx}")
         
         #Setup workflows based on user input 
         if processing == "workflow" or processing == "workflow_crop":
@@ -222,20 +228,20 @@ def main():
             custom_py_files = get_all_py_files(parent_dir)
             if len(custom_py_files)>0: 
                 modules = map(importlib.import_module,custom_py_files)
-                print(f"Custom modules imported {modules}") 
+                logging.info(f"Custom modules imported {modules}") 
             
             #workflow has to be reloaded for each image and reinitialised
             user_workflow = load_workflow(workflow_path.__str__())
             assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"       
         
             input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
-            print(input_arg_first, input_arg_last, first_task_name,last_task_name)
+            logging.debug(input_arg_first, input_arg_last, first_task_name,last_task_name)
             
             #get list of tasks
             task_list = list(user_workflow._tasks.keys())
             
             print("Workflow loaded:")
-            print(user_workflow)
+            logging.info(user_workflow)
             
             task_name_start = first_task_name[0]
             try:
