@@ -1,10 +1,11 @@
-# lattice_processing.py
-# Run processing on command line instead of napari.
-# Example for deskewing files in a folder
-# python lattice_processing.py --input /home/pradeep/to_deskew --output /home/pradeep/output_save/ --processing deskew
-import argparse, os, glob, sys
+#lattice_processing.py
+#Run processing on command line instead of napari. 
+#Example for deskewing files in a folder
+#python lattice_processing.py --input /home/pradeep/to_deskew --output /home/pradeep/output_save/ --processing deskew
+
+import argparse,os,glob,sys,re
 from napari_lattice.io import LatticeData, save_img, save_img_workflow
-from napari_lattice.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task, modify_workflow_task
+from napari_lattice.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task,modify_workflow_task,check_dimensions
 from napari_lattice.llsz_core import crop_volume_deskew
 from aicsimageio import AICSImage
 import pyclesperanto_prototype as cle
@@ -29,11 +30,9 @@ class ArgParser(argparse.ArgumentParser):
         sys.exit(2)
 
 
-# TODO: Implement deconvolution
-
 def args_parse():
     """ Parse input arguments"""
-    parser = argparse.ArgumentParser(description="Lattice Data processing")
+    parser = argparse.ArgumentParser(description="Lattice Data Analysis")
     parser.add_argument('--input', type=str, nargs=1, help="Enter input file",
                         required=False)  # only false if using config file
     parser.add_argument('--output', type=str, nargs=1, help="Enter save folder",
@@ -70,15 +69,34 @@ def args_parse():
                         help="Location of config file, all other arguments will be ignored and overwriten by those in the yaml file")
     parser.add_argument('--roi_number', type=int, nargs=1,
                         help="Process an individual ROI, loop all if unset")
-
+   
+    parser.add_argument('--set_logging', type=str, nargs=1,
+                        help="Set logging level [INFO,DEBUG]", default = "INFO")
+    
     args = parser.parse_args()
     return args
 
 
+
 def main():
     args = args_parse()
-    print(args)
+    logging.info(args)
 
+    input_path = args.input[0]
+    output_path = args.output[0]+os.sep
+    dz,dy,dx = args.voxel_sizes
+    deskew_angle = args.deskew_angle
+    channel_dimension = args.channel
+    skew_dir = args.skew_direction.upper()
+    processing = args.processing[0].lower() #lowercase
+    log_level = args.set_logging.upper()
+    
+    #Enable Logging
+    import logging
+    logger = logging.getLogger(__name__)
+    logging.basicConfig(level=log_level.upper())
+    logging.info("fLogging set to {log_level.upper()}")
+     
     # IF using a config file, set a lot of parameters here
     # the rest are scattered throughout the code when needed
     # could be worth bringing everything up top
@@ -190,22 +208,34 @@ def main():
 
         lattice = LatticeData(aics_img, deskew_angle, skew_dir, dx, dy, dz, channel_dimension)
 
+        #Chance deskew function absed on skew direction
+        if lattice.skew =="Y":
+            lattice.deskew_func = cle.deskew_y
+            lattice.skew_dir = "Y"
+        elif lattice.skew =="X":
+            lattice.deskew_func = cle.deskew_x
+            lattice.skew_dir = "X"        
+
+        
         if args.time_range:
             time_start, time_end = args.time_range
         elif args.config and 'time_range' in processing_parameters:
             time_start, time_end = processing_parameters['time_range']
         else:
-            time_start, time_end = 0, lattice.time
-
+            time_start,time_end = 0,lattice.time - 1
+    
         if args.channel_range:
             channel_start, channel_end = args.channel_range
         elif args.config and 'channel_range' in processing_parameters:
             channel_start, channel_end = processing_parameters['channel_range']
         else:
-            channel_start, channel_end = 0, lattice.channels
-
-        # implement deconvolution
-        if args.deconvolution:
+            channel_start, channel_end = 0,lattice.channels - 1
+        
+        #Verify dimensions
+        check_dimensions(time_start,time_end,channel_start,channel_end,lattice.channels,lattice.time)
+        
+        #deconvolution
+        if args.deconvolution[0]:
             lattice.decon_processing = args.deconvolution[0].lower()
 
             # define the psf paths
@@ -213,14 +243,17 @@ def main():
             psf_ch2_path = ""
             psf_ch3_path = ""
             psf_ch4_path = ""
-
-            # assign psf paths to variables
-            # if doesn't exist, skip
+            #Split paths based on a comma or semicolon
+            psf_paths = re.split(';|,', args.deconvolution_psf[0])
+            logging.debug(psf_paths)
+            
+            #assign psf paths to variables
+            #if doesn't exist, skip
             try:
-                psf_ch1_path = args.deconvolution_psf[0].replace(",", "").strip()
-                psf_ch2_path = args.deconvolution_psf[1].replace(",", "").strip()
-                psf_ch3_path = args.deconvolution_psf[2].replace(",", "").strip()
-                psf_ch4_path = args.deconvolution_psf[3].replace(",", "").strip()
+                psf_ch1_path = psf_paths[0]
+                psf_ch2_path = psf_paths[1]
+                psf_ch3_path = psf_paths[2]
+                psf_ch4_path = psf_paths[3]
             except IndexError:
                 pass
 
@@ -271,10 +304,10 @@ def main():
 
         # Override pixel values by reading metadata if file is czi
         if os.path.splitext(img)[1] == ".czi":
-            dz, dy, dx = lattice.dz, lattice.dy, lattice.dx
-            print(f"Pixel values from metadata (zyx): {dz},{dy},{dx}")
-
-        # Setup workflows based on user input
+            dz,dy,dx = lattice.dz, lattice.dy, lattice.dx
+            logging.info(f"Pixel values from metadata (zyx): {dz},{dy},{dx}")
+        
+        #Setup workflows based on user input 
         if processing == "workflow" or processing == "workflow_crop":
             # load workflow from path
             if args.config and 'workflow_path' in processing_parameters:
@@ -288,24 +321,24 @@ def main():
             print(parent_dir)
             sys.path.append(parent_dir)
             custom_py_files = get_all_py_files(parent_dir)
-            if len(custom_py_files) > 0:
-                modules = map(importlib.import_module, custom_py_files)
-                print(f"Custom modules imported {modules}")
 
-            # workflow has to be reloaded for each image and reinitialised
+            if len(custom_py_files)>0: 
+                modules = map(importlib.import_module,custom_py_files)
+                logging.info(f"Custom modules imported {modules}") 
+            
+            #workflow has to be reloaded for each image and reinitialised
             user_workflow = load_workflow(workflow_path.__str__())
-            assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"
-
-            input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(
-                user_workflow)
-            print(input_arg_first, input_arg_last, first_task_name, last_task_name)
-
-            # get list of tasks
+            assert type(user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"       
+        
+            input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(user_workflow)
+            logging.debug(input_arg_first, input_arg_last, first_task_name,last_task_name)
+            
+            #get list of tasks
             task_list = list(user_workflow._tasks.keys())
 
             print("Workflow loaded:")
-            print(user_workflow)
-
+            logging.info(user_workflow)
+            
             task_name_start = first_task_name[0]
             try:
                 task_name_last = last_task_name[0]
@@ -314,47 +347,48 @@ def main():
 
             # if workflow involves cropping, assign first task as crop_volume_deskew
             if processing == "workflow_crop":
-                deskewed_shape = lattice.deskew_vol_shape
-                deskewed_volume = da.zeros(deskewed_shape)
-                z_start = 0
-                z_end = deskewed_shape[0]
-                roi = "roi"
-                volume = "volume"
-                # Create workflow for cropping and deskewing
-                # volume and roi used will be set dynamically
-                user_workflow.set("crop_deskew", crop_volume_deskew,
-                                  original_volume=volume,
-                                  deskewed_volume=deskewed_volume,
-                                  roi_shape=roi,
-                                  angle_in_degrees=deskew_angle,
-                                  voxel_size_x=dx,
-                                  voxel_size_y=dy,
-                                  voxel_size_z=dz,
-                                  z_start=z_start,
-                                  z_end=z_end)
-                # change the first task so it accepts "crop_deskew as input"
-                new_task = modify_workflow_task(old_arg=input_arg_first, task_key=task_name_start,
-                                                new_arg="crop_deskew", workflow=user_workflow)
-                user_workflow.set(task_name_start, new_task)
+               deskewed_shape = lattice.deskew_vol_shape
+               deskewed_volume = da.zeros(deskewed_shape)
+               z_start = 0
+               z_end = deskewed_shape[0]
+               roi = "roi"
+               volume = "volume"
+               #Create workflow for cropping and deskewing
+               #volume and roi used will be set dynamically
+               user_workflow.set("crop_deskew",crop_volume_deskew,
+                                 original_volume = volume,
+                                 deskewed_volume = deskewed_volume,
+                                 roi_shape = roi,
+                                 angle_in_degrees = deskew_angle,
+                                 voxel_size_x = dx,
+                                 voxel_size_y= dy,
+                                 voxel_size_z = dz, 
+                                 z_start = z_start, 
+                                 z_end = z_end,
+                                 skew_dir=lattice.skew)
+               #change the first task so it accepts "crop_deskew as input"
+               new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew",workflow=user_workflow)
+               user_workflow.set(task_name_start,new_task) 
 
             elif processing == "workflow":
                 # Verify if deskewing function is in workflow; if not, add as first task
                 if user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y, cle.deskew_x):
                     custom_workflow = True
                     input = "input"
-                    # add task to the workflow
-                    user_workflow.set("deskew_image", cle.deskew_y,
-                                      input_image=input,
-                                      angle_in_degrees=deskew_angle,
-                                      voxel_size_x=dx,
-                                      voxel_size_y=dy,
-                                      voxel_size_z=dz,
-                                      linear_interpolation=True)
-                    # Set input of the workflow to be from deskewing
-                    # change the first task so it accepts "deskew_image" as input
-                    new_task = modify_workflow_task(old_arg=input_arg_first, task_key=task_name_start,
-                                                    new_arg="deskew_image", workflow=user_workflow)
-                    user_workflow.set(task_name_start, new_task)
+                    
+                    #add task to the workflow
+                    user_workflow.set("deskew_image",lattice.deskew_func, 
+                                                input_image =input,
+                                                angle_in_degrees = deskew_angle,
+                                                voxel_size_x = dx,
+                                                voxel_size_y= dy,
+                                                voxel_size_z = dz,
+                                                linear_interpolation=True)
+                                #Set input of the workflow to be from deskewing
+                                #change the first task so it accepts "deskew_image" as input
+                    new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,
+                                                    new_arg="deskew_image",workflow=user_workflow)
+                    user_workflow.set(task_name_start,new_task)
                 else:
                     custom_workflow = False
 
@@ -386,48 +420,50 @@ def main():
 
             # deconvolution
             if lattice.decon_processing:
-                save_img(vol=img_data,
-                         func=cle.deskew_y,
-                         time_start=time_start,
-                         time_end=time_end,
-                         channel_start=channel_start,
-                         channel_end=channel_end,
-                         save_path=save_path,
-                         save_name=save_name,
-                         save_file_type=output_file_type,
-                         dx=dx,
-                         dy=dy,
-                         dz=dz,
-                         angle=deskew_angle,
-                         terminal=True,
-                         lattice=lattice,
-                         angle_in_degrees=deskew_angle,
-                         voxel_size_x=dx,
-                         voxel_size_y=dy,
-                         voxel_size_z=dz,
-                         linear_interpolation=True
-                         )
-
+                save_img(vol = img_data,
+                        func = lattice.deskew_func,
+                        time_start = time_start,
+                        time_end = time_end,
+                        channel_start = channel_start,
+                        channel_end = channel_end,
+                        save_path = save_path,
+                        save_name= save_name,
+                        save_file_type = output_file_type,
+                        dx = dx,
+                        dy = dy,
+                        dz = dz,
+                        angle = deskew_angle,
+                        terminal = True,
+                        lattice = lattice,
+                        angle_in_degrees = deskew_angle,
+                        voxel_size_x=dx,
+                        voxel_size_y=dy,
+                        voxel_size_z=dz,
+                        linear_interpolation=True
+                        )    
+                
             else:
-                save_img(vol=img_data,
-                         func=cle.deskew_y,
-                         time_start=time_start,
-                         time_end=time_end,
-                         channel_start=channel_start,
-                         channel_end=channel_end,
-                         save_path=save_path,
-                         save_name=save_name,
-                         save_file_type=output_file_type,
-                         dx=dx,
-                         dy=dy,
-                         dz=dz,
-                         angle=deskew_angle,
-                         angle_in_degrees=deskew_angle,
-                         voxel_size_x=dx,
-                         voxel_size_y=dy,
-                         voxel_size_z=dz,
-                         LLSZWidget=None
-                         )
+                save_img(vol = img_data,
+                        func = lattice.deskew_func,
+                        time_start = time_start,
+                        time_end = time_end,
+                        channel_start = channel_start,
+                        channel_end = channel_end,
+                        save_path = save_path,
+                        save_name= save_name,
+                        save_file_type = output_file_type,
+                        dx = dx,
+                        dy = dy,
+                        dz = dz,
+                        angle = deskew_angle,
+                        angle_in_degrees = deskew_angle,
+                        voxel_size_x=dx,
+                        voxel_size_y=dy,
+                        voxel_size_z=dz
+                        )
+        
+        #Crop and deskew
+        elif processing == "crop" or processing =="workflow_crop":
 
         # Crop and deskew
         elif processing == "crop" or processing == "workflow_crop":

@@ -26,10 +26,16 @@ from tqdm import tqdm
 
 from .io import LatticeData,  save_img, save_img_workflow
 
-from .utils import read_imagej_roi, get_first_last_image_and_task,modify_workflow_task,get_all_py_files, as_type, process_custom_workflow_output
+from .utils import read_imagej_roi, get_first_last_image_and_task,modify_workflow_task,get_all_py_files, as_type, process_custom_workflow_output,check_dimensions
 from . import config
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
+
+#Enable Logging
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+
 
 def _napari_lattice_widget_wrapper():
     #split widget type enables a resizable widget
@@ -43,7 +49,7 @@ def _napari_lattice_widget_wrapper():
             dask = False
             file_name = ""
             save_name = ""
-
+            
             main_heading = widgets.Label(value="<h3>Napari Lattice: Visualization & Analysis</h3>")
             heading1 = widgets.Label(value="Drag and drop an image file onto napari.\nOnce image has opened, initialize the\nplugin by clicking the button below.\nEnsure the image layer and voxel sizes are accurate in the prompt.\n If everything initalises properly, the button turns green.")
             @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Initialize Plugin", max_height=75, font_size = 13)
@@ -51,7 +57,8 @@ def _napari_lattice_widget_wrapper():
                          pixel_size_dy={"widget_type": "FloatSpinBox", "value":0.1449922, "step": 0.000000001},
                          pixel_size_dz={"widget_type": "FloatSpinBox", "value":0.3, "step": 0.000000001},
                          last_dimension_channel = {"widget_type": "ComboBox","choices":["Channel","Time","Get_from_metadata"],"value":"Get_from_metadata","label":"Set Last dimension (channel/time)","tooltip":"If the last dimension is initialised incorrectly, you can assign it as either channel/time"},
-                         merge_all_channel_layers = {"widget_type":"CheckBox","value":True,"label":"Merge all napari layers as channels","tooltip":"Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"}
+                         merge_all_channel_layers = {"widget_type":"CheckBox","value":True,"label":"Merge all napari layers as channels","tooltip":"Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"},
+                         skew_dir = {"widget_type": "ComboBox","choices":["Y","X"],"value":"Y","label":"Direction of skew (Y or X)","tooltip":"Skew direction when image is acquired. Ask your microscopist for details"}
                          )
             def Choose_Image_Layer(self,
                                       img_layer:Layer,
@@ -62,14 +69,16 @@ def _napari_lattice_widget_wrapper():
                                       merge_all_channel_layers:bool=False, 
                                       skew_dir: str="Y"):
                 
-                print("Using existing image layer")
+                logger.info(f"Using existing image layer")
                 skew_dir = str.upper(skew_dir)
                 assert skew_dir in ('Y', 'X'), "Skew direction not recognised. Enter either Y or X"
                 if skew_dir == "X":
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_x
+                    LLSZWidget.LlszMenu.skew_dir = skew_dir
                 elif skew_dir == "Y":
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_y
-
+                    LLSZWidget.LlszMenu.skew_dir = skew_dir
+                    
                 if last_dimension_channel == "Get_from_metadata":
                     last_dimension_channel = None
                     
@@ -113,11 +122,10 @@ def _napari_lattice_widget_wrapper():
                 
 
                 
-                print("Pixel size (ZYX): ",(LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx))
-                print("Dimensions of image layer (ZYX): ",list(LLSZWidget.LlszMenu.lattice.data.shape[-3:]))
-                print("Dimensions of deskewed image (ZYX): ",LLSZWidget.LlszMenu.lattice.deskew_vol_shape)
-
-                
+                logger.info(f"Pixel size (ZYX): {LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx}")
+                logger.info(f"Dimensions of image layer (ZYX): {list(LLSZWidget.LlszMenu.lattice.data.shape[-3:])}")
+                logger.info(f"Dimensions of deskewed image (ZYX): {LLSZWidget.LlszMenu.lattice.deskew_vol_shape}")
+              
                 #Add dimension labels
                 #if channel, and not time
                 if LLSZWidget.LlszMenu.lattice.time == 0 and (last_dimension_channel or LLSZWidget.LlszMenu.lattice.channels>0):
@@ -136,7 +144,8 @@ def _napari_lattice_widget_wrapper():
                 elif LLSZWidget.LlszMenu.lattice.channels==1 and  LLSZWidget.LlszMenu.lattice.time>1:
                     self.parent_viewer.dims.axis_labels = list(('Time',"Z","Y","X"))
 
-                print("Initialised")
+                logger.info(f"Initialised")
+                
                 self["Choose_Image_Layer"].background_color = "green"
                 self["Choose_Image_Layer"].text = "Plugin Initialised"
                 
@@ -153,9 +162,9 @@ def _napari_lattice_widget_wrapper():
                 try:
                     LLSZWidget.LlszMenu.lattice.set_angle(self.angle)
                     LLSZWidget.LlszMenu.lattice.angle_value = self.angle
-                    print("Angle is set to: ", LLSZWidget.LlszMenu.lattice.angle)
+                    logger.info(f"Angle is set to: {LLSZWidget.LlszMenu.lattice.angle}")
                 except AttributeError:
-                    print("Choose image layer first before setting angles")
+                    logger.error(f"Choose image layer first before setting angles")
                 #print(LLSZWidget.LlszMenu.lattice.angle)
                 #print(LLSZWidget.LlszMenu.lattice.angle_value)
                 return
@@ -167,26 +176,26 @@ def _napari_lattice_widget_wrapper():
                 Args:
                     use_GPU (bool, optional): Defaults to True.
                 """
-                print("Use GPU set to, ", use_GPU)
+                logger.info("Use GPU set to, ", use_GPU)
                 LLSZWidget.LlszMenu.dask = not use_GPU
                 return
 
-            #Redfishlion library for deconvolution
+            #Pycudadecon library for deconvolution
             deconvolution = vfield(bool, name="Use Deconvolution") # options={"enabled": True},
             deconvolution.value = False
             @deconvolution.connect
             def _set_decon(self):
                 if self.deconvolution:
-                    print("Deconvolution Activated")
+                    logger.info("Deconvolution Activated")
                     LLSZWidget.LlszMenu.deconvolution.value = True
                 else:
-                    print("Deconvolution Disabled")
+                    logger.info("Deconvolution Disabled")
                     LLSZWidget.LlszMenu.deconvolution.value  = False
                 return
             
             @set_design(background_color="magenta", font_family="Consolas",visible=True,text="Click to select PSFs for deconvolution", max_height=75, font_size = 11)
             @set_options(header = dict(widget_type="Label",label="<h3>Enter path to the PSF images</h3>"),
-                         psf_ch1_path={"widget_type": "FileEdit","label":"Channel 1/Multichannel PSF:"},
+                         psf_ch1_path={"widget_type": "FileEdit","label":"Channel 1:"},
                          psf_ch2_path={"widget_type": "FileEdit","label":"Channel 2"},
                          psf_ch3_path={"widget_type": "FileEdit","label":"Channel 3"},
                          psf_ch4_path={"widget_type": "FileEdit","label":"Channel 4"},
@@ -220,10 +229,10 @@ def _napari_lattice_widget_wrapper():
                 
                 
 
-        @magicclass
+        @magicclass(widget_type="collapsible")
         class Preview:          
             @magicgui(header=dict(widget_type="Label",label="<h3>Preview Deskew</h3>"),
-                      time=dict(label="Time:",max= 2**20),
+                      time=dict(label="Time:",max= 2**15),
                       channel=dict(label="Channel:"),
                       call_button="Preview")
             def Preview_Deskew(self, 
@@ -277,7 +286,7 @@ def _napari_lattice_widget_wrapper():
                                save_as_type,
                                save_path)
                    return
-               
+            
             @magicclass(name="Crop and Deskew",widget_type="scrollable")
             class CropWidget:  
                 
@@ -285,7 +294,7 @@ def _napari_lattice_widget_wrapper():
                 @magicclass(name="Cropping Preview",widget_type="scrollable")
                 class Preview_Crop_Menu:
                     
-                    @set_design(font_size=10,text="Click to activate Cropping Preview",background_color="magenta")
+                    @set_design(font_size=10,text="Click to activate Cropping Layer",background_color="magenta")
                     @click(enables =["Import_ImageJ_ROI","Crop_Preview"])
                     def activate_cropping(self):
                         LLSZWidget.WidgetContainer.CropWidget.Preview_Crop_Menu.shapes_layer = self.parent_viewer.add_shapes(shape_type='polygon', edge_width=1, edge_color='white',
@@ -299,7 +308,7 @@ def _napari_lattice_widget_wrapper():
                     heading2 = widgets.Label(value="You can either import ImageJ ROI (.zip) files or manually define ROIs using the shape layer")
                     @click(enabled =False)
                     def Import_ImageJ_ROI(self, path: Path = Path(history.get_open_history()[0])):
-                        print("Opening", path)
+                        logger.info(f"Opening{path}")
                         roi_list = read_imagej_roi(path)
                         #convert to canvas coordinates
                         roi_list = (np.array(roi_list)*LLSZWidget.LlszMenu.lattice.dy).tolist()
@@ -321,11 +330,11 @@ def _napari_lattice_widget_wrapper():
                             # TODO: Add assertion to check if bbox layer or coordinates
                             time = self.time_crop.value
                             channel = self.chan_crop.value
-
+                            
                             assert time < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
                             assert channel < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
                             
-                            print("Using channel ", channel," and time", time)
+                            logger.info(f"Using channel {channel} and time {time}")
                             
                             vol = LLSZWidget.LlszMenu.lattice.data
                             vol_zyx= vol[time,channel,...]
@@ -350,12 +359,12 @@ def _napari_lattice_widget_wrapper():
                             #As the original image is scaled, the coordinates are in microns, so we need to convert
                             #roi from micron to canvas/world coordinates
                             roi_choice = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_choice]
-                            print("Previewing ROI ", roi_idx)
+                            logger.info(f"Previewing ROI {roi_idx}")
                             
                             #crop 
                             if LLSZWidget.LlszMenu.deconvolution.value:
-                                print(f"Deskewing for Time:{time} and Channel: {channel} with deconvolution")
-                                psf = LLSZWidget.LlszMenu.lattice.psf[channel]
+                                logger.info(f"Deskewing for Time:{time} and Channel: {channel} with deconvolution")
+                                #psf = LLSZWidget.LlszMenu.lattice.psf[channel]
                                 if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
                                     crop_roi_vol_desk = crop_volume_deskew(original_volume = vol_zyx,
                                                                                 deskewed_volume=deskewed_volume, 
@@ -406,16 +415,17 @@ def _napari_lattice_widget_wrapper():
                             return
                 
                 
-                    @magicclass(name="Crop and Save Data",widget_type="scrollable")
+                    @magicclass(name="Crop and Save Data")
+                    
                     class CropSaveData:
                         @magicgui(header=dict(widget_type="Label", label="<h3>Crop and Save Data</h3>"),
                                   time_start=dict(label="Time Start:"),
                                   time_end=dict(label="Time End:", value=1),
                                   ch_start=dict(label="Channel Start:"),
                                   ch_end=dict(label="Channel End:", value=1),
-                                  save_as_type={"label":"Save as filetype:","choices":["tif","h5"]},
+                                  save_as_type={"label":"Save as filetype:","choices":["h5","tif"]},
                                   save_path=dict(mode='d', label="Directory to save "))
-
+                        
                         def Crop_Save(self,
                                         header,
                                         time_start: int, 
@@ -427,14 +437,12 @@ def _napari_lattice_widget_wrapper():
                                         save_path: Path = Path(history.get_save_history()[0])):
 
                             if not roi_layer_list:
-                                print("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
+                                logger.error("No coordinates found or cropping. Initialise shapes layer and draw ROIs.")
                             else:
                                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
-                                assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be >0 or same as total time "+str(CropWidget.CropMenu.lattice.time)
-                                assert 0<=time_end <LLSZWidget.LlszMenu.lattice.time, "Time end should be between 0 and total time "+str(CropWidget.CropMenu.lattice.time)
-                                assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(CropWidget.CropMenu.lattice.channels)
-                                assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(CropWidget.CropMenu.lattice.channels)
-                        
+                                
+                                check_dimensions(time_start,time_end,ch_start,ch_end,LLSZWidget.LlszMenu.lattice.channels,LLSZWidget.LlszMenu.lattice.time)
+                                
                                 angle = LLSZWidget.LlszMenu.lattice.angle
                                 dx = LLSZWidget.LlszMenu.lattice.dx
                                 dy = LLSZWidget.LlszMenu.lattice.dy
@@ -448,14 +456,14 @@ def _napari_lattice_widget_wrapper():
                                 z_start = 0
                                 z_end = deskewed_shape[0]
                                 
-                                print("Cropping and saving files...")           
+                                logger.info("Cropping and saving files...")           
 
                                 #necessary when scale is used for napari.viewer.add_image operations
                                 roi_layer_list = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_layer_list]
 
                                 for idx, roi_layer in enumerate(tqdm(roi_layer_list, desc="ROI:", position=0)):
                                     #pass arguments for save tiff, callable and function arguments
-                                    print("Processing ROI ",idx)
+                                    logger.info("Processing ROI ",idx)
                                     #pass parameters for the crop_volume_deskew function
 
                                     save_img(vol = img_data,
@@ -484,7 +492,7 @@ def _napari_lattice_widget_wrapper():
                                         )
 
 
-                                print("Cropping and Saving Complete -> ", save_path)
+                                logger.info(f"Cropping and Saving Complete -> {save_path}")
                                 return        
 
             @magicclass(name="Workflow",widget_type="scrollable")
@@ -526,7 +534,7 @@ def _napari_lattice_widget_wrapper():
                             #installs the workflow to napari
                             user_workflow = WorkflowManager.install(self.parent_viewer).workflow
                             parent_dir = workflow_path.resolve().parents[0].__str__()+os.sep
-                            print("Workflow loaded from napari")
+                            logger.info("Workflow loaded from napari")
                         else:
 
                             try:
@@ -537,17 +545,17 @@ def _napari_lattice_widget_wrapper():
                                 sys.path.append(parent_dir)
                                 custom_py_files = get_all_py_files(parent_dir)
                                 if len(custom_py_files)==0: 
-                                    print(f"No custom modules imported. If you'd like to use a cusotm module, place a *.py file in same folder as the workflow file {parent_dir}")
+                                    logger.error(f"No custom modules imported. If you'd like to use a cusotm module, place a *.py file in same folder as the workflow file {parent_dir}")
                                 else:
                                     modules = map(importlib.import_module,custom_py_files)
-                                    print(f"Custom modules imported {modules}")
+                                    logger.info(f"Custom modules imported {modules}")
                                 user_workflow = load_workflow(workflow_path.__str__())
                             except yaml.loader.ConstructorError as e:
-                                print("\033[91m While loading workflow, got the following error which may mean you need to install the corresponding module in your Python environment: \033[0m")
-                                print(e)
+                                logger.error("\033[91m While loading workflow, got the following error which may mean you need to install the corresponding module in your Python environment: \033[0m")
+                                logger.error(e)
                                 
                             #user_workflow = load_workflow(workflow_path)
-                            print("Workflow loaded from file")
+                            logger.info("Workflow loaded from file")
                         
                         assert type(user_workflow) is Workflow, "Workflow loading error. Check if file is workflow or if required libraries are installed"
                         
@@ -555,12 +563,12 @@ def _napari_lattice_widget_wrapper():
                         #print(input_arg_first, input_arg_last, first_task_name,last_task_name )
                         #get list of tasks
                         task_list = list(user_workflow._tasks.keys())
-                        print("Workflow loaded:")
-                        print(user_workflow)
+                        logger.info(f"Workflow loaded:{user_workflow}")
+                        #logger.info()
                         
                         #when using fields, self.time_preview.value 
-                        assert time_preview <= LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
-                        assert chan_preview <= LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
+                        assert time_preview < LLSZWidget.LlszMenu.lattice.time, "Time is out of range"
+                        assert chan_preview < LLSZWidget.LlszMenu.lattice.channels, "Channel is out of range"
 
                         time = time_preview
                         channel = chan_preview
@@ -569,7 +577,7 @@ def _napari_lattice_widget_wrapper():
                         config.channel = channel
                         config.time = time
                         
-                        print("Processing for Time:", time,"and Channel: ", channel)
+                        logger.info(f"Processing for Time: {time} and Channel: {channel}")
                         
                         vol = LLSZWidget.LlszMenu.lattice.data
 
@@ -612,7 +620,7 @@ def _napari_lattice_widget_wrapper():
                                 #As the original image is scaled, the coordinates are in microns, so we need to convert
                                 #roi to from micron to canvas/world coordinates
                                 roi_choice = [x/LLSZWidget.LlszMenu.lattice.dy for x in roi_choice]
-                                print("Previewing ROI ", roi_idx)
+                                logger.info(f"Previewing ROI {roi_idx}")
                                 if LLSZWidget.LlszMenu.deconvolution.value:
                                     user_workflow.set("crop_deskew_image",crop_volume_deskew,
                                                                 original_volume = vol_zyx, 
@@ -627,7 +635,8 @@ def _napari_lattice_widget_wrapper():
                                                                 deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                                 decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
                                                                 otf_path=otf_path,
-                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel])
+                                                                psf=LLSZWidget.LlszMenu.lattice.psf[channel],
+                                                                skew_dir=LLSZWidget.LlszMenu.skew_dir)
                                 else:
                                     user_workflow.set("crop_deskew_image",crop_volume_deskew,
                                                                 original_volume = vol_zyx, 
@@ -638,7 +647,8 @@ def _napari_lattice_widget_wrapper():
                                                                 voxel_size_y =LLSZWidget.LlszMenu.lattice.dy, 
                                                                 voxel_size_z =LLSZWidget.LlszMenu.lattice.dz, 
                                                                 z_start = z_start, 
-                                                                z_end = z_end)
+                                                                z_end = z_end,
+                                                                skew_dir=LLSZWidget.LlszMenu.skew_dir)
                                 
                                 #Set input of the workflow to be  crop_deskewing, i.e., the original first operation will now have crop_deskew_image as an input (becoming second instead)
                                 user_workflow.set(input_arg_first,"crop_deskew_image")
@@ -736,8 +746,8 @@ def _napari_lattice_widget_wrapper():
                                 #set input to subsequent task as deconvolution output
                                 user_workflow.set(input_arg_first,"deconvolution")
 
-                        print("Workflow to be executed:")
-                        print(user_workflow)
+                        logger.info("Workflow to be executed:")
+                        logger.info(user_workflow)
                         #Execute workflow
                         processed_vol = user_workflow.get(task_name_last)
                         
@@ -804,11 +814,9 @@ def _napari_lattice_widget_wrapper():
                             save_path (Path, optional): Path to save resulting data
                         """                
                         assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
-                        assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Time start should be 0 or >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time)
-                        assert 0<= time_end <LLSZWidget.LlszMenu.lattice.time, "Time end should be >0 or same as total time "+str(LLSZWidget.LlszMenu.lattice.time)
-                        assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or >0 or same as no. of channels "+str(LLSZWidget.LlszMenu.lattice.channels)
-                        assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be >0 or same as no. of channels " +str(LLSZWidget.LlszMenu.lattice.channels)
-
+                        
+                        check_dimensions(time_start,time_end,ch_start,ch_end,LLSZWidget.LlszMenu.lattice.channels,LLSZWidget.LlszMenu.lattice.time)
+                        
                         #Get parameters
                         angle = LLSZWidget.LlszMenu.lattice.angle
                         dx = LLSZWidget.LlszMenu.lattice.dx
@@ -894,7 +902,8 @@ def _napari_lattice_widget_wrapper():
                                                 z_end = z_end,
                                                 deconvolution=LLSZWidget.LlszMenu.deconvolution.value,
                                                 decon_processing=LLSZWidget.LlszMenu.lattice.decon_processing,
-                                                psf=psf_arg)
+                                                psf=psf_arg,
+                                                skew_dir=LLSZWidget.LlszMenu.skew_dir)
 
                             #change the first task so it accepts "crop_deskew as input"
                             new_task = modify_workflow_task(old_arg=input_arg_first,task_key=task_name_start,new_arg="crop_deskew_image",workflow=user_workflow)
@@ -1062,6 +1071,7 @@ def _napari_lattice_widget_wrapper():
                         
                 pass
     LLSZWidget.WidgetContainer.DeskewWidget.max_width = 100
+    LLSZWidget.WidgetContainer.CropWidget.Preview_Crop_Menu.max_width = 100
     #max_height = 50
     #Important to have this or napari won't recognize the classes and magicclass qidgets
     widget = LLSZWidget()

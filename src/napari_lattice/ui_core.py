@@ -2,21 +2,19 @@ import os
 import numpy as np
 from pathlib import Path
 
-from magicclass.wrappers import set_design
-from magicgui import magicgui, widgets
-from magicclass import magicclass, vfield, set_options
-from qtpy.QtCore import Qt
-
-from napari.layers import Layer
+from aicsimageio import AICSImage
 from napari.types import ImageData
-from napari.utils import history
 
 import pyclesperanto_prototype as cle
-from .io import LatticeData,  save_img
+from .io import save_img
+from .utils import pad_image_nearest_multiple, check_dimensions
 
 from napari_lattice.llsz_core import pycuda_decon, skimage_decon
 
-from aicsimageio import AICSImage
+#Enable Logging
+import logging
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
     
 def _Preview(LLSZWidget,
             self_class,
@@ -101,11 +99,7 @@ def _Deskew_Save(LLSZWidget,
                  save_path: Path):
 
                 assert LLSZWidget.LlszMenu.open_file, "Image not initialised"
-                assert 0<= time_start <=LLSZWidget.LlszMenu.lattice.time, "Indexing starts from zero. Time start should be 0 or same as total time: "+str(LLSZWidget.LlszMenu.lattice.time)
-                assert 0<= time_end <LLSZWidget.LlszMenu.lattice.time, "Indexing ends at time-1. Time end should be 0 or  total time: "+str(LLSZWidget.LlszMenu.lattice.time -1)
-                assert 0<= ch_start <= LLSZWidget.LlszMenu.lattice.channels, "Channel start should be 0 or same as no. of channels: "+str(LLSZWidget.LlszMenu.lattice.channels)
-                assert 0<= ch_end < LLSZWidget.LlszMenu.lattice.channels, "Channel end should be 0 or or less than no. of channels: " +str(LLSZWidget.LlszMenu.lattice.channels -1)
-              
+                check_dimensions(time_start,time_end,ch_start,ch_end,LLSZWidget.LlszMenu.lattice.channels,LLSZWidget.LlszMenu.lattice.time)
                 #time_range = range(time_start, time_end)
                 #channel_range = range(ch_start, ch_end)
                 angle = LLSZWidget.LlszMenu.lattice.angle
@@ -172,13 +166,17 @@ def _read_psf(psf_ch1_path:Path,
     psf_paths = [psf_ch1_path,psf_ch2_path,psf_ch3_path,psf_ch4_path]
 
     #remove empty paths; pathlib returns current directory as "." if None or empty str specified
+    #When running batch processing,empty directory will be an empty string
+    
     import platform
     from pathlib import PureWindowsPath, PosixPath
     
     if platform.system() =="Linux":
-        psf_paths = [Path(x) for x in psf_paths if x!=PosixPath(".")]
+        psf_paths = [Path(x) for x in psf_paths if x!=PosixPath(".") and x!=""]
     elif platform.system()=="Windows":
-        psf_paths = [Path(x) for x in psf_paths if x!=PureWindowsPath(".")]
+        psf_paths = [Path(x) for x in psf_paths if x!=PureWindowsPath(".") and x!=""]
+        
+    logging.debug(f"PSF paths are {psf_paths}")
     #total no of psf images
     psf_channels = len(psf_paths)
     assert psf_channels>0, f"No images detected for PSF. Check the psf paths -> {psf_paths}"
@@ -188,7 +186,7 @@ def _read_psf(psf_ch1_path:Path,
     if decon_option == "cuda_gpu":
         import importlib
         pycudadecon_import = importlib.util.find_spec("pycudadecon")
-        assert pycudadecon_import, f"Please install pycudadecon using: conda install -c conda-forge pycudadecon"
+        assert pycudadecon_import, f"Pycudadecon not detected. Please install using: conda install -c conda-forge pycudadecon"
         otf_names = ["ch1","ch2","ch3","ch4"]
         channels =[488,561,640,123]
         #get temp directory to save generated otf
@@ -197,43 +195,26 @@ def _read_psf(psf_ch1_path:Path,
      
     for idx,psf in enumerate(psf_paths):
         if os.path.exists(psf) and psf.is_file():
-            if os.path.splitext(psf.__str__())[1] == ".czi":
+            if psf.suffix == ".czi":
                 from aicspylibczi import CziFile
                 psf_czi = CziFile(psf.__str__())
                 psf_aics = psf_czi.read_image()
-                if len(psf_aics[0])>=1:
-                    psf_channels = len(psf_aics[0])
                 #make sure shape is 3D
                 psf_aics = psf_aics[0][0]#np.expand_dims(psf_aics[0],axis=0)
+                #if len(psf_aics[0])>=1:
+                    #psf_channels = len(psf_aics[0])
                 assert len(psf_aics.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
-                lattice_class.psf.append(psf_aics)
-                if decon_option == "cuda_gpu":
-                    from pycudadecon import make_otf
-                    otf_path = temp_dir+otf_names[idx]+"_otf.tif"
-                    if os.path.exists(otf_path):
-                        os.remove(otf_path)
-                        
-                    #appens _otf.tif to otf filename
-                    #numerical aperture is based on Zeiss lattice detection objective
-                    #water immersion, so refractive index is 1.3
-                    create_otf = make_otf(psf=psf.__str__(), 
-                                          outpath=otf_path,
-                                          dzpsf=lattice_class.dz,
-                                          dxpsf=lattice_class.dz,
-                                          wavelength=channels[idx],
-                                          na = 1)
-                    lattice_class.otf_path.append(create_otf)
-                    print(create_otf)
-                
+                #pad psf to multiple of 16 for decon
+                psf_aics = pad_image_nearest_multiple(img=psf_aics,nearest_multiple=16)
+                lattice_class.psf.append(psf_aics)              
             else:
                 psf_aics = AICSImage(psf.__str__())
-                lattice_class.psf.append(psf_aics.data)
+                psf_aics_data = psf_aics.data[0][0]
+                psf_aics_data = pad_image_nearest_multiple(img=psf_aics_data,nearest_multiple=16)
+                lattice_class.psf.append(psf_aics_data)
                 if psf_aics.dims.C>=1:
                         psf_channels = psf_aics.dims.C
-                if decon_option == "cuda_gpu":
-                    from pycudadecon import make_otf
-                    create_otf = make_otf(psf=psf.__str__(), outpath=temp_dir+otf_names[idx], dzpsf=lattice_class.dz,dxpsf=lattice_class.dz,wavelength=channels[idx])
-                    lattice_class.otf_path.append(create_otf)
+    
     
     #LLSZWidget.LlszMenu.lattice.channels =3
     if psf_channels != lattice_class.channels:
