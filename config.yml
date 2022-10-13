@@ -1,0 +1,30 @@
+input: "/stornext/Img/data/prkfs1/m/Microscopy/LLS/LLSZ/Cindy/20221005/to be processed/TFChol_SirActin_CMXRos_cytD_sample2-03.czi"
+output: "/vast/scratch/users/whitehead/crops/"
+#skew_direction: Y
+#deskew_angle:
+processing: crop
+#deconvolution:
+#deconvolution_num_iter:
+#deconvolution_psf:
+# - psf_ch1_path
+# - psf_ch2_path
+# - psf_ch3_path
+# - psf_ch4_path
+roi_file:"/stornext/Img/data/prkfs1/m/Microscopy/LLS/LLSZ/Cindy/20221005/to be processed/TFChol_SirActin_CMXRos_cytD_sample2-03.zip" 
+#voxel_sizes:
+#  - 0.3      #dz
+#  - 0.123    #dy
+#  - 0.256    #dx
+#file_extension:
+time_range:
+  - 1
+  - 5
+channel_range:
+  - 0
+  - 2
+#workflow_path:
+output_file_type: tif
+#channel:
+
+
+

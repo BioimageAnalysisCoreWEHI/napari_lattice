@@ -22,6 +22,7 @@ from .._dock_widget import _napari_lattice_widget_wrapper
 from ..ui_core import _read_psf
 
 
+
 # define parser class so as to print help message
 class ArgParser(argparse.ArgumentParser):
     def error(self, message):
@@ -80,15 +81,15 @@ def args_parse():
 
 def main():
     args = args_parse()
-    logging.info(args)
-
-    input_path = args.input[0]
-    output_path = args.output[0]+os.sep
-    dz,dy,dx = args.voxel_sizes
-    deskew_angle = args.deskew_angle
-    channel_dimension = args.channel
-    skew_dir = args.skew_direction.upper()
-    processing = args.processing[0].lower() #lowercase
+#    logging.info(args)
+    print(args)
+    #input_path = args.input[0]
+    #output_path = args.output[0]+os.sep
+    #dz,dy,dx = args.voxel_sizes
+    #deskew_angle = args.deskew_angle
+    #channel_dimension = args.channel
+    #skew_dir = args.skew_direction.upper()
+    #processing = args.processing[0].lower() #lowercase
     log_level = args.set_logging.upper()
     
     #Enable Logging
@@ -96,7 +97,7 @@ def main():
     logger = logging.getLogger(__name__)
     logging.basicConfig(level=log_level.upper())
     logging.info("fLogging set to {log_level.upper()}")
-     
+
     # IF using a config file, set a lot of parameters here
     # the rest are scattered throughout the code when needed
     # could be worth bringing everything up top
@@ -117,6 +118,9 @@ def main():
         skew_dir = processing_parameters.get('skew_direction', args.skew_direction)
         deskew_angle = processing_parameters.get('deskew_angle', 30.0)
         processing = processing_parameters.get('processing').lower()
+        deconvolution = processing_parameters.get('deconvolution').lower()
+        deconvolution_num_iter = processing_parameters.get('deconvolution_num_iter')
+        deconvolution_psf = processing_parameters.get('deconvolution_psf')
         if processing == "crop" or processing == "workflow_crop":
             roi_file = processing_parameters.get('roi_file', False)
             assert roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
@@ -233,20 +237,30 @@ def main():
         
         #Verify dimensions
         check_dimensions(time_start,time_end,channel_start,channel_end,lattice.channels,lattice.time)
-        
-        #deconvolution
-        if args.deconvolution[0]:
-            lattice.decon_processing = args.deconvolution[0].lower()
 
-            # define the psf paths
-            psf_ch1_path = ""
-            psf_ch2_path = ""
-            psf_ch3_path = ""
-            psf_ch4_path = ""
-            #Split paths based on a comma or semicolon
+        #Need empty strings in case some don't exist later
+        psf_ch1_path = ""
+        psf_ch2_path = ""
+        psf_ch3_path = ""
+        psf_ch4_path = ""
+
+        #deconvolution
+        if args.deconvolution:
+            lattice.decon_processing = args.deconvolution[0].lower
             psf_paths = re.split(';|,', args.deconvolution_psf[0])
+        elif args.config and 'deconvolution' in processing_parameters:
+            lattice.decon_processing = deconvolution.lower()
+            psf_paths = processing_parameters.get('deconvolution_psf')
+        else:
+            deconvolution = False
+
+        if deconvolution:
+            print("DECONVOLUTIONING!")
             logging.debug(psf_paths)
-            
+
+
+
+
             #assign psf paths to variables
             #if doesn't exist, skip
             try:
@@ -263,9 +277,13 @@ def main():
             # set number of iterations
             if args.deconvolution_num_iter:
                 lattice.psf_num_iter = args.deconvolution_num_iter
+            elif args.config and 'deconvolution_num_iter' is in processing_parameters:
+                lattice.psf_num_iter  = processing_parameters.get('deconvolution_num_iter')
+
             else:
                 lattice.psf_num_iter = 10
 
+            print(lattice.psf_num_iter)
             _read_psf(psf_ch1_path,
                       psf_ch2_path,
                       psf_ch3_path,
@@ -302,6 +320,7 @@ def main():
         else:
             lattice.decon_processing = None
 
+        print(lattice.decon_processing)
         # Override pixel values by reading metadata if file is czi
         if os.path.splitext(img)[1] == ".czi":
             dz,dy,dx = lattice.dz, lattice.dy, lattice.dx
@@ -463,7 +482,7 @@ def main():
                         )
         
         #Crop and deskew
-        elif processing == "crop" or processing =="workflow_crop":
+
 
         # Crop and deskew
         elif processing == "crop" or processing == "workflow_crop":
