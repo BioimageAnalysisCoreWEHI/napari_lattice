@@ -77,12 +77,9 @@ def args_parse():
     args = parser.parse_args()
     return args
 
-
-
 def main():
     args = args_parse()
 #    logging.info(args)
-    print(args)
     #input_path = args.input[0]
     #output_path = args.output[0]+os.sep
     #dz,dy,dx = args.voxel_sizes
@@ -111,8 +108,26 @@ def main():
         except FileNotFoundError as exc:
             exit("Config yml file %s not found, please specify" % args.config[0])
 
-        input_path = processing_parameters['input']
-        output_path = processing_parameters['output']
+        #this is how I propose setting the command line variables
+        #If they're in the config, get from there. If not
+        #Look in command line. If not there, then exit
+        if 'input' in processing_parameters:
+            input_path = processing_parameters['input']
+        elif args.input is not None:
+            input_path = args.input[0]
+        else:
+            exit("Input not set")
+        print("Processing file %s" % input_path)
+
+
+        if 'output' in processing_parameters:
+            output_path = processing_parameters['output']
+        elif args.output is not None:
+            output_path = args.output[0] + os.sep
+        else:
+            exit("Output not set")
+
+        #If requried setting not in config file = use defaults from argparse
         dz, dy, dx = processing_parameters.get('voxel_sizes', args.voxel_sizes)
         channel_dimension = processing_parameters.get('channel', args.channel)
         skew_dir = processing_parameters.get('skew_direction', args.skew_direction)
@@ -122,12 +137,20 @@ def main():
         deconvolution_num_iter = processing_parameters.get('deconvolution_num_iter')
         deconvolution_psf = processing_parameters.get('deconvolution_psf')
         if processing == "crop" or processing == "workflow_crop":
-            roi_file = processing_parameters.get('roi_file', False)
-            assert roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
-            print(roi_file)
+            if 'roi_file' in processing_parameters:
+                roi_file = processing_parameters.get('roi_file', False)
+            elif args.roi_file is not None:
+                roi_file = args.roi_file[0]
+            else:
+                exit("Specify roi file")
+            assert os.path.exists(roi_file), "Cannot find " + roi_file
+            print("Processing using roi file %s" % roi_file)
+
         assert os.path.exists(input_path), "Cannot find input " + input_path
         assert os.path.exists(output_path), "Cannot find output " + output_path
+
         file_extension = processing_parameters.get('file_extension', [".czi", ".tif", ".tiff"])
+
     # setting (some - see above) parameters from CLI
     else: #if not using config file
         input_path = args.input[0]
@@ -142,10 +165,9 @@ def main():
             assert args.roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
             roi_file = args.roi_file[0]
             if os.path.isfile(roi_file):  # if file make sure it is a zip file
-                assert os.path.splitext(roi_file)[1] == ".zip", "ROI file is not a zip file"
+                roi_file_extension = os.path.splitext(roi_file)[1]
+                assert  roi_file_extension == ".zip" or roi_file_extension == "roi", "ROI file is not a zip or .roi file"
 
-        # print(time_start,time_end)
-        # print(channel_start, channel_end)
         # Check if input and output paths exist
         assert os.path.exists(input_path), "Cannot find input " + input_path
         assert os.path.exists(output_path), "Cannot find output " + output_path
@@ -246,7 +268,8 @@ def main():
 
         #deconvolution
         if args.deconvolution:
-            lattice.decon_processing = args.deconvolution[0].lower
+            deconvolution = args.deconvolution[0].lower
+            lattice.decon_processing = deconvolution
             psf_paths = re.split(';|,', args.deconvolution_psf[0])
         elif args.config and 'deconvolution' in processing_parameters:
             lattice.decon_processing = deconvolution.lower()
@@ -257,9 +280,6 @@ def main():
         if deconvolution:
             print("DECONVOLUTIONING!")
             logging.debug(psf_paths)
-
-
-
 
             #assign psf paths to variables
             #if doesn't exist, skip
@@ -277,9 +297,8 @@ def main():
             # set number of iterations
             if args.deconvolution_num_iter:
                 lattice.psf_num_iter = args.deconvolution_num_iter
-            elif args.config and 'deconvolution_num_iter' is in processing_parameters:
+            elif args.config and 'deconvolution_num_iter' in processing_parameters:
                 lattice.psf_num_iter  = processing_parameters.get('deconvolution_num_iter')
-
             else:
                 lattice.psf_num_iter = 10
 
@@ -295,9 +314,9 @@ def main():
                       )
             psf_arg = "psf"
 
+        #I don't think this elif portion is needed anymore...
         elif args.config and 'decon_processing' in processing_parameters:
             lattice.decon_processing = processing_parameters['decon_processing']
-
             # define the psf paths
             psf_ch1_path = ""
             psf_ch2_path = ""
@@ -316,11 +335,9 @@ def main():
                 pass
             except KeyError:
                 pass
-
         else:
             lattice.decon_processing = None
 
-        print(lattice.decon_processing)
         # Override pixel values by reading metadata if file is czi
         if os.path.splitext(img)[1] == ".czi":
             dz,dy,dx = lattice.dz, lattice.dy, lattice.dx
