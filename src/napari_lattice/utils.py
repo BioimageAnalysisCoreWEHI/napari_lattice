@@ -9,6 +9,7 @@ import dask.array as da
 
 import pyclesperanto_prototype as cle
 from read_roi import read_roi_zip
+from read_roi import read_roi_file
 
 from napari_workflows import Workflow
 from tifffile import imsave
@@ -158,9 +159,15 @@ def read_imagej_roi(roi_zip_path):
 
     Returns:
         list: List of ROIs
-    """    
-    assert  path.splitext(roi_zip_path)[1] == ".zip", "ImageJ ROI file needs to be a zip file"
-    ij_roi = read_roi_zip(roi_zip_path)
+    """
+    roi_extension = path.splitext(roi_zip_path)[1]
+    assert   roi_extension == ".roi" or roi_extension == ".zip", "ImageJ ROI file needs to be a zip/roi file"
+
+    if roi_extension == ".zip":
+        ij_roi = read_roi_zip(roi_zip_path)
+
+    if roi_extension == ".roi":
+        ij_roi = read_roi_file(roi_zip_path)
 
     #initialise list of rois
     roi_list = []
