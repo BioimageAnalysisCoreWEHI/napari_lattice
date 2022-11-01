@@ -416,7 +416,7 @@ def _napari_lattice_widget_wrapper():
                 
                 
                     @magicclass(name="Crop and Save Data")
-                    
+
                     class CropSaveData:
                         @magicgui(header=dict(widget_type="Label", label="<h3>Crop and Save Data</h3>"),
                                   time_start=dict(label="Time Start:"),
