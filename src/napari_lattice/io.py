@@ -165,9 +165,14 @@ def save_img(vol,
             lattice_class = lattice
             
     else:
-        decon_value = LLSZWidget.LlszMenu.deconvolution.value
-        lattice_class = LLSZWidget.LlszMenu.lattice
-        decon_option = LLSZWidget.LlszMenu.lattice.decon_processing
+        try:
+            decon_value = LLSZWidget.LlszMenu.deconvolution.value
+            lattice_class = LLSZWidget.LlszMenu.lattice
+            decon_option = LLSZWidget.LlszMenu.lattice.decon_processing
+        except:
+            decon_value = 0
+            lattice_class = 0
+            decon_option = 0
         
     
 
@@ -291,9 +296,9 @@ def save_img(vol,
                 im_final,
                 resolution=(1./dx, 1./dy,"MICROMETER"),    #specify resolution unit for consistent metadata)
                 metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},
-                imagej=True) 
+                imagej=True)
         im_final = None
-   
+
     return
 
 def save_img_workflow(vol,
@@ -572,8 +577,9 @@ class LatticeData():
         self.skew = skew
         
         #if image layer
+
         if type(img) is image.Image: #napari layer image
-            #check if its an aicsimageio object and has voxel size info            
+            #check if its an aicsimageio object and has voxel size info
             if 'aicsimage' in img.metadata.keys() and img.metadata['aicsimage'].physical_pixel_sizes != (None,None,None):
                 img_data_aics = img.metadata['aicsimage']
                 self.data = img_data_aics.dask_data
