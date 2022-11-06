@@ -64,8 +64,6 @@ the coverage at least stays the same before you submit a pull request.
 
 ## License
 
-
-=======
 Distributed under the terms of the [GPL-3.0 License] license,
 "napari_lattice" is free and open source software
 
@@ -73,7 +71,9 @@ Distributed under the terms of the [GPL-3.0 License] license,
 
  This project was supported by funding from the [Rogers Lab at the Centre for Dynamic Imaging at the Walter and Eliza Hall Institute of Medical Research](https://imaging.wehi.edu.au/). This project has been made possible in part by [Napari plugin accelerator grant](https://chanzuckerberg.com/science/programs-resources/imaging/napari/lattice-light-sheet-data-analysis-toolset/) from the Chan Zuckerberg Initiative DAF, an advised fund of the Silicon Valley Community Foundation.
 
- Thanks to the developers and maintainers of the amazing open-source plugins such as pyclesperanto, aicsimageio, dask and pycudadecon. ALso, thanks to the imagesc forum!
+ Thanks to the developers and maintainers of the amazing open-source plugins such as [pyclesperanto](https://github.com/clEsperanto/pyclesperanto_prototype), [aicsimageio](https://github.com/AllenCellModeling/aicsimageio), [dask](https://github.com/dask/dask) and [pycudadecon](https://github.com/tlambert03/pycudadecon).
+ Thanks in particular to the developers of open source projects: [LLSpy](https://github.com/tlambert03/LLSpy) and [lls_dd](https://github.com/VolkerH/Lattice_Lightsheet_Deskew_Deconv) as they were referred to extensively for developing napari-lattice.
+ Thanks to the imagesc forum!
 
 ## Issues
 
