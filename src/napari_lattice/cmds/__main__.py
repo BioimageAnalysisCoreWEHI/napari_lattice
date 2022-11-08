@@ -62,7 +62,7 @@ def args_parse():
     parser.add_argument('--channel_range', type=int, nargs=2,
                         help="Enter channel range to extract, default will be all channels if no range is specified. For example, 0 1 will extract first two channels. ")
     parser.add_argument('--workflow_path', type=str, nargs=1, help="Enter path to the workflow file '.yml")
-    parser.add_argument('--output_file_type', type=str, nargs=1, help="Save as either tif or h5, defaults to tif")
+    parser.add_argument('--output_file_type', type=str, nargs=1, help="Save as either tif or h5, defaults to h5",default="h5"),
     parser.add_argument('--channel', type=bool, nargs=1,
                         help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",
                         default=False)
@@ -87,14 +87,19 @@ def main():
     #channel_dimension = args.channel
     #skew_dir = args.skew_direction.upper()
     #processing = args.processing[0].lower() #lowercase
-    log_level = args.set_logging.upper()
+    
     
     #Enable Logging
     import logging
     logger = logging.getLogger(__name__)
-    logging.basicConfig(level=log_level.upper())
-    logging.info("fLogging set to {log_level.upper()}")
 
+
+    #Setting empty strings for psf paths
+    psf_ch1_path = ""
+    psf_ch2_path = ""
+    psf_ch3_path = ""
+    psf_ch4_path = ""
+    
     # IF using a config file, set a lot of parameters here
     # the rest are scattered throughout the code when needed
     # could be worth bringing everything up top
@@ -106,8 +111,11 @@ def main():
                 except yaml.YAMLError as exc:
                     print(exc)
         except FileNotFoundError as exc:
-            exit("Config yml file %s not found, please specify" % args.config[0])
-
+            exit(f"Config yml file {args.config[0]} not found, please specify")
+            
+        
+        if not processing_parameters:
+            logging.error(f"Config file not loaded properly")
         #this is how I propose setting the command line variables
         #If they're in the config, get from there. If not
         #Look in command line. If not there, then exit
@@ -128,14 +136,47 @@ def main():
             exit("Output not set")
 
         #If requried setting not in config file = use defaults from argparse
+        #get method for a dictionary will get a value if specified, if not, will use value from args as default value
+        
         dz, dy, dx = processing_parameters.get('voxel_sizes', args.voxel_sizes)
         channel_dimension = processing_parameters.get('channel', args.channel)
-        skew_dir = processing_parameters.get('skew_direction', args.skew_direction)
+        skew_dir = processing_parameters.get('skew_direction', "Y")
         deskew_angle = processing_parameters.get('deskew_angle', 30.0)
-        processing = processing_parameters.get('processing').lower()
-        deconvolution = processing_parameters.get('deconvolution').lower()
-        deconvolution_num_iter = processing_parameters.get('deconvolution_num_iter')
-        deconvolution_psf = processing_parameters.get('deconvolution_psf')
+        processing = processing_parameters.get('processing')
+        time_start, time_end = processing_parameters.get('time_range',(None,None))
+        channel_start, channel_end = processing_parameters.get('channel_range',(None,None))
+        output_file_type = processing_parameters.get('output_file_type',args.output_file_type[0])
+        roi_to_process = processing_parameters.get('roi_number',None)
+        log_level = processing_parameters.get('--set_logging',"INFO")
+
+        logging.basicConfig(level=log_level.upper())
+        logging.info(f"Logging set to {log_level.upper()}")
+        
+        if processing:
+            processing = processing.lower()
+        else: 
+            logging.error("Processing option not set.")
+            exit()
+        
+        deconvolution = processing_parameters.get('deconvolution')
+        if deconvolution:
+            deconvolution = deconvolution.lower()
+            psf_arg = "psf"
+            deconvolution_num_iter = processing_parameters.get('deconvolution_num_iter',10)
+            psf_paths = processing_parameters.get('deconvolution_psf')
+            logging.debug(psf_paths)
+            if not psf_paths:
+                logging.error("PSF paths not set option not set.")
+                exit()
+            else:
+                psf_ch1_path = psf_paths[0].replace(",", "").strip()
+                psf_ch2_path = psf_paths[1].replace(",", "").strip()
+                psf_ch3_path = psf_paths[2].replace(",", "").strip()
+                psf_ch4_path = psf_paths[3].replace(",", "").strip()
+            
+        else:
+            deconvolution = False
+        
         if processing == "crop" or processing == "workflow_crop":
             if 'roi_file' in processing_parameters:
                 roi_file = processing_parameters.get('roi_file', False)
@@ -145,6 +186,7 @@ def main():
                 exit("Specify roi file")
             assert os.path.exists(roi_file), "Cannot find " + roi_file
             print("Processing using roi file %s" % roi_file)
+            
 
         assert os.path.exists(input_path), "Cannot find input " + input_path
         assert os.path.exists(output_path), "Cannot find output " + output_path
@@ -158,15 +200,69 @@ def main():
         dz, dy, dx = args.voxel_sizes
         deskew_angle = args.deskew_angle
         channel_dimension = args.channel
+        time_start, time_end = args.time_range
+        channel_start, channel_end = args.channel_range
         skew_dir = args.skew_direction
-        processing = args.processing[0].lower()  # lowercase
+        processing = args.processing[0] # lowercase
+        output_file_type = args.output_file_type[0]
+        roi_to_process = args.roi_number
+        log_level = args.set_logging
+        logging.basicConfig(level=log_level.upper())
+        logging.info(f"Logging set to {log_level.upper()}")
+        
+        
+        if processing:
+            processing = processing.lower()
+        else: 
+            logging.error("Processing option not set.")
+            exit()
+        
+                    
+        #deconvolution
+        if args.deconvolution:
+            deconvolution = args.deconvolution[0].lower
+            psf_arg = "psf"
+            if args.deconvolution_psf:
+                psf_paths = re.split(';|,', args.deconvolution_psf[0])
+                logging.debug(psf_paths)
+                psf_ch1_path = psf_paths[0]
+                psf_ch2_path = psf_paths[1]
+                psf_ch3_path = psf_paths[2]
+                psf_ch4_path = psf_paths[3]
+                _read_psf(psf_ch1_path,
+                      psf_ch2_path,
+                      psf_ch3_path,
+                      psf_ch4_path,
+                      use_gpu_decon=lattice.decon_processing,
+                      LLSZWidget=None,
+                      lattice=lattice,
+                      terminal=True,
+                      )
+            else:
+                logging.error("PSF paths not set option not set.")
+                exit()
+            #num of iter default is 10 if nothing specified
+            if args.deconvolution_num_iter:
+                deconvolution_num_iter = args.deconvolution_num_iter
+            else:
+                deconvolution_num_iter = 10
+        else:
+            deconvolution = False
+        
+        #output file type to save
+        if not output_file_type:
+            output_file_type = 'h5'
+        else:
+            output_file_type = output_file_type.lower()
 
+        #Get 
         if processing == "crop" or processing == "workflow_crop":
             assert args.roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
             roi_file = args.roi_file[0]
-            if os.path.isfile(roi_file):  # if file make sure it is a zip file
+            if os.path.isfile(roi_file):  # if file make sure it is a zip file or roi file
                 roi_file_extension = os.path.splitext(roi_file)[1]
                 assert  roi_file_extension == ".zip" or roi_file_extension == "roi", "ROI file is not a zip or .roi file"
+                
 
         # Check if input and output paths exist
         assert os.path.exists(input_path), "Cannot find input " + input_path
@@ -180,7 +276,9 @@ def main():
     # Initialise list of images and ROIs
     img_list = []
     roi_list = []
-
+    logging.debug(f"Deconvolution is set to {deconvolution} and option is ")
+    
+    logging.debug(f"Output file type is {output_file_type}")
     # If input_path a directory, get a list of images
     if os.path.isdir(input_path):
         for file_type in file_extension:
@@ -212,7 +310,9 @@ def main():
         no_files = len(img_list)
         roi_list = [""] * no_files
 
-    # loop through list of images and rois
+
+
+    # loop through the list of images and rois
     for img, roi_path in zip(img_list, roi_list):
         print("Processing Image " + img)
         if processing == "crop" or processing == "workflow_crop":
@@ -231,7 +331,8 @@ def main():
                     break
             except Exception as e:
                 print(f"Scene {scene} not valid")
-
+        
+        #Initialize Lattice class
         lattice = LatticeData(aics_img, deskew_angle, skew_dir, dx, dy, dz, channel_dimension)
 
         #Chance deskew function absed on skew direction
@@ -242,101 +343,26 @@ def main():
             lattice.deskew_func = cle.deskew_x
             lattice.skew_dir = "X"        
 
-        
-        if args.time_range:
-            time_start, time_end = args.time_range
-        elif args.config and 'time_range' in processing_parameters:
-            time_start, time_end = processing_parameters['time_range']
-        else:
+        if time_start is None or time_end is None:
             time_start,time_end = 0,lattice.time - 1
-    
-        if args.channel_range:
-            channel_start, channel_end = args.channel_range
-        elif args.config and 'channel_range' in processing_parameters:
-            channel_start, channel_end = processing_parameters['channel_range']
-        else:
+            
+        if channel_start is None or channel_end is None:
             channel_start, channel_end = 0,lattice.channels - 1
         
         #Verify dimensions
         check_dimensions(time_start,time_end,channel_start,channel_end,lattice.channels,lattice.time)
 
-        #Need empty strings in case some don't exist later
-        psf_ch1_path = ""
-        psf_ch2_path = ""
-        psf_ch3_path = ""
-        psf_ch4_path = ""
-
-        #deconvolution
-        if args.deconvolution:
-            deconvolution = args.deconvolution[0].lower
-            lattice.decon_processing = deconvolution
-            psf_paths = re.split(';|,', args.deconvolution_psf[0])
-        elif args.config and 'deconvolution' in processing_parameters:
-            lattice.decon_processing = deconvolution.lower()
-            psf_paths = processing_parameters.get('deconvolution_psf')
-        else:
-            deconvolution = False
-
+        #If deconvolution, set the parameters in the lattice class
         if deconvolution:
+            lattice.decon_processing = deconvolution.lower()
+            lattice.psf_num_iter = deconvolution_num_iter
+            logging.debug(f"Num of iterations decon, {lattice.psf_num_iter}")
             print("DECONVOLUTIONING!")
-            logging.debug(psf_paths)
-
-            #assign psf paths to variables
-            #if doesn't exist, skip
-            try:
-                psf_ch1_path = psf_paths[0]
-                psf_ch2_path = psf_paths[1]
-                psf_ch3_path = psf_paths[2]
-                psf_ch4_path = psf_paths[3]
-            except IndexError:
-                pass
-
-            # add a terminal flag for when calling commands that are used in gui
             lattice.psf = []
             lattice.otf_path = []
-            # set number of iterations
-            if args.deconvolution_num_iter:
-                lattice.psf_num_iter = args.deconvolution_num_iter
-            elif args.config and 'deconvolution_num_iter' in processing_parameters:
-                lattice.psf_num_iter  = processing_parameters.get('deconvolution_num_iter')
-            else:
-                lattice.psf_num_iter = 10
-
-            print(lattice.psf_num_iter)
-            _read_psf(psf_ch1_path,
-                      psf_ch2_path,
-                      psf_ch3_path,
-                      psf_ch4_path,
-                      use_gpu_decon=lattice.decon_processing,
-                      LLSZWidget=None,
-                      lattice=lattice,
-                      terminal=True,
-                      )
-            psf_arg = "psf"
-
-        #I don't think this elif portion is needed anymore...
-        elif args.config and 'decon_processing' in processing_parameters:
-            lattice.decon_processing = processing_parameters['decon_processing']
-            # define the psf paths
-            psf_ch1_path = ""
-            psf_ch2_path = ""
-            psf_ch3_path = ""
-            psf_ch4_path = ""
-
-            # assign psf paths to variables
-            # if doesn't exist, skip
-            try:
-                psfs = processing_parameters['deconvolution_psf']
-                psf_ch1_path = psfs[0].replace(",", "").strip()
-                psf_ch2_path = psfs[1].replace(",", "").strip()
-                psf_ch3_path = psfs[2].replace(",", "").strip()
-                psf_ch4_path = psfs[3].replace(",", "").strip()
-            except IndexError:
-                pass
-            except KeyError:
-                pass
         else:
             lattice.decon_processing = None
+           
 
         # Override pixel values by reading metadata if file is czi
         if os.path.splitext(img)[1] == ".czi":
@@ -438,18 +464,7 @@ def main():
             os.mkdir(save_path)
         print("Saving at ", save_path)
 
-        if not args.config:
-            if not args.output_file_type:
-                output_file_type = 'tif'
-            else:
-                output_file_type = args.output_file_type[0]
-        else:
-            if 'output_file_type' not in processing_parameters:
-                output_file_type = 'tif'
-            else:
-                output_file_type = processing_parameters['output_file_type']
 
-        print(output_file_type)
 
         # Deskewing only
         if processing == "deskew":
@@ -506,20 +521,33 @@ def main():
             roi_img = read_imagej_roi(roi_path)
 
 
-            if args.roi_number:
+            
+            deskewed_shape = lattice.deskew_vol_shape
+            deskewed_volume = da.zeros(deskewed_shape)
+
+            # Can modify for entering custom z values
+            z_start = 0
+            z_end = deskewed_shape[0]
+
+            #if roi number is specified, roi_img will be a list containing only one roi.
+            if roi_to_process is not None:
                 #just do one ROI
-                roi_to_process = args.roi_number[0]
-                assert roi_to_process < len(roi_img), "ROI out of range of roi file (there are less than %i rois)" % roi_to_process
+                assert roi_to_process < len(roi_img), f"ROI specified is {roi_to_process}, which is less than total ROIs ({len(roi_img)})" 
+                logging.info(f"Processing single ROI: {roi_to_process}")
+                #If only one ROI, single loop
+                roi_img = [roi_img[roi_to_process]]
+                print(roi_img)        
+            
+            #loop through rois in the roi list
+            for idx, roi_layer in enumerate(tqdm(roi_img, desc="ROI:", position=0)):
+           
+                print("Processing ROI " + str(idx) + " of " + str(len(roi_img)))
                 deskewed_shape = lattice.deskew_vol_shape
                 deskewed_volume = da.zeros(deskewed_shape)
 
                 # Can modify for entering custom z values
                 z_start = 0
                 z_end = deskewed_shape[0]
-
-                print("Processing roi number %i" % roi_to_process)
-                idx = roi_to_process
-                roi_layer = roi_img[roi_to_process]
 
                 if processing == "crop":
                     # deconvolution
@@ -619,115 +647,6 @@ def main():
                                           dz=dz,
                                           angle=deskew_angle,
                                           deconvolution=False)
-            else:
-                #do All rois
-                for idx, roi_layer in enumerate(tqdm(roi_img, desc="ROI:", position=0)):
-                    print("Processing ROI " + str(idx) + " of " + str(len(roi_img)))
-                    deskewed_shape = lattice.deskew_vol_shape
-                    deskewed_volume = da.zeros(deskewed_shape)
-
-                    # Can modify for entering custom z values
-                    z_start = 0
-                    z_end = deskewed_shape[0]
-
-                    if processing == "crop":
-                        # deconvolution
-                        if lattice.decon_processing:
-                            save_img(img_data,
-                                     func=crop_volume_deskew,
-                                     time_start=time_start,
-                                     time_end=time_end,
-                                     channel_start=channel_start,
-                                     channel_end=channel_end,
-                                     save_name_prefix="ROI_" + str(idx) + "_",
-                                     save_path=save_path,
-                                     save_name=save_name,
-                                     save_file_type=output_file_type,
-                                     dx=dx,
-                                     dy=dy,
-                                     dz=dz,
-                                     angle=deskew_angle,
-                                     terminal=True,
-                                     lattice=lattice,
-                                     deskewed_volume=deskewed_volume,
-                                     roi_shape=roi_layer,
-                                     angle_in_degrees=deskew_angle,
-                                     z_start=z_start,
-                                     z_end=z_end,
-                                     voxel_size_x=dx,
-                                     voxel_size_y=dy,
-                                     voxel_size_z=dz,
-                                     )
-                        else:
-                            save_img(img_data,
-                                     func=crop_volume_deskew,
-                                     time_start=time_start,
-                                     time_end=time_end,
-                                     channel_start=channel_start,
-                                     channel_end=channel_end,
-                                     save_name_prefix="ROI_" + str(idx) + "_",
-                                     save_path=save_path,
-                                     save_name=save_name,
-                                     save_file_type=output_file_type,
-                                     dx=dx,
-                                     dy=dy,
-                                     dz=dz,
-                                     angle=deskew_angle,
-                                     deskewed_volume=deskewed_volume,
-                                     roi_shape=roi_layer,
-                                     angle_in_degrees=deskew_angle,
-                                     z_start=z_start,
-                                     z_end=z_end,
-                                     voxel_size_x=dx,
-                                     voxel_size_y=dy,
-                                     voxel_size_z=dz,
-                                     )
-
-                    elif processing == "workflow_crop":
-                        # deconvolution
-                        user_workflow.set(roi, roi_layer)
-
-                        if lattice.decon_processing:
-                            save_img_workflow(vol=img_data,
-                                              workflow=user_workflow,
-                                              input_arg=volume,
-                                              first_task="crop_deskew",
-                                              last_task=task_name_last,
-                                              time_start=time_start,
-                                              time_end=time_end,
-                                              channel_start=channel_start,
-                                              channel_end=channel_end,
-                                              save_path=save_path,
-                                              save_name_prefix="ROI_" + str(idx),
-                                              save_name=save_name,
-                                              save_file_type=output_file_type,
-                                              dx=dx,
-                                              dy=dy,
-                                              dz=dz,
-                                              angle=deskew_angle,
-                                              deconvolution=True,
-                                              decon_processing=lattice.decon_processing,
-                                              psf=lattice.psf,
-                                              psf_arg=psf_arg)
-                        else:
-                            save_img_workflow(vol=img_data,
-                                              workflow=user_workflow,
-                                              input_arg=volume,
-                                              first_task="crop_deskew",
-                                              last_task=task_name_last,
-                                              time_start=time_start,
-                                              time_end=time_end,
-                                              channel_start=channel_start,
-                                              channel_end=channel_end,
-                                              save_path=save_path,
-                                              save_file_type=output_file_type,
-                                              save_name_prefix="ROI_" + str(idx),
-                                              save_name=save_name,
-                                              dx=dx,
-                                              dy=dy,
-                                              dz=dz,
-                                              angle=deskew_angle,
-                                              deconvolution=False)
 
         elif processing == "workflow":
             # if deskew_image task set above manually
