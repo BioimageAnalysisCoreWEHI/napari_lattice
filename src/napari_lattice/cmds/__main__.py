@@ -103,13 +103,19 @@ def main():
     # IF using a config file, set a lot of parameters here
     # the rest are scattered throughout the code when needed
     # could be worth bringing everything up top
+    print(args.config)
+
+
     if args.config:
         try:
             with open(args.config[0], 'r') as con:
                 try:
                     processing_parameters = yaml.safe_load(con)
-                except yaml.YAMLError as exc:
+
+                except Exception as exc:
                     print(exc)
+
+
         except FileNotFoundError as exc:
             exit(f"Config yml file {args.config[0]} not found, please specify")
             
@@ -146,12 +152,14 @@ def main():
         time_start, time_end = processing_parameters.get('time_range',(None,None))
         channel_start, channel_end = processing_parameters.get('channel_range',(None,None))
         output_file_type = processing_parameters.get('output_file_type',args.output_file_type[0])
-        roi_to_process = processing_parameters.get('roi_number',None)
+        roi_to_process = processing_parameters.get('roi_number',args.roi_number[0])
         log_level = processing_parameters.get('--set_logging',"INFO")
 
         logging.basicConfig(level=log_level.upper())
         logging.info(f"Logging set to {log_level.upper()}")
-        
+
+
+
         if processing:
             processing = processing.lower()
         else: 
@@ -380,7 +388,7 @@ def main():
             # load custom modules (*.py) in same directory as workflow file
             import importlib
             parent_dir = workflow_path.resolve().parents[0].__str__() + os.sep
-            print(parent_dir)
+
             sys.path.append(parent_dir)
             custom_py_files = get_all_py_files(parent_dir)
 
@@ -513,15 +521,10 @@ def main():
                         voxel_size_z=dz
                         )
         
-        #Crop and deskew
-
-
         # Crop and deskew
         elif processing == "crop" or processing == "workflow_crop":
             roi_img = read_imagej_roi(roi_path)
 
-
-            
             deskewed_shape = lattice.deskew_vol_shape
             deskewed_volume = da.zeros(deskewed_shape)
 
@@ -536,11 +539,16 @@ def main():
                 logging.info(f"Processing single ROI: {roi_to_process}")
                 #If only one ROI, single loop
                 roi_img = [roi_img[roi_to_process]]
-                print(roi_img)        
+
             
             #loop through rois in the roi list
             for idx, roi_layer in enumerate(tqdm(roi_img, desc="ROI:", position=0)):
-           
+
+                if roi_to_process is not None:
+                    roi_label = str(roi_to_process)
+                else:
+                    roi_label = str(idx)
+
                 print("Processing ROI " + str(idx) + " of " + str(len(roi_img)))
                 deskewed_shape = lattice.deskew_vol_shape
                 deskewed_volume = da.zeros(deskewed_shape)
@@ -558,7 +566,7 @@ def main():
                                  time_end=time_end,
                                  channel_start=channel_start,
                                  channel_end=channel_end,
-                                 save_name_prefix="ROI_" + str(idx) + "_",
+                                 save_name_prefix="ROI_" + roi_label + "_",
                                  save_path=save_path,
                                  save_name=save_name,
                                  save_file_type=output_file_type,
@@ -584,7 +592,7 @@ def main():
                                  time_end=time_end,
                                  channel_start=channel_start,
                                  channel_end=channel_end,
-                                 save_name_prefix="ROI_" + str(idx) + "_",
+                                 save_name_prefix="ROI_" + roi_label + "_",
                                  save_path=save_path,
                                  save_name=save_name,
                                  save_file_type=output_file_type,
@@ -617,7 +625,7 @@ def main():
                                           channel_start=channel_start,
                                           channel_end=channel_end,
                                           save_path=save_path,
-                                          save_name_prefix="ROI_" + str(idx),
+                                          save_name_prefix="ROI_" + roi_label,
                                           save_name=save_name,
                                           save_file_type=output_file_type,
                                           dx=dx,
@@ -640,7 +648,7 @@ def main():
                                           channel_end=channel_end,
                                           save_path=save_path,
                                           save_file_type=output_file_type,
-                                          save_name_prefix="ROI_" + str(idx),
+                                          save_name_prefix="ROI_" + roi_label,
                                           save_name=save_name,
                                           dx=dx,
                                           dy=dy,
