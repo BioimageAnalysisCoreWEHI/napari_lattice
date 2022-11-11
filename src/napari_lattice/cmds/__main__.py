@@ -206,6 +206,8 @@ def main():
         processing = args.processing[0] # lowercase
         output_file_type = args.output_file_type[0]
         roi_to_process = args.roi_number
+        workflow_path = args.workflow_path[0]
+        
         log_level = args.set_logging
         logging.basicConfig(level=log_level.upper())
         logging.info(f"Logging set to {log_level.upper()}")
@@ -375,7 +377,7 @@ def main():
             if args.config and 'workflow_path' in processing_parameters:
                 workflow_path = Path(processing_parameters['workflow_path'])
             else:
-                workflow_path = Path(args.workflow_path[0])
+                workflow_path = Path(workflow_path)
 
             # load custom modules (*.py) in same directory as workflow file
             import importlib

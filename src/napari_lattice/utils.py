@@ -250,7 +250,7 @@ def modify_workflow_task(old_arg,task_key:str,new_arg,workflow):
     modified_task=tuple(task_list)
     return modified_task
 
-
+#TODO: CHANGE so user can select modules? Safer
 def get_all_py_files(directory): 
     """get all py files within directory and return as a list of filenames
     Args:
