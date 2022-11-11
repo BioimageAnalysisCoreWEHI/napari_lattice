@@ -175,6 +175,7 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
         #Find "excess" volume on both sides due to deskewing
         crop_excess = int(round((deskewed_height  - crop_height)/2)) + out_bounds_correction
         #Crop in Y
+        deskewed_prelim = np.asarray(deskewed_prelim)
         deskewed_crop = deskewed_prelim[:,crop_excess:crop_height+crop_excess,:]
     #IF CLIPPING HAPPENS FOR X_START or X_END, use difference to calculate offset
     elif skew_dir=="X":
