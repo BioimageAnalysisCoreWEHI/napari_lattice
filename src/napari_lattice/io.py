@@ -428,7 +428,7 @@ def save_img_workflow(vol,
         #use data from first timepoint to get the output type from workflow
         #check if multiple objects in the workflow output, if so, get the index for each item
         #currently, images, lists and dictionaries are supported
-        if time_point == 0:
+        if loop_time_idx == 0:
             
             #get no of elements
             
@@ -482,7 +482,7 @@ def save_img_workflow(vol,
             for writer_idx, image_idx in enumerate(image_element_index):
                 #access the image
                 if len(channel_range)==1:
-                    im_final = np.stack(output_array[image_idx,...]).astype(raw_vol.dtype)
+                    im_final = np.stack(output_array[0,image_idx]).astype(raw_vol.dtype)
                 else:
                     im_final = np.stack(output_array[:,image_idx]).astype(raw_vol.dtype)
                 if save_file_type == 'h5':

@@ -152,9 +152,15 @@ def main():
         time_start, time_end = processing_parameters.get('time_range',(None,None))
         channel_start, channel_end = processing_parameters.get('channel_range',(None,None))
         output_file_type = processing_parameters.get('output_file_type',args.output_file_type[0])
-        roi_to_process = processing_parameters.get('roi_number',args.roi_number[0])
+        if args.roi_number:
+            roi_to_process = processing_parameters.get('roi_number',args.roi_number[0])
+            print(f"Processing ROI {roi_to_process}")
+        else:
+            roi_to_process = processing_parameters.get('roi_number')
+        #roi_to_process = processing_parameters.get('roi_number',args.roi_number[0])
         log_level = processing_parameters.get('--set_logging',"INFO")
-
+        workflow_path = Path(processing_parameters['workflow_path'])
+        
         logging.basicConfig(level=log_level.upper())
         logging.info(f"Logging set to {log_level.upper()}")
 
@@ -220,6 +226,8 @@ def main():
         logging.basicConfig(level=log_level.upper())
         logging.info(f"Logging set to {log_level.upper()}")
         
+        if roi_to_process:
+            logging.info(f"Processing ROI {roi_to_process}")
         
         if processing:
             processing = processing.lower()
@@ -382,10 +390,10 @@ def main():
         #Setup workflows based on user input 
         if processing == "workflow" or processing == "workflow_crop":
             # load workflow from path
-            if args.config and 'workflow_path' in processing_parameters:
-                workflow_path = Path(processing_parameters['workflow_path'])
-            else:
-                workflow_path = Path(workflow_path)
+            #if args.config and 'workflow_path' in processing_parameters:
+                #workflow_path = Path(processing_parameters['workflow_path'])
+            #else:
+                #workflow_path = Path(workflow_path)
 
             # load custom modules (*.py) in same directory as workflow file
             import importlib

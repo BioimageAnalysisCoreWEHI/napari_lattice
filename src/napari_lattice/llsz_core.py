@@ -415,6 +415,7 @@ def pycuda_decon(image,otf_path=None,
     orig_img_shape = image.shape
     
     #if cropping, add extra padding to avoid edge artefact
+    #not doing this with with large images as images can be quite large with all the padding leading to memory issues
     if cropping:
         #pad image y dimensionswith half of psf shape
         z_psf_pad,y_psf_pad,x_psf_pad = np.array(psf.shape) //2
@@ -485,3 +486,22 @@ def skimage_decon(vol_zyx,psf,num_iter:int,clip:bool,filter_epsilon,boundary:str
         vol_zyx = da.asarray(vol_zyx)
     decon_data = vol_zyx.map_overlap(rl_decon_skimage, psf=psf, num_iter=num_iter, clip=clip, filter_epsilon=filter_epsilon, boundary=boundary, depth=depth, trim=True)
     return decon_data
+
+def pyopencl_decon(vol_zyx,psf,num_iter:int,clip:bool,filter_epsilon):
+    """Deconvolution using RedFishLion library for pyopencl based deconvolution
+    This is slower than pycudadecon
+
+    Args:
+        vol_zyx (_type_): _description_
+        psf (_type_): _description_
+        num_iter (_type_): _description_
+        clip (_type_): _description_
+        filter_epsilon (_type_): _description_
+        boundary (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """    
+    #CROP PSF; Crop psfs when reading and initialising psfs
+    
+    return 
