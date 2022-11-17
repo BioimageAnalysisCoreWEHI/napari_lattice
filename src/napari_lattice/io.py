@@ -173,8 +173,6 @@ def save_img(vol,
             decon_value = 0
             lattice_class = 0
             decon_option = 0
-        
-    
 
     #loop is ordered so image is saved in order TCZYX for ometiffwriter
     for loop_time_idx, time_point in enumerate(tqdm(time_range, desc="Time", position=0)): 
@@ -213,7 +211,7 @@ def save_img(vol,
                 #Use CUDA or skimage for deconvolution based on user choice
                 if decon_option =="cuda_gpu":
                     print("cuda")
-                    raw_vol = pycuda_decon(image = raw_vol, 
+                    raw_vol = pycuda_decon(image = raw_vol,
                                            #otf_path = LLSZWidget.LlszMenu.lattice.otf_path[ch],
                                            psf = lattice_class.psf[ch],
                                            dzdata=lattice_class.dz,

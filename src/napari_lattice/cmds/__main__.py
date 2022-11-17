@@ -152,12 +152,15 @@ def main():
         time_start, time_end = processing_parameters.get('time_range',(None,None))
         channel_start, channel_end = processing_parameters.get('channel_range',(None,None))
         output_file_type = processing_parameters.get('output_file_type',args.output_file_type[0])
-        if args.roi_number:
-            roi_to_process = processing_parameters.get('roi_number',args.roi_number[0])
-            print(f"Processing ROI {roi_to_process}")
-        else:
+
+        #to allow for either/or CLI/config file Todo for rest of parameters?
+        if 'roi_number' in processing_parameters:
             roi_to_process = processing_parameters.get('roi_number')
-        #roi_to_process = processing_parameters.get('roi_number',args.roi_number[0])
+        elif args.roi_number is not None:
+            roi_to_process = args.roi_number[0]
+        else:
+            roi_to_process = None
+
         log_level = processing_parameters.get('--set_logging',"INFO")
         workflow_path = Path(processing_parameters['workflow_path'])
         
@@ -187,7 +190,7 @@ def main():
                 psf_ch2_path = psf_paths[1].replace(",", "").strip()
                 psf_ch3_path = psf_paths[2].replace(",", "").strip()
                 psf_ch4_path = psf_paths[3].replace(",", "").strip()
-            
+
         else:
             deconvolution = False
         
@@ -378,6 +381,16 @@ def main():
             print("DECONVOLUTIONING!")
             lattice.psf = []
             lattice.otf_path = []
+            #todo this should maybe go somewhere else?
+            _read_psf(psf_ch1_path,
+                      psf_ch2_path,
+                      psf_ch3_path,
+                      psf_ch4_path,
+                      use_gpu_decon=lattice.decon_processing,
+                      LLSZWidget=None,
+                      lattice=lattice,
+                      terminal=True,
+                      )
         else:
             lattice.decon_processing = None
            
