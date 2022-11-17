@@ -162,8 +162,11 @@ def main():
             roi_to_process = None
 
         log_level = processing_parameters.get('--set_logging',"INFO")
-        workflow_path = Path(processing_parameters['workflow_path'])
-        
+        workflow_path = processing_parameters.get('workflow_path',None)
+        if workflow_path is not None:
+            workflow_path = Path(workflow_path)
+
+
         logging.basicConfig(level=log_level.upper())
         logging.info(f"Logging set to {log_level.upper()}")
 
