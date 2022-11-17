@@ -183,7 +183,8 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
         crop_width = crop_vol_shape[2]
         #Find "excess" volume on both sides due to deskewing
         crop_excess = int(round((deskewed_width  - crop_width)/2)) + out_bounds_correction
-        #Crop in Y
+        #Crop in X
+        deskewed_prelim = np.asarray(deskewed_prelim)
         deskewed_crop = deskewed_prelim[:,:,crop_excess:crop_width+crop_excess]
         
     
@@ -396,7 +397,7 @@ def pycuda_decon(image,otf_path=None,
 
     Args:
         image (np.array): _description_
-        otf_path : (path to the generated otf file)
+        otf_path : (path to the generated otf file, if available. Otherwise psf needs to be provided)
         dzdata : (pixel size in z in microns)
         dxdata : (pixel size in xy  in microns)
         dzpsf : (pixel size of original psf file in z  microns)
