@@ -147,7 +147,6 @@ def crop_volume_deskew(original_volume:Union[da.core.Array,np.ndarray,cle._tier0
                                     psf=psf, 
                                     num_iter=num_iter,
                                     clip=False, filter_epsilon=0, boundary='nearest')
-        
         deskewed_prelim = cle.affine_transform(crop_volume_processed, 
                                            transform =deskew_transform,
                                            auto_size=True,
