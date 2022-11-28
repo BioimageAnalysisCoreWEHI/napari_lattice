@@ -394,6 +394,7 @@ def main():
                       lattice=lattice,
                       terminal=True,
                       )
+
         else:
             lattice.decon_processing = None
            
@@ -495,7 +496,15 @@ def main():
         # Create save directory for each image
         save_path = output_path + os.sep + os.path.basename(os.path.splitext(img)[0]) + os.sep
         if not os.path.exists(save_path):
-            os.mkdir(save_path)
+            try:
+                os.mkdir(save_path)
+            except FileExistsError:
+                #this is sometimes caused when running parallel jobs
+                #can safely be ignored (I hope)
+                pass
+
+
+
         print("Saving at ", save_path)
 
 
