@@ -32,7 +32,7 @@ jobs:
           python --version
           conda install -y pyopencl pocl
           python -m pip install --upgrade pip
-          python -m pip install setuptools tox tox-gh-actions wheel pytest pytest-cov pytest-qt pyqt5
+          python -m pip install setuptools wheel pytest pytest-cov pytest-benchmark pytest-qt PyQt5
           pip install -e .
       - name: Test
         shell: bash -l {0}
