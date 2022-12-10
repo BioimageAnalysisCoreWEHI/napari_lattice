@@ -63,7 +63,7 @@ def _napari_lattice_widget_wrapper():
                                         "value": 0.3, "step": 0.000000001},
                          angle={"widget_type": "FloatSpinBox",
                                 "value": 30, "step": 0.1},
-                         use_GPU={"widget_type": "CheckBox", "value": True},
+                         select_device={"widget_type": "ComboBox", "choices":cle.available_device_names() ,"value": cle.available_device_names()[0]},
                          last_dimension_channel={"widget_type": "ComboBox", "choices": ["Channel", "Time", "Get_from_metadata"], "value": "Get_from_metadata",
                                                  "label": "Set Last dimension (channel/time)", "tooltip": "If the last dimension is initialised incorrectly, you can assign it as either channel/time"},
                          merge_all_channel_layers={"widget_type": "CheckBox", "value": True, "label": "Merge all napari layers as channels",
@@ -77,7 +77,7 @@ def _napari_lattice_widget_wrapper():
                                    pixel_size_dy: float = 0.1449922,
                                    pixel_size_dz: float = 0.3,
                                    angle: float = 30,
-                                   use_GPU: bool = True,
+                                   select_device: str = cle.available_device_names()[0],
                                    last_dimension_channel: bool = False,
                                    merge_all_channel_layers: bool = False,
                                    skew_dir=DeskewDirection.Y):
@@ -123,7 +123,7 @@ def _napari_lattice_widget_wrapper():
                                                           last_dimension=last_dimension_channel)
                 #LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
 
-                LLSZWidget.LlszMenu.dask = False  # Use GPU by default
+                #LLSZWidget.LlszMenu.dask = False  # Use GPU by default
 
                 # We initialise these variables here, but they can be changed in the deconvolution section
                 # list to store psf images for each channel
@@ -133,7 +133,7 @@ def _napari_lattice_widget_wrapper():
                 # list to store otf paths for each channel (Deprecated)
                 LLSZWidget.LlszMenu.lattice.otf_path = []
                 # if not using GPU
-                LLSZWidget.LlszMenu.dask = not use_GPU
+                #LLSZWidget.LlszMenu.dask = not use_GPU
 
                 # flag for ensuring a file has been opened and plugin initialised
                 LLSZWidget.LlszMenu.open_file = True
