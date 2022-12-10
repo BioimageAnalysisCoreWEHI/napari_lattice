@@ -4,14 +4,21 @@ __version__ = "0.0.1"
 
 from enum import Enum
 
-
 # Initialize configuration options
+
+#Deskew Direction
 class DeskewDirection(Enum):
-    X = 1
-    Y = 2
+    X = "X"
+    Y = "Y"
 
-
+#Choice of Deconvolution
 class DeconvolutionChoice(Enum):
-    cuda_gpu = 1
-    opencl_gpu = 2
-    cpu = 3
+    cuda_gpu = "cuda_gpu"
+    opencl_gpu = "opencl_gpu"
+    cpu = "cpu"
+
+#Choice of File extension to save
+class SaveFileType(Enum):
+    h5 = "h5"
+    tiff = "tiff"
+    
