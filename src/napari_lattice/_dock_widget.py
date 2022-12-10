@@ -17,22 +17,19 @@ from napari.types import ImageData
 from napari.utils import history
 
 import pyclesperanto_prototype as cle
-from .io import LatticeData
 from .ui_core import _Preview, _Deskew_Save, _read_psf
 
 from napari.types import ImageData, ShapesData
-from .utils import read_imagej_roi
 from .llsz_core import crop_volume_deskew, pycuda_decon, skimage_decon
 
 from tqdm import tqdm
 
-from .io import LatticeData,  save_img, save_img_workflow
-
-from .utils import read_imagej_roi, get_first_last_image_and_task, modify_workflow_task, get_all_py_files, as_type, process_custom_workflow_output, check_dimensions
-from . import config
+from napari_lattice.io import LatticeData,  save_img, save_img_workflow
+from .utils import read_imagej_roi, get_first_last_image_and_task, modify_workflow_task, get_all_py_files, as_type, process_custom_workflow_output, check_dimensions, load_custom_py_modules
+from . import config,DeskewDirection, DeconvolutionChoice, SaveFileType
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
-from . import DeskewDirection
+
 
 # Enable Logging
 import logging
@@ -66,14 +63,13 @@ def _napari_lattice_widget_wrapper():
                                         "value": 0.3, "step": 0.000000001},
                          angle={"widget_type": "FloatSpinBox",
                                 "value": 30, "step": 0.1},
-                         use_GPU={"widget_type": "CheckBox",
-                                  "value": True},
+                         use_GPU={"widget_type": "CheckBox", "value": True},
                          last_dimension_channel={"widget_type": "ComboBox", "choices": ["Channel", "Time", "Get_from_metadata"], "value": "Get_from_metadata",
                                                  "label": "Set Last dimension (channel/time)", "tooltip": "If the last dimension is initialised incorrectly, you can assign it as either channel/time"},
                          merge_all_channel_layers={"widget_type": "CheckBox", "value": True, "label": "Merge all napari layers as channels",
                                                    "tooltip": "Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"},
-                         skew_dir={"widget_type": "ComboBox", "choices": [
-                             "Y", "X"], "value": "Y", "label": "Direction of skew (Y or X)", "tooltip": "Skew direction when image is acquired. Ask your microscopist for details"}
+                         skew_dir={"widget_type": "ComboBox", "choices": DeskewDirection, "value": DeskewDirection.Y,
+                                   "label": "Direction of skew (Y or X)", "tooltip": "Skew direction when image is acquired. Ask your microscopist for details"}
                          )
             def Choose_Image_Layer(self,
                                    img_layer: Layer,
@@ -84,18 +80,19 @@ def _napari_lattice_widget_wrapper():
                                    use_GPU: bool = True,
                                    last_dimension_channel: bool = False,
                                    merge_all_channel_layers: bool = False,
-                                   skew_dir: str = "Y"):
+                                   skew_dir=DeskewDirection.Y):
 
                 logger.info(f"Using existing image layer")
-                skew_dir = str.upper(skew_dir)
-                assert skew_dir in (
-                    'Y', 'X'), "Skew direction not recognised. Enter either Y or X"
-                if skew_dir == "X":
-                    LLSZWidget.LlszMenu.deskew_func = cle.deskew_x
-                    LLSZWidget.LlszMenu.skew_dir = DeskewDirection.Y
-                elif skew_dir == "Y":
+
+                #assert skew_dir in DeskewDirection, "Skew direction not recognised. Enter either Y or X"
+                LLSZWidget.LlszMenu.skew_dir = skew_dir
+                LLSZWidget.LlszMenu.angle_value = angle
+                if LLSZWidget.LlszMenu.skew_dir == DeskewDirection.Y:
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_y
-                    LLSZWidget.LlszMenu.skew_dir = DeskewDirection.X
+                    #LLSZWidget.LlszMenu.skew_dir = DeskewDirection.Y
+                elif LLSZWidget.LlszMenu.skew_dir == DeskewDirection.X:
+                    LLSZWidget.LlszMenu.deskew_func = cle.deskew_x
+                    #LLSZWidget.LlszMenu.skew_dir = DeskewDirection.X
 
                 if last_dimension_channel == "Get_from_metadata":
                     last_dimension_channel = None
@@ -117,8 +114,6 @@ def _napari_lattice_widget_wrapper():
                         self.parent_viewer.add_layer(new_layer)
                         img_layer = new_layer
 
-                # We use angle of 30 initially, but can alter this in the next gui function
-                # TODO: Add angle as an option above
                 LLSZWidget.LlszMenu.lattice = LatticeData(img=img_layer,
                                                           angle=angle,
                                                           skew=LLSZWidget.LlszMenu.skew_dir,
@@ -130,14 +125,17 @@ def _napari_lattice_widget_wrapper():
 
                 LLSZWidget.LlszMenu.dask = False  # Use GPU by default
 
+                # We initialise these variables here, but they can be changed in the deconvolution section
                 # list to store psf images for each channel
                 LLSZWidget.LlszMenu.lattice.psf = []
                 LLSZWidget.LlszMenu.lattice.psf_num_iter = 10
-                # list to store otf paths for each channel
+                LLSZWidget.LlszMenu.lattice.decon_processing = DeconvolutionChoice.cpu
+                # list to store otf paths for each channel (Deprecated)
                 LLSZWidget.LlszMenu.lattice.otf_path = []
+                # if not using GPU
                 LLSZWidget.LlszMenu.dask = not use_GPU
-                LLSZWidget.LlszMenu.lattice.decon_processing = "cpu"
 
+                # flag for ensuring a file has been opened and plugin initialised
                 LLSZWidget.LlszMenu.open_file = True
 
                 logger.info(
@@ -147,7 +145,7 @@ def _napari_lattice_widget_wrapper():
                 logger.info(
                     f"Dimensions of deskewed image (ZYX): {LLSZWidget.LlszMenu.lattice.deskew_vol_shape}")
 
-                # Add dimension labels
+                # Add dimension labels correctly
                 # if channel, and not time
                 if LLSZWidget.LlszMenu.lattice.time == 0 and (last_dimension_channel or LLSZWidget.LlszMenu.lattice.channels > 0):
                     self.parent_viewer.dims.axis_labels = list(
@@ -171,7 +169,6 @@ def _napari_lattice_widget_wrapper():
                         ('Time', "Z", "Y", "X"))
 
                 logger.info(f"Initialised")
-
                 self["Choose_Image_Layer"].background_color = "green"
                 self["Choose_Image_Layer"].text = "Plugin Initialised"
 
@@ -202,8 +199,8 @@ def _napari_lattice_widget_wrapper():
                                        "label": "Channel 3"},
                          psf_ch4_path={"widget_type": "FileEdit",
                                        "label": "Channel 4"},
-                         use_gpu_decon={"widget_type": "ComboBox", "label": "Choose processing device", "choices": [
-                             "cpu", "cuda_gpu"]},
+                         device_option={
+                             "widget_type": "ComboBox", "label": "Choose processing device", "choices": DeconvolutionChoice},
                          no_iter={
                              "widget_type": "SpinBox", "label": "No of iterations (Deconvolution)", "value": 10, "min": 1, "max": 50, "step": 1}
                          )
@@ -213,18 +210,16 @@ def _napari_lattice_widget_wrapper():
                                   psf_ch2_path: Path,
                                   psf_ch3_path: Path,
                                   psf_ch4_path: Path,
-                                  use_gpu_decon: str,
+                                  device_option,
                                   no_iter: int):
-                # move function to ui_core;
-                # create list with psf image arrays for each channel
-                # index corresponds to channel no
-                LLSZWidget.LlszMenu.lattice.decon_processing = use_gpu_decon
-
+                """GUI for Deconvolution button"""
+                LLSZWidget.LlszMenu.lattice.decon_processing = device_option
+                assert LLSZWidget.LlszMenu.deconvolution.value == True, "Deconvolution is set to False. Tick the box to activate deconvolution."
                 _read_psf(psf_ch1_path,
                           psf_ch2_path,
                           psf_ch3_path,
                           psf_ch4_path,
-                          use_gpu_decon,
+                          device_option,
                           LLSZWidget)
                 LLSZWidget.LlszMenu.lattice.psf_num_iter = no_iter
                 self["deconvolution_gui"].background_color = "green"
@@ -244,13 +239,9 @@ def _napari_lattice_widget_wrapper():
                                channel: int,
                                img_data: ImageData):
                 """
-                Preview the deskewing for a single timepoint
+                Preview deskewed data for a single timepoint and channel
 
-                Args:
-                    header ([type]): [description]
-                    img_data (ImageData): [description]
                 """
-
                 _Preview(LLSZWidget,
                          self,
                          time,
@@ -258,18 +249,19 @@ def _napari_lattice_widget_wrapper():
                          img_data)
                 return
 
-        # Widget container to house all the widgets
+        # Tabbed Widget container to house all the widgets
         @magicclass(widget_type="tabbed", name="Functions")
         class WidgetContainer:
             @magicclass(name="Deskew", widget_type="scrollable")
             class DeskewWidget:
+
                 @magicgui(header=dict(widget_type="Label", label="<h3>Deskew and Save</h3>"),
                           time_start=dict(label="Time Start:", max=2**20),
                           time_end=dict(label="Time End:", value=1, max=2**20),
                           ch_start=dict(label="Channel Start:"),
                           ch_end=dict(label="Channel End:", value=1),
                           save_as_type={
-                              "label": "Save as filetype:", "choices": ["tif", "h5"]},
+                              "label": "Save as filetype:", "choices": SaveFileType, "value": SaveFileType.h5},
                           save_path=dict(mode='d', label="Directory to save"),
                           call_button="Save")
                 def Deskew_Save(self,
@@ -280,7 +272,7 @@ def _napari_lattice_widget_wrapper():
                                 ch_end: int,
                                 save_as_type: str,
                                 save_path: Path = Path(history.get_save_history()[0])):
-
+                    """ Widget to Deskew and Save Data"""
                     _Deskew_Save(LLSZWidget,
                                  time_start,
                                  time_end,
@@ -334,8 +326,6 @@ def _napari_lattice_widget_wrapper():
                     # -> LayerDataTuple:
                     def Crop_Preview(self, roi_layer: ShapesData):
                         assert roi_layer, "No coordinates found for cropping. Check if right shapes layer or initialise shapes layer and draw ROIs."
-                        #assert self.roi_idx.value <len(CropWidget.Preview_Crop_Menu.shapes_layer.data), "ROI not present"
-                        #assert len(CropWidget.Preview_Crop_Menu.shapes_layer.selected_data)>0, "ROI not selected"
                         # TODO: Add assertion to check if bbox layer or coordinates
                         time = self.time_crop.value
                         channel = self.chan_crop.value
@@ -378,7 +368,7 @@ def _napari_lattice_widget_wrapper():
                             logger.info(
                                 f"Deskewing for Time:{time} and Channel: {channel} with deconvolution")
                             #psf = LLSZWidget.LlszMenu.lattice.psf[channel]
-                            if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                            if LLSZWidget.LlszMenu.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
                                 crop_roi_vol_desk = crop_volume_deskew(original_volume=vol_zyx,
                                                                        deskewed_volume=deskewed_volume,
                                                                        roi_shape=roi_choice,
@@ -415,7 +405,8 @@ def _napari_lattice_widget_wrapper():
                                                                    voxel_size_y=LLSZWidget.LlszMenu.lattice.dy,
                                                                    voxel_size_z=LLSZWidget.LlszMenu.lattice.dz,
                                                                    z_start=z_start,
-                                                                   z_end=z_end).astype(vol_zyx.dtype)
+                                                                   z_end=z_end,
+                                                                   skew_dir=LLSZWidget.LlszMenu.skew_dir).astype(vol_zyx.dtype)
                         crop_roi_vol_desk = cle.pull(crop_roi_vol_desk)
 
                         # get array back from gpu or addding cle array to napari can throw errors
@@ -435,7 +426,7 @@ def _napari_lattice_widget_wrapper():
                                   ch_start=dict(label="Channel Start:"),
                                   ch_end=dict(label="Channel End:", value=1),
                                   save_as_type={
-                                      "label": "Save as filetype:", "choices": ["h5", "tif"]},
+                                      "label": "Save as filetype:", "choices": SaveFileType},
                                   save_path=dict(mode='d', label="Directory to save "))
                         def Crop_Save(self,
                                       header,
@@ -560,7 +551,7 @@ def _napari_lattice_widget_wrapper():
                             try:
                                 # Automatically scan workflow file directory for *.py files.
                                 # If it findss one, load it as a module
-                                import importlib
+
                                 parent_dir = workflow_path.resolve(
                                 ).parents[0].__str__()+os.sep
                                 sys.path.append(parent_dir)
@@ -569,8 +560,9 @@ def _napari_lattice_widget_wrapper():
                                     logger.error(
                                         f"No custom modules imported. If you'd like to use a cusotm module, place a *.py file in same folder as the workflow file {parent_dir}")
                                 else:
-                                    modules = map(
-                                        importlib.import_module, custom_py_files)
+                                    modules = load_custom_py_modules(
+                                        custom_py_files)
+
                                     logger.info(
                                         f"Custom modules imported {modules}")
                                 user_workflow = load_workflow(
@@ -609,7 +601,6 @@ def _napari_lattice_widget_wrapper():
                             f"Processing for Time: {time} and Channel: {channel}")
 
                         vol = LLSZWidget.LlszMenu.lattice.data
-
                         vol_zyx = vol[time, channel, ...]
                         vol_zyx = np.array(vol_zyx)
 
@@ -624,7 +615,7 @@ def _napari_lattice_widget_wrapper():
                         psf = None
                         otf_path = None
 
-                        if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                        if LLSZWidget.LlszMenu.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
                             otf_path = "otf_path"
                         else:
                             psf = "psf"
@@ -689,14 +680,13 @@ def _napari_lattice_widget_wrapper():
                                 user_workflow.set(input_arg_first, vol_zyx)
                         # Not cropping; If deskew not in workflow, append to start
                         elif user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y, cle.deskew_x):
-
                             # if deconvolution checked, add it to start of workflow (add upstream of deskewing)
                             if LLSZWidget.LlszMenu.deconvolution.value:
                                 psf = LLSZWidget.LlszMenu.lattice.psf[channel]
                                 input_arg_first_decon, input_arg_last_decon, first_task_name_decon, last_task_name_decon = get_first_last_image_and_task(
                                     user_workflow)
 
-                                if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                                if LLSZWidget.LlszMenu.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
                                     user_workflow.set("deconvolution",
                                                       pycuda_decon,
                                                       image=vol_zyx,
@@ -719,7 +709,7 @@ def _napari_lattice_widget_wrapper():
                                     # user_workflow.set(input_arg_first_decon,"deconvolution")
 
                                 user_workflow.set("deskew_image",
-                                                  LLSZWidget.LlszMenu.deskew_func,  # cle.deskew_y or cle.deskew_x
+                                                  LLSZWidget.LlszMenu.deskew_func,
                                                   "deconvolution",
                                                   angle_in_degrees=LLSZWidget.LlszMenu.lattice.angle,
                                                   voxel_size_x=LLSZWidget.LlszMenu.lattice.dx,
@@ -758,7 +748,7 @@ def _napari_lattice_widget_wrapper():
                                 input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(
                                     user_workflow)
 
-                                if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                                if LLSZWidget.LlszMenu.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
                                     user_workflow.set("deconvolution",
                                                       pycuda_decon,
                                                       image=vol_zyx,
@@ -827,7 +817,7 @@ def _napari_lattice_widget_wrapper():
                               workflow_path=dict(
                                   mode='r', label="Load custom workflow (.yaml/yml)"),
                               save_as_type={
-                                  "label": "Save as filetype:", "choices": ["tif", "h5"]},
+                                  "label": "Save as filetype:", "choices": SaveFileType},
                               save_path=dict(
                                   mode='d', label="Directory to save "),
                               #custom_module=dict(widget_type="Checkbox",label="Load custom module (same dir as workflow)",value = False),
@@ -842,8 +832,7 @@ def _napari_lattice_widget_wrapper():
                                                 roi_layer_list: ShapesData,
                                                 get_active_workflow: bool = False,
                                                 workflow_path: Path = Path.home(),
-                                                # custom_module:bool=False,
-                                                save_as_type: str = "tif",
+                                                save_as_type: str = SaveFileType.tiff,
                                                 save_path: Path = Path(history.get_save_history()[0])):
                         """
                         Apply a user-defined analysis workflow using napari-workflows
@@ -920,7 +909,7 @@ def _napari_lattice_widget_wrapper():
                         psf = None
                         otf_path = None
 
-                        if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                        if LLSZWidget.LlszMenu.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
                             #otf_path = "otf_path"
                             psf_arg = "psf"
                             psf = LLSZWidget.LlszMenu.lattice.psf
@@ -1018,11 +1007,10 @@ def _napari_lattice_widget_wrapper():
                                 input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(
                                     user_workflow)
 
-                                if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                                if LLSZWidget.LlszMenu.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
                                     user_workflow.set("deconvolution",
                                                       pycuda_decon,
                                                       image=input,
-                                                      # "LLSZWidget.LlszMenu.lattice.otf_path[channel]",
                                                       psf=psf_arg,
                                                       dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                                       dxdata=LLSZWidget.LlszMenu.lattice.dx,
@@ -1079,11 +1067,10 @@ def _napari_lattice_widget_wrapper():
                                 input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(
                                     user_workflow)
 
-                                if LLSZWidget.LlszMenu.lattice.decon_processing == "cuda_gpu":
+                                if LLSZWidget.LlszMenu.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
                                     user_workflow.set("deconvolution",
                                                       pycuda_decon,
                                                       image=input,
-                                                      # "LLSZWidget.LlszMenu.lattice.otf_path[channel]",
                                                       psf=psf_arg,
                                                       dzdata=LLSZWidget.LlszMenu.lattice.dz,
                                                       dxdata=LLSZWidget.LlszMenu.lattice.dx,
