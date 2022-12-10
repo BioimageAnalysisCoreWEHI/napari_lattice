@@ -4,6 +4,7 @@ https://github.com/nvladimus/npy2bdv
 #TODO: pass pyramidal layer to napari
 ##use ilevel parameter in read_view to access different subsamples/pyramids
 #pass a list of images with different resolution for pyramid; use is_pyramid=True flag in napari.add_image
+, however pyramidal support for 3D not available yet
 """
 
 import dask.array as da
