@@ -26,7 +26,7 @@ from tqdm import tqdm
 
 from napari_lattice.io import LatticeData,  save_img, save_img_workflow
 from .utils import read_imagej_roi, get_first_last_image_and_task, modify_workflow_task, get_all_py_files, as_type, process_custom_workflow_output, check_dimensions, load_custom_py_modules
-from . import config,DeskewDirection, DeconvolutionChoice, SaveFileType
+from . import config, DeskewDirection, DeconvolutionChoice, SaveFileType, Log_Levels
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
 
@@ -69,7 +69,9 @@ def _napari_lattice_widget_wrapper():
                          merge_all_channel_layers={"widget_type": "CheckBox", "value": True, "label": "Merge all napari layers as channels",
                                                    "tooltip": "Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"},
                          skew_dir={"widget_type": "ComboBox", "choices": DeskewDirection, "value": DeskewDirection.Y,
-                                   "label": "Direction of skew (Y or X)", "tooltip": "Skew direction when image is acquired. Ask your microscopist for details"}
+                                   "label": "Direction of skew (Y or X)", "tooltip": "Skew direction when image is acquired. Ask your microscopist for details"},
+                         set_logging = {"widget_type": "ComboBox", "choices": Log_Levels, "value": Log_Levels.INFO,
+                                   "label": "Log Level", "tooltip": "Only use for debugging. Leave it as INFO for regular operation"}
                          )
             def Choose_Image_Layer(self,
                                    img_layer: Layer,
@@ -80,13 +82,18 @@ def _napari_lattice_widget_wrapper():
                                    select_device: str = cle.available_device_names()[0],
                                    last_dimension_channel: bool = False,
                                    merge_all_channel_layers: bool = False,
-                                   skew_dir=DeskewDirection.Y):
+                                   skew_dir=DeskewDirection.Y,
+                                   set_logging = Log_Levels.INFO):
 
-                logger.info(f"Using existing image layer")
-
+                logger.setLevel(set_logging.value)
+                config.log_level = set_logging.value
+                logger.info(f"Logging set to {set_logging}")
+                logger.info("Using existing image layer")
+                
                 #assert skew_dir in DeskewDirection, "Skew direction not recognised. Enter either Y or X"
                 LLSZWidget.LlszMenu.skew_dir = skew_dir
                 LLSZWidget.LlszMenu.angle_value = angle
+                
                 if LLSZWidget.LlszMenu.skew_dir == DeskewDirection.Y:
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_y
                     #LLSZWidget.LlszMenu.skew_dir = DeskewDirection.Y
