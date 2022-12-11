@@ -30,6 +30,11 @@ from tqdm import tqdm
 from tifffile import imwrite, TiffWriter
 
 import npy2bdv
+from . import DeskewDirection, DeconvolutionChoice, SaveFileType
+
+# Enable Logging
+import logging
+logger = logging.getLogger(__name__)
 
 
 def convert_imgdata_aics(img_data:ImageData):
@@ -83,7 +88,7 @@ def save_img(vol,
               time_end:int,
               channel_start:int,
               channel_end:int,
-              save_file_type:str,
+              save_file_type,
               save_path:Path,
               save_name_prefix:str = "",
               save_name:str = "img",
@@ -104,7 +109,7 @@ def save_img(vol,
         time_end (int): _description_
         channel_start (int): _description_
         channel_end (int): _description_
-        save_file_type (str): either 'tif' or 'h5'
+        save_file_type: either 'tif' or SaveFileType.h5
         save_path (Path): _description_
         save_name_prefix (str, optional): Add a prefix to name. For example, if processng ROIs, add ROI_1_. Defaults to "".
         save_name (str, optional): name of file being saved. Defaults to "img".
@@ -141,7 +146,7 @@ def save_img(vol,
 
     
     #setup bdvwriter
-    if save_file_type == 'h5':
+    if save_file_type == SaveFileType.h5:
         if func is crop_volume_deskew:
             save_path_h5 = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".h5"
         else:
@@ -163,6 +168,7 @@ def save_img(vol,
             decon_value = True
             decon_option = lattice.decon_processing #decon_processing holds the choice
             lattice_class = lattice
+            logging.debug(f"Decon option {decon_option}")
             
     else:
         try:
@@ -194,7 +200,9 @@ def save_img(vol,
             
             #raw_vol = np.array(raw_vol)
             image_type = raw_vol.dtype
-
+            print(decon_value)
+            print(decon_option)
+            print(func)
             #Add a check for last timepoint, in case acquisition incomplete
             if time_point == time_end:
                 orig_shape = raw_vol.shape
@@ -209,8 +217,7 @@ def save_img(vol,
             #If deconvolution is checked
             if decon_value and func != crop_volume_deskew:
                 #Use CUDA or skimage for deconvolution based on user choice
-                if decon_option =="cuda_gpu":
-                    print("cuda")
+                if decon_option == DeconvolutionChoice.cuda_gpu:
                     raw_vol = pycuda_decon(image = raw_vol,
                                            #otf_path = LLSZWidget.LlszMenu.lattice.otf_path[ch],
                                            psf = lattice_class.psf[ch],
@@ -227,15 +234,17 @@ def save_img(vol,
             
 
             #The following will apply the user-passed function to the input image
-            if func is cle.deskew_y:
-                processed_vol = func(input_image = raw_vol, *args,**kwargs).astype(image_type)
-            elif func is crop_volume_deskew and decon_value==True:
+            if func is crop_volume_deskew and decon_value==True:
                 processed_vol = func(original_volume = raw_vol,
                                      deconvolution=decon_value,
                                      decon_processing = decon_option,
                                      psf=lattice_class.psf[ch],
                                      num_iter=lattice_class.psf_num_iter,
                                      *args,**kwargs).astype(image_type)
+                
+            elif func is cle.deskew_y or func is cle.deskew_x:
+                processed_vol = func(input_image = raw_vol, *args,**kwargs).astype(image_type)
+
             elif func is crop_volume_deskew:
                 processed_vol = func(original_volume = raw_vol, *args,**kwargs).astype(image_type)
             else:
@@ -244,7 +253,7 @@ def save_img(vol,
 
             processed_vol = cle.pull_zyx(processed_vol)
             
-            if save_file_type == "h5":
+            if save_file_type == SaveFileType.h5:
                 #convert opencl array to dask array
                 #pvol = da.asarray(processed_vol)
                 #channel and time index are based on loop iteration
@@ -262,7 +271,7 @@ def save_img(vol,
         #if function is not for cropping, then dataset can be quite large, so save each channel and timepoint separately
         #otherwise, append it into im_final
         
-        if func != crop_volume_deskew and save_file_type == 'tif': 
+        if func != crop_volume_deskew and save_file_type == SaveFileType.tiff:
             final_name = save_path + os.sep +save_name_prefix+ "C" + str(ch) + "T" + str(
                             time_point) + "_" +save_name+".tif"
             images_array = np.array(images_array)
@@ -273,16 +282,16 @@ def save_img(vol,
                    bigtiff=True,
                    resolution=(1./dx, 1./dy,"MICROMETER"),
                    metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},imagej=True)
-        elif save_file_type == 'tif':
+        elif save_file_type == SaveFileType.tiff:
             #convert list of arrays into a numpy array and then append to im_final
             im_final.append(np.array(images_array))
         
     # close the h5 writer or if its tiff, save images
-    if save_file_type == 'h5':
+    if save_file_type == SaveFileType.h5:
         bdv_writer.write_xml()
         bdv_writer.close()
         
-    elif func is crop_volume_deskew and save_file_type == 'tif':
+    elif func is crop_volume_deskew and save_file_type == SaveFileType.tiff:
 
         im_final = np.array(im_final)
         final_name = save_path + os.sep +save_name_prefix+ "_" +save_name+ ".tif"
@@ -308,7 +317,7 @@ def save_img_workflow(vol,
               time_end:int,
               channel_start:int,
               channel_end:int,
-              save_file_type:str,
+              save_file_type,
               save_path:Path,
               save_name_prefix:str = "",
               save_name:str = "img",
@@ -464,7 +473,7 @@ def save_img_workflow(vol,
                 for element in range(len(image_element_index)):
                     final_save_path = save_path + os.sep +save_name_prefix + "_"+str(element)+"_" +save_name+ "."+ save_file_type
                     #setup writer based on user choice of filetype
-                    if save_file_type == 'h5':
+                    if save_file_type == SaveFileType.h5:
                         bdv_writer = npy2bdv.BdvWriter(final_save_path, 
                                                     compression='gzip',
                                                     nchannels=len(channel_range),
@@ -483,7 +492,7 @@ def save_img_workflow(vol,
                     im_final = np.stack(output_array[0,image_idx]).astype(raw_vol.dtype)
                 else:
                     im_final = np.stack(output_array[:,image_idx]).astype(raw_vol.dtype)
-                if save_file_type == 'h5':
+                if save_file_type == SaveFileType.h5:
                     for ch_idx in channel_range:
                         #write h5 images as 3D stacks
                         
@@ -558,7 +567,7 @@ def save_img_workflow(vol,
     
     if len(image_element_index) > 0:
         for writer_idx in range(len(image_element_index)):
-            if save_file_type == 'h5':
+            if save_file_type == SaveFileType.h5:
                 #write h5 metadata
                 writer_list[writer_idx].write_xml()
             #close the writers (applies for both tiff and h5)
@@ -706,10 +715,10 @@ class LatticeData():
             raise Exception("Has to be an image layer or array, got type: ",type(img))    
             
         #set new z voxel size
-        if self.skew == "Y":
+        if self.skew == DeskewDirection.Y or self.skew == DeskewDirection.X:
             import math
             self.new_dz = math.sin(self.angle * math.pi / 180.0) * self.dz
-                
+            
         #process the file to get shape of final deskewed image
         self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(self.data, self.angle,self.dx,self.dy,self.dz)
         print(f"Channels: {self.channels}, Time: {self.time}")
@@ -723,5 +732,5 @@ class LatticeData():
     def set_angle(self, angle:float):
         self.angle = angle
 
-    def set_skew(self, skew:str):
+    def set_skew(self, skew):
         self.skew = skew 
