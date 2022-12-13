@@ -25,7 +25,7 @@ def test_batch_deskew_h5():
        Checks if an deskewed output file is created for both tif and h5
     """
     # Batch deskew and save as h5
-    cmd = f"napari_lattice --input {img_dir} --output {home_dir} --processing deskew --output_file_type h5"
+    cmd = f"napari_lattice --input '{img_dir}' --output '{home_dir}' --processing deskew --output_file_type h5"
     deskew_process_h5 = subprocess.Popen(cmd, stdout=subprocess.PIPE)
 
     # Read data from stdout and stderr. waits for process to terminate, or it will execute next line immmediately
