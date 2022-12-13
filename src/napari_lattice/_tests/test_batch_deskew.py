@@ -4,14 +4,20 @@ import os
 import numpy as np
 from pathlib import Path
 
-# Define home directory
 home_dir = str(Path.home())+os.sep
-# Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
-raw = np.zeros((5, 5, 5))
-raw[2, 4, 2] = 10
-# Save image as a tif filw in home directory
-img_dir = home_dir+"raw.tif"
-imsave(img_dir, raw)
+img_dir = home_dir+"raw.tiff"
+
+
+def test_create_image():
+    # Define home directory
+
+    home_dir = str(Path.home())+os.sep
+    # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
+    raw = np.zeros((5, 5, 5))
+    raw[2, 4, 2] = 10
+    # Save image as a tif filw in home directory
+    imsave(img_dir, raw)
+    assert os.path.exists(home_dir+"/raw.tiff")
 
 
 def test_batch_deskew_h5():
