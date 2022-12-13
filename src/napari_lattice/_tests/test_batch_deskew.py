@@ -26,7 +26,8 @@ def test_batch_deskew_h5():
     """
     # Batch deskew and save as h5
     cmd = f"napari_lattice --input '{img_dir}' --output '{home_dir}' --processing deskew --output_file_type h5"
-    deskew_process_h5 = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    deskew_process_h5 = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, shell=True)
 
     # Read data from stdout and stderr. waits for process to terminate, or it will execute next line immmediately
     _ = deskew_process_h5.communicate()
@@ -39,7 +40,8 @@ def test_batch_deskew_h5():
 def test_batch_deskew_tiff():
     # tiff file deskew
     cmd = f"napari_lattice --input {img_dir} --output {home_dir} --processing deskew --output_file_type tiff"
-    deskew_process_tiff = subprocess.Popen(cmd, stdout=subprocess.PIPE)
+    deskew_process_tiff = subprocess.Popen(
+        cmd, stdout=subprocess.PIPE, shell=True)
     _ = deskew_process_tiff.communicate()
 
     # checks if tiff written
