@@ -35,11 +35,13 @@ class ArgParser(argparse.ArgumentParser):
         self.print_help()
         sys.exit(2)
 
+
 class ProcessingOptions(Enum):
     deskew = "deskew"
     crop = "crop"
     workflow = "workflow"
     workflow_crop = "workflow_crop"
+
 
 def args_parse():
     """ Parse input arguments"""
@@ -52,15 +54,16 @@ def args_parse():
                         help="Enter the direction of skew (default is Y)",
                         action="store",
                         choices=("Y", "X"),
-                        default = DeskewDirection.Y)
+                        default=DeskewDirection.Y)
     parser.add_argument('--deskew_angle', type=float, nargs=1,
                         help="Enter the deskew angle (default is 30)",
                         default=30.0)
     parser.add_argument('--processing', type=ProcessingOptions, nargs=1,
                         help="Enter the processing option: deskew, crop, workflow or workflow_crop", required=False,
                         action="store",
-                        choices=(ProcessingOptions.deskew, ProcessingOptions.crop, ProcessingOptions.workflow, ProcessingOptions.workflow_crop),
-                        default = None)
+                        choices=(ProcessingOptions.deskew, ProcessingOptions.crop,
+                                 ProcessingOptions.workflow, ProcessingOptions.workflow_crop),
+                        default=None)
     parser.add_argument('--deconvolution', type=DeconvolutionChoice, nargs=1,
                         help="Specify the device to use for deconvolution. Options are cpu or cuda_gpu",
                         action="store")
@@ -82,19 +85,19 @@ def args_parse():
                         help="Enter channel range to extract, default will be all channels if no range is specified. For example, 0 1 will extract first two channels.",
                         default=(None, None))
     parser.add_argument('--workflow_path', type=str, nargs=1,
-                        help="Enter path to the workflow file '.yml",default=[None])
+                        help="Enter path to the workflow file '.yml", default=[None])
     parser.add_argument('--output_file_type', type=SaveFileType, nargs=1,
-                        help="Save as either tif or h5, defaults to h5",
+                        help="Save as either tiff or h5, defaults to h5",
                         action="store",
-                        choices=DeconvolutionChoice,
-                        default="h5"),
+                        choices=(SaveFileType.tiff, SaveFileType.h5),
+                        default=[SaveFileType.h5]),
     parser.add_argument('--channel', type=bool, nargs=1,
                         help="If input is a tiff file and there are channel dimensions but no time dimensions, choose as True",
                         default=False)
     parser.add_argument('--config', type=str, nargs=1,
-                        help="Location of config file, all other arguments will be ignored and overwriten by those in the yaml file",default=None)
+                        help="Location of config file, all other arguments will be ignored and overwriten by those in the yaml file", default=None)
     parser.add_argument('--roi_number', type=int, nargs=1,
-                        help="Process an individual ROI, loop all if unset",default=None)
+                        help="Process an individual ROI, loop all if unset", default=None)
     parser.add_argument('--set_logging', type=str, nargs=1,
                         help="Set logging level [INFO,DEBUG]", default=["INFO"])
 
@@ -157,9 +160,10 @@ def main():
 
         dz, dy, dx = processing_parameters.get('voxel_sizes', args.voxel_sizes)
         channel_dimension = processing_parameters.get('channel', args.channel)
-        skew_dir = processing_parameters.get('skew_direction', DeskewDirection.Y)
+        skew_dir = processing_parameters.get(
+            'skew_direction', DeskewDirection.Y)
         deskew_angle = processing_parameters.get('deskew_angle', 30.0)
-        processing = processing_parameters.get('processing',None)
+        processing = processing_parameters.get('processing', None)
         time_start, time_end = processing_parameters.get(
             'time_range', (None, None))
         channel_start, channel_end = processing_parameters.get(
@@ -234,7 +238,7 @@ def main():
         channel_start, channel_end = args.channel_range
         skew_dir = args.skew_direction
         processing = args.processing[0]
-        output_file_type = args.output_file_type
+        output_file_type = args.output_file_type[0]
         roi_to_process = args.roi_number
         workflow_path = args.workflow_path[0]
 
