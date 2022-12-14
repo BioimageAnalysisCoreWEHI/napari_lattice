@@ -395,6 +395,7 @@ def main():
                       psf_ch4_path,
                       decon_option=lattice.decon_processing,
                       lattice_class=lattice)
+
         else:
             lattice.decon_processing = None
 
@@ -499,8 +500,15 @@ def main():
         # Create save directory for each image
         save_path = output_path + os.sep + \
             os.path.basename(os.path.splitext(img)[0]) + os.sep
+            
         if not os.path.exists(save_path):
-            os.mkdir(save_path)
+            try:
+                os.mkdir(save_path)
+            except FileExistsError:
+                #this is sometimes caused when running parallel jobs
+                #can safely be ignored (I hope)
+                pass
+        
         logging.info(f"Saving at {save_path}")
 
         # Deskewing only
