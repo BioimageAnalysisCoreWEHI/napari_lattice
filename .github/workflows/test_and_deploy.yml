@@ -1,6 +1,6 @@
-# copied from haesleinheupf devbio-napari
 # This workflows will upload a Python Package using Twine when a release is created
 # For more information see: https://help.github.com/en/actions/language-and-framework-guides/using-python-with-github-actions#publishing-to-package-registries
+# For pytest-qt related fixes: https://pytest-qt.readthedocs.io/en/latest/troubleshooting.html#github-actions
 
 name: tests
 

@@ -21,7 +21,7 @@ def test_create_image():
 
 
 def test_batch_deskew_h5():
-    """Write image to disk and then execte napari_lattice from terminal
+    """Write image to disk and then execute napari_lattice from terminal
        Checks if an deskewed output file is created for both tif and h5
     """
     # Batch deskew and save as h5
@@ -48,4 +48,5 @@ def test_batch_deskew_tiff():
     assert os.path.exists(home_dir+"/raw/C0T0_raw.tif")
 
 
-# verify output file is created?
+# verify output file by opening and checking if pixel value and coordinate
+# add test for deconvolution?
