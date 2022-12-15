@@ -36,13 +36,14 @@ jobs:
           python --version
           conda install -y pyopencl pocl
           python -m pip install --upgrade pip
-          python -m pip install setuptools tox tox-gh-actions wheel pytest pytest-cov pytest-qt pyqt5
+          python -m pip install setuptools wheel pytest pytest-cov pytest-benchmark pytest-qt PyQt5
           pip install -e .
       - name: Test
         shell: bash -l {0}
-        run: pytest -v --color=yes --cov=napari_lattice --cov-report=xml
+        run: pytest -v --cov=napari_lattice --cov-report=xml
       - name: Coverage
         uses: codecov/codecov-action@v3
+
 
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
@@ -52,9 +53,9 @@ jobs:
     runs-on: ubuntu-latest
     if: contains(github.ref, 'tags')
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
           python-version: "3.x"
       - name: Install dependencies
