@@ -109,7 +109,7 @@ def save_img(vol,
         time_end (int): _description_
         channel_start (int): _description_
         channel_end (int): _description_
-        save_file_type: either 'tif' or SaveFileType.h5
+        save_file_type: either 'tiff' or SaveFileType.h5
         save_path (Path): _description_
         save_name_prefix (str, optional): Add a prefix to name. For example, if processng ROIs, add ROI_1_. Defaults to "".
         save_name (str, optional): name of file being saved. Defaults to "img".
