@@ -357,7 +357,7 @@ def save_img_workflow(vol,
     save_path = save_path.__str__()
     
     #replace any : with _ and remove spaces in case it hasn't been processed/skipped
-    save_name =save_name.replace(":","_").replace(" ","")
+    save_name = save_name.replace(":","_").replace(" ","")
     
     #adding +1 at the end so the last channel and time is included
     
