@@ -5,6 +5,7 @@ import pytest
 # Test if the widget can be created
 
 # make_napari_viewer is a pytest fixture that returns a napari viewer object
+# Commenting this out as github CI is fixed
 # @pytest.mark.skip(reason="GUI tests currently fail in github CI, unclear why")
 # When testing locally, need pytest-qt
 

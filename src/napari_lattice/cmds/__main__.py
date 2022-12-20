@@ -163,12 +163,14 @@ def main():
         skew_dir = processing_parameters.get(
             'skew_direction', DeskewDirection.Y)
         deskew_angle = processing_parameters.get('deskew_angle', 30.0)
-        processing = ProcessingOptions[processing_parameters.get('processing', None).lower()]
+        processing = ProcessingOptions[processing_parameters.get(
+            'processing', None).lower()]
         time_start, time_end = processing_parameters.get(
             'time_range', (None, None))
         channel_start, channel_end = processing_parameters.get(
             'channel_range', (None, None))
-        output_file_type = SaveFileType[processing_parameters.get('output_file_type', args.output_file_type).lower()]
+        output_file_type = SaveFileType[processing_parameters.get(
+            'output_file_type', args.output_file_type).lower()]
 
         # to allow for either/or CLI/config file Todo for rest of parameters?
         if 'roi_number' in processing_parameters:
@@ -190,7 +192,7 @@ def main():
             logging.error("Processing option not set.")
             exit()
 
-        deconvolution = processing_parameters.get('deconvolution',None)
+        deconvolution = processing_parameters.get('deconvolution', None)
         if deconvolution is not None:
             deconvolution = DeconvolutionChoice[deconvolution.lower()]
             psf_arg = "psf"
@@ -499,20 +501,19 @@ def main():
 
         # Create save directory for each image
         save_path = output_path + os.sep + \
-                    os.path.basename(os.path.splitext(img)[0]) + os.sep
+            os.path.basename(os.path.splitext(img)[0]) + os.sep
 
         if not os.path.exists(save_path):
             try:
                 os.mkdir(save_path)
             except FileExistsError:
-                #this is sometimes caused when running parallel jobs
-                #can safely be ignored (I hope)
+                # this is sometimes caused when running parallel jobs
+                # can safely be ignored (I hope)
                 pass
 
         logging.info(f"Saving at {save_path}")
 
         # Deskewing only
-
 
     if processing == ProcessingOptions.deskew:
         # deconvolution
