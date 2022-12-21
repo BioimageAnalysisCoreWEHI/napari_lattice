@@ -1,3 +1,5 @@
+# Tests for napari_lattice using arguments and saving output files as h5, as well as tiff
+
 import subprocess
 from skimage.io import imread, imsave
 import os
@@ -48,4 +50,3 @@ def test_batch_deskew_tiff():
 
 
 # verify output file by opening and checking if pixel value and coordinate
-# add test for deconvolution?

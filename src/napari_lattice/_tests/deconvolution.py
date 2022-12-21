@@ -19,7 +19,7 @@ RTOL = 0.15
 
 
 # @pytest.mark.skip(reason="GPU not available on Github runners. So cannot test deconvolution. Should run locally")
-def test_deconvolution():
+def test_deconvolution_pycudadecon():
 
     data = imread(test_data_dir+"/raw.tif")
     psf = imread(test_data_dir+"/psf.tif")
@@ -27,3 +27,9 @@ def test_deconvolution():
 
     deconvolved = pycuda_decon(image=data, psf=psf, num_iter=10)
     npt.assert_allclose(deconvolved, decon_saved, atol=ATOL)  # , verbose=True)
+
+# Test for opencl deconvolution
+
+
+def test_deconvolution_opencl():
+    pass

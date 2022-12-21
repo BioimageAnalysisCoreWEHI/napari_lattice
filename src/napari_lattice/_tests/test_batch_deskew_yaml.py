@@ -1,3 +1,6 @@
+# Tests for napari_lattice using the config file and saving ouput as h5
+# Thanks to DrLachie for cool function to write the config file
+
 import subprocess
 from skimage.io import imread, imsave
 import os
@@ -18,6 +21,7 @@ else:
 
 
 def write_config_file(config_settings, output_file_location):
+    # Write config file for napari_lattice
     with open(output_file_location, 'w') as f:
         for key, val in config_settings.items():
             if val is not None:
