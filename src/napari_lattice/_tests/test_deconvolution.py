@@ -5,6 +5,7 @@
 import numpy.testing as npt
 from skimage.io import imread
 from napari_lattice.llsz_core import pycuda_decon
+import pyclesperanto_prototype as cle
 
 from os.path import dirname
 import os
@@ -17,8 +18,12 @@ test_data_dir = os.path.join(dirname(__file__), "data")
 ATOL = 0.015
 RTOL = 0.15
 
+GPU_DEVICES = cle.available_device_names(dev_type="gpu")
 
-# @pytest.mark.skip(reason="GPU not available on Github runners. So cannot test deconvolution. Should run locally")
+# if no GPU devices, skip test; currently does not check if its non NVIDIA devices, so it can throw an error if a non-NVIDIA Gpu is used
+
+
+@pytest.mark.skipif(condition=not (len(GPU_DEVICES)), reason="GPU not detected, so deconvolution with pycudadecon skipped.")
 def test_deconvolution_pycudadecon():
 
     data = imread(test_data_dir+"/raw.tif")
@@ -29,7 +34,5 @@ def test_deconvolution_pycudadecon():
     npt.assert_allclose(deconvolved, decon_saved, atol=ATOL)  # , verbose=True)
 
 # Test for opencl deconvolution
-
-
-def test_deconvolution_opencl():
-    pass
+# def test_deconvolution_opencl():
+#    pass
