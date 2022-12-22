@@ -92,6 +92,9 @@ def _napari_lattice_widget_wrapper():
                 logger.info(f"Logging set to {set_logging}")
                 logger.info("Using existing image layer")
 
+                # Select device for processing
+                cle.select_device(select_device)
+
                 #assert skew_dir in DeskewDirection, "Skew direction not recognised. Enter either Y or X"
                 LLSZWidget.LlszMenu.skew_dir = skew_dir
                 LLSZWidget.LlszMenu.angle_value = angle
