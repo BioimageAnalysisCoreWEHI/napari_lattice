@@ -31,6 +31,7 @@ Check the [Wiki page](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice
 * Create image processing workflows using napari-workflows
 * Run deskewing, deconvolution and custom image processing workflows from the terminal
 * Files can be saved as h5 (BigDataViewer/BigStitcher) or tiff files
+* Run in terminal without napari, enabling processing workflows on the HPC
 
 **Key Features**
 
