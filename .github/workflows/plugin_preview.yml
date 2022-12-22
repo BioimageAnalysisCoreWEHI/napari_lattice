@@ -2,7 +2,7 @@ name: napari hub Preview Page # we use this name to find your preview page artif
 # For more info on this action, see https://github.com/chanzuckerberg/napari-hub-preview-action/blob/main/action.yml
 
 on:
-  push:
+  pull_request:
     branches:
       - "**"
     paths:
