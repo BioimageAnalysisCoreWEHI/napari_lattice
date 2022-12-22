@@ -63,15 +63,16 @@ def _napari_lattice_widget_wrapper():
                                         "value": 0.3, "step": 0.000000001},
                          angle={"widget_type": "FloatSpinBox",
                                 "value": 30, "step": 0.1},
-                         select_device={"widget_type": "ComboBox", "choices":cle.available_device_names() ,"value": cle.available_device_names()[0]},
+                         select_device={"widget_type": "ComboBox", "choices": cle.available_device_names(
+                         ), "value": cle.available_device_names()[0]},
                          last_dimension_channel={"widget_type": "ComboBox", "choices": ["Channel", "Time", "Get_from_metadata"], "value": "Get_from_metadata",
                                                  "label": "Set Last dimension (channel/time)", "tooltip": "If the last dimension is initialised incorrectly, you can assign it as either channel/time"},
                          merge_all_channel_layers={"widget_type": "CheckBox", "value": True, "label": "Merge all napari layers as channels",
                                                    "tooltip": "Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"},
                          skew_dir={"widget_type": "ComboBox", "choices": DeskewDirection, "value": DeskewDirection.Y,
                                    "label": "Direction of skew (Y or X)", "tooltip": "Skew direction when image is acquired. Ask your microscopist for details"},
-                         set_logging = {"widget_type": "ComboBox", "choices": Log_Levels, "value": Log_Levels.INFO,
-                                   "label": "Log Level", "tooltip": "Only use for debugging. Leave it as INFO for regular operation"}
+                         set_logging={"widget_type": "ComboBox", "choices": Log_Levels, "value": Log_Levels.INFO,
+                                      "label": "Log Level", "tooltip": "Only use for debugging. Leave it as INFO for regular operation"}
                          )
             def Choose_Image_Layer(self,
                                    img_layer: Layer,
@@ -79,21 +80,22 @@ def _napari_lattice_widget_wrapper():
                                    pixel_size_dy: float = 0.1449922,
                                    pixel_size_dz: float = 0.3,
                                    angle: float = 30,
-                                   select_device: str = cle.available_device_names()[0],
+                                   select_device: str = cle.available_device_names()[
+                                       0],
                                    last_dimension_channel: bool = False,
                                    merge_all_channel_layers: bool = False,
                                    skew_dir=DeskewDirection.Y,
-                                   set_logging = Log_Levels.INFO):
+                                   set_logging=Log_Levels.INFO):
 
                 logger.setLevel(set_logging.value)
                 config.log_level = set_logging.value
                 logger.info(f"Logging set to {set_logging}")
                 logger.info("Using existing image layer")
-                
+
                 #assert skew_dir in DeskewDirection, "Skew direction not recognised. Enter either Y or X"
                 LLSZWidget.LlszMenu.skew_dir = skew_dir
                 LLSZWidget.LlszMenu.angle_value = angle
-                
+
                 if LLSZWidget.LlszMenu.skew_dir == DeskewDirection.Y:
                     LLSZWidget.LlszMenu.deskew_func = cle.deskew_y
                     #LLSZWidget.LlszMenu.skew_dir = DeskewDirection.Y
@@ -130,7 +132,7 @@ def _napari_lattice_widget_wrapper():
                                                           last_dimension=last_dimension_channel)
                 #LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
 
-                #LLSZWidget.LlszMenu.dask = False  # Use GPU by default
+                # LLSZWidget.LlszMenu.dask = False  # Use GPU by default
 
                 # We initialise these variables here, but they can be changed in the deconvolution section
                 # list to store psf images for each channel
@@ -146,12 +148,15 @@ def _napari_lattice_widget_wrapper():
                 LLSZWidget.LlszMenu.open_file = True
 
                 logger.info(
-                    f"Pixel size (ZYX): {LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx}")
+                    f"Pixel size (ZYX) in microns: {LLSZWidget.LlszMenu.lattice.dz,LLSZWidget.LlszMenu.lattice.dy,LLSZWidget.LlszMenu.lattice.dx}")
                 logger.info(
                     f"Dimensions of image layer (ZYX): {list(LLSZWidget.LlszMenu.lattice.data.shape[-3:])}")
                 logger.info(
                     f"Dimensions of deskewed image (ZYX): {LLSZWidget.LlszMenu.lattice.deskew_vol_shape}")
-
+                logger.info(
+                    f"Deskewing angle is :{LLSZWidget.LlszMenu.lattice.angle}")
+                logger.info(
+                    f"Deskew Direction :{LLSZWidget.LlszMenu.lattice.skew}")
                 # Add dimension labels correctly
                 # if channel, and not time
                 if LLSZWidget.LlszMenu.lattice.time == 0 and (last_dimension_channel or LLSZWidget.LlszMenu.lattice.channels > 0):
