@@ -235,7 +235,7 @@ def _napari_lattice_widget_wrapper():
                           psf_ch3_path,
                           psf_ch4_path,
                           device_option,
-                          LLSZWidget)
+                          LLSZWidget.LlszMenu.lattice)
                 LLSZWidget.LlszMenu.lattice.psf_num_iter = no_iter
                 self["deconvolution_gui"].background_color = "green"
                 self["deconvolution_gui"].text = "PSFs added"
