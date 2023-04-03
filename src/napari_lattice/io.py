@@ -205,9 +205,9 @@ def save_img(vol,
 
             #raw_vol = np.array(raw_vol)
             image_type = raw_vol.dtype
-            print(decon_value)
-            print(decon_option)
-            print(func)
+            #print(decon_value)
+            #print(decon_option)
+            #print(func)
             # Add a check for last timepoint, in case acquisition incomplete
             if time_point == time_end:
                 orig_shape = raw_vol.shape
