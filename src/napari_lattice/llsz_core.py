@@ -584,7 +584,7 @@ def pycuda_decon(
                 dxpsf=dxpsf,
             ) as ctx:
                 decon_res = rl_decon(
-                    im=image, output_shape=ctx.out_shape, n_iters=num_iter
+                    im=image, output_shape=ctx.out_shape, n_iters=num_iter, background='auto'
                 )
 
     else:
@@ -598,7 +598,7 @@ def pycuda_decon(
             dzpsf=dzpsf,
             dxpsf=dxpsf,
         )
-        decon_res = rl_decon(image)
+        decon_res = rl_decon(image, background='auto')
         rl_cleanup()
 
     if cropping:
