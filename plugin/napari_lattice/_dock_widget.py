@@ -5,6 +5,7 @@ import numpy as np
 from pathlib import Path
 import dask.array as da
 import pandas as pd
+from typing import Union, Optional
 
 from magicclass.wrappers import set_design
 from magicgui import magicgui, widgets
@@ -26,10 +27,10 @@ from tqdm import tqdm
 
 from napari_lattice.io import LatticeData,  save_img, save_img_workflow
 from .utils import read_imagej_roi, get_first_last_image_and_task, modify_workflow_task, get_all_py_files, as_type, process_custom_workflow_output, check_dimensions, load_custom_py_modules
-from . import config, DeskewDirection, DeconvolutionChoice, SaveFileType, Log_Levels
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
 
+from lattice_lightsheet_core import config, DeskewDirection, DeconvolutionChoice, SaveFileType, Log_Levels
 
 # Enable Logging
 import logging
@@ -41,14 +42,11 @@ def _napari_lattice_widget_wrapper():
     # split widget type enables a resizable widget
     @magicclass(widget_type="split")
     class LLSZWidget:
+
         @magicclass(widget_type="split")
         class LlszMenu:
-            open_file = False
-            lattice = None
-            aics = None
-            dask = False
-            file_name = ""
-            save_name = ""
+            open_file: bool = False
+            lattice: Optional[LatticeData] = None
 
             main_heading = widgets.Label(
                 value="<h3>Napari Lattice: Visualization & Analysis</h3>")

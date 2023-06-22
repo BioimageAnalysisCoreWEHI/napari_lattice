@@ -1,5 +1,7 @@
+from __future__ import annotations
 # Opening and saving files
 import aicsimageio
+from aicsimageio.dimensions import Dimensions
 
 from pathlib import Path
 
@@ -8,9 +10,10 @@ import sys
 import dask
 import dask.array as da
 import resource_backed_dask_array
-from napari.layers import image
 import dask.array as da
 import pandas as pd
+import typing
+from numpy.typing import ArrayLike
 
 from dask.distributed import Client
 from dask.cache import Cache
@@ -18,7 +21,6 @@ from dask.cache import Cache
 from napari_lattice.utils import etree_to_dict
 from napari_lattice.utils import get_deskewed_shape
 from napari_lattice.llsz_core import crop_volume_deskew, skimage_decon, pycuda_decon
-
 from napari_lattice import config
 
 
@@ -32,10 +34,14 @@ from tifffile import imwrite, TiffWriter
 import npy2bdv
 from . import DeskewDirection, DeconvolutionChoice, SaveFileType
 
+from dataclasses import dataclass
+
 # Enable Logging
 import logging
 logger = logging.getLogger(__name__)
 
+if typing.TYPE_CHECKING:
+    from napari.layers import image
 
 def convert_imgdata_aics(img_data: ImageData):
     """Return AICSimage object from napari ImageData type
@@ -620,122 +626,136 @@ def save_img_workflow(vol,
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
 
+@dataclass
+class LatticeData:
+    data: ArrayLike
+    dims: Dimensions
+    self.time 
 
-class LatticeData():
+    @staticmethod
+    def from_napari(img: image.Image) -> LatticeData:
+        # check if its an aicsimageio object and has voxel size info
+        if 'aicsimage' in img.metadata.keys() and img.metadata['aicsimage'].physical_pixel_sizes != (None, None, None):
+            img_data_aics = img.metadata['aicsimage']
+            self.data = img_data_aics.dask_data
+            self.dims = img_data_aics.dims
+            self.time = img_data_aics.dims.T
+            self.channels = img_data_aics.dims.C
+            self.dz, self.dy, self.dx = img_data_aics.physical_pixel_sizes
+        else:
+            print("Cannot read voxel size from metadata")
+            if 'aicsimage' in img.metadata.keys():
+                img_data_aics = img.metadata['aicsimage']
+                self.data = img_data_aics.dask_data
+                self.dims = img_data_aics.dims
+                # if aicsimageio tiffreader assigns last dim as time when it should be channel, user can override this
+                if last_dimension:
+                    if len(img.data.shape) == 4:
+                        if last_dimension.lower() == "channel":
+                            self.channels = img.data.shape[0]
+                            self.time = 0
+                        elif last_dimension.lower() == "time":
+                            self.time = img.data.shape[0]
+                            self.channels = 0
+                    elif len(img.data.shape) == 5:
+                        if last_dimension.lower() == "channel":
+                            self.channels = img.data.shape[0]
+                            self.time = img.data.shape[1]
+                        elif last_dimension.lower() == "time":
+                            self.time = img.data.shape[0]
+                            self.channels = img.data.shape[1]
+                else:
+                    self.time = img_data_aics.dims.T
+                    self.channels = img_data_aics.dims.C
+            else:
+                # if no aicsimageio key in metadata
+                # get the data and convert it into an aicsimage object
+                img_data_aics = aicsimageio.AICSImage(img.data)
+                self.data = img_data_aics.dask_data
+                # if user has specified ch
+                if last_dimension:
+                    if len(img.data.shape) == 4:
+                        if last_dimension.lower() == "channel":
+                            self.channels = img.data.shape[0]
+                            self.time = 0
+                        elif last_dimension.lower() == "time":
+                            self.time = img.data.shape[0]
+                            self.channels = 0
+                    elif len(img.data.shape) == 5:
+                        if last_dimension.lower() == "channel":
+                            self.channels = img.data.shape[0]
+                            self.time = img.data.shape[1]
+                        elif last_dimension.lower() == "time":
+                            self.time = img.data.shape[0]
+                            self.channels = img.data.shape[1]
+                else:
+                    if last_dimension:
+                        if len(img.data.shape) == 4:
+                            if last_dimension.lower() == "channel":
+                                self.channels = img.data.shape[0]
+                                self.time = 0
+                            elif last_dimension.lower() == "time":
+                                self.time = img.data.shape[0]
+                                self.channels = 0
+                        elif len(img.data.shape) == 5:
+                            if last_dimension.lower() == "channel":
+                                self.channels = img.data.shape[0]
+                                self.time = img.data.shape[1]
+                            elif last_dimension.lower() == "time":
+                                self.time = img.data.shape[0]
+                                self.channels = img.data.shape[1]
+                    else:
+
+                        self.time = img.data.shape[0]
+                        self.channels = img.data.shape[1]
+
+            # read metadata for pixel sizes
+            if None in img_data_aics.physical_pixel_sizes or img_data_aics.physical_pixel_sizes == False:
+                self.dx = dx
+                self.dy = dy
+                self.dz = dz
+            else:
+                self.dz, self.dy, self.dx = img.data.physical_pixel_sizes
+            # if not last_dimension:
+            # if xarray, access data using .data method
+                # if type(img.data) in [xarray.core.dataarray.DataArray,np.ndarray]:
+                #img = img.data
+            # img = dask_expand_dims(img,axis=1) ##if no channel dimension specified, then expand axis at index 1
+        # if no path returned by source.path, get image name with colon and spaces removed
+        # if last axes of "aicsimage data" shape is not equal to time, then swap channel and time
+        if self.data.shape[0] != self.time or self.data.shape[1] != self.channels:
+            self.data = np.swapaxes(self.data, 0, 1)
+
+        if img.source.path is None:
+            # remove colon (:) and any leading spaces
+            self.save_name = img.name.replace(":", "").strip()
+            # replace any group of spaces with "_"
+            self.save_name = '_'.join(self.save_name.split())
+
+        else:
+            file_name_noext = os.path.basename(img.source.path)
+            file_name = os.path.splitext(file_name_noext)[0]
+            # remove colon (:) and any leading spaces
+            self.save_name = file_name.replace(":", "").strip()
+            # replace any group of spaces with "_"
+            self.save_name = '_'.join(self.save_name.split())
+
+
+
     def __init__(self, img, angle, skew, dx, dy, dz, last_dimension) -> None:
         self.angle = angle
         self.skew = skew
 
         # if image layer
+        try:
 
-        if type(img) is image.Image:  # napari layer image
-            # check if its an aicsimageio object and has voxel size info
-            if 'aicsimage' in img.metadata.keys() and img.metadata['aicsimage'].physical_pixel_sizes != (None, None, None):
-                img_data_aics = img.metadata['aicsimage']
-                self.data = img_data_aics.dask_data
-                self.dims = img_data_aics.dims
-                self.time = img_data_aics.dims.T
-                self.channels = img_data_aics.dims.C
-                self.dz, self.dy, self.dx = img_data_aics.physical_pixel_sizes
-            else:
-                print("Cannot read voxel size from metadata")
-                if 'aicsimage' in img.metadata.keys():
-                    img_data_aics = img.metadata['aicsimage']
-                    self.data = img_data_aics.dask_data
-                    self.dims = img_data_aics.dims
-                    # if aicsimageio tiffreader assigns last dim as time when it should be channel, user can override this
-                    if last_dimension:
-                        if len(img.data.shape) == 4:
-                            if last_dimension.lower() == "channel":
-                                self.channels = img.data.shape[0]
-                                self.time = 0
-                            elif last_dimension.lower() == "time":
-                                self.time = img.data.shape[0]
-                                self.channels = 0
-                        elif len(img.data.shape) == 5:
-                            if last_dimension.lower() == "channel":
-                                self.channels = img.data.shape[0]
-                                self.time = img.data.shape[1]
-                            elif last_dimension.lower() == "time":
-                                self.time = img.data.shape[0]
-                                self.channels = img.data.shape[1]
-                    else:
-                        self.time = img_data_aics.dims.T
-                        self.channels = img_data_aics.dims.C
-                else:
-                    # if no aicsimageio key in metadata
-                    # get the data and convert it into an aicsimage object
-                    img_data_aics = aicsimageio.AICSImage(img.data)
-                    self.data = img_data_aics.dask_data
-                    # if user has specified ch
-                    if last_dimension:
-                        if len(img.data.shape) == 4:
-                            if last_dimension.lower() == "channel":
-                                self.channels = img.data.shape[0]
-                                self.time = 0
-                            elif last_dimension.lower() == "time":
-                                self.time = img.data.shape[0]
-                                self.channels = 0
-                        elif len(img.data.shape) == 5:
-                            if last_dimension.lower() == "channel":
-                                self.channels = img.data.shape[0]
-                                self.time = img.data.shape[1]
-                            elif last_dimension.lower() == "time":
-                                self.time = img.data.shape[0]
-                                self.channels = img.data.shape[1]
-                    else:
-                        if last_dimension:
-                            if len(img.data.shape) == 4:
-                                if last_dimension.lower() == "channel":
-                                    self.channels = img.data.shape[0]
-                                    self.time = 0
-                                elif last_dimension.lower() == "time":
-                                    self.time = img.data.shape[0]
-                                    self.channels = 0
-                            elif len(img.data.shape) == 5:
-                                if last_dimension.lower() == "channel":
-                                    self.channels = img.data.shape[0]
-                                    self.time = img.data.shape[1]
-                                elif last_dimension.lower() == "time":
-                                    self.time = img.data.shape[0]
-                                    self.channels = img.data.shape[1]
-                        else:
+            if type(img) is image.Image:  # napari layer image
+                return
 
-                            self.time = img.data.shape[0]
-                            self.channels = img.data.shape[1]
+        except ImportError:
+            pass
 
-                # read metadata for pixel sizes
-                if None in img_data_aics.physical_pixel_sizes or img_data_aics.physical_pixel_sizes == False:
-                    self.dx = dx
-                    self.dy = dy
-                    self.dz = dz
-                else:
-                    self.dz, self.dy, self.dx = img.data.physical_pixel_sizes
-                # if not last_dimension:
-                # if xarray, access data using .data method
-                    # if type(img.data) in [xarray.core.dataarray.DataArray,np.ndarray]:
-                    #img = img.data
-                # img = dask_expand_dims(img,axis=1) ##if no channel dimension specified, then expand axis at index 1
-            # if no path returned by source.path, get image name with colon and spaces removed
-            # if last axes of "aicsimage data" shape is not equal to time, then swap channel and time
-            if self.data.shape[0] != self.time or self.data.shape[1] != self.channels:
-                self.data = np.swapaxes(self.data, 0, 1)
-
-            if img.source.path is None:
-                # remove colon (:) and any leading spaces
-                self.save_name = img.name.replace(":", "").strip()
-                # replace any group of spaces with "_"
-                self.save_name = '_'.join(self.save_name.split())
-
-            else:
-                file_name_noext = os.path.basename(img.source.path)
-                file_name = os.path.splitext(file_name_noext)[0]
-                # remove colon (:) and any leading spaces
-                self.save_name = file_name.replace(":", "").strip()
-                # replace any group of spaces with "_"
-                self.save_name = '_'.join(self.save_name.split())
-
-        elif type(img) in [np.ndarray, da.core.Array, resource_backed_dask_array.ResourceBackedDaskArray]:
+        if type(img) in [np.ndarray, da.core.Array, resource_backed_dask_array.ResourceBackedDaskArray]:
             img_data_aics = aicsimageio.AICSImage(img.data)
             self.data = img_data_aics.dask_data
             self.dx = dx
@@ -772,8 +792,6 @@ class LatticeData():
             self.data, self.angle, self.dx, self.dy, self.dz)
         print(f"Channels: {self.channels}, Time: {self.time}")
         print("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
-
-        pass
 
     def get_angle(self):
         return self.angle
