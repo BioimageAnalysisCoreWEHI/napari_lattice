@@ -1,6 +1,10 @@
+from __future__ import annotations
 from napari_lattice._dock_widget import _napari_lattice_widget_wrapper
 import numpy as np
-import pytest
+from typing import Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from napari import Viewer
 
 # Test if the widget can be created
 
@@ -10,7 +14,7 @@ import pytest
 # When testing locally, need pytest-qt
 
 
-def test_dock_widget(make_napari_viewer):
+def test_dock_widget(make_napari_viewer: Callable[[], Viewer]):
     # make viewer and add an image layer using our fixture
 
     viewer = make_napari_viewer()
@@ -20,5 +24,3 @@ def test_dock_widget(make_napari_viewer):
 
     # Test if napari-lattice widget can be created in napari
     viewer.window.add_dock_widget(_napari_lattice_widget_wrapper())
-
-    pass

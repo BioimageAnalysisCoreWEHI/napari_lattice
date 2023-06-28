@@ -35,7 +35,7 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.9.1",
+    "aicsimageio>=4.6.3",
     "aicspylibczi>=3.0.5",
     "dask",
     "dask-image",
@@ -74,9 +74,6 @@ testing = [
     "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
     "pytest-qt"  #for qtbot fixture
 ]
-
-[project.scripts]
-napari_lattice = "napari_lattice.cmds.__main__:main"
 
 [project.entry-points."napari.manifest"]
 napari_lattice = "napari_lattice:napari.yaml"

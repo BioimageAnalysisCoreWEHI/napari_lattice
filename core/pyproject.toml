@@ -35,7 +35,7 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.9.1",
+    "aicsimageio>=4.6.3",
     "aicspylibczi>=3.0.5",
     "dask",
     "dask-image",
@@ -48,9 +48,10 @@ dependencies = [
     "pyclesperanto_prototype>=0.20.0",
     "npy2bdv",
     "redlionfish",
-    "tifffile", #>=2022.8.12
+    # Older tifffile are not compatible with aicsimageio, see: https://github.com/AllenCellModeling/aicsimageio/issues/518
+    "tifffile>=2023.3.15", #>=2022.8.12
     "fsspec>=2022.8.2",
-    "napari[all]",
+    "napari[all]>=0.4.11",
     "napari-aicsimageio>=0.7.2",
     "napari-spreadsheet",
     "napari-workflows>=0.2.8",
@@ -74,9 +75,9 @@ testing = [
     "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
     "pytest-qt"  #for qtbot fixture
 ]
+psf = [
+    "pycudadecon"
+]
 
 [project.scripts]
-napari_lattice = "napari_lattice.cmds.__main__:main"
-
-[project.entry-points."napari.manifest"]
-napari_lattice = "napari_lattice:napari.yaml"
+napari_lattice = "lattice_lightsheet_core.cmds.__main__:main"

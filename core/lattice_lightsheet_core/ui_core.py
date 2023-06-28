@@ -6,11 +6,11 @@ from aicsimageio import AICSImage
 from napari.types import ImageData
 
 import pyclesperanto_prototype as cle
-from napari_lattice.io import save_img
 from .utils import pad_image_nearest_multiple, check_dimensions
 
-from napari_lattice.llsz_core import pycuda_decon, skimage_decon
-from . import config, DeskewDirection, DeconvolutionChoice, SaveFileType
+from lattice_lightsheet_core.llsz_core import pycuda_decon, skimage_decon
+from lattice_lightsheet_core import config, DeskewDirection, DeconvolutionChoice, SaveFileType
+from lattice_lightsheet_core .io import save_img
 
 
 # Enable Logging

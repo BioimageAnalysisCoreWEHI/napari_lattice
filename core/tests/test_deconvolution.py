@@ -4,7 +4,6 @@
 
 import numpy.testing as npt
 from skimage.io import imread
-from napari_lattice.llsz_core import pycuda_decon
 import pyclesperanto_prototype as cle
 
 from os.path import dirname
@@ -22,9 +21,16 @@ GPU_DEVICES = cle.available_device_names(dev_type="gpu")
 
 # if no GPU devices, skip test; currently does not check if its non NVIDIA devices, so it can throw an error if a non-NVIDIA Gpu is used
 
+try:
+    import pycudadecon._libwrap
+    cuda_decon_available = True
+except FileNotFoundError:
+    cuda_decon_available = False
 
-@pytest.mark.skipif(condition=not (len(GPU_DEVICES)), reason="GPU not detected, so deconvolution with pycudadecon skipped.")
+@pytest.mark.skipif(condition=len(GPU_DEVICES) < 1, reason="GPU not detected, so deconvolution with pycudadecon skipped.")
+@pytest.mark.skipif(condition=not cuda_decon_available, reason="cudadecon library is not installed")
 def test_deconvolution_pycudadecon():
+    from lattice_lightsheet_core.llsz_core import pycuda_decon
 
     data = imread(test_data_dir+"/raw.tif")
     psf = imread(test_data_dir+"/psf.tif")

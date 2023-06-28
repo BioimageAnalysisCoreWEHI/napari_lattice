@@ -8,9 +8,9 @@ import os
 import glob
 import sys
 import re
-from napari_lattice.io import LatticeData, save_img, save_img_workflow
-from napari_lattice.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task, modify_workflow_task, check_dimensions
-from napari_lattice.llsz_core import crop_volume_deskew
+from lattice_lightsheet_core.io import LatticeData, save_img, save_img_workflow
+from lattice_lightsheet_core.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task, modify_workflow_task, check_dimensions
+from lattice_lightsheet_core.llsz_core import crop_volume_deskew
 from aicsimageio import AICSImage
 import pyclesperanto_prototype as cle
 from tqdm import tqdm
@@ -19,12 +19,9 @@ from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
 from pathlib import Path
 import yaml
-from .. import config
 
-from .._dock_widget import _napari_lattice_widget_wrapper
-
-from ..ui_core import _read_psf
-from .. import DeskewDirection, DeconvolutionChoice, SaveFileType
+from lattice_lightsheet_core.ui_core import _read_psf
+from lattice_lightsheet_core import DeskewDirection, DeconvolutionChoice, SaveFileType
 from enum import Enum
 
 
@@ -361,7 +358,7 @@ def main():
 
         # Initialize Lattice class
         lattice = LatticeData(aics_img, deskew_angle,
-                              skew_dir, dx, dy, dz, channel_dimension)
+                              skew_dir, dx, dy, dz)
 
         # Chance deskew function absed on skew direction
         if lattice.skew == DeskewDirection.Y:

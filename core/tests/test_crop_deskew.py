@@ -1,7 +1,7 @@
 import pyclesperanto_prototype as cle 
 import numpy as np 
 
-from napari_lattice.llsz_core import crop_volume_deskew
+from lattice_lightsheet_core.llsz_core import crop_volume_deskew
 
 
 def test_crop_deskew():

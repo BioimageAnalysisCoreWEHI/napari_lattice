@@ -40,7 +40,7 @@ jobs:
           conda install -y pyopencl pocl
           python -m pip install --upgrade pip
           python -m pip install setuptools wheel pytest pytest-cov pytest-benchmark pytest-qt PyQt5
-          pip install -e .
+          pip install -e ./core ./plugin
       - name: Test
         shell: bash -l {0}
         run: pytest -v --cov=napari_lattice --cov-report=xml
