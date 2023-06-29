@@ -24,7 +24,7 @@ GPU_DEVICES = cle.available_device_names(dev_type="gpu")
 try:
     import pycudadecon._libwrap
     cuda_decon_available = True
-except FileNotFoundError:
+except (FileNotFoundError, ModuleNotFoundError):
     cuda_decon_available = False
 
 @pytest.mark.skipif(condition=len(GPU_DEVICES) < 1, reason="GPU not detected, so deconvolution with pycudadecon skipped.")
