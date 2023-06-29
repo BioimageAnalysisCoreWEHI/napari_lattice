@@ -640,7 +640,9 @@ class LatticeData:
     time: int
     #: Number of channels
     channels: int
-
+    #: The filename of this data when it is saved
+    save_name: str
+    
     # TODO: add defaults
     def __init__(self, img: NDArray | DaskArray | ResourceBackedDaskArray | AICSImage, angle: float, skew: DeskewDirection, dx: float, dy: float, dz: float) -> None:
         self.angle = angle
