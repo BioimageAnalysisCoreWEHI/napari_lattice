@@ -16,7 +16,7 @@ from napari.layers import image
 
 from lattice_lightsheet_core.io import LatticeData
 
-def lattice_from_napari(img: image.Image, last_dimension) -> LatticeData:
+def lattice_from_napari(img: image.Image, last_dimension: str) -> LatticeData:
     data = LatticeData()
     # check if its an aicsimageio object and has voxel size info
     if 'aicsimage' in img.metadata.keys() and img.metadata['aicsimage'].physical_pixel_sizes != (None, None, None):

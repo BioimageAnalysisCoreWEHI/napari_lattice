@@ -1,6 +1,7 @@
 from __future__ import annotations
 # Opening and saving files
 import aicsimageio
+from aicsimageio.aics_image import AICSImage
 from aicsimageio.dimensions import Dimensions
 
 from pathlib import Path
@@ -8,12 +9,12 @@ from pathlib import Path
 import pyclesperanto_prototype as cle
 import sys
 import dask
+from resource_backed_dask_array import ResourceBackedDaskArray
 import dask.array as da
-import resource_backed_dask_array
-import dask.array as da
+from dask.array.core import Array as DaskArray
 import pandas as pd
-import typing
-from numpy.typing import ArrayLike
+from typing import overload
+from numpy.typing import ArrayLike, NDArray
 
 from dask.distributed import Client
 from dask.cache import Cache
@@ -625,21 +626,34 @@ def save_img_workflow(vol,
 
 @dataclass
 class LatticeData:
+    #: 3-5D array
     data: ArrayLike
     dims: Dimensions
-    
-    def __init__(self, img, angle, skew, dx, dy, dz) -> None:
+    #: Pixel size in microns
+    dx: float
+    dy: float
+    dz: float
+    #: Geometry of the light path
+    skew: DeskewDirection
+    angle: float
+    #: Number of time points
+    time: int
+    #: Number of channels
+    channels: int
+
+    # TODO: add defaults
+    def __init__(self, img: NDArray | DaskArray | ResourceBackedDaskArray | AICSImage, angle: float, skew: DeskewDirection, dx: float, dy: float, dz: float) -> None:
         self.angle = angle
         self.skew = skew
 
-        if type(img) in [np.ndarray, da.core.Array, resource_backed_dask_array.ResourceBackedDaskArray]:
-            img_data_aics = aicsimageio.AICSImage(img.data)
+        if isinstance(img, (np.ndarray, DaskArray, ResourceBackedDaskArray)):
+            img_data_aics = AICSImage(img.data)
             self.data = img_data_aics.dask_data
             self.dx = dx
             self.dy = dy
             self.dz = dz
 
-        elif type(img) is aicsimageio.aics_image.AICSImage:
+        elif isinstance(img, AICSImage):
 
             if img.physical_pixel_sizes != (None, None, None):
                 self.data = img.dask_data
@@ -670,11 +684,11 @@ class LatticeData:
         print(f"Channels: {self.channels}, Time: {self.time}")
         print("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
 
-    def get_angle(self):
+    def get_angle(self) -> float:
         return self.angle
 
-    def set_angle(self, angle: float):
+    def set_angle(self, angle: float) -> None:
         self.angle = angle
 
-    def set_skew(self, skew):
+    def set_skew(self, skew: DeskewDirection) -> None:
         self.skew = skew
