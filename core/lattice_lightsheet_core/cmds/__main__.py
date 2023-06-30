@@ -338,6 +338,8 @@ def main():
 
     # loop through the list of images and rois
     for img, roi_path in zip(img_list, roi_list):
+        save_name = os.path.splitext(os.path.basename(img))[0]
+
         print("Processing Image " + img)
         if processing == ProcessingOptions.crop or processing == ProcessingOptions.workflow_crop:
             print("Processing ROI " + roi_path)
@@ -357,8 +359,7 @@ def main():
                 print(f"Scene {scene} not valid")
 
         # Initialize Lattice class
-        lattice = LatticeData(aics_img, deskew_angle,
-                              skew_dir, dx, dy, dz)
+        lattice = LatticeData(aics_img, deskew_angle, skew_dir, dx, dy, dz, save_name=save_name)
 
         # Chance deskew function absed on skew direction
         if lattice.skew == DeskewDirection.Y:
@@ -493,8 +494,6 @@ def main():
                     custom_workflow = False
 
         img_data = lattice.data
-
-        save_name = os.path.splitext(os.path.basename(img))[0]
 
         # Create save directory for each image
         save_path = output_path + os.sep + \

@@ -33,8 +33,8 @@ def test_batch_deskew_h5():
             "--output", out_dir,
             "--processing", "deskew",
             "--output_file_type", "h5"
-        ], capture_output=True)
-    assert result.returncode == 0, result.stderr
+        ])
+    assert result.returncode == 0
 
     # checks if h5 files written
     assert (home_dir / "raw" / "raw.h5").exists()
@@ -50,8 +50,8 @@ def test_batch_deskew_tiff():
                 "--output", out_dir,
                 "--processing", "deskew",
                 "--output_file_type", "tiff"
-        ], stdout=subprocess.PIPE)
-        assert result.returncode == 0, result.stderr
+        ])
+        assert result.returncode == 0
 
     # checks if tiff written
     assert (home_dir / "raw" / "C0T0_raw.tif").exists()

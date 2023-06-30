@@ -464,10 +464,10 @@ def save_img_workflow(vol,
             image_element_index = []
 
             # single output and is just dictionary
-            if type(processed_vol) in [dict]:
+            if isinstance(processed_vol, dict):
                 dict_element_index = [0]
             # if image
-            elif type(processed_vol) in [np.ndarray, cle._tier0._pycl.OCLArray, da.core.Array, resource_backed_dask_array.ResourceBackedDaskArray]:
+            elif isinstance(processed_vol, (np.ndarray, cle._tier0._pycl.OCLArray, DaskArray, ResourceBackedDaskArray)):
                 image_element_index = [0]
                 no_elements = 1
             # multiple elements
@@ -642,18 +642,19 @@ class LatticeData:
     channels: int
     #: The filename of this data when it is saved
     save_name: str
-    
+
     # TODO: add defaults
-    def __init__(self, img: NDArray | DaskArray | ResourceBackedDaskArray | AICSImage, angle: float, skew: DeskewDirection, dx: float, dy: float, dz: float) -> None:
+    def __init__(self, img: NDArray | DaskArray | ResourceBackedDaskArray | AICSImage, angle: float, skew: DeskewDirection, dx: float, dy: float, dz: float, save_name: str) -> None:
         self.angle = angle
         self.skew = skew
+        self.save_name = save_name
+        self.dx = dx
+        self.dy = dy
+        self.dz = dz
 
         if isinstance(img, (np.ndarray, DaskArray, ResourceBackedDaskArray)):
             img_data_aics = AICSImage(img.data)
             self.data = img_data_aics.dask_data
-            self.dx = dx
-            self.dy = dy
-            self.dz = dz
 
         elif isinstance(img, AICSImage):
 
@@ -662,14 +663,15 @@ class LatticeData:
                 self.dims = img.dims
                 self.time = img.dims.T
                 self.channels = img.dims.C
-                self.dz, self.dy, self.dx = img.physical_pixel_sizes
+                self.dz = img.physical_pixel_sizes.Z or dz
+                self.dy = img.physical_pixel_sizes.X or dx
+                self.dz = img.physical_pixel_sizes.Y or dy
 
             else:
                 self.data = img.dask_data
                 self.dims = img.dims
                 self.time = img.dims.T
                 self.channels = img.dims.C
-                self.dz, self.dy, self.dx = dz, dy, dx
 
         else:
             raise Exception(
