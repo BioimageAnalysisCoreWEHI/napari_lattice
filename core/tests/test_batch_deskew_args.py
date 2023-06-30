@@ -27,6 +27,7 @@ def test_batch_deskew_h5():
     assert img_dir.exists()
     # Batch deskew and save as h5
     with tempfile.TemporaryDirectory() as out_dir:
+        out_dir = Path(out_dir)
         result = subprocess.run([
             "napari_lattice",
             "--input", img_dir,
@@ -34,16 +35,17 @@ def test_batch_deskew_h5():
             "--processing", "deskew",
             "--output_file_type", "h5"
         ])
-    assert result.returncode == 0
+        assert result.returncode == 0
 
-    # checks if h5 files written
-    assert (home_dir / "raw" / "raw.h5").exists()
-    assert (home_dir / "raw" / "raw.xml").exists()
+        # checks if h5 files written
+        assert (out_dir / "raw" / "raw.h5").exists()
+        assert (out_dir / "raw" / "raw.xml").exists()
 
 
 def test_batch_deskew_tiff():
     # tiff file deskew
     with tempfile.TemporaryDirectory() as out_dir:
+        out_dir = Path(out_dir)
         result = subprocess.run([
                 "napari_lattice",
                 "--input", img_dir,
@@ -53,8 +55,8 @@ def test_batch_deskew_tiff():
         ])
         assert result.returncode == 0
 
-    # checks if tiff written
-    assert (home_dir / "raw" / "C0T0_raw.tif").exists()
+        # checks if tiff written
+        assert (out_dir / "raw" / "C0T0_raw.tif").exists()
 
 
-# verify output file by opening and checking if pixel value and coordinate
+        # verify output file by opening and checking if pixel value and coordinate

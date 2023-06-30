@@ -13,7 +13,7 @@ from resource_backed_dask_array import ResourceBackedDaskArray
 import dask.array as da
 from dask.array.core import Array as DaskArray
 import pandas as pd
-from typing import overload
+from typing import overload, TYPE_CHECKING
 from numpy.typing import ArrayLike, NDArray
 
 from dask.distributed import Client
@@ -26,7 +26,6 @@ from lattice_lightsheet_core import config
 
 import os
 import numpy as np
-from napari.types import ImageData
 from napari_workflows import Workflow
 from tqdm import tqdm
 from tifffile import imwrite, TiffWriter
@@ -40,6 +39,8 @@ from dataclasses import dataclass
 import logging
 logger = logging.getLogger(__name__)
 
+if TYPE_CHECKING:
+    from napari.types import ImageData
 
 def convert_imgdata_aics(img_data: ImageData):
     """Return AICSimage object from napari ImageData type

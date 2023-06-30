@@ -1,12 +1,13 @@
 import numpy as np
 import pyclesperanto_prototype as cle
-import dask.array as da
+from dask.array.core import Array as DaskArray
 import resource_backed_dask_array
 from typing import Union
 from napari.layers.shapes import shapes
 from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
     affine_transform_deskew_3d,
 )
+from numpy.typing import NDArray
 
 from .utils import calculate_crop_bbox, pad_image_nearest_multiple
 from . import config, DeskewDirection, DeconvolutionChoice, SaveFileType
@@ -21,18 +22,18 @@ logger.setLevel(config.log_level)
 
 def crop_volume_deskew(
     original_volume: Union[
-        da.core.Array,
+        DaskArray,
         np.ndarray,
         cle._tier0._pycl.OCLArray,
         resource_backed_dask_array.ResourceBackedDaskArray,
     ],
     deskewed_volume: Union[
-        da.core.Array,
+        DaskArray,
         np.ndarray,
         cle._tier0._pycl.OCLArray,
         resource_backed_dask_array.ResourceBackedDaskArray,
     ] = None,
-    roi_shape: Union[shapes.Shapes, list, np.array] = None,
+    roi_shape: Union[shapes.Shapes, list, NDArray] = None,
     angle_in_degrees: float = 30,
     voxel_size_x: float = 1,
     voxel_size_y: float = 1,
@@ -44,8 +45,8 @@ def crop_volume_deskew(
     decon_processing=None,
     psf=None,
     num_iter: int = 10,
-    linear_interpolation=True,
-    skew_dir=DeskewDirection.Y,
+    linear_interpolation: bool=True,
+    skew_dir: DeskewDirection=DeskewDirection.Y,
     get_deskew_and_decon: bool = False,
 ):
     """Crop the volume from original data and deskew the cropped volume
