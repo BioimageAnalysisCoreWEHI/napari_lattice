@@ -1,7 +1,8 @@
 import numpy as np
 import pyclesperanto_prototype as cle
 from dask.array.core import Array as DaskArray
-import resource_backed_dask_array
+import dask.array as da
+from resource_backed_dask_array import ResourceBackedDaskArray
 from typing import Union
 from napari.layers.shapes import shapes
 from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
@@ -25,13 +26,13 @@ def crop_volume_deskew(
         DaskArray,
         np.ndarray,
         cle._tier0._pycl.OCLArray,
-        resource_backed_dask_array.ResourceBackedDaskArray,
+        ResourceBackedDaskArray,
     ],
     deskewed_volume: Union[
         DaskArray,
         np.ndarray,
         cle._tier0._pycl.OCLArray,
-        resource_backed_dask_array.ResourceBackedDaskArray,
+        ResourceBackedDaskArray,
     ] = None,
     roi_shape: Union[shapes.Shapes, list, NDArray] = None,
     angle_in_degrees: float = 30,
@@ -163,10 +164,10 @@ def crop_volume_deskew(
 
     # After getting the coordinates, crop from original volume and deskew only the cropped volume
 
-    if type(original_volume) in [
-        da.core.Array,
-        resource_backed_dask_array.ResourceBackedDaskArray,
-    ]:
+    if isinstance(original_volume, (
+        DaskArray,
+        ResourceBackedDaskArray,
+    )):
         # If using dask, use .map_blocks(np.copy) to copy subset (faster)
         crop_volume = (
             original_volume[
@@ -539,7 +540,7 @@ def pycuda_decon(
     # if dask array, convert to numpy array
     if type(image) in [
         da.core.Array,
-        resource_backed_dask_array.ResourceBackedDaskArray,
+        ResourceBackedDaskArray,
     ]:
         image = np.array(image)
 
@@ -566,8 +567,8 @@ def pycuda_decon(
     if type(psf) in [
         np.ndarray,
         np.array,
-        da.core.Array,
-        resource_backed_dask_array.ResourceBackedDaskArray,
+        DaskArray,
+        ResourceBackedDaskArray,
         cle._tier0._pycl.OCLArray,
     ]:
         from pycudadecon import RLContext, TemporaryOTF, rl_decon
@@ -646,10 +647,10 @@ def skimage_decon(
     from skimage.restoration import richardson_lucy as rl_decon_skimage
 
     depth = tuple(np.array(psf.shape) // 2)
-    if type(vol_zyx) not in [
-        da.core.Array,
-        resource_backed_dask_array.ResourceBackedDaskArray,
-    ]:
+    if not isinstance(vol_zyx, (
+        DaskArray,
+        ResourceBackedDaskArray,
+    )):
         vol_zyx = da.asarray(vol_zyx)
     decon_data = vol_zyx.map_overlap(
         rl_decon_skimage,
