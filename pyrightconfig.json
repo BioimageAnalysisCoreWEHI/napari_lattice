@@ -6,5 +6,6 @@
   "reportUnknownMemberType": false,
   "reportUnknownParameterType": false,
   "reportUntypedFunctionDecorator": false,
-  "reportMissingTypeArgument": false
+  "reportMissingTypeArgument": false,
+  "reportPrivateUsage": false
 }

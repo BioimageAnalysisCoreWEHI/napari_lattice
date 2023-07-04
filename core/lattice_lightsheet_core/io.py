@@ -3,6 +3,7 @@ from __future__ import annotations
 import aicsimageio
 from aicsimageio.aics_image import AICSImage
 from aicsimageio.dimensions import Dimensions
+from aicsimageio.types import ImageLike
 
 from pathlib import Path
 
@@ -57,7 +58,7 @@ def convert_imgdata_aics(img_data: ImageData):
         # using AICSImage will read data as STCZYX
         stack = aicsimageio.AICSImage(img_data)
         # stack_meta=aicsimageio.imread_dask(img_location)
-    except Exception as e:
+    except Exception:
         print("Error: A ", sys.exc_info()[
               0], "has occurred. See below for details.")
         raise
@@ -78,7 +79,7 @@ def convert_imgdata_aics(img_data: ImageData):
 
 
 # will flesh this out once Zeiss lattice has more relevant metadata in the czi file
-def check_metadata(img_path):
+def check_metadata(img_path: ImageLike):
     print("Checking CZI metadata")
     metadatadict_czi = etree_to_dict(aicsimageio.AICSImage(img_path).metadata)
     metadatadict_czi = metadatadict_czi["ImageDocument"]["Metadata"]
@@ -87,7 +88,6 @@ def check_metadata(img_path):
     print(acquisition_mode_setup["Detector"]["ImageOrientation"])
     print("Image Orientation: If any post processing has been applied, it will appear here.\n \
       For example, Zen 3.2 flipped the image so the coverslip was towards the bottom of Z stack. So, value will be 'Flip'")
-    return
 
 # TODO: write save function for deskew and for crop
 
@@ -130,10 +130,10 @@ def save_img(vol,
         LLSZWidget(class,optional) = LLSZWidget class
     """
 
-    save_path = save_path.__str__()
+    # save_path = save_path.__str__()
 
     # replace any : with _ and remove spaces in case it hasn't been processed/skipped
-    save_name = save_name.replace(":", "_").replace(" ", "")
+    save_name = str(save_name).replace(":", "_").replace(" ", "")
 
     time_range = range(time_start, time_end+1)
 
@@ -157,9 +157,9 @@ def save_img(vol,
     # setup bdvwriter
     if save_file_type == SaveFileType.h5:
         if func is crop_volume_deskew:
-            save_path_h5 = save_path + os.sep + save_name_prefix + "_" + save_name + ".h5"
+            save_path_h5 = save_path / (save_name_prefix + "_" + save_name + ".h5")
         else:
-            save_path_h5 = save_path + os.sep + save_name + ".h5"
+            save_path_h5 = save_path / (save_name + ".h5")
 
         bdv_writer = npy2bdv.BdvWriter(save_path_h5,
                                        compression='gzip',
@@ -645,49 +645,59 @@ class LatticeData:
     save_name: str
 
     # TODO: add defaults
-    def __init__(self, img: NDArray | DaskArray | ResourceBackedDaskArray | AICSImage, angle: float, skew: DeskewDirection, dx: float, dy: float, dz: float, save_name: str) -> None:
-        self.angle = angle
-        self.skew = skew
-        self.save_name = save_name
-        self.dx = dx
-        self.dy = dy
-        self.dz = dz
+    @staticmethod
+    def convert(img: NDArray | DaskArray | ResourceBackedDaskArray | AICSImage, angle: float, skew: DeskewDirection, dx: float, dy: float, dz: float, save_name: str) -> LatticeData:
+        data: ArrayLike
+        dims: Dimensions
+        time: int
+        channels: int
 
         if isinstance(img, (np.ndarray, DaskArray, ResourceBackedDaskArray)):
             img_data_aics = AICSImage(img.data)
-            self.data = img_data_aics.dask_data
+            data = img_data_aics.dask_data
 
         elif isinstance(img, AICSImage):
 
             if img.physical_pixel_sizes != (None, None, None):
-                self.data = img.dask_data
-                self.dims = img.dims
-                self.time = img.dims.T
-                self.channels = img.dims.C
-                self.dz = img.physical_pixel_sizes.Z or dz
-                self.dy = img.physical_pixel_sizes.X or dx
-                self.dz = img.physical_pixel_sizes.Y or dy
+                data = img.dask_data
+                dims = img.dims
+                time = img.dims.T
+                channels = img.dims.C
+                dz = img.physical_pixel_sizes.Z or dz
+                dy = img.physical_pixel_sizes.X or dx
+                dz = img.physical_pixel_sizes.Y or dy
 
             else:
-                self.data = img.dask_data
-                self.dims = img.dims
-                self.time = img.dims.T
-                self.channels = img.dims.C
+                data = img.dask_data
+                dims = img.dims
+                time = img.dims.T
+                channels = img.dims.C
 
         else:
             raise Exception(
                 "Has to be an image layer or array, got type: ", type(img))
 
         # set new z voxel size
-        if self.skew == DeskewDirection.Y or self.skew == DeskewDirection.X:
+        if skew == DeskewDirection.Y or skew == DeskewDirection.X:
             import math
-            self.new_dz = math.sin(self.angle * math.pi / 180.0) * self.dz
+            dz = math.sin(angle * math.pi / 180.0) * dz
 
         # process the file to get shape of final deskewed image
-        self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(
-            self.data, self.angle, self.dx, self.dy, self.dz)
-        print(f"Channels: {self.channels}, Time: {self.time}")
+        deskew_vol_shape, deskew_affine_transform = get_deskewed_shape(data, angle, dx, dy, dz)
+        print(f"Channels: {channels}, Time: {time}")
         print("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
+        return LatticeData(
+            data=data,
+            angle=angle,
+            channels=channels,
+            dx=dx,
+            dy=dy,
+            dz=dz,
+            dims=dims,
+            save_name=save_name,
+            skew=skew,
+            time=time
+        )
 
     def get_angle(self) -> float:
         return self.angle

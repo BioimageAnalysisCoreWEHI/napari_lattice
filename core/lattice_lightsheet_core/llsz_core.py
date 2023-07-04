@@ -3,15 +3,14 @@ import pyclesperanto_prototype as cle
 from dask.array.core import Array as DaskArray
 import dask.array as da
 from resource_backed_dask_array import ResourceBackedDaskArray
-from typing import Union
-from napari.layers.shapes import shapes
+from typing import Optional, Union, TYPE_CHECKING
 from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
     affine_transform_deskew_3d,
 )
 from numpy.typing import NDArray
 
-from .utils import calculate_crop_bbox, pad_image_nearest_multiple
-from . import config, DeskewDirection, DeconvolutionChoice, SaveFileType
+from lattice_lightsheet_core.utils import calculate_crop_bbox, check_subclass, pad_image_nearest_multiple
+from lattice_lightsheet_core import config, DeskewDirection, DeconvolutionChoice
 
 # Enable Logging
 import logging
@@ -20,6 +19,15 @@ logger = logging.getLogger(__name__)
 logger.setLevel(config.log_level)
 # pass shapes data from single ROI to crop the volume from original data
 
+if TYPE_CHECKING:
+    from napari.layers.shapes import Shapes
+
+Psf = Union[
+        NDArray,
+        DaskArray,
+        ResourceBackedDaskArray,
+        cle._tier0._pycl.OCLArray,
+]
 
 def crop_volume_deskew(
     original_volume: Union[
@@ -33,8 +41,9 @@ def crop_volume_deskew(
         np.ndarray,
         cle._tier0._pycl.OCLArray,
         ResourceBackedDaskArray,
+        None
     ] = None,
-    roi_shape: Union[shapes.Shapes, list, NDArray] = None,
+    roi_shape: Union[Shapes, list, NDArray, None] = None,
     angle_in_degrees: float = 30,
     voxel_size_x: float = 1,
     voxel_size_y: float = 1,
@@ -43,8 +52,8 @@ def crop_volume_deskew(
     z_end: int = 1,
     debug: bool = False,
     deconvolution: bool = False,
-    decon_processing=None,
-    psf=None,
+    decon_processing: Optional[str]=None,
+    psf: Union[Psf, None]=None,
     num_iter: int = 10,
     linear_interpolation: bool=True,
     skew_dir: DeskewDirection=DeskewDirection.Y,
@@ -82,7 +91,8 @@ def crop_volume_deskew(
     shape = None
 
     # if shapes layer, get first one
-    if type(roi_shape) is shapes.Shapes:
+    # TODO: test this
+    if check_subclass(roi_shape, "napari.shapes", "Shapes"):
         shape = roi_shape.data[0]
     # if its a list and each element has a shape of 4, its a list of rois
     elif type(roi_shape) is list and len(roi_shape[0]) == 4:

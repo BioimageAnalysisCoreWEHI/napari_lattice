@@ -3,6 +3,7 @@ from collections import defaultdict
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from os import devnull, path
 import os
+from typing import Any
 
 import pandas as pd
 import dask.array as da
@@ -22,6 +23,14 @@ logger.setLevel(config.log_level)
 
 # get bounding box of ROI in 3D and the shape of the ROI
 
+def check_subclass(obj: Any, pkg_name: str, cls_name: str) -> bool:
+    """
+    Like `isinstance`, but doesn't require that the class in question is imported
+    """
+    # TODO: make this work for subclasses
+    cls = obj.__class__
+    module = cls.__module__
+    return cls.__name__ == cls_name and module.__qualname__ == pkg_name
 
 def calculate_crop_bbox(shape, z_start: int, z_end: int):
     """Get bounding box as vertices in 3D in the form xyz
