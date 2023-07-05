@@ -14,7 +14,7 @@ import os
 import numpy as np
 from napari.layers import image
 
-from lattice_lightsheet_core.io import LatticeData
+from lls_core.io import LatticeData
 
 def lattice_from_napari(img: image.Image, last_dimension: str) -> LatticeData:
     data = LatticeData()

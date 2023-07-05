@@ -3,13 +3,13 @@
 from dataclasses import dataclass
 from aicsimageio.aics_image import AICSImage
 from aicsimageio.dimensions import Dimensions
-from lattice_lightsheet_core import DeskewDirection
+from lls_core import DeskewDirection, DeconvolutionChoice
 
 from typing import Optional
 
 from aicsimageio.types import ArrayLike
 
-from lattice_lightsheet_core.utils import get_deskewed_shape
+from lls_core.utils import get_deskewed_shape
 
 @dataclass
 class LatticeData:
@@ -26,7 +26,7 @@ class LatticeData:
 
     #: The filename of this data when it is saved
     save_name: str
-    decon_processing: Optional[str]
+    decon_processing: Optional[DeconvolutionChoice]
 
     #: Number of time points
     time: int = 0

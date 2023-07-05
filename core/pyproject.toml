@@ -10,7 +10,7 @@ profile = "black"
 line_length = 79
 
 [project]
-name = "lattice-lightsheet-core"
+name = "lls_core"
 version = "0.2.7"
 authors = [
     {name = "Pradeep Rajasekhar"},
@@ -80,4 +80,4 @@ psf = [
 ]
 
 [project.scripts]
-napari_lattice = "lattice_lightsheet_core.cmds.__main__:main"
+lls-pipeline = "lls_core.cmds.__main__:main"

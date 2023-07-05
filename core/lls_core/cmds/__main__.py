@@ -8,9 +8,9 @@ import os
 import glob
 import sys
 import re
-from lattice_lightsheet_core.io import LatticeData, save_img, save_img_workflow
-from lattice_lightsheet_core.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task, modify_workflow_task, check_dimensions
-from lattice_lightsheet_core.llsz_core import crop_volume_deskew
+from lls_core.io import LatticeData, save_img, save_img_workflow
+from lls_core.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task, modify_workflow_task, check_dimensions
+from lls_core.llsz_core import crop_volume_deskew
 from aicsimageio import AICSImage
 import pyclesperanto_prototype as cle
 from tqdm import tqdm
@@ -20,8 +20,8 @@ from napari_workflows._io_yaml_v1 import load_workflow
 from pathlib import Path
 import yaml
 
-from lattice_lightsheet_core.read_psf import _read_psf
-from lattice_lightsheet_core import DeskewDirection, DeconvolutionChoice, SaveFileType
+from lls_core.read_psf import _read_psf
+from lls_core import DeskewDirection, DeconvolutionChoice, SaveFileType
 from enum import Enum
 
 

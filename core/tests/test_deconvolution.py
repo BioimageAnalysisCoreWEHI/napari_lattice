@@ -30,7 +30,7 @@ except (FileNotFoundError, ModuleNotFoundError):
 @pytest.mark.skipif(condition=len(GPU_DEVICES) < 1, reason="GPU not detected, so deconvolution with pycudadecon skipped.")
 @pytest.mark.skipif(condition=not cuda_decon_available, reason="cudadecon library is not installed")
 def test_deconvolution_pycudadecon():
-    from lattice_lightsheet_core.llsz_core import pycuda_decon
+    from lls_core.llsz_core import pycuda_decon
 
     data = imread(test_data_dir+"/raw.tif")
     psf = imread(test_data_dir+"/psf.tif")

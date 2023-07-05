@@ -18,11 +18,11 @@ from os import PathLike
 from dask.distributed import Client
 from dask.cache import Cache
 
-from lattice_lightsheet_core.utils import etree_to_dict
-from lattice_lightsheet_core.llsz_core import crop_volume_deskew, skimage_decon, pycuda_decon
-from lattice_lightsheet_core import config
-from lattice_lightsheet_core import DeconvolutionChoice, SaveFileType
-from lattice_lightsheet_core.lattice_data import LatticeData
+from lls_core.utils import etree_to_dict
+from lls_core.llsz_core import crop_volume_deskew, skimage_decon, pycuda_decon
+from lls_core import config
+from lls_core import DeconvolutionChoice, SaveFileType
+from lls_core.lattice_data import LatticeData
 
 import os
 import numpy as np

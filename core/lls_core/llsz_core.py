@@ -12,8 +12,8 @@ from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
 )
 from numpy.typing import NDArray
 
-from lattice_lightsheet_core.utils import calculate_crop_bbox, check_subclass, is_napari_shape, pad_image_nearest_multiple
-from lattice_lightsheet_core import config, DeskewDirection, DeconvolutionChoice
+from lls_core.utils import calculate_crop_bbox, check_subclass, is_napari_shape, pad_image_nearest_multiple
+from lls_core import config, DeskewDirection, DeconvolutionChoice
 
 # Enable Logging
 import logging

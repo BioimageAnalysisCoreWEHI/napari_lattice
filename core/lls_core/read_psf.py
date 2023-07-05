@@ -1,6 +1,6 @@
 from pathlib import Path, PosixPath
-from lattice_lightsheet_core import DeconvolutionChoice
-from lattice_lightsheet_core.lattice_data import LatticeData
+from lls_core import DeconvolutionChoice
+from lls_core.lattice_data import LatticeData
 import logging
 
 logger = logging.getLogger(__name__)
