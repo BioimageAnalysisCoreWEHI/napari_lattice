@@ -1,3 +1,6 @@
+from __future__ import annotations
+
+from aicsimageio.types import ArrayLike
 import numpy as np
 import pyclesperanto_prototype as cle
 from dask.array.core import Array as DaskArray
@@ -9,7 +12,7 @@ from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
 )
 from numpy.typing import NDArray
 
-from lattice_lightsheet_core.utils import calculate_crop_bbox, check_subclass, pad_image_nearest_multiple
+from lattice_lightsheet_core.utils import calculate_crop_bbox, check_subclass, is_napari_shape, pad_image_nearest_multiple
 from lattice_lightsheet_core import config, DeskewDirection, DeconvolutionChoice
 
 # Enable Logging
@@ -30,19 +33,8 @@ Psf = Union[
 ]
 
 def crop_volume_deskew(
-    original_volume: Union[
-        DaskArray,
-        np.ndarray,
-        cle._tier0._pycl.OCLArray,
-        ResourceBackedDaskArray,
-    ],
-    deskewed_volume: Union[
-        DaskArray,
-        np.ndarray,
-        cle._tier0._pycl.OCLArray,
-        ResourceBackedDaskArray,
-        None
-    ] = None,
+    original_volume: ArrayLike,
+    deskewed_volume: Union[ ArrayLike, None ] = None,
     roi_shape: Union[Shapes, list, NDArray, None] = None,
     angle_in_degrees: float = 30,
     voxel_size_x: float = 1,
@@ -92,7 +84,7 @@ def crop_volume_deskew(
 
     # if shapes layer, get first one
     # TODO: test this
-    if check_subclass(roi_shape, "napari.shapes", "Shapes"):
+    if is_napari_shape(roi_shape):
         shape = roi_shape.data[0]
     # if its a list and each element has a shape of 4, its a list of rois
     elif type(roi_shape) is list and len(roi_shape[0]) == 4:

@@ -1,9 +1,16 @@
+from pathlib import Path, PosixPath
+from lattice_lightsheet_core import DeconvolutionChoice
+from lattice_lightsheet_core.lattice_data import LatticeData
+import logging
+
+logger = logging.getLogger(__name__)
+
 def _read_psf(psf_ch1_path: Path,
               psf_ch2_path: Path,
               psf_ch3_path: Path,
               psf_ch4_path: Path,
-              decon_option,
-              lattice_class):
+              decon_option: DeconvolutionChoice,
+              lattice_class: LatticeData):
     """Read PSF files and return a list of PSF arrays appended to lattice_class.psf
 
     Args:

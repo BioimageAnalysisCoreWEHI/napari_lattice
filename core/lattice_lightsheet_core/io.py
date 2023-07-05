@@ -1,9 +1,7 @@
 from __future__ import annotations
 # Opening and saving files
 import aicsimageio
-from aicsimageio.aics_image import AICSImage
-from aicsimageio.dimensions import Dimensions
-from aicsimageio.types import ImageLike
+from aicsimageio.types import ImageLike, ArrayLike
 
 from pathlib import Path
 
@@ -14,16 +12,17 @@ from resource_backed_dask_array import ResourceBackedDaskArray
 import dask.array as da
 from dask.array.core import Array as DaskArray
 import pandas as pd
-from typing import overload, TYPE_CHECKING
-from numpy.typing import ArrayLike, NDArray
+from typing import TYPE_CHECKING, Callable, Optional
+from os import PathLike
 
 from dask.distributed import Client
 from dask.cache import Cache
 
 from lattice_lightsheet_core.utils import etree_to_dict
-from lattice_lightsheet_core.utils import get_deskewed_shape
 from lattice_lightsheet_core.llsz_core import crop_volume_deskew, skimage_decon, pycuda_decon
 from lattice_lightsheet_core import config
+from lattice_lightsheet_core import DeconvolutionChoice, SaveFileType
+from lattice_lightsheet_core.lattice_data import LatticeData
 
 import os
 import numpy as np
@@ -32,9 +31,6 @@ from tqdm import tqdm
 from tifffile import imwrite, TiffWriter
 
 import npy2bdv
-from . import DeskewDirection, DeconvolutionChoice, SaveFileType
-
-from dataclasses import dataclass
 
 # Enable Logging
 import logging
@@ -42,6 +38,7 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from napari.types import ImageData
+    from magicclass import MagicTemplate
 
 def convert_imgdata_aics(img_data: ImageData):
     """Return AICSimage object from napari ImageData type
@@ -92,23 +89,23 @@ def check_metadata(img_path: ImageLike):
 # TODO: write save function for deskew and for crop
 
 
-def save_img(vol,
-             func: callable,
+def save_img(vol: ArrayLike,
+             func: Callable,
              time_start: int,
              time_end: int,
              channel_start: int,
              channel_end: int,
-             save_file_type,
-             save_path: Path,
+             save_file_type: SaveFileType,
+             save_path: PathLike,
              save_name_prefix: str = "",
              save_name: str = "img",
              dx: float = 1,
              dy: float = 1,
              dz: float = 1,
-             angle: float = None,
-             LLSZWidget=None,
+             angle: Optional[float] = None,
+             LLSZWidget: Optional[MagicTemplate]=None,
              terminal: bool = False,
-             lattice=None,
+             lattice: Optional[LatticeData]=None,
              *args, **kwargs):
     """
     Applies a function as described in callable
@@ -131,6 +128,7 @@ def save_img(vol,
     """
 
     # save_path = save_path.__str__()
+    _save_path: Path = Path(save_path)
 
     # replace any : with _ and remove spaces in case it hasn't been processed/skipped
     save_name = str(save_name).replace(":", "_").replace(" ", "")
@@ -157,11 +155,11 @@ def save_img(vol,
     # setup bdvwriter
     if save_file_type == SaveFileType.h5:
         if func is crop_volume_deskew:
-            save_path_h5 = save_path / (save_name_prefix + "_" + save_name + ".h5")
+            save_path_h5 = _save_path / (save_name_prefix + "_" + save_name + ".h5")
         else:
-            save_path_h5 = save_path / (save_name + ".h5")
+            save_path_h5 = _save_path / (save_name + ".h5")
 
-        bdv_writer = npy2bdv.BdvWriter(save_path_h5,
+        bdv_writer = npy2bdv.BdvWriter(str(save_path_h5),
                                        compression='gzip',
                                        nchannels=len(channel_range),
                                        subsamp=(
@@ -285,8 +283,7 @@ def save_img(vol,
         # otherwise, append it into im_final
 
         if func != crop_volume_deskew and save_file_type == SaveFileType.tiff:
-            final_name = save_path + os.sep + save_name_prefix + "C" + str(ch) + "T" + str(
-                time_point) + "_" + save_name+".tif"
+            final_name = _save_path / (save_name_prefix + "C" + str(ch) + "T" + str( time_point) + "_" + save_name+".tif")
             images_array = np.array(images_array)
             images_array = np.expand_dims(images_array, axis=0)
             images_array = np.swapaxes(images_array, 1, 2)
@@ -307,7 +304,7 @@ def save_img(vol,
     elif func is crop_volume_deskew and save_file_type == SaveFileType.tiff:
 
         im_final = np.array(im_final)
-        final_name = save_path + os.sep + save_name_prefix + "_" + save_name + ".tif"
+        final_name = _save_path / (save_name_prefix + "_" + save_name + ".tif")
 
         im_final = np.swapaxes(im_final, 1, 2)
         # imagej=True; ImageJ hyperstack axes must be in TZCYXS order
@@ -319,8 +316,6 @@ def save_img(vol,
                 metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'},
                 imagej=True)
         im_final = None
-
-    return
 
 
 def save_img_workflow(vol,
@@ -620,90 +615,3 @@ def save_img_workflow(vol,
             # close the writers (applies for both tiff and h5)
             writer_list[writer_idx].close()
 
-    return
-
-# class for initializing lattice data and setting metadata
-# TODO: handle scenes
-
-@dataclass
-class LatticeData:
-    #: 3-5D array
-    data: ArrayLike
-    dims: Dimensions
-    #: Pixel size in microns
-    dx: float
-    dy: float
-    dz: float
-    #: Geometry of the light path
-    skew: DeskewDirection
-    angle: float
-    #: Number of time points
-    time: int
-    #: Number of channels
-    channels: int
-    #: The filename of this data when it is saved
-    save_name: str
-
-    # TODO: add defaults
-    @staticmethod
-    def convert(img: NDArray | DaskArray | ResourceBackedDaskArray | AICSImage, angle: float, skew: DeskewDirection, dx: float, dy: float, dz: float, save_name: str) -> LatticeData:
-        data: ArrayLike
-        dims: Dimensions
-        time: int
-        channels: int
-
-        if isinstance(img, (np.ndarray, DaskArray, ResourceBackedDaskArray)):
-            img_data_aics = AICSImage(img.data)
-            data = img_data_aics.dask_data
-
-        elif isinstance(img, AICSImage):
-
-            if img.physical_pixel_sizes != (None, None, None):
-                data = img.dask_data
-                dims = img.dims
-                time = img.dims.T
-                channels = img.dims.C
-                dz = img.physical_pixel_sizes.Z or dz
-                dy = img.physical_pixel_sizes.X or dx
-                dz = img.physical_pixel_sizes.Y or dy
-
-            else:
-                data = img.dask_data
-                dims = img.dims
-                time = img.dims.T
-                channels = img.dims.C
-
-        else:
-            raise Exception(
-                "Has to be an image layer or array, got type: ", type(img))
-
-        # set new z voxel size
-        if skew == DeskewDirection.Y or skew == DeskewDirection.X:
-            import math
-            dz = math.sin(angle * math.pi / 180.0) * dz
-
-        # process the file to get shape of final deskewed image
-        deskew_vol_shape, deskew_affine_transform = get_deskewed_shape(data, angle, dx, dy, dz)
-        print(f"Channels: {channels}, Time: {time}")
-        print("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
-        return LatticeData(
-            data=data,
-            angle=angle,
-            channels=channels,
-            dx=dx,
-            dy=dy,
-            dz=dz,
-            dims=dims,
-            save_name=save_name,
-            skew=skew,
-            time=time
-        )
-
-    def get_angle(self) -> float:
-        return self.angle
-
-    def set_angle(self, angle: float) -> None:
-        self.angle = angle
-
-    def set_skew(self, skew: DeskewDirection) -> None:
-        self.skew = skew

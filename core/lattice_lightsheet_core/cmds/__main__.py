@@ -20,7 +20,7 @@ from napari_workflows._io_yaml_v1 import load_workflow
 from pathlib import Path
 import yaml
 
-from lattice_lightsheet_core.ui_core import _read_psf
+from lattice_lightsheet_core.read_psf import _read_psf
 from lattice_lightsheet_core import DeskewDirection, DeconvolutionChoice, SaveFileType
 from enum import Enum
 
@@ -209,6 +209,7 @@ def main():
         else:
             deconvolution = False
 
+        roi_file: str
         if processing == ProcessingOptions.crop or processing == ProcessingOptions.workflow_crop:
             if 'roi_file' in processing_parameters:
                 roi_file = processing_parameters.get('roi_file', False)
@@ -263,7 +264,7 @@ def main():
                     psf_ch2_path = psf_paths[1]
                     psf_ch3_path = psf_paths[2]
                     psf_ch4_path = psf_paths[3]
-                except IndexError as e:
+                except IndexError:
                     pass
             else:
                 logging.error("PSF paths not set option not set.")

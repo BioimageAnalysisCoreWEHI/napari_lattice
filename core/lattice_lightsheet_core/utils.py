@@ -1,9 +1,12 @@
+from __future__ import annotations
+
 import numpy as np
 from collections import defaultdict
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from os import devnull, path
 import os
-from typing import Any
+from typing_extensions import Any, TYPE_CHECKING, TypeGuard
+from typing import List, Tuple, Union, Collection
 
 import pandas as pd
 import dask.array as da
@@ -14,7 +17,12 @@ from read_roi import read_roi_file
 
 from napari_workflows import Workflow
 from tifffile import imsave
-from . import config, DeskewDirection, DeconvolutionChoice, SaveFileType
+from . import config, DeskewDirection
+from aicsimageio.types import ArrayLike
+
+if TYPE_CHECKING:
+    from xml.etree.ElementTree import Element
+    from napari.layers import Shapes
 
 # Enable Logging
 import logging
@@ -32,7 +40,10 @@ def check_subclass(obj: Any, pkg_name: str, cls_name: str) -> bool:
     module = cls.__module__
     return cls.__name__ == cls_name and module.__qualname__ == pkg_name
 
-def calculate_crop_bbox(shape, z_start: int, z_end: int):
+def is_napari_shape(obj: Any) -> TypeGuard[Shapes]:
+    return check_subclass(obj, "napari.shapes", "Shapes")
+
+def calculate_crop_bbox(shape: int, z_start: int, z_end: int) -> tuple[List[List[Any]], List[int]]:
     """Get bounding box as vertices in 3D in the form xyz
 
     Args:
@@ -70,12 +81,12 @@ def calculate_crop_bbox(shape, z_start: int, z_end: int):
     return crop_bounding_box, crop_shape
 
 
-def get_deskewed_shape(volume,
-                       angle,
+def get_deskewed_shape(volume: ArrayLike,
+                       angle: float,
                        voxel_size_x_in_microns: float,
                        voxel_size_y_in_microns: float,
                        voxel_size_z_in_microns: float,
-                       skew_dir=DeskewDirection.Y):
+                       skew_dir: DeskewDirection=DeskewDirection.Y) -> Tuple[Tuple[int], cle.AffineTransform3D]:
     """
     Calculate shape of deskewed volume 
     Also, returns affine transform
@@ -119,7 +130,7 @@ def get_deskewed_shape(volume,
 # https://stackoverflow.com/a/10076823
 # Credit: Antoine Pinsard
 # Convert xml elementree to dict
-def etree_to_dict(t):
+def etree_to_dict(t: Element) -> dict:
     """Parse an XML file and convert to dictionary 
     This can be used to access the Zeiss metadata
     Access it from ["ImageDocument"]["Metadata"]
@@ -165,19 +176,23 @@ def suppress_stdout_stderr():
 # https://github.com/dask/dask/blob/dca10398146c6091a55c54db3778a06b485fc5ce/dask/array/routines.py#L1889
 
 
-def dask_expand_dims(a, axis):
-    if type(axis) not in (tuple, list):
-        axis = (axis,)
+def dask_expand_dims(a: ArrayLike, axis: Union[Collection[int], int]):
+    _axis: Collection[int]
 
-    out_ndim = len(axis) + a.ndim
+    if isinstance(axis, int):
+        _axis = (axis,)
+    else:
+        _axis = axis
+
+    out_ndim = len(_axis) + a.ndim
 
     shape_it = iter(a.shape)
-    shape = [1 if ax in axis else next(shape_it) for ax in range(out_ndim)]
+    shape = [1 if ax in _axis else next(shape_it) for ax in range(out_ndim)]
 
     return a.reshape(shape)
 
 
-def read_imagej_roi(roi_zip_path):
+def read_imagej_roi(roi_zip_path: str):
     """Read an ImageJ ROI zip file so it loaded into napari shapes layer
         If non rectangular ROI, will convert into a rectangle based on extreme points
     Args:
@@ -187,14 +202,14 @@ def read_imagej_roi(roi_zip_path):
         list: List of ROIs
     """
     roi_extension = path.splitext(roi_zip_path)[1]
-    assert roi_extension == ".roi" or roi_extension == ".zip", "ImageJ ROI file needs to be a zip/roi file"
 
     # handle reading single roi or collection of rois in zip file
     if roi_extension == ".zip":
         ij_roi = read_roi_zip(roi_zip_path)
-
-    if roi_extension == ".roi":
+    elif roi_extension == ".roi":
         ij_roi = read_roi_file(roi_zip_path)
+    else:
+        raise Exception("ImageJ ROI file needs to be a zip/roi file")
 
     # initialise list of rois
     roi_list = []
@@ -288,7 +303,7 @@ def load_custom_py_modules(custom_py_files):
     
 
 # TODO: CHANGE so user can select modules? Safer
-def get_all_py_files(directory):
+def get_all_py_files(directory: str) -> list[str]:
     """get all py files within directory and return as a list of filenames
     Args:
         directory: Directory with .py files
@@ -296,8 +311,6 @@ def get_all_py_files(directory):
     from os.path import dirname, basename, isfile, join
     import glob
     
-    import sys
-
     modules = glob.glob(join(dirname(directory), "*.py"))
     all = [basename(f)[:-3] for f in modules if isfile(f)
            and not f.endswith('__init__.py')]
