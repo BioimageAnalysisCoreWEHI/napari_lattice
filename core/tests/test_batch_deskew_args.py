@@ -25,7 +25,7 @@ def test_batch_deskew_h5():
         create_image(input_file)
         # Batch deskew and save as h5
         result = subprocess.run([
-            "napari_lattice",
+            "lls-pipeline",
             "--input", input_file,
             "--output", out_dir,
             "--processing", "deskew",
@@ -45,7 +45,7 @@ def test_batch_deskew_tiff():
         input_file = out_dir / 'raw.tiff'
         create_image(input_file)
         result = subprocess.run([
-                "napari_lattice",
+                "lls-pipeline",
                 "--input", input_file,
                 "--output", out_dir,
                 "--processing", "deskew",

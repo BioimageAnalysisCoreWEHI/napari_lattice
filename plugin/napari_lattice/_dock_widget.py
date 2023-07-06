@@ -40,14 +40,14 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 @magicclass(widget_type="split")
-class LLSZWidget(MagicTemplate):
+class LLSZWidget:
 
     @magicclass(widget_type="split")
-    class LlszMenu(MagicTemplate):
+    class LlszMenu:
         open_file: bool = False
         lattice: LatticeData = None
-        skew_dir = DeskewDirection
-        angle_value = float
+        skew_dir: DeskewDirection
+        angle_value: float
         deskew_func: Callable
 
         main_heading = widgets.Label(
@@ -241,7 +241,7 @@ class LLSZWidget(MagicTemplate):
             self["deconvolution_gui"].text = "PSFs added"
 
     @magicclass(widget_type="collapsible")
-    class Preview(MagicTemplate):
+    class Preview:
         @magicgui(header=dict(widget_type="Label", label="<h3>Preview Deskew</h3>"),
                     time=dict(label="Time:", max=2**15),
                     channel=dict(label="Channel:"),
@@ -264,11 +264,10 @@ class LLSZWidget(MagicTemplate):
 
     # Tabbed Widget container to house all the widgets
     @magicclass(widget_type="tabbed", name="Functions")
-    class WidgetContainer(MagicTemplate):
+    class WidgetContainer:
 
-        @magicclass(name="Deskew", widget_type="scrollable")
-        class DeskewWidget(MagicTemplate):
-            max_width = 100
+        @magicclass(name="Deskew", widget_type="scrollable", properties={"max_width": 100})
+        class DeskewWidget:
 
             @magicgui(header=dict(widget_type="Label", label="<h3>Deskew and Save</h3>"),
                         time_start=dict(label="Time Start:", max=2**20),
@@ -298,13 +297,14 @@ class LLSZWidget(MagicTemplate):
                 return
 
         @magicclass(name="Crop and Deskew", widget_type="scrollable")
-        class CropWidget(MagicTemplate):
+        class CropWidget:
             
             # add function for previewing cropped image
-            @magicclass(name="Cropping Preview", widget_type="scrollable")
-            class Preview_Crop_Menu(MagicTemplate):
-                max_width = 100
-                shapes_layer: Shapes
+            @magicclass(name="Cropping Preview", widget_type="scrollable", properties={
+                "max_width": 100,
+                "shapes_layer": Shapes
+            })
+            class Preview_Crop_Menu:
 
                 @set_design(font_size=10, text="Click to activate Cropping Layer", background_color="magenta")
                 @click(enables=["Import_ImageJ_ROI", "Crop_Preview"])
