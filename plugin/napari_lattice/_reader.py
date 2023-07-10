@@ -12,119 +12,54 @@ import dask.array as da
 import dask.delayed as delayed
 import os 
 import numpy as np
-from napari.layers import image
+from napari.layers import image, Layer
+from napari.layers._data_protocols import LayerDataProtocol
+from aicsimageio.types import ArrayLike
+from aicsimageio.dimensions import Dimensions
+from aicsimageio.aics_image import AICSImage
 
-from lls_core.io import LatticeData
+from typing_extensions import Literal
+from typing import Optional, cast, Tuple
 
-def lattice_from_napari(img: image.Image, last_dimension: str) -> LatticeData:
-    data = LatticeData()
-    # check if its an aicsimageio object and has voxel size info
-    if 'aicsimage' in img.metadata.keys() and img.metadata['aicsimage'].physical_pixel_sizes != (None, None, None):
+from lls_core.io import LatticeData, img_from_array
+
+def lattice_from_napari(
+    img: Layer,
+    last_dimension: Optional[Literal["channel", "time"]],
+    physical_pixel_sizes: Optional[Tuple[float, float, float]] = None,
+    **kwargs
+) -> LatticeData:
+    """
+    Factory function for generating a LatticeData from a Napari Image
+
+    Arguments:
+        kwargs: Extra arguments to pass to the LatticeData constructor
+    """
+
+    img_data_aics: AICSImage
+
+    if 'aicsimage' in img.metadata.keys():
         img_data_aics = img.metadata['aicsimage']
-        data.data = img_data_aics.dask_data
-        data.dims = img_data_aics.dims
-        data.time = img_data_aics.dims.T
-        data.channels = img_data_aics.dims.C
-        data.dz, data.dy, data.dx = img_data_aics.physical_pixel_sizes
     else:
-        print("Cannot read voxel size from metadata")
-        if 'aicsimage' in img.metadata.keys():
-            img_data_aics = img.metadata['aicsimage']
-            data.data = img_data_aics.dask_data
-            data.dims = img_data_aics.dims
-            # if aicsimageio tiffreader assigns last dim as time when it should be channel, user can override this
-            if last_dimension:
-                if len(img.data.shape) == 4:
-                    if last_dimension.lower() == "channel":
-                        data.channels = img.data.shape[0]
-                        data.time = 0
-                    elif last_dimension.lower() == "time":
-                        data.time = img.data.shape[0]
-                        data.channels = 0
-                elif len(img.data.shape) == 5:
-                    if last_dimension.lower() == "channel":
-                        data.channels = img.data.shape[0]
-                        data.time = img.data.shape[1]
-                    elif last_dimension.lower() == "time":
-                        data.time = img.data.shape[0]
-                        data.channels = img.data.shape[1]
-            else:
-                data.time = img_data_aics.dims.T
-                data.channels = img_data_aics.dims.C
-        else:
-            # if no aicsimageio key in metadata
-            # get the data and convert it into an aicsimage object
-            img_data_aics = aicsimageio.AICSImage(img.data)
-            data.data = img_data_aics.dask_data
-            # if user has specified ch
-            if last_dimension:
-                if len(img.data.shape) == 4:
-                    if last_dimension.lower() == "channel":
-                        data.channels = img.data.shape[0]
-                        data.time = 0
-                    elif last_dimension.lower() == "time":
-                        data.time = img.data.shape[0]
-                        data.channels = 0
-                elif len(img.data.shape) == 5:
-                    if last_dimension.lower() == "channel":
-                        data.channels = img.data.shape[0]
-                        data.time = img.data.shape[1]
-                    elif last_dimension.lower() == "time":
-                        data.time = img.data.shape[0]
-                        data.channels = img.data.shape[1]
-            else:
-                if last_dimension:
-                    if len(img.data.shape) == 4:
-                        if last_dimension.lower() == "channel":
-                            data.channels = img.data.shape[0]
-                            data.time = 0
-                        elif last_dimension.lower() == "time":
-                            data.time = img.data.shape[0]
-                            data.channels = 0
-                    elif len(img.data.shape) == 5:
-                        if last_dimension.lower() == "channel":
-                            data.channels = img.data.shape[0]
-                            data.time = img.data.shape[1]
-                        elif last_dimension.lower() == "time":
-                            data.time = img.data.shape[0]
-                            data.channels = img.data.shape[1]
-                else:
+        if not last_dimension:
+            raise ValueError("Either the Napari image must have dimensional metadata, or last_dimension must be provided")
+        img_data_aics = img_from_array(cast(ArrayLike, img.data), last_dimension=last_dimension, physical_pixel_sizes=physical_pixel_sizes)
 
-                    data.time = img.data.shape[0]
-                    data.channels = img.data.shape[1]
-
-        # read metadata for pixel sizes
-        if None in img_data_aics.physical_pixel_sizes or img_data_aics.physical_pixel_sizes == False:
-            data.dx = dx
-            data.dy = dy
-            data.dz = dz
-        else:
-            data.dz, data.dy, data.dx = img.data.physical_pixel_sizes
-        # if not last_dimension:
-        # if xarray, access data using .data method
-            # if type(img.data) in [xarray.core.dataarray.DataArray,np.ndarray]:
-            #img = img.data
-        # img = dask_expand_dims(img,axis=1) ##if no channel dimension specified, then expand axis at index 1
-    # if no path returned by source.path, get image name with colon and spaces removed
-    # if last axes of "aicsimage data" shape is not equal to time, then swap channel and time
-    if data.data.shape[0] != data.time or data.data.shape[1] != data.channels:
-        data.data = np.swapaxes(data.data, 0, 1)
-
+    save_name: str
     if img.source.path is None:
         # remove colon (:) and any leading spaces
-        data.save_name = img.name.replace(":", "").strip()
+        save_name = img.name.replace(":", "").strip()
         # replace any group of spaces with "_"
-        data.save_name = '_'.join(data.save_name.split())
-
+        save_name = '_'.join(save_name.split())
     else:
         file_name_noext = os.path.basename(img.source.path)
         file_name = os.path.splitext(file_name_noext)[0]
         # remove colon (:) and any leading spaces
-        data.save_name = file_name.replace(":", "").strip()
+        save_name = file_name.replace(":", "").strip()
         # replace any group of spaces with "_"
-        data.save_name = '_'.join(data.save_name.split())
+        save_name = '_'.join(save_name.split())
 
-
+    return LatticeData(img_data_aics, **kwargs)
 
 def napari_get_reader(path: list[str] | str):
     """Check if file ends with h5 and returns reader function if true

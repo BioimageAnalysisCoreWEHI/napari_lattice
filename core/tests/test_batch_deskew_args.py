@@ -5,6 +5,7 @@ from skimage.io import imsave
 import numpy as np
 from pathlib import Path
 import tempfile
+from lls_core.cmds.__main__ import main as run_cli
 
 def create_image(path: Path):
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
@@ -24,14 +25,12 @@ def test_batch_deskew_h5():
         input_file = out_dir / 'raw.tiff'
         create_image(input_file)
         # Batch deskew and save as h5
-        result = subprocess.run([
-            "lls-pipeline",
-            "--input", input_file,
-            "--output", out_dir,
+        run_cli([
+            "--input", str(input_file),
+            "--output", str(out_dir),
             "--processing", "deskew",
             "--output_file_type", "h5"
         ])
-        assert result.returncode == 0
 
         # checks if h5 files written
         assert (out_dir / "raw" / "raw.h5").exists()
@@ -44,14 +43,12 @@ def test_batch_deskew_tiff():
         out_dir = Path(out_dir)
         input_file = out_dir / 'raw.tiff'
         create_image(input_file)
-        result = subprocess.run([
-                "lls-pipeline",
-                "--input", input_file,
-                "--output", out_dir,
-                "--processing", "deskew",
-                "--output_file_type", "tiff"
+        run_cli([
+            "--input", str(input_file),
+            "--output", str(out_dir),
+            "--processing", "deskew",
+            "--output_file_type", "tiff"
         ])
-        assert result.returncode == 0
 
         # checks if tiff written
         assert (out_dir / "raw" / "C0T0_raw.tif").exists()

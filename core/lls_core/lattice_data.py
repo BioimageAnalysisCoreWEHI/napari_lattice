@@ -1,3 +1,4 @@
+from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
 from dataclasses import dataclass
@@ -5,11 +6,21 @@ from aicsimageio.aics_image import AICSImage
 from aicsimageio.dimensions import Dimensions
 from lls_core import DeskewDirection, DeconvolutionChoice
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING, Tuple, TypeVar
 
 from aicsimageio.types import ArrayLike
+import pyclesperanto_prototype as cle
 
 from lls_core.utils import get_deskewed_shape
+
+if TYPE_CHECKING:
+    import pyclesperanto_prototype as cle
+
+T = TypeVar("T")
+def raise_if_none(obj: Optional[T], message: str) -> T:
+    if obj is None:
+        raise TypeError(message)
+    return obj
 
 @dataclass
 class LatticeData:
@@ -28,30 +39,28 @@ class LatticeData:
     save_name: str
     decon_processing: Optional[DeconvolutionChoice]
 
+    # Dimensions of the deskewed output
+    deskew_vol_shape: Tuple[int]
+    deskew_affine_transform: cle.AffineTransform3D
+
     #: Number of time points
     time: int = 0
     #: Number of channels
     channels: int = 0
 
-    # TODO: add defaults
-    def __init__(self, img: AICSImage, angle: float, skew: DeskewDirection, dx: float, dy: float, dz: float, save_name: str):
+    # TODO: add defaults here, rather than in the CLI
+    # TODO: refactor this class to hold an AICSImage instead of extracting its fields
+    def __init__(self, img: AICSImage, angle: float, skew: DeskewDirection, save_name: str, dx: Optional[float] = None, dy: Optional[float] = None, dz: Optional[float] = None):
         self.angle = angle
         self.skew = skew
-
-        if img.physical_pixel_sizes != (None, None, None):
-            self.data = img.dask_data
-            self.dims = img.dims
-            self.time = img.dims.T
-            self.channels = img.dims.C
-            self.dz = img.physical_pixel_sizes.Z or dz
-            self.dy = img.physical_pixel_sizes.X or dx
-            self.dz = img.physical_pixel_sizes.Y or dy
-
-        else:
-            self.data = img.dask_data
-            self.dims = img.dims
-            self.time = img.dims.T
-            self.channels = img.dims.C
+        self.data = img.dask_data
+        self.dims = img.dims
+        self.time = img.dims.T
+        self.channels = img.dims.C
+        self.dx = raise_if_none(dx or img.physical_pixel_sizes.X, "dx cannot be None")
+        self.dy = raise_if_none(dy or img.physical_pixel_sizes.Y, "dy cannot be None")
+        self.dz = raise_if_none(dz or img.physical_pixel_sizes.Z, "dz cannot be None")
+        self.save_name = save_name
 
         # set new z voxel size
         if skew == DeskewDirection.Y or skew == DeskewDirection.X:
@@ -59,9 +68,28 @@ class LatticeData:
             dz = math.sin(angle * math.pi / 180.0) * dz
 
         # process the file to get shape of final deskewed image
-        self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(self.data, angle, dx, dy, dz)
+        self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(self.data, angle, self.dx, self.dy, self.dz)
         print(f"Channels: {self.channels}, Time: {self.time}")
         print("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
+
+    # Hack to ensure that .skew_dir behaves identically to .skew
+    @property
+    def skew_dir(self) -> DeskewDirection:
+        return self.skew
+
+    @skew_dir.setter
+    def skew_dir(self, value: DeskewDirection):
+        self.skew = value
+
+    @property
+    def deskew_func(self):
+        # Chance deskew function absed on skew direction
+        if self.skew == DeskewDirection.Y:
+            return cle.deskew_y
+        elif self.skew == DeskewDirection.X:
+            return cle.deskew_x
+        else:
+            raise ValueError()
 
     def get_angle(self) -> float:
         return self.angle

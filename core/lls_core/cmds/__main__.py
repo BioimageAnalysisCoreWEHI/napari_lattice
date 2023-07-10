@@ -19,6 +19,7 @@ from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
 from pathlib import Path
 import yaml
+from typing import Sequence
 
 from lls_core.read_psf import _read_psf
 from lls_core import DeskewDirection, DeconvolutionChoice, SaveFileType
@@ -40,7 +41,7 @@ class ProcessingOptions(Enum):
     workflow_crop = "workflow_crop"
 
 
-def args_parse():
+def make_parser():
     """ Parse input arguments"""
     parser = argparse.ArgumentParser(description="Lattice Data Analysis")
     parser.add_argument('--input', type=str, nargs=1, help="Enter input file",
@@ -97,13 +98,11 @@ def args_parse():
                         help="Process an individual ROI, loop all if unset", default=None)
     parser.add_argument('--set_logging', type=str, nargs=1,
                         help="Set logging level [INFO,DEBUG]", default=["INFO"])
+    return parser
 
-    args = parser.parse_args()
-    return args
-
-
-def main():
-    args = args_parse()
+def main(argv: Sequence[str] = sys.argv[1:]):
+    parser = make_parser()
+    args = parser.parse_args(argv)
 
     # Enable Logging
     import logging
@@ -356,20 +355,11 @@ def main():
                 if test_max:
                     print(f"Scene {scene} is valid")
                     break
-            except Exception as e:
+            except Exception:
                 print(f"Scene {scene} not valid")
 
         # Initialize Lattice class
-        lattice = LatticeData(aics_img, deskew_angle, skew_dir, dx, dy, dz, save_name=save_name)
-
-        # Chance deskew function absed on skew direction
-        if lattice.skew == DeskewDirection.Y:
-            lattice.deskew_func = cle.deskew_y
-            lattice.skew_dir = DeskewDirection.Y
-
-        elif lattice.skew == DeskewDirection.X:
-            lattice.deskew_func = cle.deskew_x
-            lattice.skew_dir = DeskewDirection.X
+        lattice = LatticeData(aics_img, deskew_angle, skew_dir, save_name=save_name, dx=dx, dy=dy, dz=dz)
 
         if time_start is None or time_end is None:
             time_start, time_end = 0, lattice.time - 1

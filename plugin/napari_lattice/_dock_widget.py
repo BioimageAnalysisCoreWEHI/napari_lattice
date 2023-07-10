@@ -5,7 +5,8 @@ import numpy as np
 from pathlib import Path
 import dask.array as da
 import pandas as pd
-from typing import Union, Optional, Callable
+from typing import Union, Optional, Callable, Literal
+from aicsimageio import AICSImage
 
 from magicclass.wrappers import set_design
 from magicgui import magicgui, widgets
@@ -33,6 +34,7 @@ from lls_core.llsz_core import crop_volume_deskew, pycuda_decon, skimage_decon
 from lls_core.read_psf import _read_psf
 
 from napari_lattice.ui_core import _Preview, _Deskew_Save
+from napari_lattice._reader import lattice_from_napari
 
 # Enable Logging
 import logging
@@ -82,7 +84,7 @@ class LLSZWidget:
                                 angle: float = 30,
                                 select_device: str = cle.available_device_names()[
                                     0],
-                                last_dimension_channel: bool = False,
+                                last_dimension_channel: Literal["Channel", "Time", "Get_from_metadata"] = False,
                                 merge_all_channel_layers: bool = False,
                                 skew_dir: DeskewDirection=DeskewDirection.Y,
                                 set_logging: Log_Levels=Log_Levels.INFO):
@@ -126,13 +128,13 @@ class LLSZWidget:
                     self.parent_viewer.add_layer(new_layer)
                     img_layer = new_layer
 
-            LLSZWidget.LlszMenu.lattice = LatticeData(img=img_layer,
-                                                        angle=angle,
-                                                        skew=LLSZWidget.LlszMenu.skew_dir,
-                                                        dx=pixel_size_dx,
-                                                        dy=pixel_size_dy,
-                                                        dz=pixel_size_dz,
-                                                        last_dimension=last_dimension_channel)
+            LLSZWidget.LlszMenu.lattice = lattice_from_napari(
+                img=img_layer,
+                last_dimension=last_dimension_channel.lower(),
+                angle=angle,
+                skew=LLSZWidget.LlszMenu.skew_dir,
+                physical_pixel_sizes=(pixel_size_dx, pixel_size_dy, pixel_size_dz)
+            )
             #LLSZWidget.LlszMenu.aics = LLSZWidget.LlszMenu.lattice.data
 
             # LLSZWidget.LlszMenu.dask = False  # Use GPU by default
