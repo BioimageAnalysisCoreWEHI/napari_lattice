@@ -35,6 +35,9 @@ jobs:
 
       - uses: tlambert03/setup-qt-libs@v1
 
+      - name: Update pip
+        run: pip install -U pip setuptools wheel
+
       - name: Install dependencies
         shell: bash -l {0}
         run: |
