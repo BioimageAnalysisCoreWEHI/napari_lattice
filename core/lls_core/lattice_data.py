@@ -51,6 +51,7 @@ class LatticeData:
     # TODO: add defaults here, rather than in the CLI
     # TODO: refactor this class to hold an AICSImage instead of extracting its fields
     def __init__(self, img: AICSImage, angle: float, skew: DeskewDirection, save_name: str, dx: Optional[float] = None, dy: Optional[float] = None, dz: Optional[float] = None):
+        # Note: The reason we copy all of these fields rather than just storing the AICSImage is because that class is mostly immutable and so not suitable
         self.angle = angle
         self.skew = skew
         self.data = img.dask_data
