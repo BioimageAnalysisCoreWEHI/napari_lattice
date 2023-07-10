@@ -24,6 +24,9 @@ def raise_if_none(obj: Optional[T], message: str) -> T:
 
 @dataclass
 class LatticeData:
+    """
+    Holds data and metadata for a given image in a consistent format
+    """
     #: 3-5D array
     data: ArrayLike
     dims: Dimensions
@@ -49,7 +52,6 @@ class LatticeData:
     channels: int = 0
 
     # TODO: add defaults here, rather than in the CLI
-    # TODO: refactor this class to hold an AICSImage instead of extracting its fields
     def __init__(self, img: AICSImage, angle: float, skew: DeskewDirection, save_name: str, dx: Optional[float] = None, dy: Optional[float] = None, dz: Optional[float] = None):
         # Note: The reason we copy all of these fields rather than just storing the AICSImage is because that class is mostly immutable and so not suitable
         self.angle = angle
