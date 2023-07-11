@@ -7,6 +7,7 @@ import os
 import numpy as np
 from pathlib import Path
 import platform
+from lls_core.cmds.__main__ import main as run_cli
 
 # For testing in Windows
 if platform.system() == "Windows":
@@ -66,12 +67,7 @@ def test_yaml_deskew():
     """
     create_data()
     # Batch deskew and save as h5
-    cmd = f"napari_lattice --config {config_location}"
-    deskew_process_yaml = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, shell=True)
-
-    # Read data from stdout and stderr. waits for process to terminate, or it will execute next line immmediately
-    _ = deskew_process_yaml.communicate()
+    run_cli(["--config", config_location])
 
     # checks if h5 files written
     assert os.path.exists(os.path.join(home_dir, "raw", "raw.h5"))

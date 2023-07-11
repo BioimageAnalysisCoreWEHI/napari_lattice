@@ -9,6 +9,8 @@ import pyclesperanto_prototype as cle
 from napari_workflows import Workflow
 from napari_workflows._io_yaml_v1 import load_workflow, save_workflow
 
+from lls_core.cmds.__main__ import main as run_cli
+
 # For testing in Windows
 if platform.system() == "Windows":
     home_dir = str(Path.home())
@@ -110,12 +112,7 @@ def test_workflow_lattice():
        This will apply deskewing before processing the workflow
     """
     # Deskew, apply workflow and save as h5
-    cmd = f"napari_lattice --config {config_location}"
-    deskew_process_yaml = subprocess.Popen(
-        cmd, stdout=subprocess.PIPE, shell=True)
-
-    # Read data from stdout and stderr. waits for process to terminate, or it will execute next line immmediately
-    _ = deskew_process_yaml.communicate()
+    run_cli(["--config", config_location])
 
     # checks if h5 file written
     h5_img = os.path.join(home_dir, "raw", "_0_raw.h5")

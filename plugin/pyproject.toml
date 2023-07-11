@@ -46,7 +46,7 @@ dependencies = [
     "read-roi",
     "gputools",
     "pyclesperanto_prototype>=0.20.0",
-    "npy2bdv>=1.0.8",
+    "npy2bdv",
     "redlionfish",
     "tifffile", #>=2022.8.12
     "fsspec>=2022.8.2",
