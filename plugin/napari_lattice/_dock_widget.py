@@ -268,7 +268,7 @@ class LLSZWidget:
     @magicclass(widget_type="tabbed", name="Functions")
     class WidgetContainer:
 
-        @magicclass(name="Deskew", widget_type="scrollable", properties={"max_width": 100})
+        @magicclass(name="Deskew", widget_type="scrollable", properties={"min_width": 100})
         class DeskewWidget:
 
             @magicgui(header=dict(widget_type="Label", label="<h3>Deskew and Save</h3>"),
