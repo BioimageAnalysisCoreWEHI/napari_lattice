@@ -24,8 +24,7 @@ from lls_core.deconvolution import read_psf
 from lls_core import DeskewDirection, DeconvolutionChoice, SaveFileType
 from enum import Enum
 
-if TYPE_CHECKING:
-    from napari_workflows import Workflow
+from napari_workflows import Workflow
 
 
 # define parser class so as to print help message
@@ -413,8 +412,8 @@ def main(argv: Sequence[str] = sys.argv[1:]):
 
             # workflow has to be reloaded for each image and reinitialised
             user_workflow = load_workflow(workflow_path.__str__())
-            assert type(
-                user_workflow) is Workflow, "Workflow file is not a napari workflow object. Check file!"
+            if not isinstance(user_workflow, Workflow):
+                raise ValueError("Workflow file is not a napari workflow object. Check file!")
 
             input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(
                 user_workflow)
