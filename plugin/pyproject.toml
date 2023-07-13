@@ -40,8 +40,9 @@ dependencies = [
     "dask",
     "dask-image",
     "dask[distributed]",
-    "magic-class>=0.6.13",
-    "magicgui>=0.7.4",
+    # We need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
+    "magic-class>=0.7.4",
+    "magicgui",
     "pyopencl",
     "read-roi",
     "gputools",
