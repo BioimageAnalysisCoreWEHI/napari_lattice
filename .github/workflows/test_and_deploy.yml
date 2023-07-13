@@ -39,8 +39,8 @@ jobs:
         shell: bash -l {0}
         run: |
           python --version
-          python -m pip install --upgrade pip setuptools wheel
-          pip install -e './core[testing]'
+          pip install --upgrade pip setuptools wheel
+          pip install --use-pep517 -e './core[testing]'
 
       - name: Test core
         shell: bash -l {0}
