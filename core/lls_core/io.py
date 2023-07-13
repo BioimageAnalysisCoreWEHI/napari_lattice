@@ -27,7 +27,6 @@ from lls_core.lattice_data import LatticeData
 
 import os
 import numpy as np
-from napari_workflows import Workflow
 from tqdm import tqdm
 from tifffile import imwrite, TiffWriter
 
@@ -40,6 +39,7 @@ logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from napari.types import ImageData
     from magicclass import MagicTemplate
+    from napari_workflows import Workflow
 
 def img_from_array(arr: ArrayLike, last_dimension: Literal["channel", "time"], **kwargs) -> AICSImage:
     """

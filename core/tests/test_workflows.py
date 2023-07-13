@@ -1,4 +1,3 @@
-import subprocess
 from skimage.io import imread, imsave
 import os
 import numpy as np

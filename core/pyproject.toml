@@ -40,8 +40,6 @@ dependencies = [
     "dask",
     "dask-image",
     "dask[distributed]",
-    "magic-class~=0.6.13",
-    "magicgui",
     "pyopencl",
     "read-roi",
     "gputools",
@@ -51,11 +49,7 @@ dependencies = [
     # Older tifffile are not compatible with aicsimageio, see: https://github.com/AllenCellModeling/aicsimageio/issues/518
     "tifffile~=2023.3.15", #>=2022.8.12
     "fsspec~=2022.8.2",
-    "napari[all]~=0.4.11",
-    "napari-aicsimageio~=0.7.2",
-    "napari-spreadsheet",
     "napari-workflows~=0.2.8",
-    "napari-workflow-inspector"
 ]
 
 [project.urls]

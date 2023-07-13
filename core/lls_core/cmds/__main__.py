@@ -15,15 +15,17 @@ from aicsimageio import AICSImage
 import pyclesperanto_prototype as cle
 from tqdm import tqdm
 import dask.array as da
-from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
 from pathlib import Path
 import yaml
-from typing import Sequence
+from typing import Sequence, TYPE_CHECKING
 
 from lls_core.deconvolution import read_psf
 from lls_core import DeskewDirection, DeconvolutionChoice, SaveFileType
 from enum import Enum
+
+if TYPE_CHECKING:
+    from napari_workflows import Workflow
 
 
 # define parser class so as to print help message

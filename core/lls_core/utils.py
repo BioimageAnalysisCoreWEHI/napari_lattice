@@ -16,7 +16,6 @@ import pyclesperanto_prototype as cle
 from read_roi import read_roi_zip
 from read_roi import read_roi_file
 
-from napari_workflows import Workflow
 from tifffile import imsave
 from . import config, DeskewDirection
 from aicsimageio.types import ArrayLike
@@ -24,6 +23,7 @@ from aicsimageio.types import ArrayLike
 if TYPE_CHECKING:
     from xml.etree.ElementTree import Element
     from napari.layers import Shapes
+    from napari_workflows import Workflow
 
 # Enable Logging
 import logging
