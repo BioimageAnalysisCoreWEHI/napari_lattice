@@ -41,7 +41,7 @@ dependencies = [
     "dask-image",
     "dask[distributed]",
     "magic-class>=0.6.13",
-    "magicgui",
+    "magicgui>=0.7.4",
     "pyopencl",
     "read-roi",
     "gputools",
