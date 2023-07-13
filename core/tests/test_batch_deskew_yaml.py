@@ -1,29 +1,15 @@
 # Tests for napari_lattice using the config file and saving ouput as h5
 # Thanks to DrLachie for cool function to write the config file
 
-import subprocess
 from skimage.io import imread, imsave
-import os
+import tempfile
 import numpy as np
 from pathlib import Path
-import platform
 from lls_core.cmds.__main__ import main as run_cli
 
-# For testing in Windows
-if platform.system() == "Windows":
-    home_dir = str(Path.home())
-    home_dir = home_dir.replace("\\", "\\\\")
-    img_dir = home_dir + "\\\\raw.tiff"
-    config_location = home_dir + "\\\\config_deskew.yaml"
-else:
-    home_dir = str(Path.home())
-    img_dir = os.path.join(home_dir, "raw.tiff")
-    config_location = os.path.join(home_dir, "config_deskew.yaml")
-
-
-def write_config_file(config_settings, output_file_location):
+def write_config_file(config_settings: dict, output_file_location: Path):
     # Write config file for napari_lattice
-    with open(output_file_location, 'w') as f:
+    with output_file_location.open('w') as f:
         for key, val in config_settings.items():
             if val is not None:
                 if type(val) is str:
@@ -42,33 +28,40 @@ def write_config_file(config_settings, output_file_location):
 
     print("Config found written to %s" % output_file_location)
 
+def create_data(dir: Path) -> Path:
+    input_file = dir / 'raw.tiff'
+    config_location = dir / "config_deskew.yaml"
 
-def create_data():
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
     raw = np.zeros((5, 5, 5))
     raw[2, 4, 2] = 10
     # Save image as a tif filw in home directory
-    imsave(img_dir, raw)
-    assert os.path.exists(img_dir)
+    imsave(input_file, raw)
+    assert input_file.exists()
 
-    config = {
-        "input": img_dir,
-        "output": home_dir,
+    config: dict[str, str] = {
+        "input": str(input_file),
+        "output": str(dir),
         "processing": "deskew",
-        "output_file_type": "h5"}
+        "output_file_type": "h5"
+    }
 
     write_config_file(config, config_location)
-    assert os.path.exists(config_location)
+    assert config_location.exists()
+
+    return config_location
 
 
 def test_yaml_deskew():
     """Write image to disk and then execute napari_lattice from terminal
        Checks if an deskewed output file is created for both tif and h5
     """
-    create_data()
-    # Batch deskew and save as h5
-    run_cli(["--config", config_location])
+    with tempfile.TemporaryDirectory() as test_dir:
+        test_dir = Path(test_dir)
+        config_location = create_data(test_dir)
+        # Batch deskew and save as h5
+        run_cli(["--config", str(config_location)])
 
-    # checks if h5 files written
-    assert os.path.exists(os.path.join(home_dir, "raw", "raw.h5"))
-    assert os.path.exists(os.path.join(home_dir, "raw", "raw.xml"))
+        # checks if h5 files written
+        assert (test_dir / "raw" / "raw.h5").exists()
+        assert (test_dir / "raw" / "raw.xml").exists()

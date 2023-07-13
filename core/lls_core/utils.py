@@ -7,6 +7,7 @@ from os import devnull, path
 import os
 from typing_extensions import Any, TYPE_CHECKING, TypeGuard
 from typing import List, Tuple, Union, Collection
+from numpy.typing import NDArray
 
 import pandas as pd
 import dask.array as da
@@ -478,7 +479,7 @@ def _process_custom_workflow_output_batch(ref_vol,
     return
 
 
-def pad_image_nearest_multiple(img: np.ndarray, nearest_multiple: int):
+def pad_image_nearest_multiple(img: NDArray, nearest_multiple: int) -> NDArray:
     """pad an Image to the nearest multiple of provided number
 
     Args:

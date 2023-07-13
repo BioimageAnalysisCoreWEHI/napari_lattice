@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from aicsimageio.aics_image import AICSImage
 from aicsimageio.dimensions import Dimensions
 from lls_core import DeskewDirection, DeconvolutionChoice
+from numpy.typing import NDArray
 
-from typing import Optional, TYPE_CHECKING, Tuple, TypeVar
+from typing import List, Optional, TYPE_CHECKING, Tuple, TypeVar
 
 from aicsimageio.types import ArrayLike
 import pyclesperanto_prototype as cle
@@ -45,6 +46,11 @@ class LatticeData:
     # Dimensions of the deskewed output
     deskew_vol_shape: Tuple[int]
     deskew_affine_transform: cle.AffineTransform3D
+
+    # PSF data that should be refactored into another class eventually
+    psf: List[NDArray]
+    psf_num_iter: int
+    otf_path: List
 
     #: Number of time points
     time: int = 0

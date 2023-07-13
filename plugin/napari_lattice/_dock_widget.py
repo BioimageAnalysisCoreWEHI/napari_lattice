@@ -31,7 +31,7 @@ from lls_core import config, DeskewDirection, DeconvolutionChoice, SaveFileType,
 from lls_core.io import LatticeData,  save_img, save_img_workflow
 from lls_core.utils import read_imagej_roi, get_first_last_image_and_task, modify_workflow_task, get_all_py_files, as_type, process_custom_workflow_output, check_dimensions, load_custom_py_modules
 from lls_core.llsz_core import crop_volume_deskew, pycuda_decon, skimage_decon
-from lls_core.read_psf import _read_psf
+from lls_core.deconvolution import _read_psf, read_psf
 
 from napari_lattice.ui_core import _Preview, _Deskew_Save
 from napari_lattice._reader import lattice_from_napari
@@ -42,10 +42,10 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 @magicclass(widget_type="split")
-class LLSZWidget:
+class LLSZWidget(MagicTemplate):
 
     @magicclass(widget_type="split")
-    class LlszMenu:
+    class LlszMenu(MagicTemplate):
         open_file: bool = False
         lattice: LatticeData = None
         skew_dir: DeskewDirection
@@ -232,12 +232,15 @@ class LLSZWidget:
             """GUI for Deconvolution button"""
             LLSZWidget.LlszMenu.lattice.decon_processing = device_option
             assert LLSZWidget.LlszMenu.deconvolution.value == True, "Deconvolution is set to False. Tick the box to activate deconvolution."
-            _read_psf(psf_ch1_path,
-                        psf_ch2_path,
-                        psf_ch3_path,
-                        psf_ch4_path,
-                        device_option,
-                        LLSZWidget.LlszMenu.lattice)
+            LLSZWidget.LlszMenu.lattice.psf = list(read_psf([
+                    psf_ch1_path,
+                    psf_ch2_path,
+                    psf_ch3_path,
+                    psf_ch4_path,
+                ],
+                device_option,
+                lattice_class=LLSZWidget.LlszMenu.lattice
+            ))
             LLSZWidget.LlszMenu.lattice.psf_num_iter = no_iter
             self["deconvolution_gui"].background_color = "green"
             self["deconvolution_gui"].text = "PSFs added"

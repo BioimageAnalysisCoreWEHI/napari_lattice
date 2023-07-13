@@ -20,9 +20,9 @@ from dask.distributed import Client
 from dask.cache import Cache
 
 from lls_core.utils import etree_to_dict
-from lls_core.llsz_core import crop_volume_deskew, skimage_decon, pycuda_decon
-from lls_core import config
-from lls_core import DeconvolutionChoice, SaveFileType
+from lls_core.llsz_core import crop_volume_deskew
+from lls_core.deconvolution import skimage_decon, pycuda_decon
+from lls_core import config, DeconvolutionChoice, SaveFileType
 from lls_core.lattice_data import LatticeData
 
 import os

@@ -21,7 +21,7 @@ from pathlib import Path
 import yaml
 from typing import Sequence
 
-from lls_core.read_psf import _read_psf
+from lls_core.deconvolution import read_psf
 from lls_core import DeskewDirection, DeconvolutionChoice, SaveFileType
 from enum import Enum
 
@@ -379,13 +379,8 @@ def main(argv: Sequence[str] = sys.argv[1:]):
             logging.info("DECONVOLUTIONING!")
             lattice.psf = []
             lattice.otf_path = []
-            # todo this should maybe go somewhere else?
-            _read_psf(psf_ch1_path,
-                      psf_ch2_path,
-                      psf_ch3_path,
-                      psf_ch4_path,
-                      decon_option=lattice.decon_processing,
-                      lattice_class=lattice)
+            # Remove empty values and convert to Path
+            lattice.psf = list(read_psf([Path(it) for it in [psf_ch1_path, psf_ch2_path, psf_ch3_path, psf_ch4_path] if it is not None], decon_option=lattice.decon_processing, lattice_class=lattice))
 
         else:
             lattice.decon_processing = None
