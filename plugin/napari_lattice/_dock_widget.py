@@ -303,7 +303,7 @@ class LLSZWidget:
             
             # add function for previewing cropped image
             @magicclass(name="Cropping Preview", widget_type="scrollable", properties={
-                "max_width": 100,
+                "min_width": 100,
                 "shapes_layer": Shapes
             })
             class Preview_Crop_Menu:
