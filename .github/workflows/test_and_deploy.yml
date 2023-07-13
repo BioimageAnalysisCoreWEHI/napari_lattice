@@ -33,8 +33,6 @@ jobs:
         shell: bash -l {0}
         run: conda info
 
-      - uses: tlambert03/setup-qt-libs@v1
-
       - name: Install core
         shell: bash -l {0}
         run: |
@@ -52,6 +50,8 @@ jobs:
       - name: Test core with drivers
         shell: bash -l {0}
         run: pytest -v --cov=napari_lattice --cov-report=xml core/
+
+      - uses: tlambert03/setup-qt-libs@v1
 
       - name: Install plugin
         shell: bash -l {0}
