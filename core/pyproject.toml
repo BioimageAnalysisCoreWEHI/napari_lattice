@@ -36,7 +36,9 @@ classifiers = [
 requires-python = ">=3.8"
 dependencies = [
     "aicsimageio~=4.6.3",
-    "aicspylibczi~=3.0.5",
+    # Earlier versions don't have Python 3.11 binaries, and the sdist
+    # is misconfigured: https://github.com/AllenCellModeling/aicspylibczi/issues/90
+    "aicspylibczi~=3.1.1",
     "dask",
     "dask-image",
     "dask[distributed]",
