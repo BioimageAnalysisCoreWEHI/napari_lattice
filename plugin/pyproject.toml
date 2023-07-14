@@ -35,26 +35,26 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio~=4.6.3",
-    "aicspylibczi~=3.0.5",
+    "aicsimageio>=4.6.3",
+    "aicspylibczi>=3.0.5",
     "dask",
     "dask-image",
     "dask[distributed]",
     # We need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
-    "magic-class~=0.7.4",
+    "magic-class>=0.7.4",
     "magicgui",
     "pyopencl",
     "read-roi",
     "gputools",
-    "pyclesperanto_prototype~=0.20.0",
+    "pyclesperanto_prototype>=0.20.0",
     "npy2bdv",
     "redlionfish",
     "tifffile", #>=2022.8.12
-    "fsspec~=2022.8.2",
+    "fsspec>=2022.8.2",
     "napari[all]",
-    "napari-aicsimageio~=0.7.2",
+    "napari-aicsimageio>=0.7.2",
     "napari-spreadsheet",
-    "napari-workflows~=0.2.8",
+    "napari-workflows>=0.2.8",
     "napari-workflow-inspector"
 ]
 
