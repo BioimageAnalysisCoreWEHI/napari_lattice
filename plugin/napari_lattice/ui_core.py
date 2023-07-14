@@ -6,8 +6,7 @@ from typing import TYPE_CHECKING
 
 import pyclesperanto_prototype as cle
 from lls_core.utils import check_dimensions
-
-from lls_core.llsz_core import pycuda_decon, skimage_decon
+from lls_core.deconvolution import pycuda_decon, skimage_decon
 from lls_core import config, DeskewDirection, DeconvolutionChoice
 from lls_core .io import save_img
 

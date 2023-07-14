@@ -30,8 +30,8 @@ from napari_workflows._io_yaml_v1 import load_workflow
 from lls_core import config, DeskewDirection, DeconvolutionChoice, SaveFileType, Log_Levels
 from lls_core.io import LatticeData,  save_img, save_img_workflow
 from lls_core.utils import read_imagej_roi, get_first_last_image_and_task, modify_workflow_task, get_all_py_files, as_type, process_custom_workflow_output, check_dimensions, load_custom_py_modules
-from lls_core.llsz_core import crop_volume_deskew, pycuda_decon, skimage_decon
-from lls_core.deconvolution import _read_psf, read_psf
+from lls_core.llsz_core import crop_volume_deskew
+from lls_core.deconvolution import read_psf, pycuda_decon, skimage_decon
 
 from napari_lattice.ui_core import _Preview, _Deskew_Save
 from napari_lattice._reader import lattice_from_napari
