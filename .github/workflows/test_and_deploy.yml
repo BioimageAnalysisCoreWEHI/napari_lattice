@@ -36,6 +36,7 @@ jobs:
       - name: Install core
         shell: bash -l {0}
         run: |
+          conda install -y pyopencl pocl
           python --version
           pip install --upgrade pip setuptools wheel
           pip install --use-pep517 -e './core[testing]'
@@ -43,9 +44,6 @@ jobs:
       - name: Test core
         shell: bash -l {0}
         run: pytest -v --cov=napari_lattice --cov-report=xml core/
-
-      - name: Install OpenCL Drivers
-        run: conda install -y pyopencl pocl
 
       - name: Test core with drivers
         shell: bash -l {0}
