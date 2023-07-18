@@ -6,10 +6,12 @@ from aicsimageio.aics_image import AICSImage
 from aicsimageio.dimensions import Dimensions
 from lls_core import DeskewDirection, DeconvolutionChoice
 from numpy.typing import NDArray
+from dataclasses import dataclass
+import math
 
 from typing import List, Optional, TYPE_CHECKING, Tuple, TypeVar
 
-from aicsimageio.types import ArrayLike
+from aicsimageio.types import ArrayLike, PhysicalPixelSizes
 import pyclesperanto_prototype as cle
 
 from lls_core.utils import get_deskewed_shape
@@ -24,6 +26,16 @@ def raise_if_none(obj: Optional[T], message: str) -> T:
     return obj
 
 @dataclass
+class DefinedPixelSizes:
+    """
+    Like PhysicalPixelSizes, but it's a dataclass, and
+    none of its fields are None
+    """
+    X: float
+    Y: float
+    Z: float
+
+@dataclass
 class LatticeData:
     """
     Holds data and metadata for a given image in a consistent format
@@ -32,9 +44,7 @@ class LatticeData:
     data: ArrayLike
     dims: Dimensions
     #: Pixel size in microns
-    dx: float
-    dy: float
-    dz: float
+    physical_pixel_sizes: DefinedPixelSizes
     #: Geometry of the light path
     skew: DeskewDirection
     angle: float
@@ -58,23 +68,25 @@ class LatticeData:
     channels: int = 0
 
     # TODO: add defaults here, rather than in the CLI
-    def __init__(self, img: AICSImage, angle: float, skew: DeskewDirection, save_name: str, dx: Optional[float] = None, dy: Optional[float] = None, dz: Optional[float] = None):
+    def __init__(self, img: AICSImage, angle: float, skew: DeskewDirection, save_name: str, physical_pixel_sizes: PhysicalPixelSizes | Tuple[float, float, float]):
         # Note: The reason we copy all of these fields rather than just storing the AICSImage is because that class is mostly immutable and so not suitable
+
         self.angle = angle
         self.skew = skew
         self.data = img.dask_data
         self.dims = img.dims
         self.time = img.dims.T
         self.channels = img.dims.C
-        self.dx = raise_if_none(dx or img.physical_pixel_sizes.X, "dx cannot be None")
-        self.dy = raise_if_none(dy or img.physical_pixel_sizes.Y, "dy cannot be None")
-        self.dz = raise_if_none(dz or img.physical_pixel_sizes.Z, "dz cannot be None")
+        self.physical_pixel_sizes = DefinedPixelSizes(
+            X = raise_if_none(physical_pixel_sizes[0] or img.physical_pixel_sizes.X, "dx cannot be None"),
+            Y = raise_if_none(physical_pixel_sizes[1] or img.physical_pixel_sizes.Y, "dy cannot be None"),
+            Z = raise_if_none(physical_pixel_sizes[2] or img.physical_pixel_sizes.Z, "dz cannot be None")
+        )
         self.save_name = save_name
 
         # set new z voxel size
         if skew == DeskewDirection.Y or skew == DeskewDirection.X:
-            import math
-            dz = math.sin(angle * math.pi / 180.0) * dz
+            self.dz = math.sin(angle * math.pi / 180.0) * self.dz
 
         # process the file to get shape of final deskewed image
         self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(self.data, angle, self.dx, self.dy, self.dz)
@@ -99,6 +111,30 @@ class LatticeData:
             return cle.deskew_x
         else:
             raise ValueError()
+
+    @property
+    def dx(self) -> float:
+        return self.physical_pixel_sizes.X
+
+    @dx.setter
+    def dx(self, value: float):
+        self.physical_pixel_sizes.X = value
+
+    @property
+    def dy(self) -> float:
+        return self.physical_pixel_sizes.Y
+
+    @dy.setter
+    def dy(self, value: float):
+        self.physical_pixel_sizes.Y = value
+
+    @property
+    def dz(self) -> float:
+        return self.physical_pixel_sizes.Z
+
+    @dz.setter
+    def dz(self, value: float):
+        self.physical_pixel_sizes.Z = value
 
     def get_angle(self) -> float:
         return self.angle

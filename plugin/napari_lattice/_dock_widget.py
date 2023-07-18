@@ -7,6 +7,7 @@ import dask.array as da
 import pandas as pd
 from typing import Union, Optional, Callable, Literal
 from aicsimageio import AICSImage
+from enum import Enum
 
 from magicclass.wrappers import set_design
 from magicgui import magicgui, widgets
@@ -41,6 +42,11 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+class LastDimensionOptions(Enum):
+    channel = "Channel"
+    time = "Time"
+    get_from_metadata = "Get from Metadata"
+
 @magicclass(widget_type="split")
 class LLSZWidget(MagicTemplate):
 
@@ -67,7 +73,7 @@ class LLSZWidget(MagicTemplate):
                             "value": 30, "step": 0.1},
                         select_device={"widget_type": "ComboBox", "choices": cle.available_device_names(
                         ), "value": cle.available_device_names()[0]},
-                        last_dimension_channel={"widget_type": "ComboBox", "choices": ["Channel", "Time", "Get_from_metadata"], "value": "Get_from_metadata",
+                        last_dimension_channel={"widget_type": "ComboBox", 
                                                 "label": "Set Last dimension (channel/time)", "tooltip": "If the last dimension is initialised incorrectly, you can assign it as either channel/time"},
                         merge_all_channel_layers={"widget_type": "CheckBox", "value": True, "label": "Merge all napari layers as channels",
                                                 "tooltip": "Use this option if the channels are in separate layers. napari-lattice requires all channels to be in same layer"},
@@ -84,7 +90,7 @@ class LLSZWidget(MagicTemplate):
                                 angle: float = 30,
                                 select_device: str = cle.available_device_names()[
                                     0],
-                                last_dimension_channel: Literal["Channel", "Time", "Get_from_metadata"] = False,
+                                last_dimension_channel: LastDimensionOptions = LastDimensionOptions.get_from_metadata,
                                 merge_all_channel_layers: bool = False,
                                 skew_dir: DeskewDirection=DeskewDirection.Y,
                                 set_logging: Log_Levels=Log_Levels.INFO):
@@ -93,6 +99,9 @@ class LLSZWidget(MagicTemplate):
             config.log_level = set_logging.value
             logger.info(f"Logging set to {set_logging}")
             logger.info("Using existing image layer")
+
+            if self.parent_viewer is None:
+                raise Exception("This function can only be used when inside of a Napari viewer")
 
             # Select device for processing
             cle.select_device(select_device)
@@ -107,10 +116,7 @@ class LLSZWidget(MagicTemplate):
             elif LLSZWidget.LlszMenu.skew_dir == DeskewDirection.X:
                 LLSZWidget.LlszMenu.deskew_func = cle.deskew_x
                 #LLSZWidget.LlszMenu.skew_dir = DeskewDirection.X
-
-            if last_dimension_channel == "Get_from_metadata":
-                last_dimension_channel = None
-
+            
             # merge all napari image layers as one multidimensional image
             if merge_all_channel_layers:
                 from napari.layers.utils.stack_utils import images_to_stack
@@ -130,7 +136,7 @@ class LLSZWidget(MagicTemplate):
 
             LLSZWidget.LlszMenu.lattice = lattice_from_napari(
                 img=img_layer,
-                last_dimension=last_dimension_channel.lower(),
+                last_dimension=None if last_dimension_channel == LastDimensionOptions.get_from_metadata else last_dimension_channel,
                 angle=angle,
                 skew=LLSZWidget.LlszMenu.skew_dir,
                 physical_pixel_sizes=(pixel_size_dx, pixel_size_dy, pixel_size_dz)
@@ -165,25 +171,20 @@ class LLSZWidget(MagicTemplate):
             # Add dimension labels correctly
             # if channel, and not time
             if LLSZWidget.LlszMenu.lattice.time == 0 and (last_dimension_channel or LLSZWidget.LlszMenu.lattice.channels > 0):
-                self.parent_viewer.dims.axis_labels = list(
-                    ('Channel', "Z", "Y", "X"))
+                self.parent_viewer.dims.axis_labels = ('Channel', "Z", "Y", "X")
             # if no channel, but has time
             elif LLSZWidget.LlszMenu.lattice.channels == 0 and LLSZWidget.LlszMenu.lattice.time > 0:
-                self.parent_viewer.dims.axis_labels = list(
-                    ('Time', "Z", "Y", "X"))
+                self.parent_viewer.dims.axis_labels = ('Time', "Z", "Y", "X")
             # if it has channels
             elif LLSZWidget.LlszMenu.lattice.channels > 1:
                 # If merge to stack is used, channel slider goes to the bottom
                 if int(self.parent_viewer.dims.dict()["range"][0][1]) == LLSZWidget.LlszMenu.lattice.channels:
-                    self.parent_viewer.dims.axis_labels = list(
-                        ('Channel', "Time", "Z", "Y", "X"))
+                    self.parent_viewer.dims.axis_labels = ('Channel', "Time", "Z", "Y", "X")
                 else:
-                    self.parent_viewer.dims.axis_labels = list(
-                        ('Time', "Channel", "Z", "Y", "X"))
+                    self.parent_viewer.dims.axis_labels = ('Time', "Channel", "Z", "Y", "X")
             # if channels initialized by aicsimagio, then channels is 1
             elif LLSZWidget.LlszMenu.lattice.channels == 1 and LLSZWidget.LlszMenu.lattice.time > 1:
-                self.parent_viewer.dims.axis_labels = list(
-                    ('Time', "Z", "Y", "X"))
+                self.parent_viewer.dims.axis_labels = ('Time', "Z", "Y", "X")
 
             logger.info(f"Initialised")
             self["Choose_Image_Layer"].background_color = "green"
@@ -269,10 +270,10 @@ class LLSZWidget(MagicTemplate):
 
     # Tabbed Widget container to house all the widgets
     @magicclass(widget_type="tabbed", name="Functions")
-    class WidgetContainer:
+    class WidgetContainer(MagicTemplate):
 
         @magicclass(name="Deskew", widget_type="scrollable", properties={"min_width": 100})
-        class DeskewWidget:
+        class DeskewWidget(MagicTemplate):
 
             @magicgui(header=dict(widget_type="Label", label="<h3>Deskew and Save</h3>"),
                         time_start=dict(label="Time Start:", max=2**20),
@@ -302,14 +303,15 @@ class LLSZWidget(MagicTemplate):
                 return
 
         @magicclass(name="Crop and Deskew", widget_type="scrollable")
-        class CropWidget:
+        class CropWidget(MagicTemplate):
             
             # add function for previewing cropped image
             @magicclass(name="Cropping Preview", widget_type="scrollable", properties={
                 "min_width": 100,
                 "shapes_layer": Shapes
             })
-            class Preview_Crop_Menu:
+            class Preview_Crop_Menu(MagicTemplate):
+                shapes_layer: Shapes
 
                 @set_design(font_size=10, text="Click to activate Cropping Layer", background_color="magenta")
                 @click(enables=["Import_ImageJ_ROI", "Crop_Preview"])
@@ -438,10 +440,9 @@ class LLSZWidget(MagicTemplate):
                                 LLSZWidget.LlszMenu.lattice.dx)
                     self.parent_viewer.add_image(
                         crop_roi_vol_desk, scale=scale)
-                    return
 
                 @magicclass(name="Crop and Save Data")
-                class CropSaveData:
+                class CropSaveData(MagicTemplate):
                     @magicgui(header=dict(widget_type="Label", label="<h3>Crop and Save Data</h3>"),
                                 time_start=dict(label="Time Start:"),
                                 time_end=dict(label="Time End:", value=1),

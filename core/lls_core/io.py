@@ -52,22 +52,27 @@ def img_from_array(arr: ArrayLike, last_dimension: Literal["channel", "time"], *
     """    
     dim_order: str
 
-    if last_dimension not in ["channel", "time"]:
-        raise ValueError("last_dimension must be either channel or time")
+    if len(arr.shape) < 3 or len(arr.shape) > 5:
+        raise ValueError("Array dimensions must be in the range [3, 5]")
 
     # if aicsimageio tiffreader assigns last dim as time when it should be channel, user can override this
-    if len(arr.shape) == 4:
-        if last_dimension == "channel":
-            dim_order = "CZYX"
-        elif last_dimension == "time":
-            dim_order = "TZYX"
-    elif len(arr.shape) == 5:
-        if last_dimension == "channel":
-            dim_order = "CTZYX"
-        elif last_dimension == "time":
-            dim_order = "TCZYX"
+    if len(arr.shape) == 3:
+        dim_order="ZYX"
     else:
-        raise ValueError("Only 4 or 5D arrays can be inferred")
+        if last_dimension not in ["channel", "time"]:
+            raise ValueError("last_dimension must be either channel or time")
+        if len(arr.shape) == 4:
+            if last_dimension == "channel":
+                dim_order = "CZYX"
+            elif last_dimension == "time":
+                dim_order = "TZYX"
+        elif len(arr.shape) == 5:
+            if last_dimension == "channel":
+                dim_order = "CTZYX"
+            elif last_dimension == "time":
+                dim_order = "TCZYX"
+        else:
+            raise ValueError()
 
     img = AICSImage(image=arr, dim_order=dim_order, **kwargs)
 

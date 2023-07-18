@@ -26,7 +26,6 @@ from lls_core.io import LatticeData, img_from_array
 def lattice_from_napari(
     img: Layer,
     last_dimension: Optional[Literal["channel", "time"]],
-    physical_pixel_sizes: Optional[Tuple[float, float, float]] = None,
     **kwargs
 ) -> LatticeData:
     """
@@ -43,7 +42,7 @@ def lattice_from_napari(
     else:
         if not last_dimension:
             raise ValueError("Either the Napari image must have dimensional metadata, or last_dimension must be provided")
-        img_data_aics = img_from_array(cast(ArrayLike, img.data), last_dimension=last_dimension, physical_pixel_sizes=physical_pixel_sizes)
+        img_data_aics = img_from_array(cast(ArrayLike, img.data), last_dimension=last_dimension, physical_pixel_sizes=kwargs.get("physical_pixel_sizes"))
 
     save_name: str
     if img.source.path is None:
@@ -59,7 +58,7 @@ def lattice_from_napari(
         # replace any group of spaces with "_"
         save_name = '_'.join(save_name.split())
 
-    return LatticeData(img_data_aics, **kwargs)
+    return LatticeData(img_data_aics, save_name=save_name, **kwargs)
 
 def napari_get_reader(path: list[str] | str):
     """Check if file ends with h5 and returns reader function if true
