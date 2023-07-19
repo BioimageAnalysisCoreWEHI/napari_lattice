@@ -53,6 +53,8 @@ class LatticeData:
     save_name: str
     decon_processing: Optional[DeconvolutionChoice] = None
 
+    new_dz: Optional[float] = None
+
     # Dimensions of the deskewed output
     deskew_vol_shape: Optional[Tuple[int]] = None
     deskew_affine_transform: Optional[cle.AffineTransform3D] = None
@@ -123,7 +125,7 @@ class LatticeData:
     def __post_init__(self):
         # set new z voxel size
         if self.skew == DeskewDirection.Y or self.skew == DeskewDirection.X:
-            self.dz = math.sin(self.angle * math.pi / 180.0) * self.dz
+            self.new_dz = math.sin(self.angle * math.pi / 180.0) * self.dz
 
         # process the file to get shape of final deskewed image
         self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(self.data, self.angle, self.dx, self.dy, self.dz)

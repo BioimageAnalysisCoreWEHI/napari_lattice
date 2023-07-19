@@ -1,6 +1,5 @@
 # Tests for napari_lattice using arguments and saving output files as h5, as well as tiff
 
-import subprocess
 from skimage.io import imsave
 import numpy as np
 from pathlib import Path
