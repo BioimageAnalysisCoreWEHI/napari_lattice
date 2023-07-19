@@ -10,7 +10,7 @@ from aicsimageio import AICSImage
 from enum import Enum
 
 from magicclass.wrappers import set_design
-from magicgui import magicgui, widgets
+from magicgui import magicgui
 from magicclass import magicclass, field, vfield, set_options, MagicTemplate
 from magicclass.utils import click
 from qtpy.QtCore import Qt
@@ -58,10 +58,8 @@ class LLSZWidget(MagicTemplate):
         angle_value: float
         deskew_func: Callable
 
-        main_heading = widgets.Label(
-            value="<h3>Napari Lattice: Visualization & Analysis</h3>")
-        heading1 = widgets.Label(
-            value="Drag and drop an image file onto napari.\nOnce image has opened, initialize the\nplugin by clicking the button below.\nEnsure the image layer and voxel sizes are accurate in the prompt.\n If everything initalises properly, the button turns green.")
+        main_heading = field("<h3>Napari Lattice: Visualization & Analysis</h3>", widget_type="Label")
+        heading1 = field("Drag and drop an image file onto napari.\nOnce image has opened, initialize the\nplugin by clicking the button below.\nEnsure the image layer and voxel sizes are accurate in the prompt.\n If everything initalises properly, the button turns green.", widget_type="Label")
 
         @set_design(background_color="magenta", font_family="Consolas", visible=True, text="Initialize Plugin", max_height=75, font_size=13)
         @set_options(pixel_size_dx={"widget_type": "FloatSpinBox", "value": 0.1449922, "step": 0.000000001},
@@ -324,8 +322,7 @@ class LLSZWidget(MagicTemplate):
                     self["activate_cropping"].background_color = "green"
                     return
 
-                heading2 = widgets.Label(
-                    value="You can either import ImageJ ROI (.zip) files or manually define ROIs using the shape layer")
+                heading2 = field("You can either import ImageJ ROI (.zip) files or manually define ROIs using the shape layer", widget_type="Label")
 
                 @click(enabled=False)
                 def Import_ImageJ_ROI(self, path: Path = Path(history.get_open_history()[0])):
@@ -342,8 +339,7 @@ class LLSZWidget(MagicTemplate):
                     int, options={"min": 0, "step": 1, "max": 2**20}, name="Time")
                 chan_crop = field(
                     int, options={"min": 0, "step": 1}, name="Channels")
-                heading_roi = widgets.Label(
-                    value="If there are multiple ROIs, select the ROI before clicking button below")
+                heading_roi = field("If there are multiple ROIs, select the ROI before clicking button below", widget_type="Label")
                 #roi_idx = field(int, options={"min": 0, "step": 1}, name="ROI number")
 
                 @click(enabled=False)

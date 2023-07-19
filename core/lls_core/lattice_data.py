@@ -9,7 +9,7 @@ from numpy.typing import NDArray
 from dataclasses import dataclass
 import math
 
-from typing import List, Optional, TYPE_CHECKING, Tuple, TypeVar
+from typing import Any, Dict, List, Optional, TYPE_CHECKING, Tuple, TypeVar
 
 from aicsimageio.types import ArrayLike, PhysicalPixelSizes
 import pyclesperanto_prototype as cle
@@ -51,16 +51,16 @@ class LatticeData:
 
     #: The filename of this data when it is saved
     save_name: str
-    decon_processing: Optional[DeconvolutionChoice]
+    decon_processing: Optional[DeconvolutionChoice] = None
 
     # Dimensions of the deskewed output
-    deskew_vol_shape: Tuple[int]
-    deskew_affine_transform: cle.AffineTransform3D
+    deskew_vol_shape: Optional[Tuple[int]] = None
+    deskew_affine_transform: Optional[cle.AffineTransform3D] = None
 
     # PSF data that should be refactored into another class eventually
-    psf: List[NDArray]
-    psf_num_iter: int
-    otf_path: List
+    psf: Optional[List[NDArray]] = None
+    psf_num_iter: Optional[int] = None
+    otf_path: Optional[List] = None
 
     #: Number of time points
     time: int = 0
@@ -68,31 +68,6 @@ class LatticeData:
     channels: int = 0
 
     # TODO: add defaults here, rather than in the CLI
-    def __init__(self, img: AICSImage, angle: float, skew: DeskewDirection, save_name: str, physical_pixel_sizes: PhysicalPixelSizes | Tuple[float, float, float]):
-        # Note: The reason we copy all of these fields rather than just storing the AICSImage is because that class is mostly immutable and so not suitable
-
-        self.angle = angle
-        self.skew = skew
-        self.data = img.dask_data
-        self.dims = img.dims
-        self.time = img.dims.T
-        self.channels = img.dims.C
-        self.physical_pixel_sizes = DefinedPixelSizes(
-            X = raise_if_none(physical_pixel_sizes[0] or img.physical_pixel_sizes.X, "dx cannot be None"),
-            Y = raise_if_none(physical_pixel_sizes[1] or img.physical_pixel_sizes.Y, "dy cannot be None"),
-            Z = raise_if_none(physical_pixel_sizes[2] or img.physical_pixel_sizes.Z, "dz cannot be None")
-        )
-        self.save_name = save_name
-
-        # set new z voxel size
-        if skew == DeskewDirection.Y or skew == DeskewDirection.X:
-            self.dz = math.sin(angle * math.pi / 180.0) * self.dz
-
-        # process the file to get shape of final deskewed image
-        self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(self.data, angle, self.dx, self.dy, self.dz)
-        print(f"Channels: {self.channels}, Time: {self.time}")
-        print("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
-
     # Hack to ensure that .skew_dir behaves identically to .skew
     @property
     def skew_dir(self) -> DeskewDirection:
@@ -144,3 +119,31 @@ class LatticeData:
 
     def set_skew(self, skew: DeskewDirection) -> None:
         self.skew = skew
+
+    def __post_init__(self):
+        # set new z voxel size
+        if self.skew == DeskewDirection.Y or self.skew == DeskewDirection.X:
+            self.dz = math.sin(self.angle * math.pi / 180.0) * self.dz
+
+        # process the file to get shape of final deskewed image
+        self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(self.data, self.angle, self.dx, self.dy, self.dz)
+        print(f"Channels: {self.channels}, Time: {self.time}")
+        print("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
+
+def lattice_from_aics(img: AICSImage, physical_pixel_sizes: PhysicalPixelSizes = PhysicalPixelSizes(None, None, None), **kwargs: Any) -> LatticeData:
+    # Note: The reason we copy all of these fields rather than just storing the AICSImage is because that class is mostly immutable and so not suitable
+
+    pixel_sizes = DefinedPixelSizes(
+        X = raise_if_none(physical_pixel_sizes[0] or img.physical_pixel_sizes.X, "dx cannot be None"),
+        Y = raise_if_none(physical_pixel_sizes[1] or img.physical_pixel_sizes.Y, "dy cannot be None"),
+        Z = raise_if_none(physical_pixel_sizes[2] or img.physical_pixel_sizes.Z, "dz cannot be None")
+    )
+
+    return LatticeData(
+        data = img.dask_data,
+        dims = img.dims,
+        time = img.dims.T,
+        channels = img.dims.C,
+        physical_pixel_sizes = pixel_sizes,
+        **kwargs
+    )
