@@ -13,7 +13,7 @@ from resource_backed_dask_array import ResourceBackedDaskArray
 import dask.array as da
 from dask.array.core import Array as DaskArray
 import pandas as pd
-from typing import TYPE_CHECKING, Callable, Optional, Literal
+from typing import TYPE_CHECKING, Callable, Optional, Literal, Any
 from os import PathLike
 
 from dask.distributed import Client
@@ -40,47 +40,6 @@ if TYPE_CHECKING:
     from napari.types import ImageData
     from magicclass import MagicTemplate
     from napari_workflows import Workflow
-
-def img_from_array(arr: ArrayLike, last_dimension: Literal["channel", "time"], **kwargs) -> AICSImage:
-    """
-    Creates an AICSImage from an array without metadata
-
-    Args:
-        arr (ArrayLike): An array
-        last_dimension: How to handle the dimension order
-        kwargs: Additional arguments to pass to the AICSImage constructor
-    """    
-    dim_order: str
-
-    if len(arr.shape) < 3 or len(arr.shape) > 5:
-        raise ValueError("Array dimensions must be in the range [3, 5]")
-
-    # if aicsimageio tiffreader assigns last dim as time when it should be channel, user can override this
-    if len(arr.shape) == 3:
-        dim_order="ZYX"
-    else:
-        if last_dimension not in ["channel", "time"]:
-            raise ValueError("last_dimension must be either channel or time")
-        if len(arr.shape) == 4:
-            if last_dimension == "channel":
-                dim_order = "CZYX"
-            elif last_dimension == "time":
-                dim_order = "TZYX"
-        elif len(arr.shape) == 5:
-            if last_dimension == "channel":
-                dim_order = "CTZYX"
-            elif last_dimension == "time":
-                dim_order = "TCZYX"
-        else:
-            raise ValueError()
-
-    img = AICSImage(image=arr, dim_order=dim_order, **kwargs)
-
-    # if last axes of "aicsimage data" shape is not equal to time, then swap channel and time
-    if img.data.shape[0] != img.dims.T or img.data.shape[1] != img.dims.C:
-        arr = np.swapaxes(arr, 0, 1)
-    return AICSImage(image=arr, dim_order=dim_order, **kwargs)
-
 
 def convert_imgdata_aics(img_data: ImageData):
     """Return AICSimage object from napari ImageData type
