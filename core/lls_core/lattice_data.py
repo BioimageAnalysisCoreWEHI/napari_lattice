@@ -1,7 +1,7 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from aicsimageio.aics_image import AICSImage
 from aicsimageio.dimensions import Dimensions
 from numpy.typing import NDArray
@@ -54,7 +54,7 @@ class LatticeData:
     decon_processing: Optional[DeconvolutionChoice] = None
 
     #: Pixel size in microns
-    physical_pixel_sizes: DefinedPixelSizes = DefinedPixelSizes()
+    physical_pixel_sizes: DefinedPixelSizes = field(default_factory=DefinedPixelSizes)
 
     new_dz: Optional[float] = None
 
