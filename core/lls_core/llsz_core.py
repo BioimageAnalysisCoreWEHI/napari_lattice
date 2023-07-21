@@ -6,7 +6,8 @@ import pyclesperanto_prototype as cle
 from dask.array.core import Array as DaskArray
 import dask.array as da
 from resource_backed_dask_array import ResourceBackedDaskArray
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Any, Optional, Union, TYPE_CHECKING, overload, Literal, Tuple
+from typing_extensions import Unpack, TypedDict, Required
 from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
     affine_transform_deskew_3d,
 )
@@ -32,10 +33,36 @@ Psf = Union[
         cle._tier0._pycl.OCLArray,
 ]
 
+class CommonArgs(TypedDict, total=False):
+    original_volume: Required[ArrayLike]
+    deskewed_volume: Union[ ArrayLike, None ]
+    roi_shape: Union[list, NDArray, None]
+    angle_in_degrees: float
+    voxel_size_x: float
+    voxel_size_y: float
+    voxel_size_z: float
+    z_start: int
+    z_end: int
+    deconvolution: bool
+    decon_processing: Optional[str]
+    psf: Union[Psf, None]
+    num_iter: int
+    linear_interpolation: bool
+    skew_dir: DeskewDirection
+
+@overload
+def crop_volume_deskew(*, debug: Literal[True], get_deskew_and_decon: bool = False, **kwargs: Unpack[CommonArgs]) -> Tuple[NDArray, NDArray]:
+    ...
+@overload
+def crop_volume_deskew(*, debug: Literal[False] = False, get_deskew_and_decon: Literal[True], **kwargs: Unpack[CommonArgs]) -> Tuple[NDArray, NDArray]:
+    ...
+@overload
+def crop_volume_deskew(*, debug: Literal[False] = False, get_deskew_and_decon: Literal[False] = False, **kwargs: Unpack[CommonArgs]) -> NDArray:
+    ...
 def crop_volume_deskew(
     original_volume: ArrayLike,
     deskewed_volume: Union[ ArrayLike, None ] = None,
-    roi_shape: Union[Shapes, list, NDArray, None] = None,
+    roi_shape: Union[list, NDArray, None] = None,
     angle_in_degrees: float = 30,
     voxel_size_x: float = 1,
     voxel_size_y: float = 1,
@@ -84,15 +111,15 @@ def crop_volume_deskew(
 
     # if shapes layer, get first one
     # TODO: test this
-    if is_napari_shape(roi_shape):
-        shape = roi_shape.data[0]
+    # if is_napari_shape(roi_shape):
+    #     shape = roi_shape.data[0]
     # if its a list and each element has a shape of 4, its a list of rois
-    elif type(roi_shape) is list and len(roi_shape[0]) == 4:
+    if isinstance(roi_shape, list) and len(roi_shape[0]) == 4:
         # TODO:change to accept any roi by passing index
         shape = roi_shape[0]
         # len(roi_shape) >= 1:
         # if its a array or list with shape of 4, its a single ROI
-    elif len(roi_shape) == 4 and type(roi_shape) in (np.ndarray, list):
+    elif len(roi_shape) == 4 and isinstance(roi_shape, (np.ndarray, list)):
         shape = roi_shape
 
     assert len(shape) == 4, print("Shape must be an array of shape 4")

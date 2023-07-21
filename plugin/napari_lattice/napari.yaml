@@ -2,9 +2,9 @@ name: napari-lattice
 display_name: Lattice Lightsheet Analysis
 contributions:
   commands:   
-  - id: napari-lattice._dock_widget
+  - id: napari-lattice.dock_widget
     title: Create napari_lattice widget
-    python_name: napari_lattice._dock_widget:_napari_lattice_widget_wrapper 
+    python_name: napari_lattice.dock_widget:_napari_lattice_widget_wrapper 
 
 # ~~ Reader ~~
   - id: napari-lattice.get_reader
@@ -19,7 +19,7 @@ contributions:
   #  python_name: napari_lattice.use_workflow:_workflow_widget
 
   widgets:
-  - command: napari-lattice._dock_widget
+  - command: napari-lattice.dock_widget
     display_name: Lattice Lightsheet Analysis
 
   #- command: napari-lattice.crop_deskew

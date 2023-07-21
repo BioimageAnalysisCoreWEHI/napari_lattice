@@ -1,5 +1,5 @@
 from __future__ import annotations
-from napari_lattice._dock_widget import _napari_lattice_widget_wrapper
+from napari_lattice.dock_widget import _napari_lattice_widget_wrapper
 import numpy as np
 from typing import Callable, TYPE_CHECKING
 from magicclass.testing import check_function_gui_buildable, FunctionGuiTester

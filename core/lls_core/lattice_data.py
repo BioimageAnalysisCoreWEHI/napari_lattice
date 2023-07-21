@@ -47,6 +47,10 @@ class LatticeData:
     #: The filename of this data when it is saved
     save_name: str
 
+    # Dimensions of the deskewed output
+    deskew_vol_shape: Tuple[int, ...] = field(init=False)
+    deskew_affine_transform: cle.AffineTransform3D = field(init=False)
+
     #: Geometry of the light path
     skew: DeskewDirection = DeskewDirection.Y
     angle: float = 30.0
@@ -57,10 +61,6 @@ class LatticeData:
     physical_pixel_sizes: DefinedPixelSizes = field(default_factory=DefinedPixelSizes)
 
     new_dz: Optional[float] = None
-
-    # Dimensions of the deskewed output
-    deskew_vol_shape: Optional[Tuple[int, ...]] = None
-    deskew_affine_transform: Optional[cle.AffineTransform3D] = None
 
     # PSF data that should be refactored into another class eventually
     psf: Optional[List[NDArray]] = None
