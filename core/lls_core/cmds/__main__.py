@@ -288,8 +288,9 @@ def main(argv: Sequence[str] = sys.argv[1:]):
             assert args.roi_file, "Specify roi_file (ImageJ/FIJI ROI Zip file)"
             roi_file = args.roi_file[0]
             if os.path.isfile(roi_file):  # if file make sure it is a zip file or roi file
+                
                 roi_file_extension = os.path.splitext(roi_file)[1]
-                assert roi_file_extension == ".zip" or roi_file_extension == "roi", "ROI file is not a zip or .roi file"
+                assert roi_file_extension == ".zip" or roi_file_extension == ".roi", "ROI file is not a zip or .roi file"
 
         # Check if input and output paths exist
         assert os.path.exists(input_path), "Cannot find input " + input_path
@@ -379,7 +380,7 @@ def main(argv: Sequence[str] = sys.argv[1:]):
             lattice.decon_processing = deconvolution
             lattice.psf_num_iter = deconvolution_num_iter
             logging.debug(f"Num of iterations decon, {lattice.psf_num_iter}")
-            logging.info("DECONVOLUTIONING!")
+            logging.info("Performing Deconvolution")
             lattice.psf = []
             lattice.otf_path = []
             # Remove empty values and convert to Path
