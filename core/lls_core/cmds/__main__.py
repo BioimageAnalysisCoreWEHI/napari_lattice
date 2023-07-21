@@ -403,7 +403,7 @@ def main(argv: Sequence[str] = sys.argv[1:]):
 
             # load custom modules (*.py) in same directory as workflow file
             import importlib
-            parent_dir = workflow_path.resolve().parents[0].__str__() + os.sep
+            parent_dir = Path(workflow_path).resolve().parents[0].__str__() + os.sep
 
             sys.path.append(parent_dir)
             custom_py_files = get_all_py_files(parent_dir)
