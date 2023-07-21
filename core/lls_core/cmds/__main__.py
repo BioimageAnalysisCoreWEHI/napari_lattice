@@ -74,7 +74,7 @@ def make_parser():
                         help="Enter paths to psf file/s separated by commas or you can enter each path with double quotes")  # use + for nargs for flexible no of args
     parser.add_argument('--roi_file', type=str, nargs=1,
                         help="Enter the path to the ROI file for performing cropping (only valid for -processing where crop or workflow_crop is specified")
-    parser.add_argument('--voxel_sizes', type=tuple, nargs=1,
+    parser.add_argument('--voxel_sizes', type=float, nargs=3,
                         help="Enter the voxel sizes as (dz,dy,dx). Make sure they are in brackets",
                         default=(0.3, 0.1499219272808386, 0.1499219272808386))
     parser.add_argument('--file_extension', type=str, nargs=1,

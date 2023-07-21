@@ -21,8 +21,7 @@ from aicsimageio.aics_image import AICSImage
 from typing_extensions import Literal
 from typing import Any, Optional, cast, Tuple
 
-from lls_core.io import img_from_array
-from lls_core.lattice_data import lattice_from_aics, LatticeData
+from lls_core.lattice_data import lattice_from_aics, LatticeData, img_from_array
 
 def lattice_from_napari(
     img: Layer,

@@ -1,19 +1,19 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from aicsimageio.aics_image import AICSImage
 from aicsimageio.dimensions import Dimensions
-from lls_core import DeskewDirection, DeconvolutionChoice
 from numpy.typing import NDArray
 from dataclasses import dataclass
 import math
 
-from typing import Any, Dict, List, Optional, TYPE_CHECKING, Tuple, TypeVar
+from typing import Any, List, Literal, Optional, TYPE_CHECKING, Tuple, TypeVar
 
 from aicsimageio.types import ArrayLike, PhysicalPixelSizes
 import pyclesperanto_prototype as cle
 
+from lls_core import DeskewDirection, DeconvolutionChoice
 from lls_core.utils import get_deskewed_shape
 
 if TYPE_CHECKING:
@@ -31,9 +31,9 @@ class DefinedPixelSizes:
     Like PhysicalPixelSizes, but it's a dataclass, and
     none of its fields are None
     """
-    X: float
-    Y: float
-    Z: float
+    X: float = 0.14
+    Y: float = 0.14
+    Z: float = 0.3
 
 @dataclass
 class LatticeData:
@@ -43,18 +43,23 @@ class LatticeData:
     #: 3-5D array
     data: ArrayLike
     dims: Dimensions
-    #: Pixel size in microns
-    physical_pixel_sizes: DefinedPixelSizes
-    #: Geometry of the light path
-    skew: DeskewDirection
-    angle: float
 
     #: The filename of this data when it is saved
     save_name: str
+
+    #: Geometry of the light path
+    skew: DeskewDirection = DeskewDirection.Y
+    angle: float = 30.0
+
     decon_processing: Optional[DeconvolutionChoice] = None
 
+    #: Pixel size in microns
+    physical_pixel_sizes: DefinedPixelSizes = field(default_factory=DefinedPixelSizes)
+
+    new_dz: Optional[float] = None
+
     # Dimensions of the deskewed output
-    deskew_vol_shape: Optional[Tuple[int]] = None
+    deskew_vol_shape: Optional[Tuple[int, ...]] = None
     deskew_affine_transform: Optional[cle.AffineTransform3D] = None
 
     # PSF data that should be refactored into another class eventually
@@ -123,7 +128,7 @@ class LatticeData:
     def __post_init__(self):
         # set new z voxel size
         if self.skew == DeskewDirection.Y or self.skew == DeskewDirection.X:
-            self.dz = math.sin(self.angle * math.pi / 180.0) * self.dz
+            self.new_dz = math.sin(self.angle * math.pi / 180.0) * self.dz
 
         # process the file to get shape of final deskewed image
         self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(self.data, self.angle, self.dx, self.dy, self.dz)
@@ -134,9 +139,9 @@ def lattice_from_aics(img: AICSImage, physical_pixel_sizes: PhysicalPixelSizes =
     # Note: The reason we copy all of these fields rather than just storing the AICSImage is because that class is mostly immutable and so not suitable
 
     pixel_sizes = DefinedPixelSizes(
-        X = raise_if_none(physical_pixel_sizes[0] or img.physical_pixel_sizes.X, "dx cannot be None"),
-        Y = raise_if_none(physical_pixel_sizes[1] or img.physical_pixel_sizes.Y, "dy cannot be None"),
-        Z = raise_if_none(physical_pixel_sizes[2] or img.physical_pixel_sizes.Z, "dz cannot be None")
+        X = physical_pixel_sizes[0] or img.physical_pixel_sizes.X or LatticeData.physical_pixel_sizes.X,
+        Y = physical_pixel_sizes[1] or img.physical_pixel_sizes.Y or LatticeData.physical_pixel_sizes.Y, 
+        Z = physical_pixel_sizes[2] or img.physical_pixel_sizes.Z or LatticeData.physical_pixel_sizes.Z 
     )
 
     return LatticeData(
@@ -147,3 +152,55 @@ def lattice_from_aics(img: AICSImage, physical_pixel_sizes: PhysicalPixelSizes =
         physical_pixel_sizes = pixel_sizes,
         **kwargs
     )
+
+def img_from_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "time"]] = None, **kwargs: Any) -> AICSImage:
+    """
+    Creates an AICSImage from an array without metadata
+
+    Args:
+        arr (ArrayLike): An array
+        last_dimension: How to handle the dimension order
+        kwargs: Additional arguments to pass to the AICSImage constructor
+    """    
+    dim_order: str
+
+    if len(arr.shape) < 3 or len(arr.shape) > 5:
+        raise ValueError("Array dimensions must be in the range [3, 5]")
+
+    # if aicsimageio tiffreader assigns last dim as time when it should be channel, user can override this
+    if len(arr.shape) == 3:
+        dim_order="ZYX"
+    else:
+        if last_dimension not in ["channel", "time"]:
+            raise ValueError("last_dimension must be either channel or time")
+        if len(arr.shape) == 4:
+            if last_dimension == "channel":
+                dim_order = "CZYX"
+            elif last_dimension == "time":
+                dim_order = "TZYX"
+        elif len(arr.shape) == 5:
+            if last_dimension == "channel":
+                dim_order = "CTZYX"
+            elif last_dimension == "time":
+                dim_order = "TCZYX"
+        else:
+            raise ValueError()
+
+    img = AICSImage(image=arr, dim_order=dim_order, **kwargs)
+
+    # if last axes of "aicsimage data" shape is not equal to time, then swap channel and time
+    if img.data.shape[0] != img.dims.T or img.data.shape[1] != img.dims.C:
+        arr = np.swapaxes(arr, 0, 1)
+    return AICSImage(image=arr, dim_order=dim_order, **kwargs)
+
+
+def lattice_fom_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "time"]] = None, **kwargs: Any) -> LatticeData:
+    """
+    Creates a `LatticeData` from an array
+
+    Args:
+        arr: Array to use as the data source
+        last_dimension: See img_from_array
+    """   
+    aics = img_from_array(arr, last_dimension)
+    return lattice_from_aics(aics, **kwargs)

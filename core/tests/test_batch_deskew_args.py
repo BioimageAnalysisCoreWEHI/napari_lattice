@@ -1,6 +1,5 @@
 # Tests for napari_lattice using arguments and saving output files as h5, as well as tiff
 
-import subprocess
 from skimage.io import imsave
 import numpy as np
 from pathlib import Path
@@ -52,6 +51,3 @@ def test_batch_deskew_tiff():
 
         # checks if tiff written
         assert (out_dir / "raw" / "C0T0_raw.tif").exists()
-
-
-        # verify output file by opening and checking if pixel value and coordinate
