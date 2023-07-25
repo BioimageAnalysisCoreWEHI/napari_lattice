@@ -4,7 +4,7 @@ from lls_core.lattice_data import LatticeData
 import pyclesperanto_prototype as cle
 import logging
 import importlib.util
-from typing import Collection, Iterable
+from typing import Collection, Iterable,Union,Literal
 from aicsimageio import AICSImage
 from aicspylibczi import CziFile
 from numpy.typing import NDArray
@@ -84,6 +84,7 @@ def pycuda_decon(
     psf=None,
     num_iter: int = 10,
     cropping: bool = False,
+    background: Union[float,Literal["auto","second_last"]] = 0 
 ):
     """Perform deconvolution using pycudadecon
     pycudadecon can return cropped images, so we pad the images with dimensions that are a multiple of 64
@@ -96,12 +97,21 @@ def pycuda_decon(
         dzpsf : (pixel size of original psf file in z  microns)
         dxpsf : (pixel size of original psf file in xy microns)
         psf (tiff): option to provide psf instead of the otfpath, this can be used when calling decon function
+        num_iter (int): number of iterations
+        cropping (bool): option to specify if cropping option is enabled
+        background (float,"auto","second_last"): background value to use for deconvolution. Can specify a value. If using auto, defaults to pycudadecon settings which is median of last slice
+        'second_last' means median of second last slice. This option is because last slice can sometimes be incomplete
     Returns:
         np.array: _description_
     """
     image = np.squeeze(image)
     assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
 
+    #Option for median of second last slices to be used
+    #Similar to pycudadecon
+    if isinstance(background, str) and background == "second_last":
+        background = np.median(image[-2])
+    
     # if dask array, convert to numpy array
     if type(image) in [
         da.core.Array,
@@ -151,7 +161,7 @@ def pycuda_decon(
                 dxpsf=dxpsf,
             ) as ctx:
                 decon_res = rl_decon(
-                    im=image, output_shape=ctx.out_shape, n_iters=num_iter
+                    im=image, output_shape=ctx.out_shape, n_iters=num_iter,background=background
                 )
 
     else:
