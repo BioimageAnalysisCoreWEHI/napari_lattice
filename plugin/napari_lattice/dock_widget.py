@@ -6,15 +6,12 @@ from pathlib import Path
 import dask.array as da
 from dask.array.core import Array as DaskArray
 import pandas as pd
-from typing import Union, Optional, Callable, Literal
-from typing_extensions import NoReturn, Never, TypeVar, overload, Any
-from aicsimageio import AICSImage
+from typing import Callable
 from enum import Enum
 
 from magicclass.wrappers import set_design
 from magicgui import magicgui
 from magicclass import magicclass, field, vfield, set_options, LlszTemplate
-from magicclass._gui._base import check_override
 from magicclass.utils import click
 from qtpy.QtCore import Qt
 
@@ -58,7 +55,7 @@ class LlszTemplate(LlszTemplate):
 @magicclass(widget_type="split")
 class LLSZWidget(LlszTemplate):
     open_file: bool = False
-    lattice: LatticeData = None
+    lattice: LatticeData
     skew_dir: DeskewDirection
     angle_value: float
     deskew_func: Callable
