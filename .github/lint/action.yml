@@ -9,6 +9,7 @@ runs:
     - run: |
         pip install fawltydeps==0.12.0
         fawltydeps --check ${{ inputs.directory }}
+      shell: bash
 
     - uses: jakebailey/pyright-action@v1
       with:
