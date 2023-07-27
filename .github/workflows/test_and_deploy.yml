@@ -45,7 +45,8 @@ jobs:
 
       - name: Lint core
         uses: ./lint
-        directory: core
+        with:
+          directory: core
 
       - name: Test core
         shell: bash -l {0}
@@ -62,7 +63,8 @@ jobs:
 
       - name: Lint core
         uses: ./lint
-        directory: plugin
+        with:
+          directory: plugin
 
       - name: Test plugin
         shell: bash -l {0}
