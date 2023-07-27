@@ -77,3 +77,8 @@ psf = [
 
 [project.scripts]
 lls-pipeline = "lls_core.cmds.__main__:main"
+
+[tool.pyright]
+typeCheckingMode = "off"
+reportUndefinedVariable = "error"
+reportMissingImports = "none"

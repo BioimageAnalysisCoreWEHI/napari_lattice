@@ -23,12 +23,14 @@ jobs:
       DISPLAY: ":99.0"
     steps:
       - uses: actions/checkout@v3
+
       - uses: conda-incubator/setup-miniconda@v2
         with:
           auto-update-conda: true
           activate-environment: test
           python-version: ${{ matrix.python-version }}
           channels: conda-forge
+
       - name: Conda info
         shell: bash -l {0}
         run: conda info
@@ -41,13 +43,13 @@ jobs:
           pip install --upgrade pip setuptools wheel
           pip install --use-pep517 -e './core[testing]'
 
+      - name: Lint core
+        uses: pre-commit/action@v3.0.0
+        working-directory: core
+
       - name: Test core
         shell: bash -l {0}
-        run: pytest -v --cov=napari_lattice --cov-report=xml core/
-
-      - name: Test core with drivers
-        shell: bash -l {0}
-        run: pytest -v --cov=napari_lattice --cov-report=xml core/
+        run: pytest -v --cov=core --cov-report=xml core/
 
       - uses: tlambert03/setup-qt-libs@v1
 
@@ -58,9 +60,13 @@ jobs:
           pip install pytest-qt PyQt5
           pip install -e './plugin[testing]'
 
+      - name: Lint plugin
+        uses: pre-commit/action@v3.0.0
+        working-directory: plugin
+
       - name: Test plugin
         shell: bash -l {0}
-        run: pytest -v --cov=napari_lattice --cov-report=xml plugin
+        run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
         uses: codecov/codecov-action@v3
