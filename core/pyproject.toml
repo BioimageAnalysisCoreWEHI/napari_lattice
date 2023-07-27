@@ -70,6 +70,8 @@ testing = [
     "tox",
     "pytest",  # https://docs.pytest.org/en/latest/contents.html
     "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
+    "fawltydeps",
+    "pyright"
 ]
 psf = [
     "pycudadecon"
