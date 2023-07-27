@@ -44,8 +44,8 @@ jobs:
           pip install --use-pep517 -e './core[testing]'
 
       - name: Lint core
-        uses: pre-commit/action@v3.0.0
-        working-directory: core
+        uses: ./lint
+        directory: core
 
       - name: Test core
         shell: bash -l {0}
@@ -60,9 +60,9 @@ jobs:
           pip install pytest-qt PyQt5
           pip install -e './plugin[testing]'
 
-      - name: Lint plugin
-        uses: pre-commit/action@v3.0.0
-        working-directory: plugin
+      - name: Lint core
+        uses: ./lint
+        directory: plugin
 
       - name: Test plugin
         shell: bash -l {0}
