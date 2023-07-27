@@ -38,10 +38,9 @@ def test_deconvolution_pycudadecon():
     data = imread(test_data_dir+"/raw.tif")
     psf = imread(test_data_dir+"/psf.tif")
     decon_saved = imread(test_data_dir+"/deconvolved.tif")
-
-    deconvolved = pycuda_decon(image=data, psf=psf, num_iter=10)
+    deconvolved = pycuda_decon(image=data, psf=psf, num_iter=10,background="auto")
     npt.assert_allclose(deconvolved, decon_saved, atol=ATOL)  # , verbose=True)
-
+    
 # Test for opencl deconvolution
 # def test_deconvolution_opencl():
 #    pass

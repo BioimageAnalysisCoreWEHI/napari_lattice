@@ -3,18 +3,21 @@ from pathlib import Path
 from resource_backed_dask_array import ResourceBackedDaskArray
 from lls_core import DeconvolutionChoice
 from lls_core.lattice_data import LatticeData
+import pyclesperanto_prototype as cle
 import logging
 import importlib.util
-from typing import Collection, Iterable, Optional
+from typing import Collection, Iterable,Union,Literal, Optional
 from aicsimageio.aics_image import AICSImage
-from aicsimageio.types import ArrayLike
 from aicspylibczi import CziFile
 from numpy.typing import NDArray
+import os
 import numpy as np
+import dask.array as da
 from dask.array.core import Array as DaskArray
-
+from resource_backed_dask_array import ResourceBackedDaskArray 
 
 from lls_core.utils import pad_image_nearest_multiple
+from lls_core.types import ArrayLike, is_arraylike
 
 logger = logging.getLogger(__name__)
 
@@ -84,6 +87,7 @@ def pycuda_decon(
     psf: Optional[ArrayLike]=None,
     num_iter: int = 10,
     cropping: bool = False,
+    background: Union[float,Literal["auto","second_last"]] = 0 
 ):
     """Perform deconvolution using pycudadecon
     pycudadecon can return cropped images, so we pad the images with dimensions that are a multiple of 64
@@ -96,12 +100,21 @@ def pycuda_decon(
         dzpsf : (pixel size of original psf file in z  microns)
         dxpsf : (pixel size of original psf file in xy microns)
         psf (tiff): option to provide psf instead of the otfpath, this can be used when calling decon function
+        num_iter (int): number of iterations
+        cropping (bool): option to specify if cropping option is enabled
+        background (float,"auto","second_last"): background value to use for deconvolution. Can specify a value. If using auto, defaults to pycudadecon settings which is median of last slice
+        'second_last' means median of second last slice. This option is because last slice can sometimes be incomplete
     Returns:
         np.array: _description_
     """
     image = np.squeeze(image)
     assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
 
+    #Option for median of second last slices to be used
+    #Similar to pycudadecon
+    if isinstance(background, str) and background == "second_last":
+        background = np.median(image[-2])
+    
     # if dask array, convert to numpy array
     if isinstance(image, DaskArray):
         image = np.array(image)
@@ -126,13 +139,7 @@ def pycuda_decon(
     # pad image to a multiple of 64
     image = pad_image_nearest_multiple(img=image, nearest_multiple=64)
 
-    if type(psf) in [
-        np.ndarray,
-        np.array,
-        DaskArray,
-        ResourceBackedDaskArray,
-        cle._tier0._pycl.OCLArray,
-    ]:
+    if is_arraylike(psf):
         from pycudadecon import RLContext, TemporaryOTF, rl_decon
 
         psf = np.squeeze(psf)  # remove unit dimensions
@@ -148,7 +155,7 @@ def pycuda_decon(
                 dxpsf=dxpsf,
             ) as ctx:
                 decon_res = rl_decon(
-                    im=image, output_shape=ctx.out_shape, n_iters=num_iter
+                    im=image, output_shape=ctx.out_shape, n_iters=num_iter,background=background
                 )
 
     else:
