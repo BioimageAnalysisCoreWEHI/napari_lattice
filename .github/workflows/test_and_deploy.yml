@@ -5,6 +5,9 @@
 name: tests
 
 on:
+  pull_request:
+    paths-ignore:
+      - "**/README.md"
   push:
     paths-ignore:
       - "**/README.md"
@@ -15,7 +18,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.8", "3.9", "3.10", "3.11"]
     env:
       DISPLAY: ":99.0"
     steps:
@@ -30,20 +33,35 @@ jobs:
         shell: bash -l {0}
         run: conda info
 
+      - name: Install core
+        shell: bash -l {0}
+        run: |
+          conda install -y pyopencl pocl
+          python --version
+          pip install --upgrade pip setuptools wheel
+          pip install --use-pep517 -e './core[testing]'
+
+      - name: Test core
+        shell: bash -l {0}
+        run: pytest -v --cov=napari_lattice --cov-report=xml core/
+
+      - name: Test core with drivers
+        shell: bash -l {0}
+        run: pytest -v --cov=napari_lattice --cov-report=xml core/
+
       - uses: tlambert03/setup-qt-libs@v1
 
-      - name: Install dependencies
+      - name: Install plugin
         shell: bash -l {0}
         run: |
           /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
-          python --version
-          conda install -y pyopencl pocl
-          python -m pip install --upgrade pip
-          python -m pip install setuptools wheel pytest pytest-cov pytest-benchmark pytest-qt PyQt5
-          pip install -e .
-      - name: Test
+          pip install pytest-qt PyQt5
+          pip install -e './plugin[testing]'
+
+      - name: Test plugin
         shell: bash -l {0}
-        run: pytest -v --cov=napari_lattice --cov-report=xml
+        run: pytest -v --cov=napari_lattice --cov-report=xml plugin
+
       - name: Coverage
         uses: codecov/codecov-action@v3
 

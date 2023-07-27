@@ -1,0 +1,35 @@
+name: napari-lattice
+display_name: Lattice Lightsheet Analysis
+contributions:
+  commands:   
+  - id: napari-lattice._dock_widget
+    title: Create napari_lattice widget
+    python_name: napari_lattice._dock_widget:_napari_lattice_widget_wrapper 
+
+# ~~ Reader ~~
+  - id: napari-lattice.get_reader
+    python_name: napari_lattice._reader:napari_get_reader
+    title: BDV H5 reader
+  #- id: napari-lattice.crop_deskew
+  #  title: Crop & Deskew
+  #  python_name: napari_lattice.crop_deskew:_crop_deskew_widget 
+
+  #- id: napari-lattice.workflow
+  #  title: Lattice Workflow
+  #  python_name: napari_lattice.use_workflow:_workflow_widget
+
+  widgets:
+  - command: napari-lattice._dock_widget
+    display_name: Lattice Lightsheet Analysis
+
+  #- command: napari-lattice.crop_deskew
+  #  display_name: Crop & Deskew
+
+  #- command: napari-lattice.workflow
+  #  display_name: Lattice Workflow
+    #autogenerate: true
+  
+  readers:
+  - command: napari-lattice.get_reader
+    accepts_directories: false
+    filename_patterns: ["*.h5"]

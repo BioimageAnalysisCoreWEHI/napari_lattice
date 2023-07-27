@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 79
+
+[tool.isort]
+profile = "black"
+line_length = 79
+
+[project]
+name = "lls_core"
+version = "0.2.7"
+authors = [
+    {name = "Pradeep Rajasekhar"},
+    {name = "Lachlan Whitehead"},
+    {name = "Robert Haase"}
+]
+license = {text = "GPL-3.0-only"}
+description = "Core functionality for analysing and visualizing lattice lightsheet and Oblique Plane Microscopy data."
+# readme = { file = "README.md", content-type = "text/markdown" }
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Framework :: napari",
+    "Topic :: Software Development :: Testing",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Operating System :: OS Independent",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
+]
+requires-python = ">=3.8"
+dependencies = [
+    "aicsimageio>=4.6.3",
+    # Earlier versions don't have Python 3.11 binaries, and the sdist
+    # is misconfigured: https://github.com/AllenCellModeling/aicspylibczi/issues/90
+    "aicspylibczi>=3.1.1",
+    "dask",
+    "dask-image",
+    "dask[distributed]",
+    "pyopencl",
+    "read-roi",
+    "gputools",
+    "pyclesperanto_prototype>=0.20.0",
+    "npy2bdv",
+    "redlionfish",
+    # Older tifffile are not compatible with aicsimageio, see: https://github.com/AllenCellModeling/aicsimageio/issues/518
+    "tifffile>=2023.3.15", #>=2022.8.12
+    "fsspec>=2022.8.2",
+    "napari-workflows>=0.2.8",
+    "resource-backed-dask-array>=0.1.0"
+]
+
+[project.urls]
+Repository = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
+BugTracker = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
+Documentation = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki"
+SourceCode = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
+UserSupport = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
+
+[tool.setuptools.package-data]
+mypkg = ["*.yaml"]
+
+[project.optional-dependencies]
+testing = [
+    "tox",
+    "pytest",  # https://docs.pytest.org/en/latest/contents.html
+    "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
+]
+psf = [
+    "pycudadecon"
+]
+
+[project.scripts]
+lls-pipeline = "lls_core.cmds.__main__:main"
