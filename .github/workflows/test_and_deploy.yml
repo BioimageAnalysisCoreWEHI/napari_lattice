@@ -44,7 +44,7 @@ jobs:
           pip install --use-pep517 -e './core[testing]'
 
       - name: Lint core
-        uses: ./lint
+        uses: .github/lint
         with:
           directory: core
 
@@ -62,7 +62,7 @@ jobs:
           pip install -e './plugin[testing]'
 
       - name: Lint core
-        uses: ./lint
+        uses: .github/lint
         with:
           directory: plugin
 
