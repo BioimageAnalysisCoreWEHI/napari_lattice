@@ -7,10 +7,10 @@ runs:
   using: "composite"
   steps:
     - run: |
-      pip install fawltydeps==0.12.0
-      fawltydeps --check ${{ inputs.directory }}
+        pip install fawltydeps==0.12.0
+        fawltydeps --check ${{ inputs.directory }}
 
     - uses: jakebailey/pyright-action@v1
       with:
         version: "1.6.0"
-        working-directory: "${{ inputs.directory }}"
+        working-directory: ${{ inputs.directory }}
