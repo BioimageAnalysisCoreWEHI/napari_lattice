@@ -1,12 +1,18 @@
 from pathlib import Path
+
+from resource_backed_dask_array import ResourceBackedDaskArray
 from lls_core import DeconvolutionChoice
 from lls_core.lattice_data import LatticeData
 import logging
 import importlib.util
-from typing import Collection, Iterable
-from aicsimageio import AICSImage
+from typing import Collection, Iterable, Optional
+from aicsimageio.aics_image import AICSImage
+from aicsimageio.types import ArrayLike
 from aicspylibczi import CziFile
 from numpy.typing import NDArray
+import numpy as np
+from dask.array.core import Array as DaskArray
+
 
 from lls_core.utils import pad_image_nearest_multiple
 
@@ -69,13 +75,13 @@ def read_psf(psf_paths: Collection[Path],
 # libraries are better designed.. Atleast until  RL deconvolution is available in pyclesperant
 # Talley Lamberts pycudadecon is a great library and highly optimised.
 def pycuda_decon(
-    image,
-    otf_path=None,
-    dzdata=0.3,
-    dxdata=0.1449922,
-    dzpsf=0.3,
-    dxpsf=0.1449922,
-    psf=None,
+    image: NDArray,
+    otf_path: Optional[str]=None,
+    dzdata: float=0.3,
+    dxdata: float=0.1449922,
+    dzpsf: float=0.3,
+    dxpsf: float=0.1449922,
+    psf: Optional[ArrayLike]=None,
     num_iter: int = 10,
     cropping: bool = False,
 ):
@@ -83,7 +89,7 @@ def pycuda_decon(
     pycudadecon can return cropped images, so we pad the images with dimensions that are a multiple of 64
 
     Args:
-        image (np.array): _description_
+        image : _description_
         otf_path : (path to the generated otf file, if available. Otherwise psf needs to be provided)
         dzdata : (pixel size in z in microns)
         dxdata : (pixel size in xy  in microns)
@@ -97,10 +103,7 @@ def pycuda_decon(
     assert image.ndim == 3, f"Image needs to be 3D. Got {image.ndim}"
 
     # if dask array, convert to numpy array
-    if type(image) in [
-        da.core.Array,
-        ResourceBackedDaskArray,
-    ]:
+    if isinstance(image, DaskArray):
         image = np.array(image)
 
     orig_img_shape = image.shape
