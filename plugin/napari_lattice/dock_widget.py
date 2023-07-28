@@ -11,13 +11,14 @@ from enum import Enum
 
 from magicclass.wrappers import set_design
 from magicgui import magicgui
-from magicclass import magicclass, field, vfield, set_options, LlszTemplate
+from magicclass import magicclass, field, vfield, set_options, MagicTemplate
 from magicclass.utils import click
 from qtpy.QtCore import Qt
 
 from napari.layers import Layer, Shapes
 from napari.types import ImageData
 from napari.utils import history
+from napari import Viewer
 
 import pyclesperanto_prototype as cle
 
@@ -47,10 +48,17 @@ class LastDimensionOptions(Enum):
     time = "Time"
     get_from_metadata = "Get from Metadata"
 
-class LlszTemplate(LlszTemplate):
+class LlszTemplate(MagicTemplate):
     @property
     def llsz_parent(self) -> "LLSZWidget":
         return self.find_ancestor(LLSZWidget)
+        
+    @property
+    def parent_viewer(self) -> Viewer:
+        viewer = super().parent_viewer
+        if viewer is None:
+            raise Exception("This function can only be used when inside of a Napari viewer")
+        return super().parent_viewer
 
 @magicclass(widget_type="split")
 class LLSZWidget(LlszTemplate):
@@ -104,9 +112,6 @@ class LLSZWidget(LlszTemplate):
             config.log_level = set_logging.value
             logger.info(f"Logging set to {set_logging}")
             logger.info("Using existing image layer")
-
-            if self.parent_viewer is None:
-                raise Exception("This function can only be used when inside of a Napari viewer")
 
             # Select device for processing
             cle.select_device(select_device)
@@ -194,8 +199,6 @@ class LLSZWidget(LlszTemplate):
             logger.info(f"Initialised")
             self["Choose_Image_Layer"].background_color = "green"
             self["Choose_Image_Layer"].text = "Plugin Initialised"
-
-            return
 
         # Pycudadecon library for deconvolution
         # options={"enabled": True},
@@ -304,7 +307,6 @@ class LLSZWidget(LlszTemplate):
                                 ch_end,
                                 save_as_type,
                                 save_path)
-                return
 
         @magicclass(name="Crop and Deskew", widget_type="scrollable")
         class CropWidget(LlszTemplate):
@@ -319,8 +321,6 @@ class LLSZWidget(LlszTemplate):
                 @set_design(font_size=10, text="Click to activate Cropping Layer", background_color="magenta")
                 @click(enables=["Import_ImageJ_ROI", "Crop_Preview"])
                 def activate_cropping(self):
-                    if self.parent_viewer is None:
-                        raise Exception("This function can only be used when inside of a Napari viewer")
                     self.llsz_parent.shapes_layer = self.parent_viewer.add_shapes(shape_type='polygon', edge_width=1, edge_color='white',
                                                                       face_color=[1, 1, 1, 0], name="Cropping BBOX layer")
                     # TO select ROIs if needed
@@ -337,7 +337,7 @@ class LLSZWidget(LlszTemplate):
                     # convert to canvas coordinates
                     self.find_ancestor(LLSZWidget)
                     roi_list = (np.array(roi_list) * self.llsz_parent.lattice.dy).tolist()
-                    self.shapes_layer.add(roi_list, shape_type='polygon', edge_width=1, edge_color='yellow', face_color=[1, 1, 1, 0])
+                    self.llsz_parent.shapes_layer.add(roi_list, shape_type='polygon', edge_width=1, edge_color='yellow', face_color=[1, 1, 1, 0])
 
                 time_crop = field(int, options={"min": 0, "step": 1, "max": 2**20}, name="Time")
                 chan_crop = field(int, options={"min": 0, "step": 1}, name="Channels")
@@ -373,10 +373,10 @@ class LLSZWidget(LlszTemplate):
                     # if only one roi drawn, use the first ROI for cropping
                     if len(roi_layer) == 1:
                         roi_idx = 0
-                    elif len(self.shapes_layer.selected_data) == 0:
+                    elif len(self.llsz_parent.shapes_layer.selected_data) == 0:
                         raise Exception("Please select an ROI")
 
-                    roi_idx = list(self.shapes_layer.selected_data)[0]
+                    roi_idx = list(self.llsz_parent.shapes_layer.selected_data)[0]
 
                     # As the original image is scaled, the coordinates are in microns, so we need to convert
                     # roi from micron to canvas/world coordinates
@@ -514,7 +514,7 @@ class LLSZWidget(LlszTemplate):
                                             voxel_size_x=dx,
                                             voxel_size_y=dy,
                                             voxel_size_z=dz,
-                                            LLSZWidget=parent
+                                            LLSZWidget=self.llsz_parent
                                             )
 
                             logger.info(
@@ -661,7 +661,7 @@ class LLSZWidget(LlszTemplate):
                             roi_choice = [
                                 x/self.llsz_parent.lattice.dy for x in roi_choice]
                             logger.info(f"Previewing ROI {roi_idx}")
-                            if self.llsz_parent.deconvolution:
+                            if self.llsz_parent.deconvolution and self.llsz_parent.lattice.psf is not None:
                                 user_workflow.set("crop_deskew_image", crop_volume_deskew,
                                                     original_volume=vol_zyx,
                                                     deskewed_volume=deskewed_volume,
@@ -760,7 +760,7 @@ class LLSZWidget(LlszTemplate):
                         # if deskew already in workflow, just check if deconvolution needs to be added
                         # repitition of above (maybe create a function?)
                         # if deconvolution checked, add it to start of workflow (add upstream of deskewing)
-                        if self.llsz_parent.deconvolution.value:
+                        if self.llsz_parent.deconvolution:
                             psf = self.llsz_parent.lattice.psf[channel]
                             input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(
                                 user_workflow)
@@ -840,12 +840,12 @@ class LLSZWidget(LlszTemplate):
                             #custom_module=dict(widget_type="Checkbox",label="Load custom module (same dir as workflow)",value = False),
                             call_button="Apply Workflow and Save Result")
                 def Apply_Workflow_and_Save(self,
-                                            header,
+                                            header: str,
                                             time_start: int,
                                             time_end: int,
                                             ch_start: int,
                                             ch_end: int,
-                                            Use_Cropping,
+                                            Use_Cropping: bool,
                                             roi_layer_list: ShapesData,
                                             get_active_workflow: bool = False,
                                             workflow_path: Path = Path.home(),
