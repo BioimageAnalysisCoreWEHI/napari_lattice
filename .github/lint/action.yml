@@ -14,5 +14,4 @@ runs:
 
     - uses: jakebailey/pyright-action@v1
       with:
-        version: "1.6.0"
         working-directory: ${{ inputs.directory }}
