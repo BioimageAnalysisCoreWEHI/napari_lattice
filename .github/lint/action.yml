@@ -8,9 +8,8 @@ runs:
   steps:
     - run: |
         pip install fawltydeps==0.12.0
-        pip freeze
         fawltydeps --check --detailed --verbose
-      shell: bash
+      shell: bash -l {0}
       working-directory: ${{ inputs.directory }}
 
     - uses: jakebailey/pyright-action@v1
