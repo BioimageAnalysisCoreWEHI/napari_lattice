@@ -41,6 +41,7 @@ jobs:
         run: echo "python=$(which python)" >> "$GITHUB_ENV"
 
       - name: Install core
+        timeout-minutes: 10
         run: |
           conda install -y pyopencl pocl
           python --version
@@ -59,6 +60,7 @@ jobs:
       - uses: tlambert03/setup-qt-libs@v1
 
       - name: Install plugin
+        timeout-minutes: 10
         run: |
           /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
           pip install pytest-qt PyQt5
