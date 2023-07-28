@@ -35,7 +35,7 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.6.3",
+    "aicsimageio>=4.11.0",
     "dask",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version
@@ -48,7 +48,7 @@ dependencies = [
     "napari-spreadsheet",
     "napari-workflow-inspector",
     "napari-workflows>=0.2.8",
-    "napari[all]",
+    "napari>=0.4.11",
     "npy2bdv",
     "numpy",
     "pandas",
@@ -57,7 +57,7 @@ dependencies = [
     "qtpy",
     "tqdm",
     "typing_extensions",
-    "pyyaml"
+    "pyyaml",
 ]
 
 [project.urls]
@@ -94,7 +94,8 @@ ignore_unused = [
     "napari-workflow-inspector",
 
     # This is pinned but unused
-    "fsspec"
+    "fsspec",
+    "imageio"
 ]
 output_format = "human_detailed"  
 
