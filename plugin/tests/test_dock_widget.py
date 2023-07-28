@@ -7,6 +7,7 @@ from napari.layers import Image
 from magicclass import MagicTemplate
 from magicclass.widgets import Widget
 from magicclass._gui._gui_modes import ErrorMode
+import pytest
 
 if TYPE_CHECKING:
     from napari import Viewer
@@ -18,7 +19,8 @@ if TYPE_CHECKING:
 # @pytest.mark.skip(reason="GUI tests currently fail in github CI, unclear why")
 # When testing locally, need pytest-qt
 
-def set_debug(cls: MagicTemplate):
+@pytest.fixture
+def debug_widget():
     """
     Recursively disables GUI error handling, so that this works with pytest.
     This is a massive hack while we wait for https://github.com/hanjinliu/magic-class/issues/109
@@ -26,6 +28,7 @@ def set_debug(cls: MagicTemplate):
     def _handler(e: Exception, parent: Widget):
         raise e
     ErrorMode.get_handler = lambda self: _handler
+    old_error_mode = cls._error_mode
     cls._error_mode = ErrorMode.stderr
     for child in cls.__magicclass_children__:
         set_debug(child)
