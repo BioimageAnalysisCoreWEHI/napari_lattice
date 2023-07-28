@@ -15,6 +15,9 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
     strategy:
       fail-fast: false
       matrix:
@@ -32,11 +35,12 @@ jobs:
           channels: conda-forge
 
       - name: Conda info
-        shell: bash -l {0}
         run: conda info
 
+      - name: Save conda location
+        run: echo "python=$(which python)" >> "$GITHUB_ENV"
+
       - name: Install core
-        shell: bash -l {0}
         run: |
           conda install -y pyopencl pocl
           python --version
@@ -47,15 +51,14 @@ jobs:
         uses: ./.github/lint
         with:
           directory: core
+          python: ${{ env.python }}
 
       - name: Test core
-        shell: bash -l {0}
         run: pytest -v --cov=core --cov-report=xml core/
 
       - uses: tlambert03/setup-qt-libs@v1
 
       - name: Install plugin
-        shell: bash -l {0}
         run: |
           /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
           pip install pytest-qt PyQt5
@@ -65,9 +68,9 @@ jobs:
         uses: ./.github/lint
         with:
           directory: plugin
+          python: ${{ env.python }}
 
       - name: Test plugin
-        shell: bash -l {0}
         run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage

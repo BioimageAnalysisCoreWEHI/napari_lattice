@@ -3,6 +3,9 @@ inputs:
   directory:
     description: 'Path to the package to lint'
     required: true
+  python:
+    description: 'Path to the python interpreter to use'
+    required: true
 runs:
   using: "composite"
   steps:
@@ -15,3 +18,4 @@ runs:
     - uses: jakebailey/pyright-action@v1
       with:
         working-directory: ${{ inputs.directory }}
+        python-path: ${{ inputs.python }}
