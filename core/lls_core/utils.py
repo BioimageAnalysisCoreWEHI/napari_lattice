@@ -16,7 +16,7 @@ import pyclesperanto_prototype as cle
 from read_roi import read_roi_zip
 from read_roi import read_roi_file
 
-from tifffile import imsave
+#from tifffile import imsave
 from . import config, DeskewDirection
 from aicsimageio.types import ArrayLike
 
