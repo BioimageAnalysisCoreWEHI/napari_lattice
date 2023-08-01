@@ -7,6 +7,7 @@ from aicsimageio.dimensions import Dimensions
 from numpy.typing import NDArray
 from dataclasses import dataclass
 import math
+import numpy as np
 
 from typing import Any, List, Literal, Optional, TYPE_CHECKING, Tuple, TypeVar
 

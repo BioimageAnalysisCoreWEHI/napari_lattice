@@ -14,14 +14,15 @@ import os
 import numpy as np
 from napari.layers import image, Layer
 from napari.layers._data_protocols import LayerDataProtocol
-from aicsimageio.types import ArrayLike
-from aicsimageio.dimensions import Dimensions
-from aicsimageio.aics_image import AICSImage
 
 from typing_extensions import Literal
-from typing import Any, Optional, cast, Tuple
+from typing import Any, Optional, cast, TYPE_CHECKING
 
 from lls_core.lattice_data import lattice_from_aics, LatticeData, img_from_array
+from aicsimageio.types import ArrayLike
+
+if TYPE_CHECKING:
+    from aicsimageio.aics_image import AICSImage
 
 def lattice_from_napari(
     img: Layer,

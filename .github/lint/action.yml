@@ -1,0 +1,21 @@
+name: 'Lint'
+inputs:
+  directory:
+    description: 'Path to the package to lint'
+    required: true
+  python:
+    description: 'Path to the python interpreter to use'
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - run: |
+        pip install fawltydeps==0.12.0
+        fawltydeps --check --detailed --verbose
+      shell: bash -l {0}
+      working-directory: ${{ inputs.directory }}
+
+    - uses: jakebailey/pyright-action@v1
+      with:
+        working-directory: ${{ inputs.directory }}
+        python-path: ${{ inputs.python }}

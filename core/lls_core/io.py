@@ -38,7 +38,6 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from napari.types import ImageData
-    from magicclass import MagicTemplate
     from napari_workflows import Workflow
 
 def convert_imgdata_aics(img_data: ImageData):
@@ -104,7 +103,9 @@ def save_img(vol: ArrayLike,
              dy: float = 1,
              dz: float = 1,
              angle: Optional[float] = None,
-             LLSZWidget: Optional[MagicTemplate]=None,
+             # This is a MagicTemplate object but we want to avoid depending on magicclass
+             # TODO: refactor this out
+             LLSZWidget: Optional[Any]=None,
              terminal: bool = False,
              lattice: Optional[LatticeData]=None,
              *args, **kwargs):
@@ -615,4 +616,3 @@ def save_img_workflow(vol,
                 writer_list[writer_idx].write_xml()
             # close the writers (applies for both tiff and h5)
             writer_list[writer_idx].close()
-
