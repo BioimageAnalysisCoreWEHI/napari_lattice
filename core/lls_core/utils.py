@@ -6,7 +6,7 @@ from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from os import devnull, path
 import os
 from typing_extensions import Any, TYPE_CHECKING, TypeGuard
-from typing import List, Tuple, Union, Collection
+from typing import Iterable, List, Optional, Sequence, Tuple, Union, Collection
 from numpy.typing import NDArray
 
 import pandas as pd
@@ -18,7 +18,8 @@ from read_roi import read_roi_file
 
 from tifffile import imsave
 from . import config, DeskewDirection
-from aicsimageio.types import ArrayLike
+
+from lls_core.types import ArrayLike
 
 if TYPE_CHECKING:
     from xml.etree.ElementTree import Element
@@ -334,9 +335,9 @@ def as_type(img, ref_vol):
     return img
 
 
-def process_custom_workflow_output(workflow_output,
-                                   save_dir=None,
-                                   idx=None,
+def process_custom_workflow_output(workflow_output: Union[dict, list, ArrayLike],
+                                   save_dir: Optional[str]=None,
+                                   idx: Optional[str]=None,
                                    LLSZWidget=None,
                                    widget_class=None,
                                    channel=0,
@@ -376,109 +377,6 @@ def process_custom_workflow_output(workflow_output,
         else:
             return workflow_output
 
-
-def _process_custom_workflow_output_batch(ref_vol,
-                                          no_elements,
-                                          array_element_type,
-                                          channel_range,
-                                          images_array,
-                                          save_path,
-                                          time_point,
-                                          ch,
-                                          save_name_prefix,
-                                          save_name,
-                                          dx=None,
-                                          dy=None,
-                                          new_dz=None
-                                          ):
-    # create columns index for the list
-    if list in array_element_type:
-        row_idx = []
-
-     # Iterate through the dict or list output from workflow and add columns for Channel and timepoint
-    for i in range(no_elements):
-        for j in channel_range:
-            if type(images_array[j, i]) in [dict]:
-                # images_array[j,i].update({"Channel/Time":"C"+str(j)+"T"+str(time_point)})
-                images_array[j, i].update({"Channel": "C"+str(j)})
-                images_array[j, i].update({"Time": "T"+str(time_point)})
-            elif type(images_array[j, i]) in [list]:
-                row_idx.append("C"+str(j)+"T"+str(time_point))
-                # row_idx.append("C"+str(j))
-                # row_idx.append("T"+str(time_point))
-
-    for element in range(no_elements):
-        if(array_element_type[element]) in [dict]:
-            # convert to pandas dataframe
-            output_dict_pd = [pd.DataFrame(i)
-                              for i in images_array[:, element]]
-
-            output_dict_pd = pd.concat(output_dict_pd)
-            # set index to the channel/time
-            output_dict_pd = output_dict_pd.set_index(["Time", "Channel"])
-
-            # Save path
-            dict_save_path = os.path.join(
-                save_path, "Measurement_"+save_name_prefix)
-            if not(os.path.exists(dict_save_path)):
-                os.mkdir(dict_save_path)
-
-            #dict_save_path = os.path.join(dict_save_path,"C" + str(ch) + "T" + str(time_point)+"_"+str(element) + "_measurement.csv")
-            dict_save_path = os.path.join(
-                dict_save_path, "Summary_measurement_"+save_name_prefix+"_"+str(element)+"_.csv")
-            # Opens csv and appends it if file already exists; not efficient.
-            if os.path.exists(dict_save_path):
-                output_dict_pd_existing = pd.read_csv(
-                    dict_save_path, index_col=["Time", "Channel"])
-                output_dict_summary = pd.concat(
-                    (output_dict_pd_existing, output_dict_pd))
-                output_dict_summary.to_csv(dict_save_path)
-            else:
-                output_dict_pd.to_csv(dict_save_path)
-
-        # TODO:modify this so one file saved for measurement
-        elif(array_element_type[element]) in [list]:
-
-            output_list_pd = pd.DataFrame(
-                np.vstack(images_array[:, element]), index=row_idx)
-            # Save path
-            list_save_path = os.path.join(
-                save_path, "Measurement_"+save_name_prefix)
-            if not(os.path.exists(list_save_path)):
-                os.mkdir(list_save_path)
-            list_save_path = os.path.join(list_save_path, "C" + str(ch) + "T" + str(
-                time_point)+"_"+save_name_prefix+"_"+str(element) + "_measurement.csv")
-            output_list_pd.to_csv(list_save_path)
-
-        elif(array_element_type[element]) in [np.ndarray, cle._tier0._pycl.OCLArray, da.core.Array]:
-
-            # Save path
-            img_save_path = os.path.join(
-                save_path, "Measurement_"+save_name_prefix)
-            if not(os.path.exists(img_save_path)):
-                os.mkdir(img_save_path)
-
-            im_final = np.stack(images_array[:, element]).astype(ref_vol.dtype)
-            final_name = os.path.join(img_save_path, save_name_prefix + "_"+str(element) + "_T" + str(
-                time_point) + "_" + save_name + ".tif")
-            # "C" + str(ch) +
-            #OmeTiffWriter.save(images_array, final_name, physical_pixel_sizes=aics_image_pixel_sizes)
-            # if only one image with no channel, then dimension will 1,z,y,x, so swap 0 and 1
-            if len(im_final.shape) == 4:
-                # was 1,2,but when stacking images, dimension is CZYX
-                im_final = np.swapaxes(im_final, 0, 1)
-                # adding extra dimension for T
-                im_final = im_final[np.newaxis, ...]
-            elif len(im_final.shape) > 4:  # if
-                # if image with multiple channels, , it will be 1,c,z,y,x
-                im_final = np.swapaxes(im_final, 1, 2)
-            # imagej=True; ImageJ hyperstack axes must be in TZCYXS order
-            imsave(final_name, im_final, bigtiff=True, imagej=True, resolution=(1./dx, 1./dy),
-                   metadata={'spacing': new_dz, 'unit': 'um', 'axes': 'TZCYX'})  # imagej=True
-            im_final = None
-    return
-
-
 def pad_image_nearest_multiple(img: NDArray, nearest_multiple: int) -> NDArray:
     """pad an Image to the nearest multiple of provided number
 
@@ -500,7 +398,7 @@ def pad_image_nearest_multiple(img: NDArray, nearest_multiple: int) -> NDArray:
     return padded_img
 
 
-def check_dimensions(user_time_start: int, user_time_end, user_channel_start: int, user_channel_end: int, total_channels: int, total_time: int):
+def check_dimensions(user_time_start: int, user_time_end: int, user_channel_start: int, user_channel_end: int, total_channels: int, total_time: int):
 
     if total_time == 1 or total_time == 2:
         max_time = 1

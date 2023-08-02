@@ -1,23 +1,19 @@
 
 __version__ = "0.2.6"
 
-
+from strenum import StrEnum
 from enum import Enum
 
 # Initialize configuration options
 
-#Deskew Direction
-from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import DeskewDirection
-
-
 #Choice of Deconvolution
-class DeconvolutionChoice(Enum):
+class DeconvolutionChoice(StrEnum):
     cuda_gpu = "cuda_gpu"
     opencl_gpu = "opencl_gpu"
     cpu = "cpu"
 
 #Choice of File extension to save
-class SaveFileType(Enum):
+class SaveFileType(StrEnum):
     h5 = "h5"
     tiff = "tiff"
 

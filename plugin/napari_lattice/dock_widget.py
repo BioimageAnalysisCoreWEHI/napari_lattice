@@ -350,6 +350,8 @@ class LLSZWidget(LlszTemplate):
                     if not roi_layer:
                         raise Exception("No coordinates found for cropping. Check if right shapes layer or initialise shapes layer and draw ROIs.")
                     # TODO: Add assertion to check if bbox layer or coordinates
+
+                    # Slice out the image of interest to preview
                     time = self.time_crop.value
                     channel = self.chan_crop.value
                     if time >= self.llsz_parent.lattice.time:
@@ -1018,7 +1020,7 @@ class LLSZWidget(LlszTemplate):
                         user_workflow.set(task_name_start, new_task)
 
                         # if deconvolution checked, add it to start of workflow (add upstream of deskewing)
-                        if self.llsz_parent.deconvolution.value:
+                        if self.llsz_parent.deconvolution:
                             psf = "psf"
                             otf_path = "otf_path"
                             input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(
@@ -1068,7 +1070,7 @@ class LLSZWidget(LlszTemplate):
                                             dy=dy,
                                             dz=dz,
                                             angle=angle,
-                                            deconvolution=self.llsz_parent.deconvolution.value,
+                                            deconvolution=self.llsz_parent.deconvolution,
                                             decon_processing=self.llsz_parent.lattice.decon_processing,
                                             otf_path=otf_path,
                                             psf_arg=psf_arg,
@@ -1078,7 +1080,7 @@ class LLSZWidget(LlszTemplate):
                     else:
                         # if deskewing is already first task, then check if deconvolution needed
                         # if deconvolution checked, add it to start of workflow (add upstream of deskewing)
-                        if self.llsz_parent.deconvolution.value:
+                        if self.llsz_parent.deconvolution:
                             psf = "psf"
                             otf_path = "otf_path"
                             input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(
@@ -1129,7 +1131,7 @@ class LLSZWidget(LlszTemplate):
                                             dy=dy,
                                             dz=dz,
                                             angle=angle,
-                                            deconvolution=self.llsz_parent.deconvolution.value,
+                                            deconvolution=self.llsz_parent.deconvolution,
                                             decon_processing=self.llsz_parent.lattice.decon_processing,
                                             otf_path=otf_path,
                                             psf_arg=psf_arg,
