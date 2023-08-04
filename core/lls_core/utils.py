@@ -1,33 +1,27 @@
 from __future__ import annotations
 
-import numpy as np
 from collections import defaultdict
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from os import devnull, path
-import os
-from typing_extensions import Any, TYPE_CHECKING, TypeGuard
-from typing import Iterable, List, Optional, Sequence, Tuple, Union, Collection
-from numpy.typing import NDArray
+from typing import Collection, List, Tuple, Union
 
-import pandas as pd
-import dask.array as da
-
+import numpy as np
 import pyclesperanto_prototype as cle
-from read_roi import read_roi_zip
-from read_roi import read_roi_file
-
-from tifffile import imsave
-from . import config, DeskewDirection
-
 from lls_core.types import ArrayLike
+from numpy.typing import NDArray
+from read_roi import read_roi_file, read_roi_zip
+from typing_extensions import TYPE_CHECKING, Any, TypeGuard
+
+from . import DeskewDirection, config
 
 if TYPE_CHECKING:
     from xml.etree.ElementTree import Element
+
     from napari.layers import Shapes
-    from napari_workflows import Workflow
 
 # Enable Logging
 import logging
+
 logger = logging.getLogger(__name__)
 logger.setLevel(config.log_level)
 
@@ -105,7 +99,9 @@ def get_deskewed_shape(volume: ArrayLike,
         tuple: Shape of deskewed volume in zyx
         np.array: Affine transform for deskewing
     """
-    from pyclesperanto_prototype._tier8._affine_transform import _determine_translation_and_bounding_box
+    from pyclesperanto_prototype._tier8._affine_transform import (
+        _determine_translation_and_bounding_box,
+    )
 
     deskew_transform = cle.AffineTransform3D()
 
@@ -238,145 +234,6 @@ def read_imagej_roi(roi_zip_path: str):
                   ij_roi[k], ".Recognised as type ", ij_roi[k]['type'])
     return roi_list
 
-# Functions to deal with cle workflow
-# TODO: Clean up this function
-
-
-def get_first_last_image_and_task(user_workflow: Workflow):
-    """Get images and tasks for first and last entry
-    Args:
-        user_workflow (Workflow): _description_
-    Returns:
-        list: name of first input image, last input image, first task, last task
-    """
-
-    # get image with no preprocessing step (first image)
-    input_arg_first = user_workflow.roots()[0]
-    # get last image
-    input_arg_last = user_workflow.leafs()[0]
-    # get name of preceding image as that is the input to last task
-    img_source = user_workflow.sources_of(input_arg_last)[0]
-    first_task_name = []
-    last_task_name = []
-
-    # loop through workflow keys and get key that has
-    for key in user_workflow._tasks.keys():
-        for task in user_workflow._tasks[key]:
-            if task == input_arg_first:
-                first_task_name.append(key)
-            elif task == img_source:
-                last_task_name.append(key)
-
-    return input_arg_first, img_source, first_task_name, last_task_name
-
-
-def modify_workflow_task(old_arg, task_key: str, new_arg, workflow):
-    """_Modify items in a workflow task
-    Workflow is not modified, only a new task with updated arg is returned
-    Args:
-        old_arg (_type_): The argument in the workflow that needs to be modified
-        new_arg (_type_): New argument
-        task_key (str): Name of the task within the workflow
-        workflow (napari-workflow): Workflow
-
-    Returns:
-        tuple: Modified task with name task_key
-    """
-    task = workflow._tasks[task_key]
-    # convert tuple to list for modification
-    task_list = list(task)
-    try:
-        item_index = task_list.index(old_arg)
-    except ValueError:
-        print(old_arg, " not found in workflow file")
-    task_list[item_index] = new_arg
-    modified_task = tuple(task_list)
-    return modified_task
-
-def load_custom_py_modules(custom_py_files):
-    from importlib import reload, import_module
-    import sys
-    test_first_module_import = import_module(custom_py_files[0])
-    if test_first_module_import not in sys.modules:
-        modules = map(import_module, custom_py_files)
-    else:
-        modules = map(reload, custom_py_files)
-    return modules
-    
-
-# TODO: CHANGE so user can select modules? Safer
-def get_all_py_files(directory: str) -> list[str]:
-    """get all py files within directory and return as a list of filenames
-    Args:
-        directory: Directory with .py files
-    """
-    from os.path import dirname, basename, isfile, join
-    import glob
-    
-    modules = glob.glob(join(dirname(directory), "*.py"))
-    all = [basename(f)[:-3] for f in modules if isfile(f)
-           and not f.endswith('__init__.py')]
-    print(f"Files found are: {all}")
-
-    return all
-
-
-def as_type(img, ref_vol):
-    """return image same dtype as ref_vol
-
-    Args:
-        img (_type_): _description_
-        ref_vol (_type_): _description_
-
-    Returns:
-        _type_: _description_
-    """
-    img.astype(ref_vol.dtype)
-    return img
-
-
-def process_custom_workflow_output(workflow_output: Union[dict, list, ArrayLike],
-                                   save_dir: Optional[str]=None,
-                                   idx: Optional[str]=None,
-                                   LLSZWidget=None,
-                                   widget_class=None,
-                                   channel=0,
-                                   time=0,
-                                   preview: bool = True):
-    """Check the output from a custom workflow; 
-    saves tables and images separately
-
-    Args:
-        workflow_output (_type_): _description_
-        save_dir (_type_): _description_
-        idx (_type_): _description_
-        LLSZWidget (_type_): _description_
-        widget_class (_type_): _description_
-        channel (_type_): _description_
-        time (_type_): _description_
-    """
-    if type(workflow_output) in [dict, list]:
-        # create function for tthis dataframe bit
-        df = pd.DataFrame(workflow_output)
-        if preview:
-            save_path = path.join(
-                save_dir, "lattice_measurement_"+str(idx)+".csv")
-            print(f"Detected a dictionary as output, saving preview at", save_path)
-            df.to_csv(save_path, index=False)
-            return df
-
-        else:
-            return df
-    elif type(workflow_output) in [np.ndarray, cle._tier0._pycl.OCLArray, da.core.Array]:
-        if preview:
-            suffix_name = str(idx)+"_c" + str(channel) + "_t" + str(time)
-            scale = (LLSZWidget.LlszMenu.lattice.new_dz,
-                     LLSZWidget.LlszMenu.lattice.dy, LLSZWidget.LlszMenu.lattice.dx)
-            widget_class.parent_viewer.add_image(
-                workflow_output, name="Workflow_preview_" + suffix_name, scale=scale)
-        else:
-            return workflow_output
-
 def pad_image_nearest_multiple(img: NDArray, nearest_multiple: int) -> NDArray:
     """pad an Image to the nearest multiple of provided number
 
@@ -471,3 +328,16 @@ def crop_psf(psf_img: np.ndarray, threshold: float = 3e-3):
 
     psf_crop = psf_img[min_z:max_z, min_y:max_y, min_x:max_x]
     return psf_crop
+
+def as_type(img, ref_vol):
+    """return image same dtype as ref_vol
+
+    Args:
+        img (_type_): _description_
+        ref_vol (_type_): _description_
+
+    Returns:
+        _type_: _description_
+    """
+    img.astype(ref_vol.dtype)
+    return img

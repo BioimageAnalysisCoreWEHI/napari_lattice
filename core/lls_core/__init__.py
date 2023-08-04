@@ -3,6 +3,7 @@ __version__ = "0.2.6"
 
 from strenum import StrEnum
 from enum import Enum
+from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import DeskewDirection
 
 # Initialize configuration options
 

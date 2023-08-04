@@ -4,9 +4,8 @@ import yaml
 import numpy as np
 from pathlib import Path
 import dask.array as da
-from dask.array.core import Array as DaskArray
 import pandas as pd
-from typing import Callable
+from typing import allable, Iterable, Optional, Union
 from enum import Enum
 
 from magicclass.wrappers import set_design
@@ -29,14 +28,18 @@ from tqdm import tqdm
 from napari_workflows import Workflow, WorkflowManager
 from napari_workflows._io_yaml_v1 import load_workflow
 
-from lls_core import config, DeskewDirection, DeconvolutionChoice, SaveFileType, Log_Levels
+from lls_core import config, DeconvolutionChoice, SaveFileType, Log_Levels, DeskewDirection
 from lls_core.io import LatticeData,  save_img, save_img_workflow
-from lls_core.utils import read_imagej_roi, get_first_last_image_and_task, modify_workflow_task, get_all_py_files, as_type, process_custom_workflow_output, check_dimensions, load_custom_py_modules
+from lls_core.types import ArrayLike
+from lls_core.workflow import get_first_last_image_and_task, modify_workflow_task, get_all_py_files, process_custom_workflow_output, load_custom_py_modules, import_workflow_modules, replace_first_arg
+from lls_core.utils import check_dimensions, read_imagej_roi, as_type
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core.deconvolution import read_psf, pycuda_decon, skimage_decon
 
 from napari_lattice.ui_core import _Preview, _Deskew_Save
 from napari_lattice.reader import lattice_from_napari
+
+from copy import copy
 
 # Enable Logging
 import logging
@@ -345,7 +348,6 @@ class LLSZWidget(LlszTemplate):
                 #roi_idx = field(int, options={"min": 0, "step": 1}, name="ROI number")
 
                 @click(enabled=False)
-                # -> LayerDataTuple:
                 def Crop_Preview(self, roi_layer: ShapesData):
                     if not roi_layer:
                         raise Exception("No coordinates found for cropping. Check if right shapes layer or initialise shapes layer and draw ROIs.")
@@ -360,22 +362,8 @@ class LLSZWidget(LlszTemplate):
                         raise ValueError("Channel is out of range")
                     logger.info(f"Using channel {channel} and time {time}")
 
-                    vol = self.llsz_parent.lattice.data
-                    vol_zyx = vol[time, channel, ...]
-                    vol_zyx = np.array(vol_zyx)
-
-                    deskewed_shape = self.llsz_parent.lattice.deskew_vol_shape
-                    # Create a dask array same shape as deskewed image
-                    deskewed_volume: DaskArray = da.zeros(deskewed_shape)
-
-                    # Option for entering custom z start value?
-                    z_start = 0
-                    z_end = deskewed_shape[0]
-
                     # if only one roi drawn, use the first ROI for cropping
-                    if len(roi_layer) == 1:
-                        roi_idx = 0
-                    elif len(self.llsz_parent.shapes_layer.selected_data) == 0:
+                    if len(self.llsz_parent.shapes_layer.selected_data) == 0:
                         raise Exception("Please select an ROI")
 
                     roi_idx = list(self.llsz_parent.shapes_layer.selected_data)[0]
@@ -386,58 +374,46 @@ class LLSZWidget(LlszTemplate):
                     logger.info(f"Previewing ROI {roi_idx}")
 
                     # crop
+
+                    # Set the deconvolution options
                     if self.llsz_parent.deconvolution:
                         if not self.llsz_parent.lattice.psf or not self.llsz_parent.lattice.psf_num_iter or not self.llsz_parent.lattice.decon_processing:
-                            raise Exception("PSF fields should be set by this point!")
+                            raise Exception(
+                                "PSF fields should be set by this point!")
                         logger.info(
                             f"Deskewing for Time:{time} and Channel: {channel} with deconvolution")
-                        #psf = self.llsz_parent.lattice.psf[channel]
-                        if self.llsz_parent.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
-                            crop_roi_vol_desk = crop_volume_deskew(original_volume=vol_zyx,
-                                                                    deskewed_volume=deskewed_volume,
-                                                                    roi_shape=roi_choice,
-                                                                    angle_in_degrees=self.llsz_parent.angle_value,
-                                                                    voxel_size_x=self.llsz_parent.lattice.dx,
-                                                                    voxel_size_y=self.llsz_parent.lattice.dy,
-                                                                    voxel_size_z=self.llsz_parent.lattice.dz,
-                                                                    z_start=z_start,
-                                                                    z_end=z_end,
-                                                                    deconvolution=self.llsz_parent.deconvolution,
-                                                                    decon_processing=self.llsz_parent.lattice.decon_processing.value,
-                                                                    psf=self.llsz_parent.lattice.psf[channel],
-                                                                    num_iter=self.llsz_parent.lattice.psf_num_iter).astype(vol_zyx.dtype)
-                        else:
-                            crop_roi_vol_desk = crop_volume_deskew(original_volume=vol_zyx,
-                                                                    deskewed_volume=deskewed_volume,
-                                                                    roi_shape=roi_choice,
-                                                                    angle_in_degrees=self.llsz_parent.angle_value,
-                                                                    voxel_size_x=self.llsz_parent.lattice.dx,
-                                                                    voxel_size_y=self.llsz_parent.lattice.dy,
-                                                                    voxel_size_z=self.llsz_parent.lattice.dz,
-                                                                    z_start=z_start,
-                                                                    z_end=z_end,
-                                                                    deconvolution=self.llsz_parent.deconvolution,
-                                                                    decon_processing=self.llsz_parent.lattice.decon_processing.value,
-                                                                    psf=self.llsz_parent.lattice.psf[channel],
-                                                                    num_iter=self.llsz_parent.lattice.psf_num_iter).astype(vol_zyx.dtype)
+                        decon_kwargs = dict(
+                            decon_processing=self.llsz_parent.lattice.decon_processing.value,
+                            psf=self.llsz_parent.lattice.psf[channel],
+                            num_iter=self.llsz_parent.lattice.psf_num_iter
+                        )
                     else:
-                        crop_roi_vol_desk = crop_volume_deskew(original_volume=vol_zyx,
-                                                                deskewed_volume=deskewed_volume,
-                                                                roi_shape=roi_choice,
-                                                                angle_in_degrees=self.llsz_parent.angle_value,
-                                                                voxel_size_x=self.llsz_parent.lattice.dx,
-                                                                voxel_size_y=self.llsz_parent.lattice.dy,
-                                                                voxel_size_z=self.llsz_parent.lattice.dz,
-                                                                z_start=z_start,
-                                                                z_end=z_end,
-                                                                skew_dir=self.llsz_parent.skew_dir).astype(vol_zyx.dtype)
-                    crop_roi_vol_desk = cle.pull(crop_roi_vol_desk)
+                        decon_kwargs = dict()
+
+                    crop_roi_vol_desk = cle.pull(
+                        crop_volume_deskew(
+                            original_volume=np.array(self.llsz_parent.lattice.data[time, channel, ...]),
+                            roi_shape=roi_choice,
+                            angle_in_degrees=self.llsz_parent.angle_value,
+                            voxel_size_x=self.llsz_parent.lattice.dx,
+                            voxel_size_y=self.llsz_parent.lattice.dy,
+                            voxel_size_z=self.llsz_parent.lattice.dz,
+                            deconvolution=self.llsz_parent.deconvolution,
+                            # Option for entering custom z start value?
+                            z_start=0,
+                            z_end=self.llsz_parent.lattice.deskew_vol_shape[0],
+                            skew_dir=self.llsz_parent.skew_dir,
+                            **decon_kwargs
+                        ).astype(self.llsz_parent.lattice.data.dtype)
+                    )
 
                     # get array back from gpu or addding cle array to napari can throw errors
 
-                    scale = (self.llsz_parent.lattice.new_dz,
-                                self.llsz_parent.lattice.dy,
-                                self.llsz_parent.lattice.dx)
+                    scale = (
+                        self.llsz_parent.lattice.new_dz,
+                        self.llsz_parent.lattice.dy,
+                        self.llsz_parent.lattice.dx
+                    )
                     self.parent_viewer.add_image(
                         crop_roi_vol_desk, scale=scale)
 
@@ -549,65 +525,22 @@ class LLSZWidget(LlszTemplate):
                                         roi_layer_list: ShapesData,
                                         workflow_path: Path = Path.home()):
                     """
-                        Apply napari_workflows to the processing pipeline
-                        User can define a pipeline which can be inspected in napari workflow inspector
-                        and then execute it by ticking  the get active workflow checkbox, 
-                        OR
-                        Use a predefined workflow
+                    Apply napari_workflows to the processing pipeline
+                    User can define a pipeline which can be inspected in napari workflow inspector
+                    and then execute it by ticking  the get active workflow checkbox, 
+                    OR
+                    Use a predefined workflow
 
-                        In both cases, if deskewing is not present as first step, it will be added on
-                        and rest of the task will be made followers
-                        Args:
-
+                    In both cases, if deskewing is not present as first step, it will be added on
+                    and rest of the task will be made followers
                     """
-                    print("Previewing deskewed channel and time with workflow")
-                    if get_active_workflow:
-                        # installs the workflow to napari
-                        user_workflow = WorkflowManager.install(self.parent_viewer).workflow
-                        parent_dir = workflow_path.resolve(
-                        ).parents[0].__str__()+os.sep
-                        logger.info("Workflow loaded from napari")
-                    else:
-                        try:
-                            # Automatically scan workflow file directory for *.py files.
-                            # If it findss one, load it as a module
-
-                            parent_dir = workflow_path.resolve(
-                            ).parents[0].__str__()+os.sep
-                            sys.path.append(parent_dir)
-                            custom_py_files = get_all_py_files(parent_dir)
-                            if len(custom_py_files) == 0:
-                                logger.error(
-                                    f"No custom modules imported. If you'd like to use a cusotm module, place a *.py file in same folder as the workflow file {parent_dir}")
-                            else:
-                                modules = load_custom_py_modules(
-                                    custom_py_files)
-
-                                logger.info(
-                                    f"Custom modules imported {modules}")
-                            user_workflow = load_workflow(
-                                workflow_path.__str__())
-                        except yaml.loader.ConstructorError as e:
-                            raise Exception("\033[91m While loading workflow, got the following error which may mean you need to install the corresponding module in your Python environment: \033[0m") from e
-
-                        #user_workflow = load_workflow(workflow_path)
-                        logger.info("Workflow loaded from file")
-
-                    if not isinstance(user_workflow, Workflow):
-                        raise Exception("Workflow loading error. Check if file is workflow or if required libraries are installed")
-
-                    input_arg_first, _, first_task_name, last_task_name = get_first_last_image_and_task(
-                        user_workflow)
-                    #print(input_arg_first, input_arg_last, first_task_name,last_task_name )
-                    # get list of tasks
-                    task_list = list(user_workflow._tasks.keys())
-                    logger.info(f"Workflow loaded:{user_workflow}")
-                    # logger.info()
+                    logger.info("Previewing deskewed channel and time with workflow")
+                    user_workflow = get_workflow(self.parent_viewer if get_active_workflow else workflow_path)
 
                     # when using fields, self.time_preview.value
                     if time_preview >= self.llsz_parent.lattice.time:
                         raise ValueError("Time is out of range")
-                    if chan_preview >= self.llsz_parent.lattice.time:
+                    if chan_preview >= self.llsz_parent.lattice.channels:
                         raise ValueError("Channel is out of range")
 
                     time = time_preview
@@ -617,180 +550,7 @@ class LLSZWidget(LlszTemplate):
                     config.channel = channel
                     config.time = time
 
-                    logger.info(
-                        f"Processing for Time: {time} and Channel: {channel}")
-
-                    vol = self.llsz_parent.lattice.data
-                    vol_zyx = vol[time, channel, ...]
-                    vol_zyx = np.array(vol_zyx)
-
-                    task_name_start = first_task_name[0]
-                    try:
-                        task_name_last = last_task_name[0]
-                    except IndexError:
-                        task_name_last = task_name_start
-
-                    # variables to hold task name, initialize it as None
-                    # if gpu, set otf_path, otherwise use psf
-                    psf = None
-                    otf_path = None
-
-                    if self.llsz_parent.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
-                        otf_path = "otf_path"
-                    else:
-                        psf = "psf"
-
-                    # if cropping, set that as first task
-                    # get the function associated with the first task and check if its deskewing
-                    if Use_Cropping:
-                        # use deskewed volume for cropping function
-                        deskewed_shape = self.llsz_parent.lattice.deskew_vol_shape
-                        deskewed_volume = da.zeros(deskewed_shape)
-                        z_start = 0
-                        z_end = deskewed_shape[0]
-                        if user_workflow.get_task(task_name_start)[0] not in [crop_volume_deskew]:
-                            # if only one roi drawn, use the first ROI for cropping
-                            if len(roi_layer_list) == 1:
-                                roi_idx = 0
-                            else:  # else get the user selection
-                                if len(self.llsz_parent.shapes_layer.selected_data) <= 0:
-                                    raise Exception("Please select an ROI")
-                                roi_idx = list(self.llsz_parent.shapes_layer.selected_data)[0]
-
-                            roi_choice = roi_layer_list[roi_idx]
-                            # As the original image is scaled, the coordinates are in microns, so we need to convert
-                            # roi to from micron to canvas/world coordinates
-                            roi_choice = [
-                                x/self.llsz_parent.lattice.dy for x in roi_choice]
-                            logger.info(f"Previewing ROI {roi_idx}")
-                            if self.llsz_parent.deconvolution and self.llsz_parent.lattice.psf is not None:
-                                user_workflow.set("crop_deskew_image", crop_volume_deskew,
-                                                    original_volume=vol_zyx,
-                                                    deskewed_volume=deskewed_volume,
-                                                    roi_shape=roi_choice,
-                                                    angle_in_degrees=self.llsz_parent.lattice.angle,
-                                                    voxel_size_x=self.llsz_parent.lattice.dx,
-                                                    voxel_size_y=self.llsz_parent.lattice.dy,
-                                                    voxel_size_z=self.llsz_parent.lattice.dz,
-                                                    z_start=z_start,
-                                                    z_end=z_end,
-                                                    deconvolution=self.llsz_parent.deconvolution,
-                                                    decon_processing=self.llsz_parent.lattice.decon_processing,
-                                                    otf_path=otf_path,
-                                                    psf=self.llsz_parent.lattice.psf[channel],
-                                                    skew_dir=self.llsz_parent.skew_dir)
-                            else:
-                                user_workflow.set("crop_deskew_image", crop_volume_deskew,
-                                                    original_volume=vol_zyx,
-                                                    deskewed_volume=deskewed_volume,
-                                                    roi_shape=roi_choice,
-                                                    angle_in_degrees=self.llsz_parent.lattice.angle,
-                                                    voxel_size_x=self.llsz_parent.lattice.dx,
-                                                    voxel_size_y=self.llsz_parent.lattice.dy,
-                                                    voxel_size_z=self.llsz_parent.lattice.dz,
-                                                    z_start=z_start,
-                                                    z_end=z_end,
-                                                    skew_dir=self.llsz_parent.skew_dir)
-
-                            # Set input of the workflow to be  crop_deskewing, i.e., the original first operation will now have crop_deskew_image as an input (becoming second instead)
-                            user_workflow.set(
-                                input_arg_first, "crop_deskew_image")
-                        else:
-                            user_workflow.set(input_arg_first, vol_zyx)
-                    # Not cropping; If deskew not in workflow, append to start
-                    elif user_workflow.get_task(task_name_start)[0] not in (cle.deskew_y, cle.deskew_x):
-                        # if deconvolution checked, add it to start of workflow (add upstream of deskewing)
-                        if self.llsz_parent.deconvolution.value:
-                            psf = self.llsz_parent.lattice.psf[channel]
-                            input_arg_first_decon, input_arg_last_decon, first_task_name_decon, last_task_name_decon = get_first_last_image_and_task(
-                                user_workflow)
-
-                            if self.llsz_parent.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
-                                user_workflow.set("deconvolution",
-                                                    pycuda_decon,
-                                                    image=vol_zyx,
-                                                    psf=self.llsz_parent.lattice.psf[channel],
-                                                    dzdata=self.llsz_parent.lattice.dz,
-                                                    dxdata=self.llsz_parent.lattice.dx,
-                                                    dzpsf=self.llsz_parent.lattice.dz,
-                                                    dxpsf=self.llsz_parent.lattice.dx,
-                                                    num_iter=self.llsz_parent.lattice.psf_num_iter)
-                                # user_workflow.set(input_arg_first_decon,"deconvolution")
-                            else:
-                                user_workflow.set("deconvolution",
-                                                    skimage_decon,
-                                                    vol_zyx=vol_zyx,
-                                                    psf=self.llsz_parent.lattice.psf[channel],
-                                                    num_iter=self.llsz_parent.lattice.psf_num_iter,
-                                                    clip=False,
-                                                    filter_epsilon=0,
-                                                    boundary='nearest')
-                                # user_workflow.set(input_arg_first_decon,"deconvolution")
-
-                            user_workflow.set("deskew_image",
-                                                self.llsz_parent.deskew_func,
-                                                "deconvolution",
-                                                angle_in_degrees=self.llsz_parent.lattice.angle,
-                                                voxel_size_x=self.llsz_parent.lattice.dx,
-                                                voxel_size_y=self.llsz_parent.lattice.dy,
-                                                voxel_size_z=self.llsz_parent.lattice.dz,
-                                                linear_interpolation=True)
-
-                            # user_workflow.set("change_bitdepth",as_type,"deskew_image",vol_zyx)
-                            # Set input of the workflow to be from deskewing output with same bit depth as original volume
-                            # user_workflow.set(input_arg_first,"change_bitdepth")
-
-                        else:
-                            user_workflow.set("deskew_image",
-                                                self.llsz_parent.deskew_func,
-                                                vol_zyx,
-                                                angle_in_degrees=self.llsz_parent.lattice.angle,
-                                                voxel_size_x=self.llsz_parent.lattice.dx,
-                                                voxel_size_y=self.llsz_parent.lattice.dy,
-                                                voxel_size_z=self.llsz_parent.lattice.dz,
-                                                linear_interpolation=True)
-                            # Set input of the workflow to be from deskewing
-                            # user_workflow.set(input_arg_first,"deskew_image")
-
-                        user_workflow.set(
-                            "change_bitdepth", as_type, "deskew_image", vol_zyx)
-                        # Set input of the workflow to be from deskewing with same bit depth as original volume
-                        user_workflow.set(
-                            input_arg_first, "change_bitdepth")
-
-                    else:
-                        # if deskew already in workflow, just check if deconvolution needs to be added
-                        # repitition of above (maybe create a function?)
-                        # if deconvolution checked, add it to start of workflow (add upstream of deskewing)
-                        if self.llsz_parent.deconvolution:
-                            psf = self.llsz_parent.lattice.psf[channel]
-                            input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(
-                                user_workflow)
-
-                            if self.llsz_parent.lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
-                                user_workflow.set("deconvolution",
-                                                    pycuda_decon,
-                                                    image=vol_zyx,
-                                                    psf=self.llsz_parent.lattice.psf[channel],
-                                                    dzdata=self.llsz_parent.lattice.dz,
-                                                    dxdata=self.llsz_parent.lattice.dx,
-                                                    dzpsf=self.llsz_parent.lattice.dz,
-                                                    dxpsf=self.llsz_parent.lattice.dx,
-                                                    num_iter=self.llsz_parent.lattice.psf_num_iter)
-                                # user_workflow.set(input_arg_first,"deconvolution")
-                            else:
-                                user_workflow.set("deconvolution",
-                                                    skimage_decon,
-                                                    vol_zyx=vol_zyx,
-                                                    psf=self.llsz_parent.lattice.psf[channel],
-                                                    num_iter=self.llsz_parent.lattice.psf_num_iter,
-                                                    clip=False,
-                                                    filter_epsilon=0,
-                                                    boundary='nearest')
-
-                            # set input to subsequent task as deconvolution output
-                            user_workflow.set(
-                                input_arg_first, "deconvolution")
+                    logger.info(f"Processing for Time: {time} and Channel: {channel}")
 
                     logger.info("Workflow to be executed:")
                     logger.info(user_workflow)
@@ -821,7 +581,6 @@ class LLSZWidget(LlszTemplate):
                             processed_vol, parent_dir, 0, LLSZWidget, self, channel, time)
 
                     print("Workflow complete")
-                    pass
 
                 @magicgui(header=dict(widget_type="Label", label="<h3>Apply Workflow and Save Output</h3>"),
                             time_start=dict(label="Time Start:", max=2**20),
@@ -879,44 +638,14 @@ class LLSZWidget(LlszTemplate):
                     dy = self.llsz_parent.lattice.dy
                     dz = self.llsz_parent.lattice.dz
 
-                    if get_active_workflow:
-                        # installs the workflow to napari
-                        user_workflow = WorkflowManager.install(
-                            self.parent_viewer).workflow
-                        print("Workflow installed")
-                    else:
-                        # Automatically scan workflow file directory for *.py files.
-                        # If it findss one, load it as a module
-                        import importlib
-                        parent_dir = workflow_path.resolve(
-                        ).parents[0].__str__()+os.sep
-                        sys.path.append(parent_dir)
-                        custom_py_files = get_all_py_files(parent_dir)
-                        if len(custom_py_files) == 0:
-                            print(
-                                f"No custom modules imported. If you'd like to use a cusotm module, place a *.py file in same folder as the workflow file {parent_dir}")
-                        else:
-                            modules = map(
-                                importlib.import_module, custom_py_files)
-                            print(f"Custom modules imported {modules}")
-                        user_workflow = load_workflow(str(workflow_path))
-
-                    if not isinstance(user_workflow, Workflow):
-                        raise Exception("Workflow file is not a napari workflow object. Check file! You can use workflow inspector if needed")
+                    user_workflow = get_workflow(self.parent_viewer if get_active_workflow else workflow_path)
                         
                     input_arg_first, input_arg_last, first_task_name, last_task_name = get_first_last_image_and_task(
                         user_workflow)
-                    print(input_arg_first, input_arg_last,
-                            first_task_name, last_task_name)
-                    # get list of tasks
-                    task_list = list(user_workflow._tasks.keys())
-                    print("Workflow loaded:")
-                    print(user_workflow)
+                    logger.info(f"{input_arg_first=}, {input_arg_last=}, {first_task_name=}, {last_task_name=}")
+                    logger.info(f"Workflow loaded: {user_workflow}")
 
                     vol = self.llsz_parent.lattice.data
-
-                    #vol_zyx= vol[time,channel,...]
-
                     task_name_start = first_task_name[0]
 
                     try:
@@ -1140,7 +869,6 @@ class LLSZWidget(LlszTemplate):
                     print("Workflow complete")
                     return
 
-            pass
 
 def _napari_lattice_widget_wrapper() -> LLSZWidget:
     # split widget type enables a resizable widget
@@ -1152,3 +880,198 @@ def _napari_lattice_widget_wrapper() -> LLSZWidget:
 
     # widget._widget._layout.setWidgetResizable(True)
     return widget
+
+def get_workflow(source: Union[Path, Viewer]) -> Workflow:
+    """
+    Gets a user defined workflow object, either from a viewer or from a file
+
+    Args:
+        source: Either the path to a workflow file, or a Napari viewer from which to extract the workflow
+    """
+    if isinstance(source, Viewer):
+        # installs the workflow to napari
+        user_workflow = WorkflowManager.install(source).workflow
+        logger.info("Workflow installed")
+    else:
+        import_workflow_modules(source)
+        user_workflow = load_workflow(str(source))
+
+    if not isinstance(user_workflow, Workflow):
+        raise Exception("Workflow file is not a napari workflow object. Check file! You can use workflow inspector if needed")
+
+    logger.info(f"Workflow loaded: {user_workflow}")
+    return user_workflow
+
+def augment_workflow(
+    workflow: Workflow,
+    crop: bool,
+    roi_layer_list: ShapesData,
+    lattice: LatticeData,
+    deconvolution: bool,
+    times: range,
+    channels: range
+    ) -> Iterable[Workflow]:
+        """
+        Yields copies of the input workflow, modified with the addition of deskewing and optionally,
+        cropping and deconvolution
+        """
+        user_workflow = copy(workflow)   
+        _, _, first_task_name, _ = get_first_last_image_and_task(workflow)
+
+        for loop_time_idx, time_point in enumerate(times):
+            output_array = []
+            data_table = []
+            for loop_ch_idx, ch in enumerate(channels):
+
+        if crop:
+            yield from make_crop_workflows(
+                user_workflow=user_workflow,
+                roi_layer_list=roi_layer_list,
+                lattice=lattice,
+                deconvolution=deconvolution
+            )
+
+                # save_img_workflow(vol=vol,
+                #                     workflow=user_workflow,
+                #                     input_arg=volume,
+                #                     first_task="crop_deskew_image",
+                #                     last_task=task_name_last,
+                #                     time_start=time_start,
+                #                     time_end=time_end,
+                #                     channel_start=ch_start,
+                #                     channel_end=ch_end,
+                #                     save_file_type=save_as_type,
+                #                     save_path=save_path,
+                #                     #roi_layer = roi_layer,
+                #                     save_name_prefix="ROI_" + \
+                #                     str(idx),
+                #                     save_name=self.llsz_parent.lattice.save_name,
+                #                     dx=dx,
+                #                     dy=dy,
+                #                     dz=dz,
+                #                     angle=angle,
+                #                     deconvolution=self.llsz_parent.deconvolution.value,
+                #                     decon_processing=self.llsz_parent.lattice.decon_processing,
+                #                     otf_path=otf_path,
+                #                     psf_arg=psf_arg,
+                #                     psf=psf)
+        else:
+            INPUT_ARG = "input"
+
+            # IF just deskewing and its not in the tasks, add that as first task
+            if user_workflow.get_task(first_task_name)[0] not in (cle.deskew_y, cle.deskew_x):
+                # add task to the workflow
+                user_workflow.set(
+                    "deskew_image",
+                    lattice.deskew_func,
+                    input_image=INPUT_ARG,
+                    angle_in_degrees=lattice.angle,
+                    voxel_size_x=lattice.dx,
+                    voxel_size_y=lattice.dy,
+                    voxel_size_z=lattice.dz,
+                    linear_interpolation=True
+                )
+                # Set input of the workflow to be from deskewing
+                # change workflow task starts from is "deskew_image" and
+                replace_first_arg(user_workflow, new_arg="deskew_image")
+
+            # if deconvolution checked, add it to start of workflow (add upstream of deskewing)
+            if deconvolution:
+                PSF_ARG = "psf"
+
+                if lattice.decon_processing == DeconvolutionChoice.cuda_gpu:
+                    user_workflow.set(
+                        "deconvolution",
+                        pycuda_decon,
+                        image=INPUT_ARG,
+                        psf=PSF_ARG,
+                        dzdata=lattice.dz,
+                        dxdata=lattice.dx,
+                        dzpsf=lattice.dz,
+                        dxpsf=lattice.dx,
+                        num_iter=lattice.psf_num_iter
+                    )
+                    # user_workflow.set(input_arg_first,"deconvolution")
+                else:
+                    user_workflow.set(
+                        "deconvolution",
+                        skimage_decon,
+                        vol_zyx=INPUT_ARG,
+                        psf=PSF_ARG,
+                        num_iter=lattice.psf_num_iter,
+                        clip=False,
+                        filter_epsilon=0,
+                        boundary='nearest'
+                    )
+                # modify the user workflow so "deconvolution" is accepted
+                replace_first_arg(user_workflow, new_arg="deconvolution")
+
+                yield workflow
+
+                # save_img_workflow(vol=vol,
+                #                     workflow=user_workflow,
+                #                     input_arg=INPUT_ARG,
+                #                     first_task=task_name_start,
+                #                     last_task=task_name_last,
+                #                     time_start=time_start,
+                #                     time_end=time_end,
+                #                     channel_start=ch_start,
+                #                     channel_end=ch_end,
+                #                     save_file_type=save_as_type,
+                #                     save_path=save_path,
+                #                     save_name=self.llsz_parent.lattice.save_name,
+                #                     dx=dx,
+                #                     dy=dy,
+                #                     dz=dz,
+                #                     angle=angle,
+                #                     deconvolution=self.llsz_parent.deconvolution,
+                #                     decon_processing=self.llsz_parent.lattice.decon_processing,
+                #                     otf_path=OTF_PATH_ARG,
+                #                     psf_arg=psf_arg,
+                #                     psf=PSF_ARG)
+
+
+def make_crop_workflows(
+    user_workflow: Workflow,
+    roi_layer_list: ShapesData,
+    lattice: LatticeData,
+    deconvolution: bool
+) -> Iterable[Workflow]:
+    """
+    Yields a copy of `user_workflow` for each region of interest, with deskewing, cropping and deconvolution steps added on to the start
+    """
+
+    # Convert Roi pixel coordinates to canvas coordinates
+    # necessary only when scale is used for napari.viewer.add_image operations
+    
+    # Here we generate a workflow for each ROI
+    for idx, roi_layer in enumerate(tqdm([x/lattice for x in roi_layer_list], desc="ROI:", position=0)):
+        # Check if decon ticked, if so set as first and crop as second?
+
+        # Create workflow for cropping and deskewing
+        # volume and roi used will be set dynamically
+        current_workflow = copy(user_workflow)
+        current_workflow.set(
+            "crop_deskew_image",
+            crop_volume_deskew,
+            original_volume="volume",
+            roi_shape="roi",
+            angle_in_degrees=lattice.angle,
+            voxel_size_x=lattice.dx,
+            voxel_size_y=lattice.dy,
+            voxel_size_z=lattice.dy,
+            z_start=0,
+            z_end=lattice.deskew_vol_shape[0],
+            deconvolution=deconvolution,
+            decon_processing=lattice.decon_processing,
+            psf="psf",
+            skew_dir=lattice.skew_dir
+        )
+
+        # change the first task so it accepts "crop_deskew as input"
+        replace_first_arg(current_workflow, new_arg="crop_deskew_image")
+
+        logging.info(f"Processing ROI {idx}")
+        current_workflow.set("roi", roi_layer)
+
+        yield current_workflow

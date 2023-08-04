@@ -615,4 +615,3 @@ def save_img_workflow(vol,
                 writer_list[writer_idx].write_xml()
             # close the writers (applies for both tiff and h5)
             writer_list[writer_idx].close()
-

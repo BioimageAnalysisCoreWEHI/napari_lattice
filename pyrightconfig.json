@@ -8,5 +8,6 @@
   "reportUntypedFunctionDecorator": false,
   "reportMissingTypeArgument": false,
   "reportPrivateUsage": false,
-  "reportPrivateImportUsage": false
+  "reportPrivateImportUsage": false,
+  "typeCheckingMode": "strict"
 }
