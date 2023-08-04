@@ -6,7 +6,6 @@ from pathlib import Path
 import dask.array as da
 import pandas as pd
 from typing import Union, Optional, Callable, Literal
-from aicsimageio import AICSImage
 from enum import Enum
 
 from magicclass.wrappers import set_design
