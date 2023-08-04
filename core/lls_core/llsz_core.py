@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from aicsimageio.types import ArrayLike
 import numpy as np
 import pyclesperanto_prototype as cle
 from dask.array.core import Array as DaskArray
@@ -17,6 +16,7 @@ from numpy.typing import NDArray
 from lls_core.utils import calculate_crop_bbox, check_subclass, is_napari_shape, pad_image_nearest_multiple
 from lls_core import config, DeskewDirection, DeconvolutionChoice
 from lls_core.deconvolution import pycuda_decon
+from lls_core.types import ArrayLike
 
 # Enable Logging
 import logging
@@ -46,7 +46,7 @@ class CommonArgs(TypedDict, total=False):
     z_start: int
     z_end: int
     deconvolution: bool
-    decon_processing: Optional[str]
+    decon_processing: Optional[DeconvolutionChoice]
     psf: Union[Psf, None]
     num_iter: int
     linear_interpolation: bool
@@ -73,7 +73,7 @@ def crop_volume_deskew(
     z_end: int = 1,
     debug: bool = False,
     deconvolution: bool = False,
-    decon_processing: Optional[str]=None,
+    decon_processing: Optional[DeconvolutionChoice]=None,
     psf: Union[Psf, None]=None,
     num_iter: int = 10,
     linear_interpolation: bool=True,

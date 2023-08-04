@@ -78,7 +78,7 @@ def read_psf(psf_paths: Collection[Path],
 # libraries are better designed.. Atleast until  RL deconvolution is available in pyclesperant
 # Talley Lamberts pycudadecon is a great library and highly optimised.
 def pycuda_decon(
-    image: NDArray,
+    image: ArrayLike,
     otf_path: Optional[str]=None,
     dzdata: float=0.3,
     dxdata: float=0.1449922,
