@@ -35,7 +35,7 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.9.1, <4.10.0",
+    "aicsimageio>=4.9.1,<4.10.0",
     "dask",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version
@@ -44,11 +44,11 @@ dependencies = [
     "magic-class>=0.7.4",
     "magicgui",
     "lls_core",
-    "napari-aicsimageio>=0.7.2",
+    "napari-aicsimageio>=0.7.0",
     "napari-spreadsheet",
     "napari-workflow-inspector",
     "napari-workflows>=0.2.8",
-    "napari>=0.4.11",
+    "napari>=0.4.0",
     "npy2bdv",
     "numpy",
     "pandas",
