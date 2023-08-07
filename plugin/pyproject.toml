@@ -35,9 +35,6 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.11.0",
-    "dask",
-    "dask[distributed]",
     # This isn't used directly, but we need to pin this version
     "fsspec>=2022.8.2",
     # We need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
@@ -49,15 +46,8 @@ dependencies = [
     "napari-workflow-inspector",
     "napari-workflows>=0.2.8",
     "napari>=0.4.11",
-    "npy2bdv",
-    "numpy",
-    "pandas",
     "psutil",
-    "pyclesperanto_prototype>=0.20.0",
     "qtpy",
-    "tqdm",
-    "typing_extensions",
-    "pyyaml",
 ]
 
 [project.urls]
