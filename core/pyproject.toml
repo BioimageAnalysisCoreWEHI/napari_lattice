@@ -51,7 +51,7 @@ dependencies = [
     "read-roi",
     "resource-backed-dask-array>=0.1.0",
     "scikit-image",
-    "tifffile>=2023.7.18",
+    "tifffile>=2023.3.15",
     "tqdm",
     "typing_extensions"
 ]
