@@ -35,7 +35,7 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.11.0",
+    "aicsimageio>=4.9.1, <4.10.0",
     # Earlier versions don't have Python 3.11 binaries, and the sdist
     # is misconfigured: https://github.com/AllenCellModeling/aicspylibczi/issues/90
     "aicspylibczi>=3.1.1",
@@ -51,7 +51,7 @@ dependencies = [
     "read-roi",
     "resource-backed-dask-array>=0.1.0",
     "scikit-image",
-    "tifffile>=2023.3.15",
+    "tifffile",
     "tqdm",
     "typing_extensions"
 ]
