@@ -61,19 +61,20 @@ def read_psf(psf_paths: Collection[Path],
                 # pad psf to multiple of 16 for decon
                 yield pad_image_nearest_multiple(img=psf_aics, nearest_multiple=16)
             else:
+                #Use skimage to read tiff
                 if psf.suffix in [".tif", ".tiff"]:
                     psf_aics_data = imread(psf.__str__())
                     assert len(
                     psf_aics_data.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
                 else:
+                    #Use AICSImageIO
                     psf_aics = AICSImage(psf.__str__())
                     psf_aics_data = psf_aics.data[0][0]
-                psf_aics_data = pad_image_nearest_multiple(
-                    img=psf_aics_data, nearest_multiple=16)
-
-                if psf_aics.dims.C != lattice_class.channels:
-                    logger.warn(
-                        f"PSF image has {psf_channels} channel/s, whereas image has {lattice_class.channels}")
+                    psf_aics_data = pad_image_nearest_multiple(
+                        img=psf_aics_data, nearest_multiple=16)           
+                    if psf_aics.dims.C != lattice_class.channels:
+                        logger.warn(
+                            f"PSF image has {psf_channels} channel/s, whereas image has {lattice_class.channels}")
 
                 yield psf_aics_data
 
