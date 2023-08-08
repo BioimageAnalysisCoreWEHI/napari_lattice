@@ -76,12 +76,15 @@ def napari_get_reader(path: list[str] | str):
         # if it is a list, we are only going to open first file
         path = path[0]
 
+    tiff_formats = (".tif",".tiff")
+    
+    if path.endswith(".h5"):
+        return bdv_h5_reader
+    elif path.endswith(tiff_formats):
+        return tiff_reader
     # if we know we cannot read the file, we immediately return None.
-    if not path.endswith(".h5"):
+    else:
         return None
-
-    # otherwise we return the *function* that can read ``path``.
-    return bdv_h5_reader
 
 
 def bdv_h5_reader(path):
@@ -138,3 +141,24 @@ def bdv_h5_reader(path):
 
     layer_type = "image"  # optional, default is "image"
     return [(images, add_kwargs, layer_type)]
+
+
+def tiff_reader(path):
+    """Take path to tiff image and returns a list of LayerData tuples.
+    Specifying tiff_reader to have better control over tifffile related errors when using AICSImage
+    """
+    
+    try:
+        image = AICSImage(path)
+    except Exception:
+        import sys
+        exception = sys.exc_info()[0]
+        print("Error Reading Tiff: ", sys.exc_info()[
+                0], "has occurred. Try upgrading tifffile library: pip install tifffile --upgrade.")
+        raise
+
+    # optional kwargs for the corresponding viewer.add_* method
+    add_kwargs = {}
+
+    layer_type = "image"  # optional, default is "image"
+    return [(image, add_kwargs, layer_type)]
