@@ -6,6 +6,7 @@ import logging
 import importlib.util
 from typing import Collection, Iterable,Union,Literal
 from aicsimageio import AICSImage
+from skimage.io import imread
 from aicspylibczi import CziFile
 from numpy.typing import NDArray
 import os
@@ -60,14 +61,20 @@ def read_psf(psf_paths: Collection[Path],
                 # pad psf to multiple of 16 for decon
                 yield pad_image_nearest_multiple(img=psf_aics, nearest_multiple=16)
             else:
-                psf_aics = AICSImage(psf.__str__())
-                psf_aics_data = psf_aics.data[0][0]
-                psf_aics_data = pad_image_nearest_multiple(
-                    img=psf_aics_data, nearest_multiple=16)
-
-                if psf_aics.dims.C != lattice_class.channels:
-                    logger.warn(
-                        f"PSF image has {psf_channels} channel/s, whereas image has {lattice_class.channels}")
+                #Use skimage to read tiff
+                if psf.suffix in [".tif", ".tiff"]:
+                   psf_aics_data = imread(str(psf))
+                   if len(psf_aics_data.shape) != 3:
+                       raise ValueError(f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}")
+                else:
+                    #Use AICSImageIO
+                    psf_aics = AICSImage(str(psf))
+                    psf_aics_data = psf_aics.data[0][0]
+                    psf_aics_data = pad_image_nearest_multiple(
+                        img=psf_aics_data, nearest_multiple=16)           
+                    if psf_aics.dims.C != lattice_class.channels:
+                        logger.warn(
+                            f"PSF image has {psf_channels} channel/s, whereas image has {lattice_class.channels}")
 
                 yield psf_aics_data
 
