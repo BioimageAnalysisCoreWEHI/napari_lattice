@@ -64,8 +64,8 @@ def read_psf(psf_paths: Collection[Path],
                 #Use skimage to read tiff
                 if psf.suffix in [".tif", ".tiff"]:
                     psf_aics_data = imread(str(psf))
-                    assert len(
-                    psf_aics_data.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
+                   if len(psf_aics_data.shape) != 3:
+                       raise ValueError(f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}")
                 else:
                     #Use AICSImageIO
                     psf_aics = AICSImage(str(psf))
