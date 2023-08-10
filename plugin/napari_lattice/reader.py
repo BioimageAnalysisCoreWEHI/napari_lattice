@@ -82,7 +82,6 @@ def napari_get_reader(path: list[str] | str):
     # otherwise we return the *function* that can read ``path``.
     return bdv_h5_reader
 
-
 def bdv_h5_reader(path):
     """Take a path and returns a list of LayerData tuples."""
     

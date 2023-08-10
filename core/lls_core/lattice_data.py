@@ -1,11 +1,10 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field, NonNegativeInt, NonNegativeFloat, root_validator, validator
 from aicsimageio.aics_image import AICSImage
 from aicsimageio.dimensions import Dimensions
 from numpy.typing import NDArray
-from dataclasses import dataclass
 import math
 from dask.array.core import Array as DaskArray
 import dask as da
@@ -38,18 +37,16 @@ def raise_if_none(obj: Optional[T], message: str) -> T:
         raise TypeError(message)
     return obj
 
-@dataclass
-class ProcessedVolume:
+class ProcessedVolume(BaseModel):
     """
     A slice of the image processing result
     """
-    time_index: int
-    time: int
-    channel_index: int
-    channel: int
+    time_index: NonNegativeInt
+    time: NonNegativeInt
+    channel_index: NonNegativeInt
+    channel: NonNegativeInt
     data: ArrayLike
-
-    roi_index: Optional[int] = None
+    roi_index: Optional[NonNegativeInt] = None
 
 def make_filename_prefix(prefix: Optional[str] = None, roi_index: Optional[int] = None, channel: Optional[int] = None, time: Optional[int] = None) -> str:
     """
@@ -66,63 +63,66 @@ def make_filename_prefix(prefix: Optional[str] = None, roi_index: Optional[int] 
         components.append(f"T{time}")
     return "_".join(components)
 
-@dataclass
-class DefinedPixelSizes:
+class DefinedPixelSizes(BaseModel):
     """
     Like PhysicalPixelSizes, but it's a dataclass, and
     none of its fields are None
     """
-    X: float = 0.14
-    Y: float = 0.14
-    Z: float = 0.3
+    X: NonNegativeFloat = 0.14
+    Y: NonNegativeFloat = 0.14
+    Z: NonNegativeFloat = 0.3
 
-@dataclass
-class DeconvolutionParams:
+class DeconvolutionParams(BaseModel):
     """
     Parameters for the optional deconvolution step
     """
     decon_processing: DeconvolutionChoice = DeconvolutionChoice.cpu
     psf: List[NDArray] = []
-    psf_num_iter: int = 10
+    psf_num_iter: NonNegativeInt = 10
+    # TODO: handle this
     otf_path: List = []
     # Background value to subtract
-    background: Union[float, Literal["auto","second_last"]] = 0 
+    background: Union[float, Literal["auto", "second_last"]] = 0 
 
-@dataclass
-class CropParams:
+class CropParams(BaseModel):
     """
     Parameters for the optional cropping step
     """
     roi_layer_list: ShapesData
-    z_start: int = 0
+    z_start: NonNegativeInt = 0
     z_end: int = 1
 
-@dataclass
-class LatticeData:
+class LatticeData(BaseModel):
     """
     Holds data and metadata for a given image in a consistent format
     """
-    # TODO: add defaults here, rather than in the CLI
 
-    #: 3-5D array
+    #: A 3-5D array containing the image data
     data: ArrayLike
+
+    #: Dimensions of `data`
     dims: Dimensions
 
     #: The filename of this data when it is saved
     save_name: str
 
-    # Dimensions of the deskewed output
-    deskew_vol_shape: Tuple[int, ...] = field(init=False)
-    deskew_affine_transform: cle.AffineTransform3D = field(init=False)
+    #: Dimensions of the deskewed output
+    deskew_vol_shape: Tuple[int, ...]
+
+    deskew_affine_transform: cle.AffineTransform3D
+
+    #: The range of times to process
+    time_range: range
+
+    #: The range of channels to process
+    channel_range: range
 
     #: Geometry of the light path
     skew: DeskewDirection = DeskewDirection.Y
     angle: float = 30.0
 
     #: Pixel size in microns
-    physical_pixel_sizes: DefinedPixelSizes = field(default_factory=DefinedPixelSizes)
-
-    new_dz: float = field(init=False)
+    physical_pixel_sizes: DefinedPixelSizes = Field(default_factory=DefinedPixelSizes)
 
     # If this is None, then deconvolution is disabled
     deconvolution: Optional[DeconvolutionParams] = None
@@ -130,10 +130,7 @@ class LatticeData:
     # If this is None, then cropping is disabled
     crop: Optional[CropParams] = None
 
-    # Time and channel to process
-    time_range: range = field(init=False)
-    channel_range: range = field(init=False)
-
+    #: The data type to save the result as
     save_type: SaveFileType = SaveFileType.h5
 
     # Hack to ensure that .skew_dir behaves identically to .skew
@@ -207,17 +204,70 @@ class LatticeData:
     def channels(self) -> int:
         """Number of channels"""
         return self.dims.C
+        
+    @root_validator
+    def set_deskew(cls, values: dict) -> dict:
+        """
+        Sets the default deskew shape values if the user has not provided them
+        """
+        # process the file to get shape of final deskewed image
+        if values['deskew_vol_shape'] is None:
+            if values['deskew_affine_transform'] is None:
+                # If neither has been set, calculate them ourselves
+                values["deskew_vol_shape"], values["deskew_affine_transform"] = get_deskewed_shape(values["data"], values["angle"], values["dx"], values["dy"], values["dz"])
+            else:
+                raise ValueError("deskew_vol_shape and deskew_affine_transform must be either both specified or neither specified")
+        return values
+
+    @validator("time_range")
+    def default_time_range(cls, v: Any, values: dict) -> range:
+        """
+        Sets the default time range if undefined
+        """
+        if v is None:
+            return range(values["dims"].T + 1)
+        return v
+    
+    @validator("time_range")
+    def disjoint_time_range(cls, v: range, values: dict):
+        """
+        Validates that the time range is within the range of channels in our array
+        """
+        max_time = values["dims"].T
+        if v.start < 0:
+            raise ValueError("The lowest valid start value is 0")
+        if v.stop > max_time:
+            raise ValueError(f"The highest valid time value is the length of the time axis, which is {max_time}")
+        return v
+
+    @validator("channel_range")
+    def default_channel_range(cls, v: Any, values: dict) -> range:
+        """
+        Sets the default channel range if undefined
+        """
+        if v is None:
+            return range(values["dims"].C + 1)
+        return v
+
+    @validator("channel_range")
+    def disjoint_channel_range(cls, v: range, values: dict):
+        """
+        Validates that the channel range is within the range of channels in our array
+        """
+        max_channel = values["dims"].T
+        if v.start < 0:
+            raise ValueError("The lowest valid start value is 0")
+        if v.stop > max_channel:
+            raise ValueError(f"The highest valid channel value is the length of the channel axis, which is {max_channel}")
+        return v
+
+    @property
+    def new_dz(self):
+        return math.sin(self.angle * math.pi / 180.0) * self.dz
 
     def __post_init__(self):
-        # set new z voxel size
-        self.new_dz = math.sin(self.angle * math.pi / 180.0) * self.dz
-
-        # process the file to get shape of final deskewed image
-        self.deskew_vol_shape, self.deskew_affine_transform = get_deskewed_shape(self.data, self.angle, self.dx, self.dy, self.dz)
-        self.time_range = range(self.time + 1)
-        self.channel_range = range(self.channels + 1)
-        logging.log(f"Channels: {self.channels}, Time: {self.time}")
-        print("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
+        logger.info(f"Channels: {self.channels}, Time: {self.time}")
+        logger.info("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
 
     def slice_data(self, time: int, channel: int) -> ArrayLike:
         if time > self.time:
@@ -363,6 +413,7 @@ class LatticeData:
         Saves result slices (ie generated by `process()` to disk)
         """
         # TODO: refactor this into a class system, one for each format
+        # TODO: make this a method on a ProcessedData class
         import numpy as np
         from pathlib import Path
         import npy2bdv
@@ -455,7 +506,6 @@ def img_from_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "
     if img.data.shape[0] != img.dims.T or img.data.shape[1] != img.dims.C:
         arr = np.swapaxes(arr, 0, 1)
     return AICSImage(image=arr, dim_order=dim_order, **kwargs)
-
 
 def lattice_fom_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "time"]] = None, **kwargs: Any) -> LatticeData:
     """

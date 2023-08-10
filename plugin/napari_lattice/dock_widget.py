@@ -325,6 +325,7 @@ class LLSZWidget(LlszTemplate):
 
                 @click(enabled=False)
                 def Crop_Preview(self, roi_layer: ShapesData):
+
                     if not roi_layer:
                         raise Exception("No coordinates found for cropping. Check if right shapes layer or initialise shapes layer and draw ROIs.")
                     # TODO: Add assertion to check if bbox layer or coordinates
@@ -384,6 +385,7 @@ class LLSZWidget(LlszTemplate):
                     )
 
                     # get array back from gpu or addding cle array to napari can throw errors
+                    image = next(self.llsz_parent.lattice.process())
 
                     scale = (
                         self.llsz_parent.lattice.new_dz,
