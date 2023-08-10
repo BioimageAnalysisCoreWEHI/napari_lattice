@@ -16,10 +16,10 @@ from napari.layers import image, Layer
 from napari.layers._data_protocols import LayerDataProtocol
 
 from typing_extensions import Literal
-from typing import Any, Optional, cast, TYPE_CHECKING
+from typing import Any, Optional, cast, TYPE_CHECKING, Tuple, List
 
 from lls_core.lattice_data import lattice_from_aics, LatticeData, img_from_array
-from aicsimageio.types import ArrayLike
+from aicsimageio.types import ArrayLike, ImageLike
 
 if TYPE_CHECKING:
     from aicsimageio.aics_image import AICSImage
@@ -143,19 +143,15 @@ def bdv_h5_reader(path):
     return [(images, add_kwargs, layer_type)]
 
 
-def tiff_reader(path):
+def tiff_reader(path: ImageLike) -> List[Tuple[AICSImage, dict, str]]:
     """Take path to tiff image and returns a list of LayerData tuples.
     Specifying tiff_reader to have better control over tifffile related errors when using AICSImage
     """
     
     try:
         image = AICSImage(path)
-    except Exception:
-        import sys
-        exception = sys.exc_info()[0]
-        print("Error Reading Tiff: ", sys.exc_info()[
-                0], "has occurred. Try upgrading tifffile library: pip install tifffile --upgrade.")
-        raise
+    except Exception as e:
+        raise Exception("Error reading TIFF. Try upgrading tifffile library: pip install tifffile --upgrade.") from e
 
     # optional kwargs for the corresponding viewer.add_* method
     add_kwargs = {}
