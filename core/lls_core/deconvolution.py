@@ -68,7 +68,7 @@ def read_psf(psf_paths: Collection[Path],
                     psf_aics_data.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
                 else:
                     #Use AICSImageIO
-                    psf_aics = AICSImage(psf.__str__())
+                    psf_aics = AICSImage(str(psf))
                     psf_aics_data = psf_aics.data[0][0]
                     psf_aics_data = pad_image_nearest_multiple(
                         img=psf_aics_data, nearest_multiple=16)           
