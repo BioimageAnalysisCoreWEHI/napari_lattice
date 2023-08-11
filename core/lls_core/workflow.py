@@ -211,10 +211,10 @@ def augment_workflow(
         user_workflow = copy(workflow)   
         _, _, first_task_name, _ = get_first_last_image_and_task(workflow)
 
-        for loop_time_idx, time_point in enumerate(times):
-            output_array = []
-            data_table = []
-            for loop_ch_idx, ch in enumerate(channels):
+        # for loop_time_idx, time_point in enumerate(times):
+        #     output_array = []
+        #     data_table = []
+        #     for loop_ch_idx, ch in enumerate(channels):
 
         if crop:
             yield from make_crop_workflows(

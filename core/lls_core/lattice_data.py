@@ -4,12 +4,13 @@ from __future__ import annotations
 from pydantic import BaseModel, Field, NonNegativeInt, NonNegativeFloat, root_validator, validator
 from aicsimageio.aics_image import AICSImage
 from aicsimageio.dimensions import Dimensions
-from numpy.typing import NDArray
+# from numpy.typing import NDArray
 import math
 from dask.array.core import Array as DaskArray
 import dask as da
 from itertools import groupby
 import tifffile
+from pydantic_numpy import NDArray
 
 from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple, TypeVar, Union
 
@@ -86,7 +87,7 @@ class ProcessedSlices(BaseModel):
                         imagej=True
                     )
 
-class ProcessedVolume(BaseModel):
+class ProcessedVolume(BaseModel, arbitrary_types_allowed=True):
     """
     A slice of the image processing result
     """
@@ -141,7 +142,7 @@ class CropParams(BaseModel):
     z_start: NonNegativeInt = 0
     z_end: int = 1
 
-class LatticeData(BaseModel):
+class LatticeData(BaseModel, arbitrary_types_allowed=True):
     """
     Holds data and metadata for a given image in a consistent format
     """

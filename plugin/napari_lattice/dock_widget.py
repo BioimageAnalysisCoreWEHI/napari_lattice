@@ -5,7 +5,7 @@ import numpy as np
 from pathlib import Path
 import dask.array as da
 import pandas as pd
-from typing import allable, Iterable, Optional, Union
+from typing import Callable, Iterable, Optional, Union
 from enum import Enum
 
 from magicclass.wrappers import set_design

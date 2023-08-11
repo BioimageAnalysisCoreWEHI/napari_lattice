@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 from resource_backed_dask_array import ResourceBackedDaskArray
 from lls_core import DeconvolutionChoice
-from lls_core.lattice_data import LatticeData
 import pyclesperanto_prototype as cle
 import logging
 import importlib.util
-from typing import Collection, Iterable,Union,Literal, Optional
+from typing import Collection, Iterable,Union,Literal, Optional, TYPE_CHECKING
 from aicsimageio.aics_image import AICSImage
 from aicspylibczi import CziFile
 from numpy.typing import NDArray
@@ -18,6 +19,9 @@ from resource_backed_dask_array import ResourceBackedDaskArray
 
 from lls_core.utils import pad_image_nearest_multiple
 from lls_core.types import ArrayLike, is_arraylike
+
+if TYPE_CHECKING:
+    from lls_core.lattice_data import LatticeData
 
 logger = logging.getLogger(__name__)
 
