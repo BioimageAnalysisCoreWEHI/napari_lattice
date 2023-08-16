@@ -5,12 +5,15 @@ import numpy as np
 from pathlib import Path
 import dask.array as da
 import pandas as pd
-from typing import Callable, Iterable, Optional, Union
+from typing import Any, Callable, Iterable, Literal, Optional, Sequence, Tuple, Union, List
 from enum import Enum
 
 from magicclass.wrappers import set_design
 from magicgui import magicgui
-from magicclass import magicclass, field, vfield, set_options, MagicTemplate
+from magicclass import magicclass, field, vfield, set_options, MagicTemplate, FieldGroup
+from magicclass.fields import MagicValueField
+from magicclass.widgets import CollapsibleContainer, CheckBox, RangeSlider
+from magicclass.widgets.containers import ContainerWidget, _VCollapsibleContainer, wrap_container
 from magicclass.utils import click
 from qtpy.QtCore import Qt
 
@@ -30,7 +33,7 @@ from napari_workflows._io_yaml_v1 import load_workflow
 
 from lls_core import config, DeconvolutionChoice, SaveFileType, Log_Levels, DeskewDirection
 from lls_core.io import LatticeData,  save_img, save_img_workflow
-from lls_core.lattice_data import DeconvolutionParams
+from lls_core.lattice_data import CropParams, DeconvolutionParams, DefinedPixelSizes
 from lls_core.types import ArrayLike
 from lls_core.workflow import get_first_last_image_and_task, modify_workflow_task, get_all_py_files, process_custom_workflow_output, load_custom_py_modules, import_workflow_modules, replace_first_arg
 from lls_core.utils import check_dimensions, read_imagej_roi, as_type
@@ -47,11 +50,6 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-class LastDimensionOptions(Enum):
-    channel = "Channel"
-    time = "Time"
-    get_from_metadata = "Get from Metadata"
-
 class LlszTemplate(MagicTemplate):
     @property
     def llsz_parent(self) -> "LLSZWidget":
@@ -63,6 +61,48 @@ class LlszTemplate(MagicTemplate):
         if viewer is None:
             raise Exception("This function can only be used when inside of a Napari viewer")
         return super().parent_viewer
+
+@magicclass
+class DeconvolutionWidget(MagicTemplate):
+    """
+    A counterpart to the DeconvolutionParams Pydantic class
+    """
+    decon_processing = vfield(DeconvolutionChoice, label="Processing Algorithm")
+    psf = vfield(List[Path], label = "PSFs")
+    psf_num_iter = vfield(int, label = "Number of Iterations")
+
+@magicclass
+class CroppingWidget(LlszTemplate):
+    """
+    A counterpart to the CropParams Pydantic class
+    """
+    # roi_layer_list: ShapesData
+    z_start = vfield(int).with_options(value=0, max=10, min=0)
+    z_end = vfield(int).with_options(value=0, max=10, min=0, label="Z End")
+    shapes= vfield(ShapesData)#Optional[Shapes] = None
+    _shapes_layer: Optional[Shapes] = None
+
+    # @set_design(font_size=10, text="Click to activate Cropping Layer", background_color="magenta")
+    # @click(enables=["Import_ImageJ_ROI", "Crop_Preview"])
+    def activate_cropping(self):
+        self._shapes_layer = self.parent_viewer.add_shapes(shape_type='polygon', edge_width=1, edge_color='white',
+                                                            face_color=[1, 1, 1, 0], name="Cropping BBOX layer")
+        # TO select ROIs if needed
+        self._shapes_layer.mode = "SELECT"
+        self["activate_cropping"].text = "Cropping layer active"
+        self["activate_cropping"].background_color = "green"
+
+    def _make_crop_params(self) -> CropParams:
+        return CropParams(
+            z_start=self.z_start,
+            z_end=self.z_end,
+            roi_layer_list=self.shapes
+)
+
+class LastDimensionOptions(Enum):
+    XYZTC = "XYZTC"
+    XYZCT = "XYZCT"
+    Metadata = "Get from Metadata"
 
 @magicclass(widget_type="split")
 class LLSZWidget(LlszTemplate):
@@ -76,6 +116,59 @@ class LLSZWidget(LlszTemplate):
 
         main_heading = field("<h3>Napari Lattice: Visualization & Analysis</h3>", widget_type="Label")
         heading1 = field("Drag and drop an image file onto napari.\nOnce image has opened, initialize the\nplugin by clicking the button below.\nEnsure the image layer and voxel sizes are accurate in the prompt.\n If everything initalises properly, the button turns green.", widget_type="Label")
+        # Pycudadecon library for deconvolution
+        # options={"enabled": True},
+
+        img_layer = vfield(Layer).with_options(label = "Image Layer")
+        pixel_sizes = vfield(Tuple[float, float, float]).with_options(
+            value=(DefinedPixelSizes.get_default("X"), DefinedPixelSizes.get_default("Y"), DefinedPixelSizes.get_default("Z")),
+            label="Pixel Sizes (XYZ)"
+        )
+        angle: MagicValueField[float] = vfield(LatticeData.get_default("angle")).with_options(value=LatticeData.get_default("angle"), label="Skew Angle")
+        device = vfield(str).with_choices(cle.available_device_names()).with_options(label="Graphics Device")
+        merge_all_channels = vfield(False).with_options(label="Merge all Channels")
+        dimension_order = vfield(str).with_options(value=LastDimensionOptions.Metadata.value).with_choices([it.value for it in LastDimensionOptions]).with_options(label="Dimension Order")
+        skew_dir = vfield(DeskewDirection.Y).with_options(label = "Skew Direction")
+        set_logging = vfield(Log_Levels.INFO).with_options(label="Logging Level")
+
+        deconvolution = vfield(bool, name="Use Deconvolution")
+        deconvolution.value = False
+        deconv_widget = DeconvolutionWidget()
+        deconv_widget.enabled = False
+        deconv_widget.visible = False
+
+        @deconvolution.connect
+        def _set_decon(self) -> None:
+            if self.deconvolution:
+                logger.info("Deconvolution Activated")
+                # Enable deconvolutio by using the saved parameters
+                # self.llsz_parent.lattice.deconvolution = self.llsz_parent.deconv
+                self.deconv_widget.enabled = True
+                self.deconv_widget.visible = True
+            else:
+                logger.info("Deconvolution Disabled")
+                # self.llsz_parent.lattice.deconvolution = None
+                self.deconv_widget.enabled = False
+                self.deconv_widget.visible = False
+
+        cropping_enabled = vfield(bool, name="Use Cropping", options={"value": False})
+        crop_widget = CroppingWidget()
+        crop_widget.enabled = False
+        crop_widget.visible = False
+
+        @cropping_enabled.connect
+        def _set_crop(self) -> None:
+            if self.cropping_enabled:
+                logger.info("Cropping Activated")
+                # Enable deconvolutio by using the saved parameters
+                # self.llsz_parent.lattice.deconvolution = self.llsz_parent.deconv
+                self.crop_widget.enabled = True
+                self.crop_widget.visible = True
+            else:
+                logger.info("Deconvolution Disabled")
+                # self.llsz_parent.lattice.deconvolution = None
+                self.crop_widget.enabled = False
+                self.crop_widget.visible = False
 
         @set_design(background_color="magenta", font_family="Consolas", visible=True, text="Initialize Plugin", max_height=75, font_size=13)
         @set_options(pixel_size_dx={"widget_type": "FloatSpinBox", "value": 0.1449922, "step": 0.000000001},
@@ -104,7 +197,7 @@ class LLSZWidget(LlszTemplate):
                                 angle: float = 30,
                                 select_device: str = cle.available_device_names()[
                                     0],
-                                last_dimension_channel: LastDimensionOptions = LastDimensionOptions.get_from_metadata,
+                                last_dimension_channel: LastDimensionOptions = "",
                                 merge_all_channel_layers: bool = False,
                                 skew_dir: DeskewDirection=DeskewDirection.Y,
                                 set_logging: Log_Levels=Log_Levels.INFO):
@@ -177,20 +270,6 @@ class LLSZWidget(LlszTemplate):
             self["Choose_Image_Layer"].background_color = "green"
             self["Choose_Image_Layer"].text = "Plugin Initialised"
 
-        # Pycudadecon library for deconvolution
-        # options={"enabled": True},
-        deconvolution = vfield(bool, name="Use Deconvolution")
-        deconvolution.value = False
-
-        @deconvolution.connect
-        def _set_decon(self):
-            if self.deconvolution:
-                logger.info("Deconvolution Activated")
-                # Enable deconvolutio by using the saved parameters
-                self.llsz_parent.lattice.deconvolution = self.llsz_parent.deconv
-            else:
-                logger.info("Deconvolution Disabled")
-                self.llsz_parent.lattice.deconvolution = None
 
         @set_design(background_color="magenta", font_family="Consolas", visible=True, text="Click to select PSFs for deconvolution", max_height=75, font_size=11)
         @set_options(header=dict(widget_type="Label", label="<h3>Enter path to the PSF images</h3>"),

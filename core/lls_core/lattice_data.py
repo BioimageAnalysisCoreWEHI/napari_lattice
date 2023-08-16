@@ -38,6 +38,15 @@ def raise_if_none(obj: Optional[T], message: str) -> T:
         raise TypeError(message)
     return obj
 
+class DefaultMixin(BaseModel):
+    """
+    Adds a method for retrieving default values from a BaseModel
+    """
+
+    @classmethod
+    def get_default(cls, field_name: str):
+        return cls.__fields__[field_name].get_default()
+
 class ProcessedSlices(BaseModel):
     #: Iterable of result slices.
     #: Note that this is a finite iterator that can only be iterated once
@@ -113,7 +122,7 @@ def make_filename_prefix(prefix: Optional[str] = None, roi_index: Optional[int] 
         components.append(f"T{time}")
     return "_".join(components)
 
-class DefinedPixelSizes(BaseModel):
+class DefinedPixelSizes(DefaultMixin):
     """
     Like PhysicalPixelSizes, but it's a dataclass, and
     none of its fields are None
@@ -142,7 +151,7 @@ class CropParams(BaseModel):
     z_start: NonNegativeInt = 0
     z_end: int = 1
 
-class LatticeData(BaseModel, arbitrary_types_allowed=True):
+class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
     """
     Holds data and metadata for a given image in a consistent format
     """
@@ -261,8 +270,8 @@ class LatticeData(BaseModel, arbitrary_types_allowed=True):
         Sets the default deskew shape values if the user has not provided them
         """
         # process the file to get shape of final deskewed image
-        if values['deskew_vol_shape'] is None:
-            if values['deskew_affine_transform'] is None:
+        if values.get('deskew_vol_shape') is None:
+            if values.get('deskew_affine_transform') is None:
                 # If neither has been set, calculate them ourselves
                 values["deskew_vol_shape"], values["deskew_affine_transform"] = get_deskewed_shape(values["data"], values["angle"], values["dx"], values["dy"], values["dz"])
             else:
