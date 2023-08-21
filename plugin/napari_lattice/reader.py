@@ -7,6 +7,7 @@ https://github.com/nvladimus/npy2bdv
 , however pyramidal support for 3D not available yet
 """
 from __future__ import annotations
+from pathlib import Path
 
 import dask.array as da
 import dask.delayed as delayed
@@ -14,7 +15,6 @@ import os
 import numpy as np
 from napari.layers import image, Layer
 from napari.layers._data_protocols import LayerDataProtocol
-from aicsimageio.types import ArrayLike
 from aicsimageio.dimensions import Dimensions
 from aicsimageio.aics_image import AICSImage
 
@@ -22,6 +22,7 @@ from typing_extensions import Literal
 from typing import Any, Optional, cast, Tuple
 
 from lls_core.lattice_data import lattice_from_aics, LatticeData, img_from_array
+from lls_core.types import ArrayLike
 
 def lattice_from_napari(
     img: Layer,
@@ -34,6 +35,9 @@ def lattice_from_napari(
     Arguments:
         kwargs: Extra arguments to pass to the LatticeData constructor
     """
+
+    if not isinstance(img, Layer):
+        raise Exception("img must be a napari layer object")
 
     img_data_aics: AICSImage
 

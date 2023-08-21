@@ -13,6 +13,8 @@ import tifffile
 from pydantic_numpy import NDArray
 
 from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple, TypeVar, Union
+from typing_extensions import Self
+from pathlib import Path
 
 from aicsimageio.types import PhysicalPixelSizes
 import pyclesperanto_prototype as cle
@@ -23,6 +25,7 @@ from lls_core.deconvolution import pycuda_decon, skimage_decon
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core.utils import get_deskewed_shape
 from lls_core.types import ArrayLike
+from napari_workflows import Workflow
 
 if TYPE_CHECKING:
     import pyclesperanto_prototype as cle
@@ -46,6 +49,17 @@ class DefaultMixin(BaseModel):
     @classmethod
     def get_default(cls, field_name: str):
         return cls.__fields__[field_name].get_default()
+
+class ProcessedVolume(BaseModel, arbitrary_types_allowed=True):
+    """
+    A slice of the image processing result
+    """
+    time_index: NonNegativeInt
+    time: NonNegativeInt
+    channel_index: NonNegativeInt
+    channel: NonNegativeInt
+    data: ArrayLike
+    roi_index: Optional[NonNegativeInt] = None
 
 class ProcessedSlices(BaseModel):
     #: Iterable of result slices.
@@ -96,17 +110,6 @@ class ProcessedSlices(BaseModel):
                         imagej=True
                     )
 
-class ProcessedVolume(BaseModel, arbitrary_types_allowed=True):
-    """
-    A slice of the image processing result
-    """
-    time_index: NonNegativeInt
-    time: NonNegativeInt
-    channel_index: NonNegativeInt
-    channel: NonNegativeInt
-    data: ArrayLike
-    roi_index: Optional[NonNegativeInt] = None
-
 def make_filename_prefix(prefix: Optional[str] = None, roi_index: Optional[int] = None, channel: Optional[int] = None, time: Optional[int] = None) -> str:
     """
     Generates a filename for this result
@@ -131,7 +134,7 @@ class DefinedPixelSizes(DefaultMixin):
     Y: NonNegativeFloat = 0.14
     Z: NonNegativeFloat = 0.3
 
-class DeconvolutionParams(BaseModel):
+class DeconvolutionParams(BaseModel, arbitrary_types_allowed=True):
     """
     Parameters for the optional deconvolution step
     """
@@ -139,17 +142,17 @@ class DeconvolutionParams(BaseModel):
     psf: List[NDArray] = []
     psf_num_iter: NonNegativeInt = 10
     # TODO: handle this
-    otf_path: List = []
+    # otf_path: List = []
     # Background value to subtract
     background: Union[float, Literal["auto", "second_last"]] = 0 
 
-class CropParams(BaseModel):
+class CropParams(BaseModel, arbitrary_types_allowed=True):
     """
     Parameters for the optional cropping step
     """
     roi_layer_list: ShapesData
     z_start: NonNegativeInt = 0
-    z_end: int = 1
+    z_end: NonNegativeInt = 1
 
 class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
     """
@@ -162,19 +165,10 @@ class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
     #: Dimensions of `data`
     dims: Dimensions
 
-    #: The filename of this data when it is saved
-    save_name: str
-
     #: Dimensions of the deskewed output
-    deskew_vol_shape: Tuple[int, ...]
+    deskew_vol_shape: Tuple[int, ...] = Field(init_var=False)
 
-    deskew_affine_transform: cle.AffineTransform3D
-
-    #: The range of times to process
-    time_range: range
-
-    #: The range of channels to process
-    channel_range: range
+    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False)
 
     #: Geometry of the light path
     skew: DeskewDirection = DeskewDirection.Y
@@ -183,14 +177,81 @@ class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
     #: Pixel size in microns
     physical_pixel_sizes: DefinedPixelSizes = Field(default_factory=DefinedPixelSizes)
 
-    # If this is None, then deconvolution is disabled
+    #: If this is None, then deconvolution is disabled
     deconvolution: Optional[DeconvolutionParams] = None
 
-    # If this is None, then cropping is disabled
+    #: If this is None, then cropping is disabled
     crop: Optional[CropParams] = None
+ 
+    #: If defined, this is a workflow to add lightsheet processing onto
+    workflow: Optional[Workflow] = None
+
+    #: The directory where this data will be saved
+    save_dir: Path
+
+    #: The file name to save this as, without the directory name or file extension
+    save_name: str
+
+    #: The range of times to process
+    time_range: range
+
+    #: The range of channels to process
+    channel_range: range
 
     #: The data type to save the result as
     save_type: SaveFileType = SaveFileType.h5
+
+    @validator("time_range")
+    def default_time_range(cls, v: Any, values: dict) -> range:
+        """
+        Sets the default time range if undefined
+        """
+        if v is None:
+            return range(values["dims"].T + 1)
+        return v
+    
+    @validator("time_range")
+    def disjoint_time_range(cls, v: range, values: dict):
+        """
+        Validates that the time range is within the range of channels in our array
+        """
+        max_time = values["dims"].T
+        if v.start < 0:
+            raise ValueError("The lowest valid start value is 0")
+        if v.stop > max_time:
+            raise ValueError(f"The highest valid time value is the length of the time axis, which is {max_time}")
+        return v
+
+    @validator("channel_range")
+    def default_channel_range(cls, v: Any, values: dict) -> range:
+        """
+        Sets the default channel range if undefined
+        """
+        if v is None:
+            return range(values["dims"].C + 1)
+        return v
+
+    @validator("channel_range")
+    def disjoint_channel_range(cls, v: range, values: dict):
+        """
+        Validates that the channel range is within the range of channels in our array
+        """
+        max_channel = values["dims"].T
+        if v.start < 0:
+            raise ValueError("The lowest valid start value is 0")
+        if v.stop > max_channel:
+            raise ValueError(f"The highest valid channel value is the length of the channel axis, which is {max_channel}")
+        return v
+
+    @validator("channel_range")
+    def channel_range_subset(cls, v: range, values: dict):
+        if min(v) < 0 or max(v) > values["dims"].C:
+            raise ValueError("The output channel range must be a subset of the total available channels")
+
+    @validator("time_range")
+    def time_range_subset(cls, v: range, values: dict):
+            if min(v) < 0 or max(v) > values["dims"].T:
+                raise ValueError("The output time range must be a subset of the total available time points")
 
     # Hack to ensure that .skew_dir behaves identically to .skew
     @property
@@ -264,7 +325,7 @@ class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
         """Number of channels"""
         return self.dims.C
         
-    @root_validator
+    @root_validator(pre=True)
     def set_deskew(cls, values: dict) -> dict:
         """
         Sets the default deskew shape values if the user has not provided them
@@ -273,52 +334,10 @@ class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
         if values.get('deskew_vol_shape') is None:
             if values.get('deskew_affine_transform') is None:
                 # If neither has been set, calculate them ourselves
-                values["deskew_vol_shape"], values["deskew_affine_transform"] = get_deskewed_shape(values["data"], values["angle"], values["dx"], values["dy"], values["dz"])
+                values["deskew_vol_shape"], values["deskew_affine_transform"] = get_deskewed_shape(values["data"], values["angle"], values["physical_pixel_sizes"].X, values["physical_pixel_sizes"].Y, values["physical_pixel_sizes"].Z, values["skew"])
             else:
                 raise ValueError("deskew_vol_shape and deskew_affine_transform must be either both specified or neither specified")
         return values
-
-    @validator("time_range")
-    def default_time_range(cls, v: Any, values: dict) -> range:
-        """
-        Sets the default time range if undefined
-        """
-        if v is None:
-            return range(values["dims"].T + 1)
-        return v
-    
-    @validator("time_range")
-    def disjoint_time_range(cls, v: range, values: dict):
-        """
-        Validates that the time range is within the range of channels in our array
-        """
-        max_time = values["dims"].T
-        if v.start < 0:
-            raise ValueError("The lowest valid start value is 0")
-        if v.stop > max_time:
-            raise ValueError(f"The highest valid time value is the length of the time axis, which is {max_time}")
-        return v
-
-    @validator("channel_range")
-    def default_channel_range(cls, v: Any, values: dict) -> range:
-        """
-        Sets the default channel range if undefined
-        """
-        if v is None:
-            return range(values["dims"].C + 1)
-        return v
-
-    @validator("channel_range")
-    def disjoint_channel_range(cls, v: range, values: dict):
-        """
-        Validates that the channel range is within the range of channels in our array
-        """
-        max_channel = values["dims"].T
-        if v.start < 0:
-            raise ValueError("The lowest valid start value is 0")
-        if v.stop > max_channel:
-            raise ValueError(f"The highest valid channel value is the length of the channel axis, which is {max_channel}")
-        return v
 
     @property
     def new_dz(self):
@@ -425,9 +444,11 @@ class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
         Yields processed image slices without cropping
         """
         for time_idx, time, ch_idx, ch, data in self.iter_slices():
+            if isinstance(data, DaskArray):
+                data = data.compute()
             if self.deconvolution is not None:
                 if self.deconvolution.decon_processing == DeconvolutionChoice.cuda_gpu:
-                    data = pycuda_decon(
+                    data= pycuda_decon(
                         image=data,
                         psf=self.deconvolution.psf[ch],
                         dzdata=self.dz,
@@ -437,7 +458,7 @@ class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
                         num_iter=self.deconvolution.psf_num_iter
                     )
                 else:
-                    data = skimage_decon(
+                    data= skimage_decon(
                             vol_zyx=data,
                             psf=self.deconvolution.psf[ch],
                             num_iter=self.deconvolution.psf_num_iter,
@@ -466,6 +487,7 @@ class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
         Execute the processing and return the result.
         This is the main public API for processing
         """
+        ProcessedSlices.update_forward_refs()
         if self.cropping_enabled:
             return ProcessedSlices(
                 lattice_data=self,
