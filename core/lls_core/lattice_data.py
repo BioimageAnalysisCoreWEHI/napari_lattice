@@ -154,38 +154,7 @@ class CropParams(BaseModel, arbitrary_types_allowed=True):
     z_start: NonNegativeInt = 0
     z_end: NonNegativeInt = 1
 
-class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
-    """
-    Holds data and metadata for a given image in a consistent format
-    """
-
-    #: A 3-5D array containing the image data
-    data: ArrayLike
-
-    #: Dimensions of `data`
-    dims: Dimensions
-
-    #: Dimensions of the deskewed output
-    deskew_vol_shape: Tuple[int, ...] = Field(init_var=False)
-
-    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False)
-
-    #: Geometry of the light path
-    skew: DeskewDirection = DeskewDirection.Y
-    angle: float = 30.0
-
-    #: Pixel size in microns
-    physical_pixel_sizes: DefinedPixelSizes = Field(default_factory=DefinedPixelSizes)
-
-    #: If this is None, then deconvolution is disabled
-    deconvolution: Optional[DeconvolutionParams] = None
-
-    #: If this is None, then cropping is disabled
-    crop: Optional[CropParams] = None
- 
-    #: If defined, this is a workflow to add lightsheet processing onto
-    workflow: Optional[Workflow] = None
-
+class OutputParams(DefaultMixin, arbitrary_types_allowed=True):
     #: The directory where this data will be saved
     save_dir: Path
 
@@ -209,7 +178,53 @@ class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
         if v is None:
             return range(values["dims"].T + 1)
         return v
-    
+
+    @validator("channel_range")
+    def default_channel_range(cls, v: Any, values: dict) -> range:
+        """
+        Sets the default channel range if undefined
+        """
+        if v is None:
+            return range(values["dims"].C + 1)
+        return v
+
+class DeskewParams(DefaultMixin, arbitrary_types_allowed=True):
+    #: A 3-5D array containing the image data
+    data: ArrayLike
+
+    #: Dimensions of `data`
+    dims: Dimensions
+
+    #: Dimensions of the deskewed output
+    deskew_vol_shape: Tuple[int, ...] = Field(init_var=False)
+
+    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False)
+
+    #: Geometry of the light path
+    skew: DeskewDirection = DeskewDirection.Y
+    angle: float = 30.0
+
+    #: Pixel size in microns
+    physical_pixel_sizes: DefinedPixelSizes = Field(default_factory=DefinedPixelSizes)
+
+
+class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
+    """
+    Holds data and metadata for a given image in a consistent format
+    """
+
+    # Note: originally the save-related fields were included via composition and not inheritance
+    # (similar to how `crop` and `workflow` are handled), but this was impractical for implementing validations
+
+    #: If this is None, then deconvolution is disabled
+    deconvolution: Optional[DeconvolutionParams] = None
+
+    #: If this is None, then cropping is disabled
+    crop: Optional[CropParams] = None
+ 
+    #: If defined, this is a workflow to add lightsheet processing onto
+    workflow: Optional[Workflow] = None
+
     @validator("time_range")
     def disjoint_time_range(cls, v: range, values: dict):
         """
@@ -220,15 +235,6 @@ class LatticeData(DefaultMixin, arbitrary_types_allowed=True):
             raise ValueError("The lowest valid start value is 0")
         if v.stop > max_time:
             raise ValueError(f"The highest valid time value is the length of the time axis, which is {max_time}")
-        return v
-
-    @validator("channel_range")
-    def default_channel_range(cls, v: Any, values: dict) -> range:
-        """
-        Sets the default channel range if undefined
-        """
-        if v is None:
-            return range(values["dims"].C + 1)
         return v
 
     @validator("channel_range")

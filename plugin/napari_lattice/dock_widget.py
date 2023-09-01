@@ -10,21 +10,19 @@ from enum import Enum, auto
 
 from magicclass.wrappers import set_design
 from magicgui.widgets import Widget
-from magicclass import magicclass as original_magicclass, field, vfield, set_options, MagicTemplate, FieldGroup
+from magicclass import magicclass, field, vfield, set_options, MagicTemplate, FieldGroup, Icon
 from magicclass.fields import MagicValueField, MagicField
 from magicclass.widgets import CollapsibleContainer, CheckBox, RangeSlider, ComboBox
 from magicclass.widgets.containers import ContainerWidget, _VCollapsibleContainer, wrap_container
 from magicclass.utils import click
 from qtpy.QtCore import Qt
+from qtpy.QtGui import QIcon
+from qtpy.QtWidgets import QTabWidget
 
 from napari.layers import Layer, Shapes
 from napari.types import ImageData
-from napari.utils import history
 from napari import Viewer
-
-import pyclesperanto_prototype as cle
-
-from napari.types import ImageData, ShapesData
+from napari_lattice.icons import RED, GREEN, GREY
 
 from tqdm import tqdm
 
@@ -34,88 +32,26 @@ from napari_workflows._io_yaml_v1 import load_workflow
 from lls_core import DeconvolutionChoice, SaveFileType, Log_Levels, DeskewDirection
 from lls_core.lattice_data import CropParams, DeconvolutionParams, DefinedPixelSizes, LatticeData
 
-from napari_lattice.reader import lattice_from_napari
 from pydantic import ValidationError
+from napari_lattice.reader import lattice_from_napari
+from napari_lattice.fields import DeskewFields, CroppingFields, DeconvolutionFields, WorkflowFields, OutputFields
+from napari_lattice.icons import GREY
 
 from strenum import StrEnum
 
+from lls_core.workflow import import_workflow_modules
 # Enable Logging
 import logging
 
-from lls_core.workflow import import_workflow_modules
-from itertools import groupby
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-MagicClassType = TypeVar("MagicClassType")
-def magicclass(*args, **kwargs) -> Callable[[MagicClassType], MagicClassType]:
-    return original_magicclass(*args, **kwargs)
+# MagicClassType = TypeVar("MagicClassType")
+# def magicclass(*args, **kwargs) -> Callable[[MagicClassType], MagicClassType]:
+#     return original_magicclass(*args, **kwargs)
 
-class WorkflowSource(StrEnum):
-    ActiveWorkflow = "Active Workflow"
-    CustomPath = "Custom Path"
-
-class BackgroundSource(StrEnum):
-    Auto = "Automatic"
-    SecondLast = "Second Last"
-    Custom = "Custom"
-
-def enable_field(parent: MagicTemplate, field: MagicField, enabled: bool = True) -> None:
-    """
-    Enable the widget associated with a field
-
-    Args:
-        parent: The parent magicclass that contains the field
-        field: The field to enable/disable
-        enabled: If False, disable the field instead of enabling it
-    """
-    real_field = getattr(parent, field.name)
-    if not isinstance(real_field, Widget):
-        raise Exception("Define your fields with field() not vfield()!")
-    real_field.visible = enabled
-    real_field.enabled = enabled
-
-EnabledHandlerType = TypeVar("EnabledHandlerType")
-def enable_if(fields: List[MagicField]):
-    """ 
-    Makes an event handler that should be used via `fields_enabled.connect(make_enabled_handler())`.
-    Args:
-        condition: A function that takes an instance of the class and returns True if the fields should be enabled
-        fields: A list of fields to be dynamically enabled or disabled
-    Example:
-        ::
-            @some_field.connect
-            @enable_if(
-                [some_field]
-            )
-            def _enable_fields(self) -> bool:
-                return some_field.value
-    """
-    # Ideally we could use subclassing to add both the vfield and this event handler, but there
-    # seems to be a bug preventing this: https://github.com/hanjinliu/magic-class/issues/113.
-
-    # Start by disabling all the fields
-
-    def _decorator(fn: Callable[[EnabledHandlerType], bool])-> Callable[[EnabledHandlerType], None]:
-        for field in fields:
-            field.visible = False
-            field.enabled = False
-
-        def make_handler(fn: Callable) -> Callable[[EnabledHandlerType], None]:
-            def handler(parent: EnabledHandlerType):
-                enable = fn(parent)
-                if enable:
-                    logger.info(f"{parent.__class__} Activated")
-                else:
-                    logger.info(f"{parent.__class__} Deactivated")
-                for field in fields:
-                    enable_field(parent, field, enabled=enable)
-            return handler
-
-        return make_handler(fn)
-    
-    return _decorator
-
+def strikeout(text: str) -> str:
+    return '\u0336'.join(text) + '\u0336'
 # class HideableContents(MagicTemplate):
 #     # fields_enabled = vfield(False, label="Enabled")
     
@@ -132,6 +68,14 @@ def enable_if(fields: List[MagicField]):
 #                 child.visible = False
 #                 child.enabled = False
 
+def validate_tab(parent: MagicTemplate, fields: FieldGroup, index: int):
+    tab_widget: QTabWidget = parent._widget._tab_widget
+    try:
+        fields._make_model()
+        tab_widget.setTabIcon(index, QIcon(GREEN))
+    except ValidationError:
+        tab_widget.setTabIcon(index, QIcon(RED))
+
 class LlszTemplate(MagicTemplate):
     @property
     def llsz_parent(self) -> "LLSZWidget":
@@ -142,20 +86,7 @@ def parent_viewer(mc: MagicTemplate) -> Viewer:
     if viewer is None:
         raise Exception("This function can only be used when inside of a Napari viewer")
     return mc.parent_viewer
-    
-T = TypeVar("T")
-def get_child(parent: MagicTemplate, child_cls: Type[T]) -> T:
-    if isinstance(child_cls, MagicTemplate):
-        return child_cls
-    for child in parent.__magicclass_children__:
-        if isinstance(child, child_cls):
-            return child
-    raise Exception("Child couldn't be found!")
 
-class LastDimensionOptions(Enum):
-    XYZTC = "XYZTC"
-    XYZCT = "XYZCT"
-    Metadata = "Get from Metadata"
 
 @magicclass(widget_type="split")
 class LLSZWidget(LlszTemplate):
@@ -186,11 +117,11 @@ class LLSZWidget(LlszTemplate):
             raise Exception("\n".join(message))
 
     def _make_model(self) -> LatticeData:
-        deskew = get_child(self, self.LlszMenu.WidgetContainer.DeskewWidget)
-        output = get_child(self, self.LlszMenu.WidgetContainer.OutputWidget)
-        deconv = get_child(self, self.LlszMenu.WidgetContainer.DeconvolutionWidget)
-        crop = get_child(self, self.LlszMenu.WidgetContainer.CroppingWidget)
-        workflow = get_child(self, self.LlszMenu.WidgetContainer.WorkflowWidget)
+        deskew = self.LlszMenu.WidgetContainer.DeskewWidget
+        output = self.LlszMenu.WidgetContainer.OutputWidget
+        deconv = self.LlszMenu.WidgetContainer.DeconvolutionWidget
+        crop = self.LlszMenu.WidgetContainer.CroppingWidget
+        workflow = self.LlszMenu.WidgetContainer.WorkflowWidget
 
         return lattice_from_napari(
             img=deskew.img_layer.value,
@@ -216,189 +147,52 @@ class LLSZWidget(LlszTemplate):
         # options={"enabled": True},
 
         # Tabbed Widget container to house all the widgets
-        @magicclass(widget_type="tabbed", name="Functions")
+        @magicclass(widget_type="tabbed", name="Functions", labels=False)
         class WidgetContainer(LlszTemplate):
 
-            @magicclass(name="1. Deskew")
-            class DeskewWidget:
-                img_layer = field(List[Layer]).with_options(label = "Image Layer", layout="vertical", value=[])
-                pixel_sizes = field(Tuple[float, float, float]).with_options(
-                    value=(DefinedPixelSizes.get_default("X"), DefinedPixelSizes.get_default("Y"), DefinedPixelSizes.get_default("Z")),
-                    label="Pixel Sizes (XYZ)"
-                )
-                angle = field(LatticeData.get_default("angle")).with_options(value=LatticeData.get_default("angle"), label="Skew Angle")
-                device = field(str).with_choices(cle.available_device_names()).with_options(label="Graphics Device")
-                merge_all_channels = field(False).with_options(label="Merge all Channels")
-                dimension_order = field(str).with_options(value=LastDimensionOptions.Metadata.value).with_choices([it.value for it in LastDimensionOptions]).with_options(label="Dimension Order")
-                skew_dir = field(DeskewDirection.Y).with_options(label = "Skew Direction")
+            def __post_init__(self):
+                tab_widget: QTabWidget= self._widget._tab_widget
+                for i in range(5):
+                    tab_widget.setTabIcon(i, QIcon(GREY))
 
-            @magicclass(name="2. Deconvolution")
-            class DeconvolutionWidget:
-                """
-                A counterpart to the DeconvolutionParams Pydantic class
-                """
-                fields_enabled = field(False, label="Enabled")
-                decon_processing = field(DeconvolutionChoice, label="Processing Algorithm")
-                psf = field(List[Path], label = "PSFs")
-                psf_num_iter = field(int, label = "Number of Iterations")
-                background = field(ComboBox).with_choices(
-                    [it.value for it in BackgroundSource]
-                ).with_options(label="Background")
-                background_custom = field(float).with_options(
-                    visible=False,
-                    label="Custom Background"
-                )
+            deskew_fields = DeskewFields(name = "1. Deskew")
+            @deskew_fields.connect
+            def _deskew_changed(self):
+                validate_tab(self, self.deskew_fields, 0)
 
-                # @background.connect
-                # def _show_custom_background(self):
-                #     self.background_custom.visible = self.background == BackgroundSource.Custom
-                    
-                @background.connect
-                @enable_if(
-                    [background_custom]
-                )
-                def _enable_custom_background(self) -> bool:
-                    return self.background.value == BackgroundSource.Custom
+            deconv_fields = DeconvolutionFields(name = "2. Deconvolution")
+            @deconv_fields.connect
+            def _deconv_changed(self):
+                validate_tab(self, self.deconv_fields, 1)
 
-                # @fields_enabled.connect
-                # def _enable_fields(self) -> bool:
-                #     self.decon_processing.visible = self.fields_enabled
+            cropping_fields = CroppingFields(name = "3. Crop")
+            @cropping_fields.connect
+            def _cropping_changed(self):
+                validate_tab(self, 2)
 
-                @fields_enabled.connect
-                @enable_if(
-                    fields = [
-                        decon_processing,
-                        psf,
-                        psf_num_iter,
-                        background
-                    ]
-                )
-                def _enable_fields(self) -> bool:
-                    return self.fields_enabled.value
+            workflow_fields = WorkflowFields(name = "4. Workflow")
+            @workflow_fields.connect
+            def _workflow_changed(self):
+                validate_tab(self, 3)
 
-                def _make_model(self) -> Optional[DeconvolutionParams]:
-                    if not self.fields_enabled.value:
-                        return None
-                    return DeconvolutionParams(
-                        decon_processing=self.decon_processing.value,
-                        background=self.background.value
-                    )
-            
-            @magicclass(name = "3. Crop")
-            class CroppingWidget:
-                """
-                A counterpart to the CropParams Pydantic class
-                """
-                fields_enabled = field(False, label="Enabled")
-                shapes= field(ShapesData, label = "ROIs")#Optional[Shapes] = None
-                z_range = field(Tuple[int, int]).with_options(
-                    label = "Z Range",
-                    value = (0, 1),
-                    options = dict(
-                        min = 0,
-                        max = 1
-                    ),
-                )
+            output_fields = OutputFields(name = "5. Output")
+            @output_fields.connect
+            def _output_changed(self):
+                validate_tab(self, 4)
 
-                @fields_enabled.connect
-                @enable_if([shapes, z_range])
-                def _enable_workflow(self) -> bool:
-                    return self.fields_enabled.value
+            # @magicclass(name="1. Deskew")
+            # class DeskewWidget(MagicTemplate):
+            #     img_layer = field(List[Layer]).with_options(label = "Image Layer", layout="vertical", value=[])
+            #     pixel_sizes = field(Tuple[float, float, float]).with_options(
+            #         value=(DefinedPixelSizes.get_default("X"), DefinedPixelSizes.get_default("Y"), DefinedPixelSizes.get_default("Z")),
+            #         label="Pixel Sizes (XYZ)"
+            #     )
+            #     angle = field(LatticeData.get_default("angle")).with_options(value=LatticeData.get_default("angle"), label="Skew Angle")
+            #     device = field(str).with_choices(cle.available_device_names()).with_options(label="Graphics Device")
+            #     merge_all_channels = field(False).with_options(label="Merge all Channels")
+            #     dimension_order = field(str).with_options(value=LastDimensionOptions.Metadata.value).with_choices([it.value for it in LastDimensionOptions]).with_options(label="Dimension Order")
+            #     skew_dir = field(DeskewDirection.Y).with_options(label = "Skew Direction")
 
-                # roi_layer_list: ShapesData
-                # @magicclass(visible=False)
-                # class Fields(MagicTemplate):
-                #     shapes= vfield(ShapesData, label = "ROIs")#Optional[Shapes] = None
-                #     z_range = vfield(Tuple[int, int]).with_options(
-                #         label = "Z Range",
-                #         value = (0, 1),
-                #         options = dict(
-                #             min = 0,
-                #             max = 1
-                #         ),
-                #     )
-                    # _shapes_layer: Optional[Shapes] = None
-
-                    # @set_design(font_size=10, text="Click to activate Cropping Layer", background_color="magenta")
-                    # @click(enables=["Import_ImageJ_ROI", "Crop_Preview"])
-                    # @set_design(text="New Cropping Layer")
-                    # def activate_cropping(self):
-                    #     self._shapes_layer = self.parent_viewer.add_shapes(shape_type='polygon', edge_width=1, edge_color='white',
-                    #                                                         face_color=[1, 1, 1, 0], name="Cropping BBOX layer")
-                    #     # TO select ROIs if needed
-                    #     self._shapes_layer.mode = "SELECT"
-                    #     self["activate_cropping"].text = "Cropping layer active"
-                    #     self["activate_cropping"].background_color = "green"
-
-                def _make_model(self) -> Optional[CropParams]:
-                    child = get_child(self, CropFields)
-                    return CropParams(
-                        z_start=child.z_range[0],
-                        z_end=child.z_range[1],
-                        roi_layer_list=child.shapes
-                )
-
-            @magicclass(name="4. Workflow")
-            class WorkflowWidget:
-                """
-                Handles the workflow related parameters
-                """
-                fields_enabled = field(False, label="Enabled")
-                workflow_source = field(ComboBox).with_options(label = "Workflow Source").with_choices([it.value for it in WorkflowSource])
-                workflow_path = field(Path).with_options(label = "Workflow Path", visible=False)
-
-                @fields_enabled.connect
-                @enable_if([workflow_source])
-                def _enable_workflow(self) -> bool:
-                    return self.fields_enabled.value
-
-                @fields_enabled.connect
-                @enable_if([workflow_path])
-                def _workflow_path(self) -> bool:
-                    return self.workflow_source.value == WorkflowSource.CustomPath
-
-                def _make_model(self) -> Optional[Workflow]:
-                    if not self.fields_enabled.value:
-                        return None
-                    child = get_child(self, WorkflowFields)
-                    if child.workflow_source == WorkflowSource.ActiveWorkflow:
-                        return WorkflowManager.install(self.parent_viewer).workflow
-                    else:
-                        import_workflow_modules(child.workflow_path)
-                        return load_workflow(str(child.workflow_path))
-
-            @magicclass(name="5. Output")
-            class OutputWidget:
-                set_logging = field(Log_Levels.INFO).with_options(label="Logging Level")
-                time_range = field(Tuple[int, int]).with_options(
-                    label="Time Export Range",
-                    value=(0, 1),
-                    options = dict(
-                        min=0,
-                        max=100,
-                    )
-                )
-                channel_range = field(Tuple[int, int]).with_options(
-                    label="Channel Range",
-                    value=(0, 1),
-                    options = dict(
-                        min=0,
-                        max=100,
-                    )
-                )
-                save_type = field(SaveFileType).with_options(
-                    label = "Save Format"
-                )
-                save_path = field(Path).with_options(
-                    label = "Save Directory",
-                    value = Path(history.get_save_history()[0])
-                )
-                save_name = field(str).with_options(
-                    label = "Save Prefix"
-                )
-
-
-            # @DeskewWidget.img_layer.connect
             # def _img_changed(self):
             #     deskew = get_child(self, self.DeskewWidget)
             #     output = get_child(self, self.OutputWidget)
