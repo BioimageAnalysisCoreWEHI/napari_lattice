@@ -21,14 +21,17 @@ from aicsimageio.aics_image import AICSImage
 from typing_extensions import Literal
 from typing import Any, Optional, cast, Tuple
 
-from lls_core.lattice_data import lattice_from_aics, LatticeData, img_from_array
+from lls_core.lattice_data import lattice_params_from_aics, img_from_array, AicsLatticeParams, PhysicalPixelSizes
 from lls_core.types import ArrayLike
 
-def lattice_from_napari(
+class NapariImageParams(AicsLatticeParams):
+    save_name: str
+
+def lattice_params_from_napari(
     img: Layer,
     last_dimension: Optional[Literal["channel", "time"]],
-    **kwargs: Any
-) -> LatticeData:
+    physical_pixel_sizes: PhysicalPixelSizes = PhysicalPixelSizes(None, None, None)
+) -> NapariImageParams:
     """
     Factory function for generating a LatticeData from a Napari Image
 
@@ -62,7 +65,7 @@ def lattice_from_napari(
         # replace any group of spaces with "_"
         save_name = '_'.join(save_name.split())
 
-    return lattice_from_aics(img_data_aics, save_name=save_name, **kwargs)
+    return NapariImageParams(save_name=save_name, **lattice_params_from_aics(img_data_aics, physical_pixel_sizes=physical_pixel_sizes))
 
 def napari_get_reader(path: list[str] | str):
     """Check if file ends with h5 and returns reader function if true

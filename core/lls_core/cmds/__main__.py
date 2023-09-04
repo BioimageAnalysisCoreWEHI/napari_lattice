@@ -9,7 +9,7 @@ import glob
 import sys
 import re
 from lls_core.io import save_img, save_img_workflow
-from lls_core.lattice_data import lattice_from_aics
+from lls_core.lattice_data import lattice_params_from_aics, LatticeData
 from lls_core.utils import read_imagej_roi, get_all_py_files, get_first_last_image_and_task, modify_workflow_task, check_dimensions
 from lls_core.llsz_core import crop_volume_deskew
 from aicsimageio import AICSImage
@@ -363,7 +363,12 @@ def main(argv: Sequence[str] = sys.argv[1:]):
                 print(f"Scene {scene} not valid")
 
         # Initialize Lattice class
-        lattice = lattice_from_aics(aics_img, angle=deskew_angle, skew=skew_dir, save_name=save_name, physical_pixel_sizes=PhysicalPixelSizes(dx, dy, dz))
+        lattice = LatticeData(
+            **lattice_params_from_aics(aics_img, physical_pixel_sizes=PhysicalPixelSizes(dx, dy, dz)),
+            angle=deskew_angle,
+            skew=skew_dir,
+            save_name=save_name
+        )
 
         if time_start is None or time_end is None:
             time_start, time_end = 0, lattice.time - 1

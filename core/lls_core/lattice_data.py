@@ -13,7 +13,7 @@ import tifffile
 from pydantic_numpy import NDArray
 
 from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple, TypeVar, Union
-from typing_extensions import Self
+from typing_extensions import TypedDict
 from pathlib import Path
 
 from aicsimageio.types import PhysicalPixelSizes
@@ -207,6 +207,20 @@ class DeskewParams(DefaultMixin, arbitrary_types_allowed=True):
     #: Pixel size in microns
     physical_pixel_sizes: DefinedPixelSizes = Field(default_factory=DefinedPixelSizes)
 
+    @root_validator(pre=True)
+    def set_deskew(cls, values: dict) -> dict:
+        """
+        Sets the default deskew shape values if the user has not provided them
+        """
+        # process the file to get shape of final deskewed image
+        if values.get('deskew_vol_shape') is None:
+            if values.get('deskew_affine_transform') is None:
+                # If neither has been set, calculate them ourselves
+                values["deskew_vol_shape"], values["deskew_affine_transform"] = get_deskewed_shape(values["data"], values["angle"], values["physical_pixel_sizes"].X, values["physical_pixel_sizes"].Y, values["physical_pixel_sizes"].Z, values["skew"])
+            else:
+                raise ValueError("deskew_vol_shape and deskew_affine_transform must be either both specified or neither specified")
+        return values
+
 
 class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
     """
@@ -330,20 +344,6 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
     def channels(self) -> int:
         """Number of channels"""
         return self.dims.C
-        
-    @root_validator(pre=True)
-    def set_deskew(cls, values: dict) -> dict:
-        """
-        Sets the default deskew shape values if the user has not provided them
-        """
-        # process the file to get shape of final deskewed image
-        if values.get('deskew_vol_shape') is None:
-            if values.get('deskew_affine_transform') is None:
-                # If neither has been set, calculate them ourselves
-                values["deskew_vol_shape"], values["deskew_affine_transform"] = get_deskewed_shape(values["data"], values["angle"], values["physical_pixel_sizes"].X, values["physical_pixel_sizes"].Y, values["physical_pixel_sizes"].Z, values["skew"])
-            else:
-                raise ValueError("deskew_vol_shape and deskew_affine_transform must be either both specified or neither specified")
-        return values
 
     @property
     def new_dz(self):
@@ -505,7 +505,12 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
                 slices=self._process_non_crop()
             )
 
-def lattice_from_aics(img: AICSImage, physical_pixel_sizes: PhysicalPixelSizes = PhysicalPixelSizes(None, None, None), **kwargs: Any) -> LatticeData:
+class AicsLatticeParams(TypedDict):
+    data: DaskArray
+    dims: Dimensions
+    physical_pixel_sizes: DefinedPixelSizes
+
+def lattice_params_from_aics(img: AICSImage, physical_pixel_sizes: PhysicalPixelSizes = PhysicalPixelSizes(None, None, None)) -> AicsLatticeParams:
     # Note: The reason we copy all of these fields rather than just storing the AICSImage is because that class is mostly immutable and so not suitable
 
     pixel_sizes = DefinedPixelSizes(
@@ -514,11 +519,10 @@ def lattice_from_aics(img: AICSImage, physical_pixel_sizes: PhysicalPixelSizes =
         Z = physical_pixel_sizes[2] or img.physical_pixel_sizes.Z or LatticeData.physical_pixel_sizes.Z 
     )
 
-    return LatticeData(
+    return AicsLatticeParams(
         data = img.dask_data,
         dims = img.dims,
         physical_pixel_sizes = pixel_sizes,
-        **kwargs
     )
 
 def img_from_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "time"]] = None, **kwargs: Any) -> AICSImage:
@@ -561,7 +565,7 @@ def img_from_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "
         arr = np.swapaxes(arr, 0, 1)
     return AICSImage(image=arr, dim_order=dim_order, **kwargs)
 
-def lattice_fom_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "time"]] = None, **kwargs: Any) -> LatticeData:
+def lattice_fom_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "time"]] = None, **kwargs: Any) -> AicsLatticeParams:
     """
     Creates a `LatticeData` from an array
 
@@ -570,4 +574,4 @@ def lattice_fom_array(arr: ArrayLike, last_dimension: Optional[Literal["channel"
         last_dimension: See img_from_array
     """   
     aics = img_from_array(arr, last_dimension)
-    return lattice_from_aics(aics, **kwargs)
+    return lattice_params_from_aics(aics, **kwargs)

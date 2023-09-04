@@ -1,8 +1,9 @@
 from pathlib import Path
 from magicclass import FieldGroup, field, MagicTemplate
-from magicclass.widgets import Widget, ComboBox
+from magicclass.widgets import Widget, ComboBox, Label
 from magicclass.fields import MagicField
 from typing import Callable, List, Optional, Tuple, TypeVar
+from pydantic import BaseModel, ValidationError
 
 from strenum import StrEnum
 from lls_core import DeconvolutionChoice, SaveFileType, Log_Levels, DeskewDirection
@@ -16,6 +17,7 @@ from napari.utils import history
 from abc import ABC
 
 from napari_lattice.icons import RED, GREEN, GREY
+from napari_lattice.reader import lattice_params_from_napari
 
 # FieldGroups that the users interact with to input data
 
@@ -23,6 +25,22 @@ import logging
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+def _get_friendly_validations(model: FieldGroup) -> str:
+    """
+    Generates a LatticeData, but returns validation errors in a user friendly way
+    """
+    try:
+        model._make_model()
+        return ""
+    except ValidationError as e:
+        message = []
+        # message = [f"<h2>{e.model}</h2>"]
+        for error in e.errors():
+            header = ", ".join([str(it).capitalize() for it in error['loc']])
+            message.append(f"<li> <b>{header}</b> {error['msg']} </li>")
+        joined = '\n'.join(message)
+        return f"<ul>{joined}</ul>"
 
 
 class WorkflowSource(StrEnum):
@@ -102,7 +120,19 @@ class LastDimensionOptions(Enum):
 #     def __init__(self, layout: str = "vertical", labels: bool = False, name: str | None = None, **kwargs):
 #         super().__init__(layout, labels, name, **kwargs)
 
-class DeskewFields(FieldGroup):
+class NapariFieldGroup:
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.changed.connect(self._validate)
+
+    def _validate(self):
+        self.errors.value =  _get_friendly_validations(self)
+
+    def _make_model(self) -> BaseModel:
+        raise NotImplementedError()
+
+
+class DeskewFields(NapariFieldGroup, FieldGroup):
     img_layer = field(List[Layer]).with_options(label = "Image Layer", layout="vertical", value=[])
     pixel_sizes = field(Tuple[float, float, float]).with_options(
         value=(DefinedPixelSizes.get_default("X"), DefinedPixelSizes.get_default("Y"), DefinedPixelSizes.get_default("Z")),
@@ -113,14 +143,17 @@ class DeskewFields(FieldGroup):
     merge_all_channels = field(False).with_options(label="Merge all Channels")
     dimension_order = field(str).with_options(value=LastDimensionOptions.Metadata.value).with_choices([it.value for it in LastDimensionOptions]).with_options(label="Dimension Order")
     skew_dir = field(DeskewDirection.Y).with_options(label = "Skew Direction")
+    errors = field(Label).with_options(label="Errors")
 
     def _make_model(self) -> DeskewParams:
         return DeskewParams(
-            img=self.img_layer.value,
-            last_dimension=self.dimension_order.value,
+            **lattice_params_from_napari(
+                img=self.img_layer.value,
+                last_dimension=self.dimension_order.value,
+                physical_pixel_sizes=self.pixel_sizes.value,
+            ),
             angle=self.angle.value,
             skew = self.skew_dir.value,
-            physical_pixel_sizes=self.pixel_sizes.value,
         )
 
 class DeconvolutionFields(FieldGroup):
@@ -188,11 +221,13 @@ class CroppingFields(FieldGroup):
             max = 1
         ),
     )
+    errors = field(Label)
 
     @fields_enabled.connect
     @enable_if([shapes, z_range])
     def _enable_workflow(self) -> bool:
         return self.fields_enabled.value
+
 
     # roi_layer_list: ShapesData
     # @magicclass(visible=False)

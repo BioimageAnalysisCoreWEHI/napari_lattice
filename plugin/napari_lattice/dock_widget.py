@@ -33,7 +33,7 @@ from lls_core import DeconvolutionChoice, SaveFileType, Log_Levels, DeskewDirect
 from lls_core.lattice_data import CropParams, DeconvolutionParams, DefinedPixelSizes, LatticeData
 
 from pydantic import ValidationError
-from napari_lattice.reader import lattice_from_napari
+from napari_lattice.reader import lattice_params_from_napari
 from napari_lattice.fields import DeskewFields, CroppingFields, DeconvolutionFields, WorkflowFields, OutputFields
 from napari_lattice.icons import GREY
 
@@ -67,6 +67,7 @@ def strikeout(text: str) -> str:
 #             for child in self.__magicclass_children__:
 #                 child.visible = False
 #                 child.enabled = False
+
 
 def validate_tab(parent: MagicTemplate, fields: FieldGroup, index: int):
     tab_widget: QTabWidget = parent._widget._tab_widget
@@ -103,19 +104,6 @@ class LLSZWidget(LlszTemplate):
         except:
             return False
 
-    def _make_model_friendly(self) -> LatticeData:
-        """
-        Generates a LatticeData, but returns validation errors in a user friendly way
-        """
-        try:
-            return self._make_model()
-        except ValidationError as e:
-            message = [f"<h2>{e.model}</h2>"]
-            for error in e.errors():
-                header = ", ".join([str(it).capitalize() for it in error['loc']])
-                message.append(f"<h3>{header}</h3> {error['msg']}")
-            raise Exception("\n".join(message))
-
     def _make_model(self) -> LatticeData:
         deskew = self.LlszMenu.WidgetContainer.DeskewWidget
         output = self.LlszMenu.WidgetContainer.OutputWidget
@@ -123,6 +111,7 @@ class LLSZWidget(LlszTemplate):
         crop = self.LlszMenu.WidgetContainer.CroppingWidget
         workflow = self.LlszMenu.WidgetContainer.WorkflowWidget
 
+        # TODO: fix 
         return lattice_from_napari(
             img=deskew.img_layer.value,
             last_dimension=deskew.dimension_order.value,
