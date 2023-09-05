@@ -49,7 +49,7 @@ def lattice_params_from_napari(
     else:
         if not last_dimension:
             raise ValueError("Either the Napari image must have dimensional metadata, or last_dimension must be provided")
-        img_data_aics = img_from_array(cast(ArrayLike, img.data), last_dimension=last_dimension, physical_pixel_sizes=kwargs.get("physical_pixel_sizes"))
+        img_data_aics = img_from_array(cast(ArrayLike, img.data), last_dimension=last_dimension, physical_pixel_sizes=physical_pixel_sizes)
 
     save_name: str
     if img.source.path is None:

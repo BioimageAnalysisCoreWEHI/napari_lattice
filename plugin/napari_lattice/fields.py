@@ -2,7 +2,8 @@ from pathlib import Path
 from magicclass import FieldGroup, field, MagicTemplate
 from magicclass.widgets import Widget, ComboBox, Label
 from magicclass.fields import MagicField
-from typing import Callable, List, Optional, Tuple, TypeVar
+from typing import Callable, List, Optional, Protocol, Tuple, TypeVar, Union, cast
+from typing_extensions import Protocol, Self
 from pydantic import BaseModel, ValidationError
 
 from strenum import StrEnum
@@ -15,9 +16,13 @@ from napari_workflows import Workflow, WorkflowManager
 from napari.types import ImageData, ShapesData
 from napari.utils import history
 from abc import ABC
+from qtpy.QtWidgets import QTabWidget
 
 from napari_lattice.icons import RED, GREEN, GREY
 from napari_lattice.reader import lattice_params_from_napari
+from napari_lattice.utils import get_viewer
+
+from napari.layers import Image
 
 # FieldGroups that the users interact with to input data
 
@@ -41,6 +46,8 @@ def _get_friendly_validations(model: FieldGroup) -> str:
             message.append(f"<li> <b>{header}</b> {error['msg']} </li>")
         joined = '\n'.join(message)
         return f"<ul>{joined}</ul>"
+    except Exception as e:
+        return str(e)
 
 
 class WorkflowSource(StrEnum):
@@ -120,35 +127,90 @@ class LastDimensionOptions(Enum):
 #     def __init__(self, layout: str = "vertical", labels: bool = False, name: str | None = None, **kwargs):
 #         super().__init__(layout, labels, name, **kwargs)
 
-class NapariFieldGroup:
+class NapariFieldGroupCompatible(Protocol):
+    errors: MagicField[Label]
+
+class FieldGroupMeta(type(Protocol), type(FieldGroup)):
+    pass
+
+class NapariFieldGroup(NapariFieldGroupCompatible, Protocol):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self = cast(FieldGroup, self)
         self.changed.connect(self._validate)
 
-    def _validate(self):
+    def _get_parent_tab_widget(self: Union[FieldGroup, Self]) -> QTabWidget:
+        from qtpy.QtWidgets import QWidget
+        parent = cast(QWidget, self.parent)
+        return parent.parentWidget()
+
+    def _get_tab_index(self: Union[FieldGroup, Self]) -> int:
+        from magicclass.widgets import Container
+        widget = cast(Container, self._widget)
+        return self._get_parent_tab_widget().indexOf(widget._qwidget)
+
+    def _set_valid(self, valid: bool):
+        from qtpy.QtGui import QIcon
+        tab_parent = self._get_parent_tab_widget()
+        index = self._get_tab_index()
+            
+        if valid:
+            tab_parent.setTabIcon(index, QIcon(GREEN))
+        else:
+            tab_parent.setTabIcon(index, QIcon(RED))
+
+    def _validate(self: Union[FieldGroup, Self]):
         self.errors.value =  _get_friendly_validations(self)
+        self._set_valid(False if self.errors.value else True)
 
     def _make_model(self) -> BaseModel:
         raise NotImplementedError()
 
 
-class DeskewFields(NapariFieldGroup, FieldGroup):
-    img_layer = field(List[Layer]).with_options(label = "Image Layer", layout="vertical", value=[])
+class DeskewFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
+
+    def _get_dimension_options(self, _) -> List[str]:
+        """
+        Returns the list of dimension order options that might be possible for the current image stack
+        """
+        default = ["Get from Metadata"]
+        try:
+            merged = self._merge_layers()
+        except Exception:
+            return default
+        ndims = len(merged._dims_order)
+        if ndims == 3:
+            return ["ZYX"] + default
+        elif ndims == 4:
+            return ["TZYX", "CZYX"] + default
+        elif ndims == 5:
+            return ["TCZYX", "CTZYX"] + default
+        else:
+            raise Exception("Only 3-5 dimensional arrays are supported")
+
+    img_layer = field(List[Image], widget_type='Select').with_options(label = "Image Layer").with_choices(get_viewer().layers)
     pixel_sizes = field(Tuple[float, float, float]).with_options(
         value=(DefinedPixelSizes.get_default("X"), DefinedPixelSizes.get_default("Y"), DefinedPixelSizes.get_default("Z")),
         label="Pixel Sizes (XYZ)"
     )
     angle = field(LatticeData.get_default("angle")).with_options(value=LatticeData.get_default("angle"), label="Skew Angle")
     device = field(str).with_choices(cle.available_device_names()).with_options(label="Graphics Device")
-    merge_all_channels = field(False).with_options(label="Merge all Channels")
-    dimension_order = field(str).with_options(value=LastDimensionOptions.Metadata.value).with_choices([it.value for it in LastDimensionOptions]).with_options(label="Dimension Order")
+    # merge_all_channels = field(False).with_options(label="Merge all Channels")
+    dimension_order = field(str).with_options(value=LastDimensionOptions.Metadata.value).with_choices(_get_dimension_options).with_options(label="Dimension Order")
     skew_dir = field(DeskewDirection.Y).with_options(label = "Skew Direction")
     errors = field(Label).with_options(label="Errors")
+
+    def _merge_layers(self) -> Image:
+        """
+        Returns a single image merged from all the selected layers
+        """
+        from napari.layers.utils.stack_utils import images_to_stack
+        return images_to_stack(self.img_layer.value)
 
     def _make_model(self) -> DeskewParams:
         return DeskewParams(
             **lattice_params_from_napari(
-                img=self.img_layer.value,
+                img=self._merge_layers(),
                 last_dimension=self.dimension_order.value,
                 physical_pixel_sizes=self.pixel_sizes.value,
             ),
@@ -156,7 +218,7 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
             skew = self.skew_dir.value,
         )
 
-class DeconvolutionFields(FieldGroup):
+class DeconvolutionFields(NapariFieldGroup, FieldGroup, metaclass=FieldGroupMeta):
     """
     A counterpart to the DeconvolutionParams Pydantic class
     """
@@ -171,6 +233,8 @@ class DeconvolutionFields(FieldGroup):
         visible=False,
         label="Custom Background"
     )
+    errors = field(Label).with_options(label="Errors")
+
 
     # @background.connect
     # def _show_custom_background(self):
@@ -207,7 +271,7 @@ class DeconvolutionFields(FieldGroup):
             background=self.background.value
         )
 
-class CroppingFields(FieldGroup):
+class CroppingFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
     """
     A counterpart to the CropParams Pydantic class
     """
@@ -221,7 +285,7 @@ class CroppingFields(FieldGroup):
             max = 1
         ),
     )
-    errors = field(Label)
+    errors = field(Label).with_options(label="Errors")
 
     @fields_enabled.connect
     @enable_if([shapes, z_range])
@@ -261,13 +325,14 @@ class CroppingFields(FieldGroup):
             roi_layer_list=self.shapes.value
     )
 
-class WorkflowFields(FieldGroup):
+class WorkflowFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
     """
     Handles the workflow related parameters
     """
     fields_enabled = field(False, label="Enabled")
     workflow_source = field(ComboBox).with_options(label = "Workflow Source").with_choices([it.value for it in WorkflowSource])
     workflow_path = field(Path).with_options(label = "Workflow Path", visible=False)
+    errors = field(Label).with_options(label="Errors")
 
     @fields_enabled.connect
     @enable_if([workflow_source])
@@ -290,7 +355,7 @@ class WorkflowFields(FieldGroup):
             return load_workflow(str(child.workflow_path))
 
 # @magicclass(name="5. Output")
-class OutputFields(FieldGroup):
+class OutputFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
     set_logging = field(Log_Levels.INFO).with_options(label="Logging Level")
     time_range = field(Tuple[int, int]).with_options(
         label="Time Export Range",
@@ -318,6 +383,7 @@ class OutputFields(FieldGroup):
     save_name = field(str).with_options(
         label = "Save Prefix"
     )
+    errors = field(Label).with_options(label="Errors")
 
 
 # @DeskewWidget.img_layer.connect

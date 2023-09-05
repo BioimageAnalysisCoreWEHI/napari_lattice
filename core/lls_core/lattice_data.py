@@ -544,7 +544,7 @@ def img_from_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "
         dim_order="ZYX"
     else:
         if last_dimension not in ["channel", "time"]:
-            raise ValueError("last_dimension must be either channel or time")
+            raise ValueError("last_dimension must be either channel or time when convertin")
         if len(arr.shape) == 4:
             if last_dimension == "channel":
                 dim_order = "CZYX"

@@ -105,11 +105,11 @@ class LLSZWidget(LlszTemplate):
             return False
 
     def _make_model(self) -> LatticeData:
-        deskew = self.LlszMenu.WidgetContainer.DeskewWidget
-        output = self.LlszMenu.WidgetContainer.OutputWidget
-        deconv = self.LlszMenu.WidgetContainer.DeconvolutionWidget
-        crop = self.LlszMenu.WidgetContainer.CroppingWidget
-        workflow = self.LlszMenu.WidgetContainer.WorkflowWidget
+        # deskew = self.LlszMenu.WidgetContainer.DeskewWidget
+        # output = self.LlszMenu.WidgetContainer.OutputWidget
+        # deconv = self.LlszMenu.WidgetContainer.DeconvolutionWidget
+        # crop = self.LlszMenu.WidgetContainer.CroppingWidget
+        # workflow = self.LlszMenu.WidgetContainer.WorkflowWidget
 
         # TODO: fix 
         return lattice_from_napari(
@@ -145,29 +145,29 @@ class LLSZWidget(LlszTemplate):
                     tab_widget.setTabIcon(i, QIcon(GREY))
 
             deskew_fields = DeskewFields(name = "1. Deskew")
-            @deskew_fields.connect
-            def _deskew_changed(self):
-                validate_tab(self, self.deskew_fields, 0)
+            # @deskew_fields.connect
+            # def _deskew_changed(self):
+            #     validate_tab(self, self.deskew_fields, 0)
 
             deconv_fields = DeconvolutionFields(name = "2. Deconvolution")
-            @deconv_fields.connect
-            def _deconv_changed(self):
-                validate_tab(self, self.deconv_fields, 1)
+            # @deconv_fields.connect
+            # def _deconv_changed(self):
+            #     validate_tab(self, self.deconv_fields, 1)
 
             cropping_fields = CroppingFields(name = "3. Crop")
-            @cropping_fields.connect
-            def _cropping_changed(self):
-                validate_tab(self, 2)
+            # @cropping_fields.connect
+            # def _cropping_changed(self):
+            #     validate_tab(self, 2)
 
             workflow_fields = WorkflowFields(name = "4. Workflow")
-            @workflow_fields.connect
-            def _workflow_changed(self):
-                validate_tab(self, 3)
+            # @workflow_fields.connect
+            # def _workflow_changed(self):
+            #     validate_tab(self, 3)
 
             output_fields = OutputFields(name = "5. Output")
-            @output_fields.connect
-            def _output_changed(self):
-                validate_tab(self, 4)
+            # @output_fields.connect
+            # def _output_changed(self):
+            #     validate_tab(self, 4)
 
             # @magicclass(name="1. Deskew")
             # class DeskewWidget(MagicTemplate):
