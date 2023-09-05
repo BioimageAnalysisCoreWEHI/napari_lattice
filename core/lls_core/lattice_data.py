@@ -26,10 +26,10 @@ from lls_core.llsz_core import crop_volume_deskew
 from lls_core.utils import get_deskewed_shape
 from lls_core.types import ArrayLike
 from napari_workflows import Workflow
+from napari.types import ShapesData
 
 if TYPE_CHECKING:
     import pyclesperanto_prototype as cle
-    from napari.types import ShapesData
 
 import logging
 
@@ -525,7 +525,7 @@ def lattice_params_from_aics(img: AICSImage, physical_pixel_sizes: PhysicalPixel
         physical_pixel_sizes = pixel_sizes,
     )
 
-def img_from_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "time"]] = None, **kwargs: Any) -> AICSImage:
+def img_from_array(arr: ArrayLike, dimension_order: Optional[str] = None, **kwargs: Any) -> AICSImage:
     """
     Creates an AICSImage from an array without metadata
 
@@ -534,36 +534,36 @@ def img_from_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "
         last_dimension: How to handle the dimension order
         kwargs: Additional arguments to pass to the AICSImage constructor
     """    
-    dim_order: str
+    # dim_order: str
 
     if len(arr.shape) < 3 or len(arr.shape) > 5:
         raise ValueError("Array dimensions must be in the range [3, 5]")
 
     # if aicsimageio tiffreader assigns last dim as time when it should be channel, user can override this
-    if len(arr.shape) == 3:
-        dim_order="ZYX"
-    else:
-        if last_dimension not in ["channel", "time"]:
-            raise ValueError("last_dimension must be either channel or time when convertin")
-        if len(arr.shape) == 4:
-            if last_dimension == "channel":
-                dim_order = "CZYX"
-            elif last_dimension == "time":
-                dim_order = "TZYX"
-        elif len(arr.shape) == 5:
-            if last_dimension == "channel":
-                dim_order = "CTZYX"
-            elif last_dimension == "time":
-                dim_order = "TCZYX"
-        else:
-            raise ValueError()
+    # if len(arr.shape) == 3:
+    #     dim_order="ZYX"
+    # else:
+    #     if last_dimension not in ["channel", "time"]:
+    #         raise ValueError("last_dimension must be either channel or time when convertin")
+    #     if len(arr.shape) == 4:
+    #         if last_dimension == "channel":
+    #             dim_order = "CZYX"
+    #         elif last_dimension == "time":
+    #             dim_order = "TZYX"
+    #     elif len(arr.shape) == 5:
+    #         if last_dimension == "channel":
+    #             dim_order = "CTZYX"
+    #         elif last_dimension == "time":
+    #             dim_order = "TCZYX"
+    #     else:
+    #         raise ValueError()
 
-    img = AICSImage(image=arr, dim_order=dim_order, **kwargs)
+    img = AICSImage(image=arr, dim_order=dimension_order, **kwargs)
 
     # if last axes of "aicsimage data" shape is not equal to time, then swap channel and time
     if img.data.shape[0] != img.dims.T or img.data.shape[1] != img.dims.C:
         arr = np.swapaxes(arr, 0, 1)
-    return AICSImage(image=arr, dim_order=dim_order, **kwargs)
+    return AICSImage(image=arr, dim_order=dimension_order, **kwargs)
 
 def lattice_fom_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "time"]] = None, **kwargs: Any) -> AicsLatticeParams:
     """

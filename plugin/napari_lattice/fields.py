@@ -130,14 +130,19 @@ class LastDimensionOptions(Enum):
 class NapariFieldGroupCompatible(Protocol):
     errors: MagicField[Label]
 
-class FieldGroupMeta(type(Protocol), type(FieldGroup)):
-    pass
-
-class NapariFieldGroup(NapariFieldGroupCompatible, Protocol):
+class NapariFieldGroup:
     def __init__(self, *args, **kwargs):
+        from magicgui.widgets import Container
         super().__init__(*args, **kwargs)
         self = cast(FieldGroup, self)
-        self.changed.connect(self._validate)
+        # self._widget._mgui_bind_parent_change_callback(self._validate)
+        self.changed.connect(self._validate, unique=False)
+        # super(Container, self).connect(self._validate)
+        # self.connect(self._validate)
+
+    # def _on_value_change(self, *args, **kwargs) -> None:
+    #     super()._on_value_change(*args, **kwargs)
+    #     self._validate()
 
     def _get_parent_tab_widget(self: Union[FieldGroup, Self]) -> QTabWidget:
         from qtpy.QtWidgets import QWidget
@@ -161,13 +166,15 @@ class NapariFieldGroup(NapariFieldGroupCompatible, Protocol):
 
     def _validate(self: Union[FieldGroup, Self]):
         self.errors.value =  _get_friendly_validations(self)
-        self._set_valid(False if self.errors.value else True)
+        valid = not bool(self.errors.value)
+        self.errors.visible = not valid
+        self._set_valid(valid)
 
     def _make_model(self) -> BaseModel:
         raise NotImplementedError()
 
 
-class DeskewFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
+class DeskewFields(NapariFieldGroup, FieldGroup):
 
     def _get_dimension_options(self, _) -> List[str]:
         """
@@ -200,6 +207,10 @@ class DeskewFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
     skew_dir = field(DeskewDirection.Y).with_options(label = "Skew Direction")
     errors = field(Label).with_options(label="Errors")
 
+    @img_layer.connect
+    def _img_changed(self):
+        self.dimension_order.reset_choices()
+
     def _merge_layers(self) -> Image:
         """
         Returns a single image merged from all the selected layers
@@ -211,14 +222,14 @@ class DeskewFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
         return DeskewParams(
             **lattice_params_from_napari(
                 img=self._merge_layers(),
-                last_dimension=self.dimension_order.value,
+                dimension_order=None if self.dimension_order.value == "Get from Metadata" else self.dimension_order.value,
                 physical_pixel_sizes=self.pixel_sizes.value,
             ),
             angle=self.angle.value,
             skew = self.skew_dir.value,
         )
 
-class DeconvolutionFields(NapariFieldGroup, FieldGroup, metaclass=FieldGroupMeta):
+class DeconvolutionFields(NapariFieldGroup, FieldGroup):
     """
     A counterpart to the DeconvolutionParams Pydantic class
     """
@@ -271,7 +282,7 @@ class DeconvolutionFields(NapariFieldGroup, FieldGroup, metaclass=FieldGroupMeta
             background=self.background.value
         )
 
-class CroppingFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
+class CroppingFields(FieldGroup, NapariFieldGroup):
     """
     A counterpart to the CropParams Pydantic class
     """
@@ -319,13 +330,15 @@ class CroppingFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
         #     self["activate_cropping"].background_color = "green"
 
     def _make_model(self) -> Optional[CropParams]:
-        return CropParams(
-            z_start=self.z_range.value[0],
-            z_end=self.z_range.value[1],
-            roi_layer_list=self.shapes.value
-    )
+        if self.fields_enabled.value:
+            return CropParams(
+                z_start=self.z_range.value[0],
+                z_end=self.z_range.value[1],
+                roi_layer_list=self.shapes.value
+            )
+        return None
 
-class WorkflowFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
+class WorkflowFields(FieldGroup, NapariFieldGroup):
     """
     Handles the workflow related parameters
     """
@@ -355,7 +368,7 @@ class WorkflowFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
             return load_workflow(str(child.workflow_path))
 
 # @magicclass(name="5. Output")
-class OutputFields(FieldGroup, NapariFieldGroup, metaclass=FieldGroupMeta):
+class OutputFields(FieldGroup, NapariFieldGroup):
     set_logging = field(Log_Levels.INFO).with_options(label="Logging Level")
     time_range = field(Tuple[int, int]).with_options(
         label="Time Export Range",

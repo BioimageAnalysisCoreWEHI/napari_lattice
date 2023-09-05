@@ -50,8 +50,6 @@ logger.setLevel(logging.INFO)
 # def magicclass(*args, **kwargs) -> Callable[[MagicClassType], MagicClassType]:
 #     return original_magicclass(*args, **kwargs)
 
-def strikeout(text: str) -> str:
-    return '\u0336'.join(text) + '\u0336'
 # class HideableContents(MagicTemplate):
 #     # fields_enabled = vfield(False, label="Enabled")
     
@@ -69,13 +67,13 @@ def strikeout(text: str) -> str:
 #                 child.enabled = False
 
 
-def validate_tab(parent: MagicTemplate, fields: FieldGroup, index: int):
-    tab_widget: QTabWidget = parent._widget._tab_widget
-    try:
-        fields._make_model()
-        tab_widget.setTabIcon(index, QIcon(GREEN))
-    except ValidationError:
-        tab_widget.setTabIcon(index, QIcon(RED))
+# def validate_tab(parent: MagicTemplate, fields: FieldGroup, index: int):
+#     tab_widget: QTabWidget = parent._widget._tab_widget
+#     try:
+#         fields._make_model()
+#         tab_widget.setTabIcon(index, QIcon(GREEN))
+#     except ValidationError:
+#         tab_widget.setTabIcon(index, QIcon(RED))
 
 class LlszTemplate(MagicTemplate):
     @property
@@ -135,6 +133,7 @@ class LLSZWidget(LlszTemplate):
         # Pycudadecon library for deconvolution
         # options={"enabled": True},
 
+
         # Tabbed Widget container to house all the widgets
         @magicclass(widget_type="tabbed", name="Functions", labels=False)
         class WidgetContainer(LlszTemplate):
@@ -143,6 +142,8 @@ class LLSZWidget(LlszTemplate):
                 tab_widget: QTabWidget= self._widget._tab_widget
                 for i in range(5):
                     tab_widget.setTabIcon(i, QIcon(GREY))
+                for field in [self.deskew_fields, self.deconv_fields, self.cropping_fields, self.workflow_fields, self.output_fields]:
+                    field._validate()
 
             deskew_fields = DeskewFields(name = "1. Deskew")
             # @deskew_fields.connect

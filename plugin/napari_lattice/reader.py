@@ -29,7 +29,8 @@ class NapariImageParams(AicsLatticeParams):
 
 def lattice_params_from_napari(
     img: Layer,
-    last_dimension: Optional[Literal["channel", "time"]],
+    dimension_order: Optional[str],
+    # last_dimension: Optional[Literal["channel", "time"]],
     physical_pixel_sizes: PhysicalPixelSizes = PhysicalPixelSizes(None, None, None)
 ) -> NapariImageParams:
     """
@@ -47,9 +48,9 @@ def lattice_params_from_napari(
     if 'aicsimage' in img.metadata.keys():
         img_data_aics = img.metadata['aicsimage']
     else:
-        if not last_dimension:
-            raise ValueError("Either the Napari image must have dimensional metadata, or last_dimension must be provided")
-        img_data_aics = img_from_array(cast(ArrayLike, img.data), last_dimension=last_dimension, physical_pixel_sizes=physical_pixel_sizes)
+        if not dimension_order:
+            raise ValueError("Either the Napari image must have dimensional metadata, or a dimension order must be provided")
+        img_data_aics = img_from_array(cast(ArrayLike, img.data), dimension_order=dimension_order, physical_pixel_sizes=physical_pixel_sizes)
 
     save_name: str
     if img.source.path is None:
