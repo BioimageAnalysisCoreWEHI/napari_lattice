@@ -34,7 +34,7 @@ from lls_core.lattice_data import CropParams, DeconvolutionParams, DefinedPixelS
 
 from pydantic import ValidationError
 from napari_lattice.reader import lattice_params_from_napari
-from napari_lattice.fields import DeskewFields, CroppingFields, DeconvolutionFields, WorkflowFields, OutputFields
+from napari_lattice.fields import DeskewFields, CroppingFields, DeconvolutionFields, WorkflowFields, OutputFields, exception_to_html
 from napari_lattice.icons import GREY
 
 from strenum import StrEnum
@@ -110,19 +110,12 @@ class LLSZWidget(LlszTemplate):
         # workflow = self.LlszMenu.WidgetContainer.WorkflowWidget
 
         # TODO: fix 
-        return lattice_from_napari(
-            img=deskew.img_layer.value,
-            last_dimension=deskew.dimension_order.value,
-            angle=deskew.angle.value,
-            skew = deskew.skew_dir.value,
-            physical_pixel_sizes=deskew.pixel_sizes.value,
-            save_dir = output.save_path.value,
-            channel_range=range(output.channel_range.value[0], output.channel_range.value[1]),
-            time_range=range(output.time_range.value[0], output.time_range.value[1]),
-            save_type=output.save_type.value,
-            deconvolution = deconv._make_model(),
-            workflow = workflow._make_model(),
-            crop = crop._make_model()
+        return LatticeData(
+            **self.LlszMenu.WidgetContainer.deskew_fields._make_model().dict(),
+            **self.LlszMenu.WidgetContainer.output_fields._make_model().dict(),
+            workflow=self.LlszMenu.WidgetContainer.workflow_fields._make_model(),
+            deconvolution=self.LlszMenu.WidgetContainer.deconv_fields._make_model(),
+            crop=self.LlszMenu.WidgetContainer.cropping_fields._make_model()
         )
 
     @magicclass(widget_type="split")
@@ -405,10 +398,11 @@ class LLSZWidget(LlszTemplate):
     def preview(self, header:str, time: int, channel: int):
         # We only need to process one time point for the preview, 
         # so we made a copy using a subset of the times
-        lattice = self._make_model_friendly().copy(update=dict(
+        lattice = self._make_model().copy(update=dict(
             time_range = range(time, time+1),
             channel_range = range(time, time+1),
         ))
+
         for slice in lattice.process().slices:
             scale = (
                 lattice.new_dz,

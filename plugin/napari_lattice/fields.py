@@ -2,7 +2,7 @@ from pathlib import Path
 from magicclass import FieldGroup, field, MagicTemplate
 from magicclass.widgets import Widget, ComboBox, Label
 from magicclass.fields import MagicField
-from typing import Callable, List, Optional, Protocol, Tuple, TypeVar, Union, cast
+from typing import Any, Callable, List, Optional, Protocol, Tuple, TypeVar, Union, cast
 from typing_extensions import Protocol, Self
 from pydantic import BaseModel, ValidationError
 
@@ -31,24 +31,29 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-def _get_friendly_validations(model: FieldGroup) -> str:
+def exception_to_html(e: BaseException) -> str:
     """
-    Generates a LatticeData, but returns validation errors in a user friendly way
+    Converts an exception to HTML for reporting back to the user
     """
-    try:
-        model._make_model()
-        return ""
-    except ValidationError as e:
+    if isinstance(e, ValidationError):
         message = []
-        # message = [f"<h2>{e.model}</h2>"]
         for error in e.errors():
             header = ", ".join([str(it).capitalize() for it in error['loc']])
             message.append(f"<li> <b>{header}</b> {error['msg']} </li>")
         joined = '\n'.join(message)
         return f"<ul>{joined}</ul>"
-    except Exception as e:
+    else:
         return str(e)
 
+def get_friendly_validations(model: FieldGroup) -> str:
+    """
+    Generates a BaseModel, but returns validation errors in a user friendly way
+    """
+    try:
+        model._make_model()
+        return ""
+    except BaseException as e:
+        return exception_to_html(e)
 
 class WorkflowSource(StrEnum):
     ActiveWorkflow = "Active Workflow"
@@ -127,12 +132,22 @@ class LastDimensionOptions(Enum):
 #     def __init__(self, layout: str = "vertical", labels: bool = False, name: str | None = None, **kwargs):
 #         super().__init__(layout, labels, name, **kwargs)
 
-class NapariFieldGroupCompatible(Protocol):
-    errors: MagicField[Label]
+# class NapariFieldGroupCompatible(Protocol):
+#     from magicclass.widgets import Container
+#     from qtpy.QtWidgets import QWidget
+#     errors: MagicField[Label]
+#     parent: QWidget
+#     _widget: Container
 
 class NapariFieldGroup:
-    def __init__(self, *args, **kwargs):
-        from magicgui.widgets import Container
+    # This implementation is a bit ugly. This is a mixin that can only be used on a `FieldGroup`.
+    # However, it can't inherit from FieldGroup because then the metaclass would look for fields in this
+    # class definition, find none, and then make an empty GUI page when this is rendered.
+    # It also can't inherit from a FieldGroup-like Protocol as mypy suggests for mixin classes
+    # (https://mypy.readthedocs.io/en/latest/more_types.html#mixin-classes) because it doesn't 
+    # implement the attributes of a FieldGroup. Ideally this could be a Protocol subclass as well
+    # to make it remain abstract, but the Protocol metaclass interferes with the FieldGroup metaclass
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self = cast(FieldGroup, self)
         # self._widget._mgui_bind_parent_change_callback(self._validate)
@@ -144,28 +159,27 @@ class NapariFieldGroup:
     #     super()._on_value_change(*args, **kwargs)
     #     self._validate()
 
-    def _get_parent_tab_widget(self: Union[FieldGroup, Self]) -> QTabWidget:
-        from qtpy.QtWidgets import QWidget
-        parent = cast(QWidget, self.parent)
-        return parent.parentWidget()
+    def _get_parent_tab_widget(self: Any) -> QTabWidget:
+        return self.parent.parentWidget()
 
-    def _get_tab_index(self: Union[FieldGroup, Self]) -> int:
-        from magicclass.widgets import Container
-        widget = cast(Container, self._widget)
-        return self._get_parent_tab_widget().indexOf(widget._qwidget)
+    def _get_tab_index(self: Any) -> int:
+        return self._get_parent_tab_widget().indexOf(self._widget._qwidget)
 
-    def _set_valid(self, valid: bool):
+    def _set_valid(self: Any, valid: bool):
         from qtpy.QtGui import QIcon
         tab_parent = self._get_parent_tab_widget()
         index = self._get_tab_index()
             
-        if valid:
+        if hasattr(self, "fields_enabled") and not self.fields_enabled.value:
+            # Special case for "diabled" sections
+            tab_parent.setTabIcon(index, QIcon(GREY))
+        elif valid:
             tab_parent.setTabIcon(index, QIcon(GREEN))
         else:
             tab_parent.setTabIcon(index, QIcon(RED))
 
-    def _validate(self: Union[FieldGroup, Self]):
-        self.errors.value =  _get_friendly_validations(self)
+    def _validate(self: Any):
+        self.errors.value =  get_friendly_validations(self)
         valid = not bool(self.errors.value)
         self.errors.visible = not valid
         self._set_valid(valid)
@@ -216,6 +230,8 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
         Returns a single image merged from all the selected layers
         """
         from napari.layers.utils.stack_utils import images_to_stack
+        if len(self.img_layer.value) == 0:
+            raise Exception("At least one image layer must be selected.")
         return images_to_stack(self.img_layer.value)
 
     def _make_model(self) -> DeskewParams:
@@ -397,6 +413,15 @@ class OutputFields(FieldGroup, NapariFieldGroup):
         label = "Save Prefix"
     )
     errors = field(Label).with_options(label="Errors")
+
+    def _make_model(self) -> OutputParams:
+        return OutputParams(
+            channel_range=range(self.channel_range.value[0], self.channel_range.value[1]),
+            time_range=range(self.time_range.value[0], self.time_range.value[1]),
+            save_dir=self.save_path.value,
+            save_name=self.save_name.value,
+            save_type=self.save_type.value
+        )
 
 
 # @DeskewWidget.img_layer.connect
