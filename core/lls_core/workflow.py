@@ -135,7 +135,7 @@ def import_script(script: Path):
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
 
-def import_workflow_modules(workflow: Path):
+def import_workflow_modules(workflow: Path) -> None:
     """
     Imports all the Python files that might be used in a given custom workflow
 

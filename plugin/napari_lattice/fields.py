@@ -1,15 +1,15 @@
 from pathlib import Path
 from magicclass import FieldGroup, field, MagicTemplate
-from magicclass.widgets import Widget, ComboBox, Label
+from magicclass.widgets import Widget, ComboBox, Label, Select
 from magicclass.fields import MagicField
-from typing import Any, Callable, List, Optional, Protocol, Tuple, TypeVar, Union, cast
+from typing import Any, Callable, List, Optional, Protocol, Tuple, TypeVar, Union, cast, TYPE_CHECKING
 from typing_extensions import Protocol, Self
 from pydantic import BaseModel, ValidationError
 
 from strenum import StrEnum
 from lls_core import DeconvolutionChoice, SaveFileType, Log_Levels, DeskewDirection
 from lls_core.lattice_data import CropParams, DeconvolutionParams, DefinedPixelSizes, LatticeData, OutputParams, DeskewParams
-from napari.layers import Layer
+from napari.layers import Shapes
 from enum import Enum
 import pyclesperanto_prototype as cle
 from napari_workflows import Workflow, WorkflowManager
@@ -20,9 +20,10 @@ from qtpy.QtWidgets import QTabWidget
 
 from napari_lattice.icons import RED, GREEN, GREY
 from napari_lattice.reader import lattice_params_from_napari
-from napari_lattice.utils import get_viewer
+from napari_lattice.utils import get_viewer, get_layers
 
 from napari.layers import Image
+
 
 # FieldGroups that the users interact with to input data
 
@@ -152,6 +153,14 @@ class NapariFieldGroup:
         self = cast(FieldGroup, self)
         # self._widget._mgui_bind_parent_change_callback(self._validate)
         self.changed.connect(self._validate, unique=False)
+
+        # Style the error label. 
+        # We have to check this is a QLabel because in theory this might run in a non-QT backend
+        errors = self.errors.native
+        from qtpy.QtWidgets import QLabel
+        if isinstance(errors, QLabel):
+            errors.setStyleSheet("color: red;")
+            errors.setWordWrap(True)
         # super(Container, self).connect(self._validate)
         # self.connect(self._validate)
 
@@ -184,9 +193,8 @@ class NapariFieldGroup:
         self.errors.visible = not valid
         self._set_valid(valid)
 
-    def _make_model(self) -> BaseModel:
+    def _make_model(self):
         raise NotImplementedError()
-
 
 class DeskewFields(NapariFieldGroup, FieldGroup):
 
@@ -209,7 +217,7 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
         else:
             raise Exception("Only 3-5 dimensional arrays are supported")
 
-    img_layer = field(List[Image], widget_type='Select').with_options(label = "Image Layer").with_choices(get_viewer().layers)
+    img_layer = field(List[Image], widget_type='Select').with_options(label = "Image Layer").with_choices(lambda _x, _y: get_layers(Image))
     pixel_sizes = field(Tuple[float, float, float]).with_options(
         value=(DefinedPixelSizes.get_default("X"), DefinedPixelSizes.get_default("Y"), DefinedPixelSizes.get_default("Z")),
         label="Pixel Sizes (XYZ)"
@@ -293,17 +301,24 @@ class DeconvolutionFields(NapariFieldGroup, FieldGroup):
     def _make_model(self) -> Optional[DeconvolutionParams]:
         if not self.fields_enabled.value:
             return None
+        if self.background.value == BackgroundSource.Custom:
+            background = self.background_custom.value
+        elif self.background.value == BackgroundSource.Auto:
+            background = "auto"
+        else:
+            background = "second_last"
         return DeconvolutionParams(
             decon_processing=self.decon_processing.value,
-            background=self.background.value
+            background=background,
+            psf_num_iter=self.psf_num_iter.value
         )
 
-class CroppingFields(FieldGroup, NapariFieldGroup):
+class CroppingFields(NapariFieldGroup, FieldGroup):
     """
     A counterpart to the CropParams Pydantic class
     """
     fields_enabled = field(False, label="Enabled")
-    shapes= field(ShapesData, label = "ROIs")#Optional[Shapes] = None
+    shapes= field(List[Shapes], widget_type="Select", label = "ROIs").with_options(choices=lambda _x, _y: get_layers(Shapes))
     z_range = field(Tuple[int, int]).with_options(
         label = "Z Range",
         value = (0, 1),
@@ -346,15 +361,16 @@ class CroppingFields(FieldGroup, NapariFieldGroup):
         #     self["activate_cropping"].background_color = "green"
 
     def _make_model(self) -> Optional[CropParams]:
+        import numpy as np
         if self.fields_enabled.value:
             return CropParams(
                 z_start=self.z_range.value[0],
                 z_end=self.z_range.value[1],
-                roi_layer_list=self.shapes.value
+                roi_layer_list=ShapesData([np.array(shape.data) for shape in self.shapes.value])
             )
         return None
 
-class WorkflowFields(FieldGroup, NapariFieldGroup):
+class WorkflowFields(NapariFieldGroup, FieldGroup):
     """
     Handles the workflow related parameters
     """
@@ -374,17 +390,18 @@ class WorkflowFields(FieldGroup, NapariFieldGroup):
         return self.workflow_source.value == WorkflowSource.CustomPath
 
     def _make_model(self) -> Optional[Workflow]:
+        from lls_core.workflow import import_workflow_modules
+        from napari_workflows._io_yaml_v1 import load_workflow
         if not self.fields_enabled.value:
             return None
-        child = get_child(self, WorkflowFields)
-        if child.workflow_source == WorkflowSource.ActiveWorkflow:
+        if self.workflow_source.value == WorkflowSource.ActiveWorkflow:
             return WorkflowManager.install(self.parent_viewer).workflow
         else:
-            import_workflow_modules(child.workflow_path)
-            return load_workflow(str(child.workflow_path))
+            import_workflow_modules(self.workflow_path.value)
+            return load_workflow(str(self.workflow_path.value))
 
 # @magicclass(name="5. Output")
-class OutputFields(FieldGroup, NapariFieldGroup):
+class OutputFields(NapariFieldGroup, FieldGroup):
     set_logging = field(Log_Levels.INFO).with_options(label="Logging Level")
     time_range = field(Tuple[int, int]).with_options(
         label="Time Export Range",
