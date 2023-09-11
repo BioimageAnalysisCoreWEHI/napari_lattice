@@ -1,38 +1,38 @@
-from __future__ import annotations
-from pathlib import Path
-from magicclass import FieldGroup, field, MagicTemplate
-from magicclass.widgets import Widget, ComboBox, Label, Select
-from magicclass.fields import MagicField
-from typing import Any, Callable, List, Optional, Protocol, Tuple, TypeVar, Union, cast, TYPE_CHECKING
-from typing_extensions import Protocol, Self
-from pydantic import BaseModel, ValidationError
-
-from strenum import StrEnum
-from enum import auto
-from lls_core import DeconvolutionChoice, SaveFileType, Log_Levels, DeskewDirection
-from lls_core.lattice_data import CropParams, DeconvolutionParams, DefinedPixelSizes, LatticeData, OutputParams, DeskewParams
-from napari.layers import Shapes
-from enum import Enum
-import pyclesperanto_prototype as cle
-from napari_workflows import Workflow, WorkflowManager
-from napari.types import ImageData, ShapesData
-from napari.utils import history
-from abc import ABC
-from qtpy.QtWidgets import QTabWidget
-
-from napari_lattice.icons import RED, GREEN, GREY
-from napari_lattice.reader import lattice_params_from_napari
-from napari_lattice.utils import get_viewer, get_layers
-
-from napari.layers import Image
-
-if TYPE_CHECKING:
-    from xarray import DataArray
-
-
 # FieldGroups that the users interact with to input data
 
 import logging
+from enum import Enum
+from pathlib import Path
+from typing import Any, Callable, List, Optional, Tuple, TypeVar, cast
+
+import pyclesperanto_prototype as cle
+from lls_core import (
+    DeconvolutionChoice,
+    DeskewDirection,
+    Log_Levels,
+    SaveFileType,
+)
+from lls_core.lattice_data import (
+    CropParams,
+    DeconvolutionParams,
+    DefinedPixelSizes,
+    DeskewParams,
+    LatticeData,
+    OutputParams,
+)
+from magicclass import FieldGroup, MagicTemplate, field
+from magicclass.fields import MagicField
+from magicclass.widgets import ComboBox, Label, Widget
+from napari.layers import Image, Shapes
+from napari.types import ShapesData
+from napari.utils import history
+from napari_lattice.icons import GREEN, GREY, RED
+from napari_lattice.reader import NapariImageParams, lattice_params_from_napari
+from napari_lattice.utils import get_layers
+from napari_workflows import Workflow, WorkflowManager
+from pydantic import ValidationError
+from qtpy.QtWidgets import QTabWidget
+from strenum import StrEnum
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -137,17 +137,6 @@ class LastDimensionOptions(Enum):
     XYZCT = "XYZCT"
     Metadata = "Get from Metadata"
 
-# class NapariFields(FieldGroup, ABC):
-#     def __init__(self, layout: str = "vertical", labels: bool = False, name: str | None = None, **kwargs):
-#         super().__init__(layout, labels, name, **kwargs)
-
-# class NapariFieldGroupCompatible(Protocol):
-#     from magicclass.widgets import Container
-#     from qtpy.QtWidgets import QWidget
-#     errors: MagicField[Label]
-#     parent: QWidget
-#     _widget: Container
-
 class NapariFieldGroup:
     # This implementation is a bit ugly. This is a mixin that can only be used on a `FieldGroup`.
     # However, it can't inherit from FieldGroup because then the metaclass would look for fields in this
@@ -203,6 +192,10 @@ class NapariFieldGroup:
 
     def _make_model(self):
         raise NotImplementedError()
+
+class DeskewKwargs(NapariImageParams):
+    angle: float
+    skew: DeskewDirection
 
 class DeskewFields(NapariFieldGroup, FieldGroup):
 
@@ -267,8 +260,8 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
 
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        from qtpy.QtWidgets import QDoubleSpinBox
         from magicgui.widgets import TupleEdit
+        from qtpy.QtWidgets import QDoubleSpinBox
 
         # Enormous hack to set the precision
         # A better method has been requested here: https://github.com/pyapp-kit/magicgui/issues/581#issuecomment-1709467219
@@ -287,34 +280,21 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
 
     @img_layer.connect
     def _img_changed(self) -> None:
-        # Recalculate the dimension options
+        # Recalculate the dimension options whenever the image changes
         self.dimension_order.reset_choices()
 
     @img_layer.connect
     @enable_if([stack_along])
     def _hide_stack_along(self):
+        # Hide the "Stack Along" option if we only have one image
         return len(self.img_layer.value) > 1
 
-    def _merge_layers(self) -> DataArray:
+    def _get_kwargs(self) -> DeskewKwargs:
         """
-        Returns a single image array merged from all the selected layers
+        Returns the LatticeData fields that the Deskew tab can provide
         """
-        from xarray import DataArray, concat
-        layers = [DataArray(it, dims=self.dimension_order.value.split()) for it in self.img_layer.value]
-        if len(layers) == 0:
-            raise Exception("At least one image layer must be selected")
-        elif len(layers) == 1:
-            return layers[0]
-        else:
-            dim = "C" if self.stack_along.value == StackAlong.CHANNEL else "T"
-            return concat(layers, dim=dim)
-        
-        # if len(self.img_layer.value) == 0:
-        #     raise Exception("At least one image layer must be selected.")
-        # return images_to_stack(self.img_layer.value)
-
-    def _make_model(self) -> DeskewParams:
         from aicsimageio.types import PhysicalPixelSizes
+        DeskewParams.update_forward_refs()
         params = lattice_params_from_napari(
                 imgs=self.img_layer.value,
                 dimension_order=None if self.dimension_order.value == "Get from Metadata" else self.dimension_order.value,
@@ -325,12 +305,19 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
                 ),
                 stack_along="C" if self.stack_along.value == StackAlong.CHANNEL else "T"
             )
-        return DeskewParams(
-            data=params["data"],
-            dims=params["dims"],
-            physical_pixel_sizes=params["physical_pixel_sizes"],
+        return DeskewKwargs(
+            **params,
             angle=self.angle.value,
             skew = self.skew_dir.value,
+        )
+
+    def _make_model(self) -> DeskewParams:
+        kwargs = self._get_kwargs()
+        return DeskewParams(
+            data=kwargs["data"],
+            physical_pixel_sizes=kwargs["physical_pixel_sizes"],
+            angle=kwargs["angle"],
+            skew = kwargs["skew"]
         )
 
 class DeconvolutionFields(NapariFieldGroup, FieldGroup):
@@ -350,21 +337,12 @@ class DeconvolutionFields(NapariFieldGroup, FieldGroup):
     )
     errors = field(Label).with_options(label="Errors")
 
-
-    # @background.connect
-    # def _show_custom_background(self):
-    #     self.background_custom.visible = self.background == BackgroundSource.Custom
-        
     @background.connect
     @enable_if(
         [background_custom]
     )
     def _enable_custom_background(self) -> bool:
         return self.background.value == BackgroundSource.Custom
-
-    # @fields_enabled.connect
-    # def _enable_fields(self) -> bool:
-    #     self.decon_processing.visible = self.fields_enabled
 
     @fields_enabled.connect
     @enable_if(
@@ -413,32 +391,6 @@ class CroppingFields(NapariFieldGroup, FieldGroup):
     @enable_if([shapes, z_range])
     def _enable_workflow(self) -> bool:
         return self.fields_enabled.value
-
-
-    # roi_layer_list: ShapesData
-    # @magicclass(visible=False)
-    # class Fields(MagicTemplate):
-    #     shapes= vfield(ShapesData, label = "ROIs")#Optional[Shapes] = None
-    #     z_range = vfield(Tuple[int, int]).with_options(
-    #         label = "Z Range",
-    #         value = (0, 1),
-    #         options = dict(
-    #             min = 0,
-    #             max = 1
-    #         ),
-    #     )
-        # _shapes_layer: Optional[Shapes] = None
-
-        # @set_design(font_size=10, text="Click to activate Cropping Layer", background_color="magenta")
-        # @click(enables=["Import_ImageJ_ROI", "Crop_Preview"])
-        # @set_design(text="New Cropping Layer")
-        # def activate_cropping(self):
-        #     self._shapes_layer = self.parent_viewer.add_shapes(shape_type='polygon', edge_width=1, edge_color='white',
-        #                                                         face_color=[1, 1, 1, 0], name="Cropping BBOX layer")
-        #     # TO select ROIs if needed
-        #     self._shapes_layer.mode = "SELECT"
-        #     self["activate_cropping"].text = "Cropping layer active"
-        #     self["activate_cropping"].background_color = "green"
 
     def _make_model(self) -> Optional[CropParams]:
         import numpy as np
@@ -519,6 +471,3 @@ class OutputFields(NapariFieldGroup, FieldGroup):
             save_name=self.save_name.value,
             save_type=self.save_type.value
         )
-
-
-# @DeskewWidget.img_layer.connect

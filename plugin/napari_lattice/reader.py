@@ -41,6 +41,10 @@ def lattice_params_from_napari(
     if len(imgs) < 1:
         raise ValueError("At least one image must be provided.")
 
+    if len(set(len(it.data.shape) for it in imgs)) > 1:
+        size_message = ",".join(f"{img.name}: {len(img.data.shape)}" for img in imgs)
+        raise ValueError(f"The input images have multiple different dimensions, which napari lattice doesn't support: {size_message}")
+
     save_name: str
     pixel_sizes: set[PhysicalPixelSizes] = {physical_pixel_sizes}
     save_names = []
@@ -74,11 +78,11 @@ def lattice_params_from_napari(
                 # else:
                 #     pixel_size_metadata = img_data_aics.physical_pixel_sizes
 
-            calculated_order = img_data_aics.dims.order
+            calculated_order = tuple(img_data_aics.dims.order)
         elif dimension_order is None:
             raise ValueError("Either the Napari image must have dimensional metadata, or a dimension order must be provided")
         else:
-            calculated_order = list(dimension_order)
+            calculated_order = tuple(dimension_order)
 
         final_imgs.append(DataArray(img.data, dims=calculated_order))
 
