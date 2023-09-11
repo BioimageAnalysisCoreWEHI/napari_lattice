@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from os import devnull, path
-from typing import Collection, List, Tuple, Union
+from typing import Collection, List, Optional, Tuple, TypeVar, Union
 
 import numpy as np
 import pyclesperanto_prototype as cle
@@ -341,3 +341,12 @@ def as_type(img, ref_vol):
     """
     img.astype(ref_vol.dtype)
     return img
+
+T = TypeVar("T")
+def raise_if_none(obj: Optional[T], message: str) -> T:
+    """
+    Asserts that `obj` is not None
+    """
+    if obj is None:
+        raise TypeError(message)
+    return obj

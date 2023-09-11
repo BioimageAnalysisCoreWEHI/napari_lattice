@@ -1,3 +1,4 @@
+from __future__ import annotations
 from pathlib import Path
 from magicclass import FieldGroup, field, MagicTemplate
 from magicclass.widgets import Widget, ComboBox, Label, Select
@@ -7,6 +8,7 @@ from typing_extensions import Protocol, Self
 from pydantic import BaseModel, ValidationError
 
 from strenum import StrEnum
+from enum import auto
 from lls_core import DeconvolutionChoice, SaveFileType, Log_Levels, DeskewDirection
 from lls_core.lattice_data import CropParams, DeconvolutionParams, DefinedPixelSizes, LatticeData, OutputParams, DeskewParams
 from napari.layers import Shapes
@@ -23,6 +25,9 @@ from napari_lattice.reader import lattice_params_from_napari
 from napari_lattice.utils import get_viewer, get_layers
 
 from napari.layers import Image
+
+if TYPE_CHECKING:
+    from xarray import DataArray
 
 
 # FieldGroups that the users interact with to input data
@@ -111,11 +116,11 @@ def enable_if(fields: List[MagicField]):
         def make_handler(fn: Callable) -> Callable[[EnabledHandlerType], None]:
             def handler(parent: EnabledHandlerType):
                 enable = fn(parent)
-                if enable:
-                    logger.info(f"{parent.__class__} Activated")
-                else:
-                    logger.info(f"{parent.__class__} Deactivated")
                 for field in fields:
+                    if enable:
+                        logger.info(f"{field.name} Activated")
+                    else:
+                        logger.info(f"{field.name} Deactivated")
                     enable_field(parent, field, enabled=enable)
             return handler
 
@@ -123,6 +128,9 @@ def enable_if(fields: List[MagicField]):
     
     return _decorator
 
+class StackAlong(StrEnum):
+    CHANNEL = "Channel"
+    TIME = "Time"
 
 class LastDimensionOptions(Enum):
     XYZTC = "XYZTC"
@@ -203,12 +211,10 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
         Returns the list of dimension order options that might be possible for the current image stack
         """
         default = ["Get from Metadata"]
-        try:
-            merged = self._merge_layers()
-        except Exception:
+        ndims = max([len(layer.data.shape)  for layer in self.img_layer.value], default=None)
+        if ndims is None:
             return default
-        ndims = len(merged._dims_order)
-        if ndims == 3:
+        elif ndims == 3:
             return ["ZYX"] + default
         elif ndims == 4:
             return ["TZYX", "CZYX"] + default
@@ -217,38 +223,112 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
         else:
             raise Exception("Only 3-5 dimensional arrays are supported")
 
-    img_layer = field(List[Image], widget_type='Select').with_options(label = "Image Layer").with_choices(lambda _x, _y: get_layers(Image))
-    pixel_sizes = field(Tuple[float, float, float]).with_options(
-        value=(DefinedPixelSizes.get_default("X"), DefinedPixelSizes.get_default("Y"), DefinedPixelSizes.get_default("Z")),
-        label="Pixel Sizes (XYZ)"
+    img_layer = field(List[Image], widget_type='Select').with_options(
+        label="Image Layer(s) to Deskew",
+        tooltip="All the image layers you select will be stacked into one image and then deskewed. To select multiple layers, hold Command (MacOS) or Control (Windows, Linux)."
+    ).with_choices(lambda _x, _y: get_layers(Image))
+    stack_along = field(
+        str
+    ).with_choices(
+        [it.value for it in StackAlong]
+    ).with_options(
+        label="Stack Along",
+        tooltip="The direction along which to stack multiple selected layers.",
+        value=StackAlong.CHANNEL
     )
-    angle = field(LatticeData.get_default("angle")).with_options(value=LatticeData.get_default("angle"), label="Skew Angle")
-    device = field(str).with_choices(cle.available_device_names()).with_options(label="Graphics Device")
+    pixel_sizes = field(Tuple[float, float, float]).with_options(
+        label="Pixel Sizes: XYZ (µm)",
+        tooltip="The size of each pixel in microns. The first field selects the X pixel size, then Y, then Z."
+    )
+    angle = field(LatticeData.get_default("angle")).with_options(
+        value=LatticeData.get_default("angle"),
+        label="Skew Angle (°)",
+        tooltip="The angle to deskew the image, in degrees"
+    )
+    device = field(str).with_choices(cle.available_device_names()).with_options(
+        label="Graphics Device",
+        tooltip="The GPU that will be used to perform the processing"
+    )
     # merge_all_channels = field(False).with_options(label="Merge all Channels")
-    dimension_order = field(str).with_options(value=LastDimensionOptions.Metadata.value).with_choices(_get_dimension_options).with_options(label="Dimension Order")
-    skew_dir = field(DeskewDirection.Y).with_options(label = "Skew Direction")
+    dimension_order = field(
+            str
+        ).with_choices(
+            _get_dimension_options
+        ).with_options(
+            label="Dimension Order",
+            tooltip="Specifies the order of dimensions in the input images. For example, if your image is a 4D array with multiple channels along the first axis, you will specify CZYX.",
+            value=LastDimensionOptions.Metadata.value
+        )
+    skew_dir = field(DeskewDirection.Y).with_options(
+        label="Skew Direction",
+        tooltip="The axis along which to deskew"
+    )
     errors = field(Label).with_options(label="Errors")
 
+    def __init__(self, *args: Any, **kwargs: Any):
+        super().__init__(*args, **kwargs)
+        from qtpy.QtWidgets import QDoubleSpinBox
+        from magicgui.widgets import TupleEdit
+
+        # Enormous hack to set the precision
+        # A better method has been requested here: https://github.com/pyapp-kit/magicgui/issues/581#issuecomment-1709467219
+        if isinstance(self.pixel_sizes, TupleEdit):
+            for subwidget in self.pixel_sizes._list:
+                if isinstance(subwidget.native, QDoubleSpinBox):
+                    subwidget.native.setDecimals(10)
+                    # We have to re-set the default value after changing the precision, because it's already been rounded up
+                    # Also, we have to block emitting the changed signal at construction time
+                    with self.changed.blocked():
+                        self.pixel_sizes.value = (
+                            DefinedPixelSizes.get_default("X"),
+                            DefinedPixelSizes.get_default("Y"),
+                            DefinedPixelSizes.get_default("Z")
+                        )
+
     @img_layer.connect
-    def _img_changed(self):
+    def _img_changed(self) -> None:
+        # Recalculate the dimension options
         self.dimension_order.reset_choices()
 
-    def _merge_layers(self) -> Image:
+    @img_layer.connect
+    @enable_if([stack_along])
+    def _hide_stack_along(self):
+        return len(self.img_layer.value) > 1
+
+    def _merge_layers(self) -> DataArray:
         """
-        Returns a single image merged from all the selected layers
+        Returns a single image array merged from all the selected layers
         """
-        from napari.layers.utils.stack_utils import images_to_stack
-        if len(self.img_layer.value) == 0:
-            raise Exception("At least one image layer must be selected.")
-        return images_to_stack(self.img_layer.value)
+        from xarray import DataArray, concat
+        layers = [DataArray(it, dims=self.dimension_order.value.split()) for it in self.img_layer.value]
+        if len(layers) == 0:
+            raise Exception("At least one image layer must be selected")
+        elif len(layers) == 1:
+            return layers[0]
+        else:
+            dim = "C" if self.stack_along.value == StackAlong.CHANNEL else "T"
+            return concat(layers, dim=dim)
+        
+        # if len(self.img_layer.value) == 0:
+        #     raise Exception("At least one image layer must be selected.")
+        # return images_to_stack(self.img_layer.value)
 
     def _make_model(self) -> DeskewParams:
-        return DeskewParams(
-            **lattice_params_from_napari(
-                img=self._merge_layers(),
+        from aicsimageio.types import PhysicalPixelSizes
+        params = lattice_params_from_napari(
+                imgs=self.img_layer.value,
                 dimension_order=None if self.dimension_order.value == "Get from Metadata" else self.dimension_order.value,
-                physical_pixel_sizes=self.pixel_sizes.value,
-            ),
+                physical_pixel_sizes=PhysicalPixelSizes(
+                    X = self.pixel_sizes.value[0],
+                    Y = self.pixel_sizes.value[1],
+                    Z = self.pixel_sizes.value[2]
+                ),
+                stack_along="C" if self.stack_along.value == StackAlong.CHANNEL else "T"
+            )
+        return DeskewParams(
+            data=params["data"],
+            dims=params["dims"],
+            physical_pixel_sizes=params["physical_pixel_sizes"],
             angle=self.angle.value,
             skew = self.skew_dir.value,
         )

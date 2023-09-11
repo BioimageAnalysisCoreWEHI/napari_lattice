@@ -13,7 +13,7 @@ import tifffile
 from pydantic_numpy import NDArray
 
 from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple, TypeVar, Union
-from typing_extensions import TypedDict
+from typing_extensions import TypedDict, Self
 from pathlib import Path
 
 from aicsimageio.types import PhysicalPixelSizes
@@ -34,12 +34,6 @@ if TYPE_CHECKING:
 import logging
 
 logger = logging.getLogger(__name__)
-
-T = TypeVar("T")
-def raise_if_none(obj: Optional[T], message: str) -> T:
-    if obj is None:
-        raise TypeError(message)
-    return obj
 
 class DefaultMixin(BaseModel):
     """
@@ -130,9 +124,19 @@ class DefinedPixelSizes(DefaultMixin):
     Like PhysicalPixelSizes, but it's a dataclass, and
     none of its fields are None
     """
-    X: NonNegativeFloat = 0.14
-    Y: NonNegativeFloat = 0.14
+    X: NonNegativeFloat = 0.1499219272808386
+    Y: NonNegativeFloat = 0.1499219272808386
     Z: NonNegativeFloat = 0.3
+
+    @classmethod
+    def from_physical(cls, pixels: PhysicalPixelSizes) -> Self:
+        from lls_core.utils import raise_if_none
+
+        return DefinedPixelSizes(
+            X=raise_if_none(pixels.X, "All pixels must be defined"),
+            Y=raise_if_none(pixels.Y, "All pixels must be defined"),
+            Z=raise_if_none(pixels.Z, "All pixels must be defined"),
+        )
 
 class DeconvolutionParams(BaseModel, arbitrary_types_allowed=True):
     """
@@ -213,6 +217,7 @@ class DeskewParams(DefaultMixin, arbitrary_types_allowed=True):
         Sets the default deskew shape values if the user has not provided them
         """
         # process the file to get shape of final deskewed image
+        data = values["data"]
         if values.get('deskew_vol_shape') is None:
             if values.get('deskew_affine_transform') is None:
                 # If neither has been set, calculate them ourselves
