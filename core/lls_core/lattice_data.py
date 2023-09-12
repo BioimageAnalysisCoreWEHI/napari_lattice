@@ -1,9 +1,9 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
+from os import getcwd
 from pydantic import BaseModel, Field, NonNegativeInt, NonNegativeFloat, root_validator, validator
 from aicsimageio.aics_image import AICSImage
-from aicsimageio.dimensions import Dimensions
 # from numpy.typing import NDArray
 import math
 from dask.array.core import Array as DaskArray
@@ -12,7 +12,7 @@ from itertools import groupby
 import tifffile
 from pydantic_numpy import NDArray
 
-from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple, TypeVar, Union
+from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple, Type, TypeVar, Union
 from typing_extensions import TypedDict, Self
 from pathlib import Path
 
@@ -31,19 +31,30 @@ from xarray import DataArray
 
 if TYPE_CHECKING:
     import pyclesperanto_prototype as cle
+    from enum import Enum
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-class DefaultMixin(BaseModel):
+def enum_choices(enum: Type[Enum]) -> str:
     """
-    Adds a method for retrieving default values from a BaseModel
+    Returns a human readable list of enum choices
+    """
+    return "{" +  ", ".join([it.name for it in enum]) + "}"
+
+class FieldAccessMixin(BaseModel):
+    """
+    Adds methods to a BaseModel for accessing useful field information
     """
 
     @classmethod
     def get_default(cls, field_name: str):
         return cls.__fields__[field_name].get_default()
+
+    @classmethod
+    def get_description(cls, field_name: str) -> str:
+        return cls.__fields__[field_name].field_info.description
 
 class ProcessedVolume(BaseModel, arbitrary_types_allowed=True):
     """
@@ -120,7 +131,7 @@ def make_filename_prefix(prefix: Optional[str] = None, roi_index: Optional[int] 
         components.append(f"T{time}")
     return "_".join(components)
 
-class DefinedPixelSizes(DefaultMixin):
+class DefinedPixelSizes(FieldAccessMixin):
     """
     Like PhysicalPixelSizes, but it's a dataclass, and
     none of its fields are None
@@ -143,37 +154,58 @@ class DeconvolutionParams(BaseModel, arbitrary_types_allowed=True):
     """
     Parameters for the optional deconvolution step
     """
-    decon_processing: DeconvolutionChoice = DeconvolutionChoice.cpu
-    psf: List[NDArray] = []
-    psf_num_iter: NonNegativeInt = 10
-    # TODO: handle this
-    # otf_path: List = []
-    # Background value to subtract
-    background: Union[float, Literal["auto", "second_last"]] = 0 
+    decon_processing: DeconvolutionChoice = Field(
+        default=DeconvolutionChoice.cpu,
+        description=f"Hardware to use to perform the deconvolution. Choices: {enum_choices(DeconvolutionChoice)}")
+    psf: List[NDArray] = Field(
+        default=[],
+        description="List of Point Spread Functions to use for deconvolution. Each of which should be a 3D array."
+    )
+    psf_num_iter: NonNegativeInt = Field(
+        default=10,
+        description="Number of iterations to perform in deconvolution"
+    )
+    background: Union[float, Literal["auto", "second_last"]] = Field(
+        default=0,
+        description='Background value to subtract for deconvolution. Only used when decon_processing is set to GPU. This can either be a literal number, "auto" which uses the median of the last slice, or "second_last" which uses the median of the last slice.'
+    )
 
 class CropParams(BaseModel, arbitrary_types_allowed=True):
     """
     Parameters for the optional cropping step
     """
-    roi_layer_list: ShapesData
-    z_start: NonNegativeInt = 0
-    z_end: NonNegativeInt = 1
+    roi_list: ShapesData = Field(
+        description="List of regions of interest, each of which must be an NxD array, where N is the number of vertices and D the coordinates of each vertex."
+    )
+    z_range: Tuple[NonNegativeInt, NonNegativeInt] = Field(
+        default=None,
+        description="The range of Z slices to take. All Z slices before the first index or after the last index will be cropped out."
+    )
 
-class OutputParams(DefaultMixin, arbitrary_types_allowed=True):
-    #: The directory where this data will be saved
-    save_dir: Path
+class OutputParams(FieldAccessMixin, arbitrary_types_allowed=True):
+    save_dir: Path = Field(
+        default = Path.cwd(),
+        description="The directory where the output data will be saved"
+    )
 
-    #: The file name to save this as, without the directory name or file extension
-    save_name: str
+    save_name: str = Field(
+        description="The filename prefix that will be used for output files, without a leading directory or file extension. The final output files will have additional elements added to the end of this prefix to indicate the region of interest, channel, timepoint, file extension etc."
+    )
 
-    #: The range of times to process
-    time_range: range
+    time_range: range = Field(
+        default = None,
+        description="The range of times to process. This defaults to all time points in the image array."
+    )
 
-    #: The range of channels to process
-    channel_range: range
+    channel_range: range = Field(
+        default = None,
+        description="The range of channels to process. This defaults to all channels in the image array."
+    )
 
-    #: The data type to save the result as
-    save_type: SaveFileType = SaveFileType.h5
+    save_type: SaveFileType = Field(
+        default=SaveFileType.h5,
+        description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: {enum_choices(SaveFileType)}"
+    )
 
     @validator("time_range")
     def default_time_range(cls, v: Any, values: dict) -> range:
@@ -193,27 +225,38 @@ class OutputParams(DefaultMixin, arbitrary_types_allowed=True):
             return range(values["data"].sizes["C"] + 1)
         return v
 
-class DeskewParams(DefaultMixin, arbitrary_types_allowed=True):
-    #: A 3-5D array containing the image data
-    data: DataArray
+class DeskewParams(FieldAccessMixin, arbitrary_types_allowed=True):
+    image: DataArray = Field(
+        description="A 3-5D array containing the image data"
+    )
 
-    #: Geometry of the light path
-    skew: DeskewDirection = DeskewDirection.Y
-    angle: float = 30.0
+    skew: DeskewDirection = Field(
+        default=DeskewDirection.Y,
+        description=f"Axis along which to deskew the image. Choices: {enum_choices(DeskewDirection)}"
+    )
+    angle: float = Field(
+        default=30.0,
+        description="Angle of deskewing, in degrees"
+    )
 
-    #: Pixel size in microns
-    physical_pixel_sizes: DefinedPixelSizes = Field(default_factory=DefinedPixelSizes)
+    physical_pixel_sizes: DefinedPixelSizes = Field(
+        default_factory=DefinedPixelSizes,
+        description="Pixel size of the microscope, in microns"
+    )
 
-    #: Dimensions of the deskewed output
-    deskew_vol_shape: Tuple[int, ...] = Field(init_var=False, default=None)
+    deskew_vol_shape: Tuple[int, ...] = Field(
+        init_var=False,
+        default=None,
+        description="Dimensions of the deskewed output. This is set automatically based on other input parameters, and doesn't need to be provided by the user."
+    )
 
-    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False, default=None)
+    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False, default=None, description="Deskewing transformation function. This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
 
     @property
     def dims(self):
-        return self.data.dims
+        return self.image.dims
 
-    @validator("data", pre=True)
+    @validator("image", pre=True)
     def reshaping(cls, v: Any):
         # This allows a user to pass in any array-like object and have it
         # converted and reshaped appropriately
@@ -227,7 +270,7 @@ class DeskewParams(DefaultMixin, arbitrary_types_allowed=True):
         return array.transpose("T", "C", "Z", "Y", "X")
 
     def get_3d_slice(self) -> DataArray:
-        return self.data.sel(C=0, T=0)
+        return self.image.sel(C=0, T=0)
 
     @root_validator(pre=True)
     def set_deskew(cls, values: dict) -> dict:
@@ -244,7 +287,6 @@ class DeskewParams(DefaultMixin, arbitrary_types_allowed=True):
                 raise ValueError("deskew_vol_shape and deskew_affine_transform must be either both specified or neither specified")
         return values
 
-
 class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
     """
     Holds data and metadata for a given image in a consistent format
@@ -259,8 +301,10 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
     #: If this is None, then cropping is disabled
     crop: Optional[CropParams] = None
  
-    #: If defined, this is a workflow to add lightsheet processing onto
-    workflow: Optional[Workflow] = None
+    workflow: Optional[Workflow] = Field(
+        default=None,
+        description="If defined, this is a workflow to add lightsheet processing onto"
+    )
 
     @validator("time_range")
     def disjoint_time_range(cls, v: range, values: dict):
@@ -363,12 +407,12 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
     @property
     def time(self) -> int:
         """Number of time points"""
-        return self.data.sizes["T"]
+        return self.image.sizes["T"]
 
     @property
     def channels(self) -> int:
         """Number of channels"""
-        return self.data.sizes["C"]
+        return self.image.sizes["C"]
 
     @property
     def new_dz(self):
@@ -384,14 +428,14 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         if channel > self.channels:
             raise ValueError("channel is out of range")
 
-        return self.data.sel(T=time, C=channel)
+        return self.image.sel(T=time, C=channel)
 
-        if len(self.data.shape) == 3:
-            return self.data
-        elif len(self.data.shape) == 4:
-            return self.data[time, :, :, :]
-        elif len(self.data.shape) == 5:
-            return self.data[time, channel, :, :, :]
+        if len(self.image.shape) == 3:
+            return self.image
+        elif len(self.image.shape) == 4:
+            return self.image[time, :, :, :]
+        elif len(self.image.shape) == 5:
+            return self.image[time, channel, :, :, :]
 
         raise Exception("Lattice data must be 3-5 dimensions")
 
@@ -436,7 +480,7 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
             raise Exception("This function can only be called when crop is set")
             
         # We have an extra level of iteration for the crop path: iterating over each ROI
-        for roi_index, roi in enumerate(tqdm(self.crop.roi_layer_list, desc="ROI:", position=0)):
+        for roi_index, roi in enumerate(tqdm(self.crop.roi_list, desc="ROI:", position=0)):
             # pass arguments for save tiff, callable and function arguments
             logger.info("Processing ROI ", roi_index)
             
@@ -462,8 +506,8 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
                         voxel_size_z=self.dy,
                         angle_in_degrees=self.angle,
                         deskewed_volume=self.deskewed_volume,
-                        z_start=self.crop.z_start,
-                        z_end=self.crop.z_end,
+                        z_start=self.crop.z_range[0],
+                        z_end=self.crop.z_range[1],
                         **deconv_args
                     ),
                     channel=ch,
@@ -484,6 +528,7 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
                     data= pycuda_decon(
                         image=data,
                         psf=self.deconvolution.psf[ch],
+                        background=self.deconvolution.background,
                         dzdata=self.dz,
                         dxdata=self.dx,
                         dzpsf=self.dz,

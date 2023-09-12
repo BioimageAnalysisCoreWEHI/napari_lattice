@@ -314,7 +314,7 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
     def _make_model(self) -> DeskewParams:
         kwargs = self._get_kwargs()
         return DeskewParams(
-            data=kwargs["data"],
+            image=kwargs["data"],
             physical_pixel_sizes=kwargs["physical_pixel_sizes"],
             angle=kwargs["angle"],
             skew = kwargs["skew"]
@@ -396,9 +396,8 @@ class CroppingFields(NapariFieldGroup, FieldGroup):
         import numpy as np
         if self.fields_enabled.value:
             return CropParams(
-                z_start=self.z_range.value[0],
-                z_end=self.z_range.value[1],
-                roi_layer_list=ShapesData([np.array(shape.data) for shape in self.shapes.value])
+                z_range=self.z_range.value,
+                roi_list=ShapesData([np.array(shape.data) for shape in self.shapes.value])
             )
         return None
 

@@ -57,7 +57,7 @@ class LLSZWidget(LlszTemplate):
         deskew_args = self.LlszMenu.WidgetContainer.deskew_fields._get_kwargs()
         output_args = self.LlszMenu.WidgetContainer.output_fields._make_model()
         return LatticeData(
-            data=deskew_args["data"],
+            image=deskew_args["data"],
             angle=deskew_args["angle"],
             channel_range=output_args.channel_range,
             time_range=output_args.time_range,
