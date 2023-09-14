@@ -1,7 +1,8 @@
 from __future__ import annotations
+from os import PathLike
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from pydantic import BaseModel, DirectoryPath, Field, NonNegativeInt, validator
+from pydantic import BaseModel, DirectoryPath, Field, NonNegativeInt, root_validator, validator
 from aicsimageio.aics_image import AICSImage
 # from numpy.typing import NDArray
 import math
@@ -27,11 +28,10 @@ from lls_core.types import ArrayLike
 from lls_core.models.deskew import DeskewParams
 from napari_workflows import Workflow
 from xarray import DataArray
+from pathlib import Path
 
 if TYPE_CHECKING:
     import pyclesperanto_prototype as cle
-    from enum import Enum
-    from pathlib import Path
     from lls_core.models.deskew import DefinedPixelSizes
     from aicsimageio.types import ImageLike
 
@@ -123,7 +123,6 @@ workflow: Optional[Workflow] = Field(
 class CommonOutputArgs(TypedDict):
     # Arguments
     save_dir: NotRequired[DirectoryPath]
-    save_name: NotRequired[str]
     save_type: SaveFileType
     time_range: range
     channel_range: range
@@ -146,25 +145,31 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
     # (similar to how `crop` and `workflow` are handled), but this was impractical for implementing validations
 
     @overload
+    @classmethod
     def make(
-        self,
+        cls,
         image: Union[ImageLike, AICSImage],
-        physical_pixel_sizes: Optional[DefinedPixelSizes],
+        physical_pixel_sizes: Optional[DefinedPixelSizes] = None,
+        save_name: Optional[str] = None,
         **kwargs: Unpack[CommonLatticeArgs]
     ):
         ...
     @overload
+    @classmethod
     def make(
-        self,
+        cls,
         image: ArrayLike,
         physical_pixel_sizes: DefinedPixelSizes,
+        save_name: str,
         **kwargs: Unpack[CommonLatticeArgs]
     ):
         ...
+    @classmethod
     def make(
-        self,
+        cls,
         image: Any,
         physical_pixel_sizes: Optional[DefinedPixelSizes] = None,
+        save_name: Optional[str] = None,
         **kwargs: Unpack[CommonLatticeArgs]
     ):
         if isinstance(image, get_args(ImageLike)):
@@ -185,9 +190,9 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         LatticeData(
             image=image,
             physical_pixel_sizes=combined_pixels,
+            save_name=save_name,
             **kwargs
         )
-
 
     #: If this is None, then deconvolution is disabled
     deconvolution: Optional[DeconvolutionParams] = None
@@ -197,12 +202,21 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
  
     workflow: Optional[Workflow] = workflow
 
+    @root_validator(pre=True)
+    def default_save_name(cls, values: dict):
+        # This needs to be a root validator to ensure it runs before the 
+        # reshaping validator. We can't override that either since it's 
+        # a field validator and can't modify save_name
+        if values.get("save_name", None) is None and isinstance(values["image"], PathLike):
+            values["save_name"] = Path(values["image"]).stem
+        return values
+
     @validator("time_range")
     def disjoint_time_range(cls, v: range, values: dict):
         """
         Validates that the time range is within the range of channels in our array
         """
-        max_time = values["data"].sizes["T"]
+        max_time = values["image"].sizes["T"]
         if v.start < 0:
             raise ValueError("The lowest valid start value is 0")
         if v.stop > max_time:
@@ -214,7 +228,7 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         """
         Validates that the channel range is within the range of channels in our array
         """
-        max_channel = values["data"].sizes["C"]
+        max_channel = values["image"].sizes["C"]
         if v.start < 0:
             raise ValueError("The lowest valid start value is 0")
         if v.stop > max_channel:
@@ -223,13 +237,13 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
 
     @validator("channel_range")
     def channel_range_subset(cls, v: range, values: dict):
-        if min(v) < 0 or max(v) > values["data"].sizes["C"]:
+        if min(v) < 0 or max(v) > values["image"].sizes["C"]:
             raise ValueError("The output channel range must be a subset of the total available channels")
         return v
 
     @validator("time_range")
     def time_range_subset(cls, v: range, values: dict):
-        if min(v) < 0 or max(v) > values["data"].sizes["T"]:
+        if min(v) < 0 or max(v) > values["image"].sizes["T"]:
             raise ValueError("The output time range must be a subset of the total available time points")
         return v
 

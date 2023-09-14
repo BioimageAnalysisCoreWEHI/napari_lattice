@@ -79,3 +79,11 @@ psf = [
 
 [project.scripts]
 lls-pipeline = "lls_core.cmds.__main__:main"
+
+[tool.mypy]
+plugins = [
+  "pydantic.mypy"
+]
+
+[tool.pydantic-mypy]
+init_typed = false

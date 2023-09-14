@@ -4,7 +4,7 @@ from __future__ import annotations
 from pydantic import Field, NonNegativeFloat, validator, root_validator
 # from numpy.typing import NDArray
 
-from typing import Any, Tuple
+from typing import Any, Literal, Tuple
 from typing_extensions import Self, TYPE_CHECKING
 
 import pyclesperanto_prototype as cle
@@ -13,9 +13,13 @@ from lls_core import DeskewDirection
 from xarray import DataArray
 
 from lls_core.models.utils import FieldAccessMixin, enum_choices
+from lls_core.types import image_like_to_image
+from lls_core.utils import get_deskewed_shape
 
 if TYPE_CHECKING:
     from aicsimageio.types import PhysicalPixelSizes
+
+# DeskewDirection = Literal["X", "Y"]
 
 class DefinedPixelSizes(FieldAccessMixin):
     """
@@ -65,11 +69,13 @@ class DeskewParams(FieldAccessMixin, arbitrary_types_allowed=True):
     def dims(self):
         return self.image.dims
 
+    # convert_image = validator("image", pre=True, allow_reuse=True)(image_like_to_image)
+
     @validator("image", pre=True)
     def reshaping(cls, v: Any):
         # This allows a user to pass in any array-like object and have it
         # converted and reshaped appropriately
-        array = DataArray(v)
+        array = image_like_to_image(v)
         if not set(array.dims).issuperset({"X", "Y", "Z"}):
             raise ValueError("The input array must at least have XYZ coordinates")
         if "T" not in array.dims:
@@ -87,11 +93,11 @@ class DeskewParams(FieldAccessMixin, arbitrary_types_allowed=True):
         Sets the default deskew shape values if the user has not provided them
         """
         # process the file to get shape of final deskewed image
-        data: DataArray = cls.reshaping(values["data"])
+        data: DataArray = cls.reshaping(values["image"])
         if values.get('deskew_vol_shape') is None:
             if values.get('deskew_affine_transform') is None:
                 # If neither has been set, calculate them ourselves
-                values["deskew_vol_shape"], values["deskew_affine_transform"] = get_deskewed_shape(data.sel(C=0, T=0).to_numpy(), values["angle"], values["physical_pixel_sizes"].X, values["physical_pixel_sizes"].Y, values["physical_pixel_sizes"].Z, values["skew"])
+                values["deskew_vol_shape"], values["deskew_affine_transform"] = get_deskewed_shape(data.isel(C=0, T=0).to_numpy(), values["angle"], values["physical_pixel_sizes"].X, values["physical_pixel_sizes"].Y, values["physical_pixel_sizes"].Z, values["skew"])
             else:
                 raise ValueError("deskew_vol_shape and deskew_affine_transform must be either both specified or neither specified")
         return values
