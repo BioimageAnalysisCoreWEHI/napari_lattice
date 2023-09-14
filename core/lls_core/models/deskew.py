@@ -2,9 +2,8 @@ from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
 from pydantic import Field, NonNegativeFloat, validator, root_validator
-# from numpy.typing import NDArray
 
-from typing import Any, Literal, Tuple
+from typing import Any, Tuple
 from typing_extensions import Self, TYPE_CHECKING
 
 import pyclesperanto_prototype as cle

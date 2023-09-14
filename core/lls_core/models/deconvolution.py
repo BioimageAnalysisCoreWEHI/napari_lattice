@@ -1,8 +1,8 @@
 
 from pydantic import Field, NonNegativeInt, validator
 
-from typing import Any, List, Literal, Optional, Union, TYPE_CHECKING
-from typing_extensions import Self, TypedDict, Unpack
+from typing import Any, List, Literal, Union
+from typing_extensions import TypedDict
 
 from xarray import DataArray
 
@@ -46,37 +46,3 @@ class DeconvolutionParams(FieldAccessMixin, arbitrary_types_allowed=True):
         return v
 
     convert_image = validator("psf", pre=True, each_item=True, allow_reuse=True)(image_like_to_image)
-
-    # @classmethod
-    # def make(
-    #     cls,
-    #     **kwargs: Unpack[MakeKwargs]
-    # ) -> Self:
-    #     dest= { }
-    #     decon_processing = kwargs.pop("decon_processing", None)
-    #     if isinstance(decon_processing, DeconvolutionChoice):
-    #         dest["decon_processing"] = decon_processing
-    #     elif decon_processing is not None:
-    #         dest["decon_processing"] = DeconvolutionChoice(decon_processing)
-
-    #     DeconvolutionParams(**dest)
-    #     dest
-    #     1 + "a"
-
-    #     DeconvolutionParams(**kwargs)
-
-    #     background_processed: Background
-    #     try:
-    #         background_processed = float(background)
-    #     except Exception:
-    #         if background == "auto" or background == "second_last":
-    #             background_processed = background
-    #         else:
-    #             raise Exception("Invalid background option")
-
-    #     return DeconvolutionParams(
-    #         decon_processing=decon_processing,
-    #         background=background_processed,
-    #         psf = [image_like_to_image(it) for it in psf],
-    #         psf_num_iter=psf_num_iter
-    #     )

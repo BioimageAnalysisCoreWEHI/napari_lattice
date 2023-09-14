@@ -4,15 +4,14 @@ from os import PathLike
 # TODO: handle scenes
 from pydantic import BaseModel, DirectoryPath, Field, NonNegativeInt, root_validator, validator
 from aicsimageio.aics_image import AICSImage
-# from numpy.typing import NDArray
 import math
 from dask.array.core import Array as DaskArray
 import dask as da
 from itertools import groupby
 import tifffile
 
-from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple, Union, overload
-from typing_extensions import TypedDict, Unpack, NotRequired, get_args
+from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple
+from typing_extensions import TypedDict, NotRequired
 
 from aicsimageio.types import PhysicalPixelSizes
 import pyclesperanto_prototype as cle
@@ -143,56 +142,6 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
 
     # Note: originally the save-related fields were included via composition and not inheritance
     # (similar to how `crop` and `workflow` are handled), but this was impractical for implementing validations
-
-    @overload
-    @classmethod
-    def make(
-        cls,
-        image: Union[ImageLike, AICSImage],
-        physical_pixel_sizes: Optional[DefinedPixelSizes] = None,
-        save_name: Optional[str] = None,
-        **kwargs: Unpack[CommonLatticeArgs]
-    ):
-        ...
-    @overload
-    @classmethod
-    def make(
-        cls,
-        image: ArrayLike,
-        physical_pixel_sizes: DefinedPixelSizes,
-        save_name: str,
-        **kwargs: Unpack[CommonLatticeArgs]
-    ):
-        ...
-    @classmethod
-    def make(
-        cls,
-        image: Any,
-        physical_pixel_sizes: Optional[DefinedPixelSizes] = None,
-        save_name: Optional[str] = None,
-        **kwargs: Unpack[CommonLatticeArgs]
-    ):
-        if isinstance(image, get_args(ImageLike)):
-            image = AICSImage(image)
-        
-        meta_pixels = None
-        if isinstance(image, AICSImage):
-            if all(image.physical_pixel_sizes):
-                meta_pixels = DefinedPixelSizes.from_physical(image.physical_pixel_sizes)
-            image = image.xarray_dask_data
-
-        image = DataArray(image)
-
-        combined_pixels = physical_pixel_sizes or meta_pixels
-        if combined_pixels is None:
-            raise ValueError("Pixel sizes")
-
-        LatticeData(
-            image=image,
-            physical_pixel_sizes=combined_pixels,
-            save_name=save_name,
-            **kwargs
-        )
 
     #: If this is None, then deconvolution is disabled
     deconvolution: Optional[DeconvolutionParams] = None
