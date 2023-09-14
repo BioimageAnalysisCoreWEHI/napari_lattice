@@ -135,7 +135,7 @@ def import_script(script: Path):
     sys.modules[module_name] = module
     spec.loader.exec_module(module)
 
-def import_workflow_modules(workflow: Path) -> None:
+def _import_workflow_modules(workflow: Path) -> None:
     """
     Imports all the Python files that might be used in a given custom workflow
 
@@ -155,6 +155,13 @@ def import_workflow_modules(workflow: Path) -> None:
     else:
         logger.info(f"{counter} custom modules imported")
 
+def workflow_from_path(workflow: Path) -> Workflow:
+    """
+    Imports the dependency modules for a workflow, and loads it from disk
+    """
+    from napari_workflows._io_yaml_v1 import load_workflow
+    _import_workflow_modules(workflow)
+    return load_workflow(str(workflow))
 
 def process_custom_workflow_output(workflow_output: Union[dict, list, ArrayLike],
                                    save_dir: Optional[str]=None,

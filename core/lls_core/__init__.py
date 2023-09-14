@@ -13,11 +13,6 @@ class DeconvolutionChoice(StrEnum):
     opencl_gpu = "opencl_gpu"
     cpu = "cpu"
 
-#Choice of File extension to save
-class SaveFileType(StrEnum):
-    h5 = "h5"
-    tiff = "tiff"
-
 #CONFIGURE LOGGING using a dictionary (can also be done with yaml file)
 import logging.config
 LOGGING_CONFIG = {

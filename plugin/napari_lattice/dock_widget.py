@@ -4,8 +4,8 @@ from pathlib import Path
 from typing import Union
 
 import numpy as np
-from lls_core.lattice_data import LatticeData
-from lls_core.workflow import import_workflow_modules
+from lls_core.models.lattice_data import LatticeData
+from lls_core.workflow import _import_workflow_modules
 from magicclass import MagicTemplate, field, magicclass, set_options
 from magicclass.wrappers import set_design
 from napari import Viewer
@@ -147,7 +147,7 @@ def get_workflow(source: Union[Path, Viewer]) -> Workflow:
         user_workflow = WorkflowManager.install(source).workflow
         logger.info("Workflow installed")
     else:
-        import_workflow_modules(source)
+        _import_workflow_modules(source)
         user_workflow = load_workflow(str(source))
 
     if not isinstance(user_workflow, Workflow):

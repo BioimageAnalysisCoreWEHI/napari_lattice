@@ -1,8 +1,7 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from os import getcwd
-from pydantic import BaseModel, Field, NonNegativeInt, NonNegativeFloat, root_validator, validator
+from pydantic import BaseModel, DirectoryPath, Field, NonNegativeInt, validator
 from aicsimageio.aics_image import AICSImage
 # from numpy.typing import NDArray
 import math
@@ -10,51 +9,35 @@ from dask.array.core import Array as DaskArray
 import dask as da
 from itertools import groupby
 import tifffile
-from pydantic_numpy import NDArray
 
-from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple, Type, TypeVar, Union
-from typing_extensions import TypedDict, Self
-from pathlib import Path
+from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple, Union, overload
+from typing_extensions import TypedDict, Unpack, NotRequired, get_args
 
 from aicsimageio.types import PhysicalPixelSizes
 import pyclesperanto_prototype as cle
 from tqdm import tqdm
 
-from lls_core import DeskewDirection, DeconvolutionChoice, SaveFileType
+from lls_core import DeskewDirection, DeconvolutionChoice
 from lls_core.deconvolution import pycuda_decon, skimage_decon
 from lls_core.llsz_core import crop_volume_deskew
-from lls_core.utils import get_deskewed_shape
+from lls_core.models.crop import CropParams
+from lls_core.models.deconvolution import DeconvolutionParams
+from lls_core.models.output import OutputParams, SaveFileType
 from lls_core.types import ArrayLike
+from lls_core.models.deskew import DeskewParams
 from napari_workflows import Workflow
-from napari.types import ShapesData
 from xarray import DataArray
 
 if TYPE_CHECKING:
     import pyclesperanto_prototype as cle
     from enum import Enum
+    from pathlib import Path
+    from lls_core.models.deskew import DefinedPixelSizes
+    from aicsimageio.types import ImageLike
 
 import logging
 
 logger = logging.getLogger(__name__)
-
-def enum_choices(enum: Type[Enum]) -> str:
-    """
-    Returns a human readable list of enum choices
-    """
-    return "{" +  ", ".join([it.name for it in enum]) + "}"
-
-class FieldAccessMixin(BaseModel):
-    """
-    Adds methods to a BaseModel for accessing useful field information
-    """
-
-    @classmethod
-    def get_default(cls, field_name: str):
-        return cls.__fields__[field_name].get_default()
-
-    @classmethod
-    def get_description(cls, field_name: str) -> str:
-        return cls.__fields__[field_name].field_info.description
 
 class ProcessedVolume(BaseModel, arbitrary_types_allowed=True):
     """
@@ -131,161 +114,28 @@ def make_filename_prefix(prefix: Optional[str] = None, roi_index: Optional[int] 
         components.append(f"T{time}")
     return "_".join(components)
 
-class DefinedPixelSizes(FieldAccessMixin):
-    """
-    Like PhysicalPixelSizes, but it's a dataclass, and
-    none of its fields are None
-    """
-    X: NonNegativeFloat = 0.1499219272808386
-    Y: NonNegativeFloat = 0.1499219272808386
-    Z: NonNegativeFloat = 0.3
 
-    @classmethod
-    def from_physical(cls, pixels: PhysicalPixelSizes) -> Self:
-        from lls_core.utils import raise_if_none
+workflow: Optional[Workflow] = Field(
+    default=None,
+    description="If defined, this is a workflow to add lightsheet processing onto"
+)
 
-        return DefinedPixelSizes(
-            X=raise_if_none(pixels.X, "All pixels must be defined"),
-            Y=raise_if_none(pixels.Y, "All pixels must be defined"),
-            Z=raise_if_none(pixels.Z, "All pixels must be defined"),
-        )
+class CommonOutputArgs(TypedDict):
+    # Arguments
+    save_dir: NotRequired[DirectoryPath]
+    save_name: NotRequired[str]
+    save_type: SaveFileType
+    time_range: range
+    channel_range: range
 
-class DeconvolutionParams(BaseModel, arbitrary_types_allowed=True):
-    """
-    Parameters for the optional deconvolution step
-    """
-    decon_processing: DeconvolutionChoice = Field(
-        default=DeconvolutionChoice.cpu,
-        description=f"Hardware to use to perform the deconvolution. Choices: {enum_choices(DeconvolutionChoice)}")
-    psf: List[NDArray] = Field(
-        default=[],
-        description="List of Point Spread Functions to use for deconvolution. Each of which should be a 3D array."
-    )
-    psf_num_iter: NonNegativeInt = Field(
-        default=10,
-        description="Number of iterations to perform in deconvolution"
-    )
-    background: Union[float, Literal["auto", "second_last"]] = Field(
-        default=0,
-        description='Background value to subtract for deconvolution. Only used when decon_processing is set to GPU. This can either be a literal number, "auto" which uses the median of the last slice, or "second_last" which uses the median of the last slice.'
-    )
+class CommonDeskewArgs(TypedDict):
+    skew: DeskewDirection
+    angle: float
 
-class CropParams(BaseModel, arbitrary_types_allowed=True):
-    """
-    Parameters for the optional cropping step
-    """
-    roi_list: ShapesData = Field(
-        description="List of regions of interest, each of which must be an NxD array, where N is the number of vertices and D the coordinates of each vertex."
-    )
-    z_range: Tuple[NonNegativeInt, NonNegativeInt] = Field(
-        default=None,
-        description="The range of Z slices to take. All Z slices before the first index or after the last index will be cropped out."
-    )
-
-class OutputParams(FieldAccessMixin, arbitrary_types_allowed=True):
-    save_dir: Path = Field(
-        default = Path.cwd(),
-        description="The directory where the output data will be saved"
-    )
-
-    save_name: str = Field(
-        description="The filename prefix that will be used for output files, without a leading directory or file extension. The final output files will have additional elements added to the end of this prefix to indicate the region of interest, channel, timepoint, file extension etc."
-    )
-
-    time_range: range = Field(
-        default = None,
-        description="The range of times to process. This defaults to all time points in the image array."
-    )
-
-    channel_range: range = Field(
-        default = None,
-        description="The range of channels to process. This defaults to all channels in the image array."
-    )
-
-    save_type: SaveFileType = Field(
-        default=SaveFileType.h5,
-        description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: {enum_choices(SaveFileType)}"
-    )
-
-    @validator("time_range")
-    def default_time_range(cls, v: Any, values: dict) -> range:
-        """
-        Sets the default time range if undefined
-        """
-        if v is None:
-            return range(values["data"].sizes["T"] + 1)
-        return v
-
-    @validator("channel_range")
-    def default_channel_range(cls, v: Any, values: dict) -> range:
-        """
-        Sets the default channel range if undefined
-        """
-        if v is None:
-            return range(values["data"].sizes["C"] + 1)
-        return v
-
-class DeskewParams(FieldAccessMixin, arbitrary_types_allowed=True):
-    image: DataArray = Field(
-        description="A 3-5D array containing the image data"
-    )
-
-    skew: DeskewDirection = Field(
-        default=DeskewDirection.Y,
-        description=f"Axis along which to deskew the image. Choices: {enum_choices(DeskewDirection)}"
-    )
-    angle: float = Field(
-        default=30.0,
-        description="Angle of deskewing, in degrees"
-    )
-
-    physical_pixel_sizes: DefinedPixelSizes = Field(
-        default_factory=DefinedPixelSizes,
-        description="Pixel size of the microscope, in microns"
-    )
-
-    deskew_vol_shape: Tuple[int, ...] = Field(
-        init_var=False,
-        default=None,
-        description="Dimensions of the deskewed output. This is set automatically based on other input parameters, and doesn't need to be provided by the user."
-    )
-
-    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False, default=None, description="Deskewing transformation function. This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
-
-    @property
-    def dims(self):
-        return self.image.dims
-
-    @validator("image", pre=True)
-    def reshaping(cls, v: Any):
-        # This allows a user to pass in any array-like object and have it
-        # converted and reshaped appropriately
-        array = DataArray(v)
-        if not set(array.dims).issuperset({"X", "Y", "Z"}):
-            raise ValueError("The input array must at least have XYZ coordinates")
-        if "T" not in array.dims:
-            array = array.expand_dims("T")
-        if "C" not in array.dims:
-            array = array.expand_dims("C")
-        return array.transpose("T", "C", "Z", "Y", "X")
-
-    def get_3d_slice(self) -> DataArray:
-        return self.image.sel(C=0, T=0)
-
-    @root_validator(pre=True)
-    def set_deskew(cls, values: dict) -> dict:
-        """
-        Sets the default deskew shape values if the user has not provided them
-        """
-        # process the file to get shape of final deskewed image
-        data: DataArray = cls.reshaping(values["data"])
-        if values.get('deskew_vol_shape') is None:
-            if values.get('deskew_affine_transform') is None:
-                # If neither has been set, calculate them ourselves
-                values["deskew_vol_shape"], values["deskew_affine_transform"] = get_deskewed_shape(data.sel(C=0, T=0).to_numpy(), values["angle"], values["physical_pixel_sizes"].X, values["physical_pixel_sizes"].Y, values["physical_pixel_sizes"].Z, values["skew"])
-            else:
-                raise ValueError("deskew_vol_shape and deskew_affine_transform must be either both specified or neither specified")
-        return values
+class CommonLatticeArgs(CommonDeskewArgs, CommonOutputArgs):
+    deconvolution: Optional[DeconvolutionParams]
+    crop: Optional[CropParams]
+    workflow: Optional[Workflow]
 
 class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
     """
@@ -295,16 +145,57 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
     # Note: originally the save-related fields were included via composition and not inheritance
     # (similar to how `crop` and `workflow` are handled), but this was impractical for implementing validations
 
+    @overload
+    def make(
+        self,
+        image: Union[ImageLike, AICSImage],
+        physical_pixel_sizes: Optional[DefinedPixelSizes],
+        **kwargs: Unpack[CommonLatticeArgs]
+    ):
+        ...
+    @overload
+    def make(
+        self,
+        image: ArrayLike,
+        physical_pixel_sizes: DefinedPixelSizes,
+        **kwargs: Unpack[CommonLatticeArgs]
+    ):
+        ...
+    def make(
+        self,
+        image: Any,
+        physical_pixel_sizes: Optional[DefinedPixelSizes] = None,
+        **kwargs: Unpack[CommonLatticeArgs]
+    ):
+        if isinstance(image, get_args(ImageLike)):
+            image = AICSImage(image)
+        
+        meta_pixels = None
+        if isinstance(image, AICSImage):
+            if all(image.physical_pixel_sizes):
+                meta_pixels = DefinedPixelSizes.from_physical(image.physical_pixel_sizes)
+            image = image.xarray_dask_data
+
+        image = DataArray(image)
+
+        combined_pixels = physical_pixel_sizes or meta_pixels
+        if combined_pixels is None:
+            raise ValueError("Pixel sizes")
+
+        LatticeData(
+            image=image,
+            physical_pixel_sizes=combined_pixels,
+            **kwargs
+        )
+
+
     #: If this is None, then deconvolution is disabled
     deconvolution: Optional[DeconvolutionParams] = None
 
     #: If this is None, then cropping is disabled
     crop: Optional[CropParams] = None
  
-    workflow: Optional[Workflow] = Field(
-        default=None,
-        description="If defined, this is a workflow to add lightsheet processing onto"
-    )
+    workflow: Optional[Workflow] = workflow
 
     @validator("time_range")
     def disjoint_time_range(cls, v: range, values: dict):

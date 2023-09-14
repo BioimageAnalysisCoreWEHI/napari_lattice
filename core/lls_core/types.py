@@ -6,8 +6,9 @@ from pyopencl.array import Array as OCLArray
 import numpy as np
 import pydantic_numpy.dtype as pnd
 from pydantic_numpy import NDArray, NDArrayFp32, NumpyModel
+from xarray import DataArray
 
-ArrayLike: TypeAlias = Union[DaskArray, NDArray, OCLArray]
+ArrayLike: TypeAlias = Union[DaskArray, NDArray, OCLArray, DataArray]
 
 def is_arraylike(arr: Any) -> TypeGuard[ArrayLike]:
-    return isinstance(arr, (DaskArray, np.ndarray, OCLArray))
+    return isinstance(arr, (DaskArray, np.ndarray, OCLArray, DataArray))

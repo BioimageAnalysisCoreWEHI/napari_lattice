@@ -12,7 +12,7 @@ from lls_core import (
     Log_Levels,
     SaveFileType,
 )
-from lls_core.lattice_data import (
+from lls_core.models.lattice_data import (
     CropParams,
     DeconvolutionParams,
     DefinedPixelSizes,
@@ -421,15 +421,13 @@ class WorkflowFields(NapariFieldGroup, FieldGroup):
         return self.workflow_source.value == WorkflowSource.CustomPath
 
     def _make_model(self) -> Optional[Workflow]:
-        from lls_core.workflow import import_workflow_modules
+        from lls_core.workflow import _import_workflow_modules
         from napari_workflows._io_yaml_v1 import load_workflow
         if not self.fields_enabled.value:
             return None
         if self.workflow_source.value == WorkflowSource.ActiveWorkflow:
             return WorkflowManager.install(self.parent_viewer).workflow
         else:
-            import_workflow_modules(self.workflow_path.value)
-            return load_workflow(str(self.workflow_path.value))
 
 # @magicclass(name="5. Output")
 class OutputFields(NapariFieldGroup, FieldGroup):

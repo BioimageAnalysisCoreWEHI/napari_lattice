@@ -1,7 +1,7 @@
 #filename and function name should start with "test_" when using pytest
 import pyclesperanto_prototype as cle 
 import numpy as np 
-from lls_core.lattice_data import lattice_fom_array
+from lls_core.models.lattice_data import lattice_fom_array
 
 def test_deskew():
 

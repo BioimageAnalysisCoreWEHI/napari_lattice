@@ -21,7 +21,7 @@ from aicsimageio.aics_image import AICSImage
 from typing_extensions import Literal
 from typing import Any, Optional, cast, Tuple, Collection
 
-from lls_core.lattice_data import DefinedPixelSizes, lattice_params_from_aics, img_from_array, AicsLatticeParams, PhysicalPixelSizes
+from lls_core.models.lattice_data import DefinedPixelSizes, lattice_params_from_aics, img_from_array, AicsLatticeParams, PhysicalPixelSizes
 from lls_core.types import ArrayLike
 
 class NapariImageParams(AicsLatticeParams):

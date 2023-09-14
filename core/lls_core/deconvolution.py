@@ -21,7 +21,7 @@ from lls_core.utils import pad_image_nearest_multiple
 from lls_core.types import ArrayLike, is_arraylike
 
 if TYPE_CHECKING:
-    from lls_core.lattice_data import LatticeData
+    from lls_core.models.lattice_data import LatticeData
 
 logger = logging.getLogger(__name__)
 
