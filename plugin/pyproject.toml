@@ -41,9 +41,9 @@ dependencies = [
     # This isn't used directly, but we need to pin this version
     "fsspec>=2022.8.2",
     # We need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
+    "lls_core",
     "magic-class>=0.7.5",
     "magicgui",
-    "lls_core",
     "napari-aicsimageio>=0.7.2",
     "napari-spreadsheet",
     "napari-workflow-inspector",
@@ -52,12 +52,16 @@ dependencies = [
     "npy2bdv",
     "numpy",
     "pandas",
+    "pkg_resources",
     "psutil",
     "pyclesperanto_prototype>=0.20.0",
+    "pydantic",
     "qtpy",
     "tqdm",
     "typing_extensions",
     "pyyaml",
+    "StrEnum",
+    "xarray"
 ]
 
 [project.urls]

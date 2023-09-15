@@ -10,7 +10,6 @@ from lls_core import (
     DeconvolutionChoice,
     DeskewDirection,
     Log_Levels,
-    SaveFileType,
 )
 from lls_core.models.lattice_data import (
     CropParams,
@@ -20,6 +19,7 @@ from lls_core.models.lattice_data import (
     LatticeData,
     OutputParams,
 )
+from lls_core.workflow import workflow_from_path
 from magicclass import FieldGroup, MagicTemplate, field
 from magicclass.fields import MagicField
 from magicclass.widgets import ComboBox, Label, Widget
@@ -30,7 +30,6 @@ from napari_lattice.icons import GREEN, GREY, RED
 from napari_lattice.reader import NapariImageParams, lattice_params_from_napari
 from napari_lattice.utils import get_layers
 from napari_workflows import Workflow, WorkflowManager
-from pydantic import ValidationError
 from qtpy.QtWidgets import QTabWidget
 from strenum import StrEnum
 
@@ -41,6 +40,7 @@ def exception_to_html(e: BaseException) -> str:
     """
     Converts an exception to HTML for reporting back to the user
     """
+    from pydantic import ValidationError
     if isinstance(e, ValidationError):
         message = []
         for error in e.errors():
@@ -244,14 +244,14 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
     )
     # merge_all_channels = field(False).with_options(label="Merge all Channels")
     dimension_order = field(
-            str
-        ).with_choices(
-            _get_dimension_options
-        ).with_options(
-            label="Dimension Order",
-            tooltip="Specifies the order of dimensions in the input images. For example, if your image is a 4D array with multiple channels along the first axis, you will specify CZYX.",
-            value=LastDimensionOptions.Metadata.value
-        )
+        str
+    ).with_choices(
+        _get_dimension_options
+    ).with_options(
+        label="Dimension Order",
+        tooltip="Specifies the order of dimensions in the input images. For example, if your image is a 4D array with multiple channels along the first axis, you will specify CZYX.",
+        value=LastDimensionOptions.Metadata.value
+    )
     skew_dir = field(DeskewDirection.Y).with_options(
         label="Skew Direction",
         tooltip="The axis along which to deskew"
@@ -428,6 +428,7 @@ class WorkflowFields(NapariFieldGroup, FieldGroup):
         if self.workflow_source.value == WorkflowSource.ActiveWorkflow:
             return WorkflowManager.install(self.parent_viewer).workflow
         else:
+            return workflow_from_path(self.workflow_path.value)
 
 # @magicclass(name="5. Output")
 class OutputFields(NapariFieldGroup, FieldGroup):

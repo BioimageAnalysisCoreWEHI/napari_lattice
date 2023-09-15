@@ -32,7 +32,6 @@ from pathlib import Path
 if TYPE_CHECKING:
     import pyclesperanto_prototype as cle
     from lls_core.models.deskew import DefinedPixelSizes
-    from aicsimageio.types import ImageLike
 
 import logging
 
