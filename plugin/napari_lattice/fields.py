@@ -11,14 +11,15 @@ from lls_core import (
     DeskewDirection,
     Log_Levels,
 )
-from lls_core.models.lattice_data import (
+from lls_core.models import (
     CropParams,
     DeconvolutionParams,
-    DefinedPixelSizes,
     DeskewParams,
     LatticeData,
     OutputParams,
 )
+from lls_core.models.deskew import DefinedPixelSizes
+from lls_core.models.output import SaveFileType
 from lls_core.workflow import workflow_from_path
 from magicclass import FieldGroup, MagicTemplate, field
 from magicclass.fields import MagicField
@@ -173,16 +174,20 @@ class NapariFieldGroup:
 
     def _set_valid(self: Any, valid: bool):
         from qtpy.QtGui import QIcon
+        from importlib_resources import as_file
         tab_parent = self._get_parent_tab_widget()
         index = self._get_tab_index()
             
         if hasattr(self, "fields_enabled") and not self.fields_enabled.value:
             # Special case for "diabled" sections
-            tab_parent.setTabIcon(index, QIcon(GREY))
+            icon = GREY
         elif valid:
-            tab_parent.setTabIcon(index, QIcon(GREEN))
+            icon = GREEN
         else:
-            tab_parent.setTabIcon(index, QIcon(RED))
+            icon = RED
+
+        with as_file(icon) as path:
+            tab_parent.setTabIcon(index, QIcon(str(path)))
 
     def _validate(self: Any):
         self.errors.value =  get_friendly_validations(self)

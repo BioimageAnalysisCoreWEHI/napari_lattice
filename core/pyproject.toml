@@ -55,7 +55,7 @@ dependencies = [
     "npy2bdv",
     "numpy",
     "pandas",
-    "pkg_resources",
+    "importlib_resources",
     "pyyaml",
     "read-roi",
     "resource-backed-dask-array>=0.1.0",
@@ -65,7 +65,7 @@ dependencies = [
     "tifffile",
     "tqdm",
     "typer",
-    "typing_extensions",
+    "typing_extensions>=4.7.0",
     "xarray[parallel]",
 ]
 

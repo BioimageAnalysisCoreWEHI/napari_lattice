@@ -3,7 +3,6 @@ from typing import Any, Type
 from enum import Enum
 from pydantic import BaseModel
 from typer import Option
-from typer.models import OptionInfo
 
 
 def enum_choices(enum: Type[Enum]) -> str:

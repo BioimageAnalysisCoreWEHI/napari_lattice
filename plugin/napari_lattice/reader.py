@@ -17,7 +17,9 @@ from aicsimageio.aics_image import AICSImage
 
 from typing import List, Optional, Tuple, Collection, TYPE_CHECKING
 
-from lls_core.models.lattice_data import DefinedPixelSizes, AicsLatticeParams, PhysicalPixelSizes
+from aicsimageio.types import PhysicalPixelSizes
+from lls_core.models.lattice_data import AicsLatticeParams
+from lls_core.models.deskew import DefinedPixelSizes
 
 if TYPE_CHECKING:
     from aicsimageio.types import ImageLike

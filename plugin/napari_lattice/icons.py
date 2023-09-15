@@ -1,5 +1,7 @@
-import pkg_resources
+import importlib_resources
 
-GREEN = pkg_resources.resource_filename(__name__, "valid.svg")
-GREY = pkg_resources.resource_filename(__name__, "circle-regular.svg")
-RED = pkg_resources.resource_filename(__name__, "invalid.svg")
+resources = importlib_resources.files(__name__)
+
+GREEN = resources / "valid.svg"
+GREY = resources / "circle-regular.svg"
+RED = resources / "invalid.svg"

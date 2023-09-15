@@ -84,8 +84,10 @@ class LLSZWidget(LlszTemplate):
 
             def __post_init__(self):
                 tab_widget: QTabWidget= self._widget._tab_widget
+                from importlib_resources import as_file
                 for i in range(5):
-                    tab_widget.setTabIcon(i, QIcon(GREY))
+                    with as_file(GREY) as path:
+                        tab_widget.setTabIcon(i, QIcon(str(path)))
                 for field in [self.deskew_fields, self.deconv_fields, self.cropping_fields, self.workflow_fields, self.output_fields]:
                     field._validate()
 
