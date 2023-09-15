@@ -84,9 +84,9 @@ class DeskewParams(FieldAccessMixin, arbitrary_types_allowed=True):
         return array.transpose("T", "C", "Z", "Y", "X")
 
     def get_3d_slice(self) -> DataArray:
-        return self.image.sel(C=0, T=0)
+        return self.image.isel(C=0, T=0)
 
-    @root_validator(pre=True)
+    @root_validator(pre=False)
     def set_deskew(cls, values: dict) -> dict:
         """
         Sets the default deskew shape values if the user has not provided them

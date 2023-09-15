@@ -38,6 +38,21 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+def make_filename_prefix(prefix: Optional[str] = None, roi_index: Optional[str] = None, channel: Optional[str] = None, time: Optional[str] = None) -> str:
+    """
+    Generates a filename for this result
+    """
+    components: List[str] = []
+    if prefix is not None:
+        components.append(prefix)
+    if roi_index is not None:
+        components.append(f"ROI_{roi_index}")
+    if channel is not None:
+        components.append(f"C{channel}")
+    if time is not None:
+        components.append(f"T{time}")
+    return "_".join(components)
+
 T = TypeVar("T")
 S = TypeVar("S")
 class SlicedData(BaseModel, Generic[T], arbitrary_types_allowed=True):
@@ -75,13 +90,12 @@ class ProcessedSlices(BaseModel, arbitrary_types_allowed=True):
         """
         # TODO: refactor this into a class system, one for each format
         import numpy as np
-        from pathlib import Path
         import npy2bdv
 
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
             if self.lattice_data.save_type == SaveFileType.h5:
                 bdv_writer = npy2bdv.BdvWriter(
-                    make_filename_prefix(prefix=self.lattice_data.save_name, roi_index=roi) + ".h5",
+                    filename=str(self.lattice_data.make_filepath(make_filename_prefix(roi_index=str(roi)))),
                     compression='gzip',
                     nchannels=len(self.lattice_data.channel_range),
                     subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)),
@@ -102,28 +116,13 @@ class ProcessedSlices(BaseModel, arbitrary_types_allowed=True):
                     first_result = result_list[0]
                     images_array = np.swapaxes(np.expand_dims([result.data for result in result_list], axis=0), 1, 2)
                     tifffile.imwrite(
-                        file = Path(make_filename_prefix(channel=first_result.channel, time=time, roi_index=roi)).with_suffix("tiff"),
+                        file = str(self.lattice_data.make_filepath(make_filename_prefix(channel=first_result.channel, time=time, roi_index=roi))),
                         data = images_array,
                         bigtiff=True,
                         resolution=(1./self.lattice_data.dx, 1./self.lattice_data.dy, "MICROMETER"),
                         metadata={'spacing': self.lattice_data.new_dz, 'unit': 'um', 'axes': 'TZCYX'},
                         imagej=True
                     )
-
-def make_filename_prefix(prefix: Optional[str] = None, roi_index: Optional[int] = None, channel: Optional[int] = None, time: Optional[int] = None) -> str:
-    """
-    Generates a filename for this result
-    """
-    components: List[str] = []
-    if prefix is not None:
-        components.append(prefix)
-    if roi_index is not None:
-        components.append(f"ROI_{roi_index}")
-    if channel is not None:
-        components.append(f"C{channel}")
-    if time is not None:
-        components.append(f"T{time}")
-    return "_".join(components)
 
 
 workflow: Optional[Workflow] = Field(
@@ -172,7 +171,7 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
             values["save_name"] = Path(values["image"]).stem
         return values
 
-    @validator("time_range", pre=True)
+    @validator("time_range", pre=True, always=True)
     def parse_time_range(cls, v: Any, values: dict) -> Any:
         """
         Sets the default time range if undefined
@@ -186,7 +185,7 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
             return range(v[0] or default_start, v[1] or default_end)
         return v
 
-    @validator("channel_range", pre=True)
+    @validator("channel_range", pre=True, always=True)
     def parse_channel_range(cls, v: Any, values: dict) -> Any:
         """
         Sets the default channel range if undefined
@@ -322,7 +321,7 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         if channel > self.channels:
             raise ValueError("channel is out of range")
 
-        return self.image.sel(T=time, C=channel)
+        return self.image.isel(T=time, C=channel)
 
         if len(self.image.shape) == 3:
             return self.image
