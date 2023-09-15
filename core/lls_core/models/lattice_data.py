@@ -11,7 +11,7 @@ from itertools import groupby
 import tifffile
 
 from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING, Tuple
-from typing_extensions import TypedDict, NotRequired
+from typing_extensions import TypedDict, NotRequired, Generic, TypeVar
 
 from aicsimageio.types import PhysicalPixelSizes
 import pyclesperanto_prototype as cle
@@ -32,21 +32,34 @@ from pathlib import Path
 if TYPE_CHECKING:
     import pyclesperanto_prototype as cle
     from lls_core.models.deskew import DefinedPixelSizes
+    from numpy.typing import NDArray
 
 import logging
 
 logger = logging.getLogger(__name__)
 
-class ProcessedVolume(BaseModel, arbitrary_types_allowed=True):
-    """
-    A slice of the image processing result
-    """
+T = TypeVar("T")
+S = TypeVar("S")
+class SlicedData(BaseModel, Generic[T]):
+    data: T
     time_index: NonNegativeInt
     time: NonNegativeInt
     channel_index: NonNegativeInt
     channel: NonNegativeInt
-    data: ArrayLike
     roi_index: Optional[NonNegativeInt] = None
+
+    def copy_with_data(self, data: S) -> SlicedData[S]:
+        """
+        Return a modified version of this with new inner data
+        """
+        from typing_extensions import cast
+        return cast(
+            SlicedData[S],
+            self.copy(update={
+                "data": data
+            })
+        ) 
+ProcessedVolume = SlicedData[ArrayLike]
 
 class ProcessedSlices(BaseModel):
     #: Iterable of result slices.
@@ -292,7 +305,7 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
 
         raise Exception("Lattice data must be 3-5 dimensions")
 
-    def iter_slices(self) -> Iterable[Tuple[int, int, int, int, ArrayLike]]:
+    def iter_slices(self) -> Iterable[SlicedData[ArrayLike]]:
         """
         Yields array slices for each time and channel of interest.
 
@@ -301,7 +314,48 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         """
         for time_idx, time in enumerate(self.time_range):
             for ch_idx, ch in enumerate(self.channel_range):
-                yield time_idx, time, ch_idx, ch, self.slice_data(time=time, channel=ch)
+                yield SlicedData(
+                    data=self.slice_data(time=time, channel=ch),
+                    time_index=time_idx,
+                    time= time,
+                    channel_index=ch_idx,
+                    channel=ch,
+                ) 
+
+    def iter_sublattices(self, update_with: dict = {}) -> Iterable[SlicedData[LatticeData]]:
+        """
+        Yields copies of the current LatticeData, one for each slice.
+        These copies can then be processed separately.
+        Args:
+            update_with: dictionary of arguments to update the generated lattices with
+        """
+        for subarray in self.iter_slices():
+            yield subarray.copy_with_data(
+                self.copy(update={ "image": subarray,
+                    **update_with
+                })
+            )
+
+    def generate_workflows(
+        self,
+    ) -> Iterable[SlicedData[Workflow]]:
+            """
+            Yields copies of the input workflow, modified with the addition of deskewing and optionally,
+            cropping and deconvolution
+            """
+            if self.workflow is None:
+                return
+
+            from copy import copy
+            # We make a copy of the lattice for each slice, each of which has no associated workflow
+            for lattice_slice in self.iter_sublattices(update_with={"workflow": None}):
+                user_workflow = copy(self.workflow)   
+                user_workflow.set(
+                    "deskew_image",
+                    LatticeData.process,
+                    lattice_slice.data
+                )
+                yield lattice_slice.copy_with_data(user_workflow)
 
     def check_incomplete_acquisition(self, volume: ArrayLike, time_point: int, channel: int):
         """
@@ -373,14 +427,15 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         """
         Yields processed image slices without cropping
         """
-        for time_idx, time, ch_idx, ch, data in self.iter_slices():
-            if isinstance(data, DaskArray):
-                data = data.compute()
+        for slice in self.iter_slices():
+            data: ArrayLike = slice.data
+            if isinstance(slice.data, DaskArray):
+                data = slice.data.compute()
             if self.deconvolution is not None:
                 if self.deconvolution.decon_processing == DeconvolutionChoice.cuda_gpu:
                     data= pycuda_decon(
                         image=data,
-                        psf=self.deconvolution.psf[ch],
+                        psf=self.deconvolution.psf[slice.channel],
                         background=self.deconvolution.background,
                         dzdata=self.dz,
                         dxdata=self.dx,
@@ -391,35 +446,46 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
                 else:
                     data= skimage_decon(
                             vol_zyx=data,
-                            psf=self.deconvolution.psf[ch],
+                            psf=self.deconvolution.psf[slice.channel],
                             num_iter=self.deconvolution.psf_num_iter,
                             clip=False,
                             filter_epsilon=0,
                             boundary='nearest'
                         )
 
-            yield ProcessedVolume(
-                data = cle.pull_zyx(self.deskew_func(
+            yield slice.copy_with_data(
+                cle.pull_zyx(self.deskew_func(
                     input_image=data,
                     angle_in_degrees=self.angle,
                     linear_interpolation=True,
                     voxel_size_x=self.dx,
                     voxel_size_y=self.dy,
                     voxel_size_z=self.dz
-                )),
-                channel=ch,
-                channel_index=ch_idx,
-                time=time,
-                time_index=time_idx
+                ))
             )
-    
     def process(self) -> ProcessedSlices:
         """
         Execute the processing and return the result.
         This is the main public API for processing
         """
         ProcessedSlices.update_forward_refs()
-        if self.cropping_enabled:
+
+        if self.workflow is not None:
+            outputs = []
+            for workflow in self.generate_workflows():
+                for leaf in workflow.data.leafs():
+                    outputs.append(
+                        workflow.copy_with_data(
+                            workflow.data.get(leaf)
+                        )
+                    )
+
+            return ProcessedSlices(
+                slices = outputs,
+                lattice_data=self
+            )
+
+        elif self.cropping_enabled:
             return ProcessedSlices(
                 lattice_data=self,
                 slices=self._process_crop()

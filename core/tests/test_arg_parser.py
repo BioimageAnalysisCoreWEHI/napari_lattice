@@ -1,9 +1,14 @@
-from lls_core.cmds.__main__ import make_parser
+from typer.testing import CliRunner
+from typer.main import get_command
+from lls_core.cmds.__main__ import app
+
+runner = CliRunner()
 
 def test_voxel_parsing():
     # Tests that we can parse voxel lists correctly
-    parser = make_parser()
-    args = parser.parse_args([
+    parser = get_command(app).make_parser()
+    parser.make_context()
+    args = parser.parse_args(args=[
             "--input", "input",
             "--output", "output",
             "--processing", "deskew",

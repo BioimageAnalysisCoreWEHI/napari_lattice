@@ -1,0 +1,63 @@
+#You can comment out the options you do not want
+#If not specified, default values will be used on 
+#optional parameters
+
+#required
+input: "/path/to/data.czi"
+#required
+output: "/path/to/output/"
+
+#skew_direction: Y
+
+#deskew_angle:30
+
+#options: deskew, crop, workflow or workflow_crop
+processing: crop
+
+#Deconvolution, options are: cpu or cuda_gpu
+#If not using deconvolution, the parameters below should be commented out
+deconvolution: cuda_gpu
+deconvolution_num_iter: 20
+deconvolution_psf:
+ - "/path/to/psf/c1.tif"
+ - "/path/to/psf/c2.tif"
+ - "/path/to/psf/c3.tif"
+ - "/path/to/psf/c4.tif"
+
+#Use only if using crop or workflow_crop. 
+#Can be a Fiji ROI.zip file or a single roi
+roi_file: "/path/to/roi_file.zip"
+
+#Use roi_number if you want to process a single roi
+#Useful for parallel processing (HPC)
+#roi_number:
+
+voxel_sizes:
+  - 0.3          #dz
+  - 0.1449922    #dy
+  - 0.1449922    #dx
+
+#If specifying a folder, enter exetnsion of file to analyze, default uses .czi or .tif files
+#file_extension:.czi
+
+#If nothing specified, will process entire time range
+time_range:
+  - 1
+  - 5
+
+#If nothing specified, will process entire time range
+channel_range:
+  - 0
+  - 2
+
+#Save as either tif or BigDataviewer h5, defaults to tif
+output_file_type: h5
+
+#If using a workflow,specify path here
+#workflow_path:
+
+#If input is a tiff file and there are channel dimensions but no time dimensions, choose as True
+#channel:
+
+
+

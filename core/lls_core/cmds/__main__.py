@@ -15,7 +15,7 @@ from lls_core.models.deskew import DefinedPixelSizes, DeskewParams
 from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.output import OutputParams
 from lls_core import DeconvolutionChoice, DeskewDirection
-import typer
+from typer import Typer, Argument, Option
 
 from lls_core.models.output import SaveFileType
 from toolz.dicttoolz import merge
@@ -24,14 +24,17 @@ class CliDeskewDirection(StrEnum):
     X = auto()
     Y = auto()
 
+app = Typer(add_completion=False)
+
+@app.command()
 def main(
-    image: Path = typer.Argument(help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi"),
-    skew: CliDeskewDirection = typer.Option(
+    image: Path = Argument(help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi"),
+    skew: CliDeskewDirection = Option(
         default=DeskewParams.get_default("skew").name,
         help=DeskewParams.get_description("skew")
     ),# DeskewParams.make_typer_field("skew"),
     angle: float = DeskewParams.make_typer_field("angle") ,
-    pixel_sizes: Tuple[float, float, float] = typer.Option(
+    pixel_sizes: Tuple[float, float, float] = Option(
     (
         LatticeData.get_default("physical_pixel_sizes").X,
         LatticeData.get_default("physical_pixel_sizes").Y,
@@ -39,30 +42,30 @@ def main(
     ), help=DeskewParams.get_description("physical_pixel_sizes") + ". This takes three arguments, corresponding to the X Y and Z pixel dimensions respectively"
     ),
 
-    rois: List[Path] = typer.Option([], help="A list of paths pointing to regions of interest to crop to, in ImageJ format."),
+    rois: List[Path] = Option([], help="A list of paths pointing to regions of interest to crop to, in ImageJ format."),
     # Ideally this and other range values would be defined as Tuples, but these seem to be broken: https://github.com/tiangolo/typer/discussions/667
-    z_start: Optional[int] = typer.Option(None, help="The index of the first Z slice to use. All prior Z slices will be discarded."),
-    z_end: Optional[int] = typer.Option(None, help="The index of the last Z slice to use. The selected index and all subsequent Z slices will be discarded."),
+    z_start: Optional[int] = Option(None, help="The index of the first Z slice to use. All prior Z slices will be discarded."),
+    z_end: Optional[int] = Option(None, help="The index of the last Z slice to use. The selected index and all subsequent Z slices will be discarded."),
 
-    enable_deconvolution: Annotated[bool, typer.Option("--deconvolution/--disable-deconvolution")] = False,
+    enable_deconvolution: Annotated[bool, Option("--deconvolution/--disable-deconvolution")] = False,
     decon_processing: DeconvolutionChoice = DeconvolutionParams.make_typer_field("decon_processing"),
-    psf: Annotated[List[Path], typer.Option(help="A list of paths pointing to point spread functions to use for deconvolution. Each file should in a standard image format (.czi, .tiff etc), containing a 3D image array.")] = [],
+    psf: Annotated[List[Path], Option(help="A list of paths pointing to point spread functions to use for deconvolution. Each file should in a standard image format (.czi, .tiff etc), containing a 3D image array.")] = [],
     psf_num_iter: int = DeconvolutionParams.make_typer_field("psf_num_iter"),
     background: str = DeconvolutionParams.make_typer_field("background"),
 
-    time_start: Optional[int] = typer.Option(None, help="Index of the first time slice to use (inclusive)"),
-    time_end: Optional[int] = typer.Option(None, help="Index of the first time slice to use (exclusive)"),
+    time_start: Optional[int] = Option(None, help="Index of the first time slice to use (inclusive)"),
+    time_end: Optional[int] = Option(None, help="Index of the first time slice to use (exclusive)"),
 
-    channel_start: Optional[int] = typer.Option(None, help="Index of the first channel slice to use (inclusive)"),
-    channel_end: Optional[int] = typer.Option(None, help="Index of the first channel slice to use (exclusive)"),
+    channel_start: Optional[int] = Option(None, help="Index of the first channel slice to use (inclusive)"),
+    channel_end: Optional[int] = Option(None, help="Index of the first channel slice to use (exclusive)"),
     
     save_dir: Path = OutputParams.make_typer_field("save_dir"),
     save_name: Optional[str] = OutputParams.make_typer_field("save_name"),
     save_type: SaveFileType = OutputParams.make_typer_field("save_type"),
 
-    workflow: Optional[Path] = typer.Option(None, help="Path to a Napari Workflow file, in JSON format. If provided, the configured desekewing processing will be added to the chosen workflow."),
-    json_config: Optional[Path] = typer.Option(None),
-    yaml_config: Optional[Path] = typer.Option(None)
+    workflow: Optional[Path] = Option(None, help="Path to a Napari Workflow file, in JSON format. If provided, the configured desekewing processing will be added to the chosen workflow."),
+    json_config: Optional[Path] = Option(None),
+    yaml_config: Optional[Path] = Option(None)
 ):
     cli_args = dict(
         image=image,
@@ -83,7 +86,7 @@ def main(
             psf_num_iter = psf_num_iter,
             background = background
         ),
-        workflow=None,
+        workflow=workflow,
 
         time_range=(time_start, time_end),
         channel_range=(channel_start, channel_end),
@@ -106,6 +109,5 @@ def main(
 
     return LatticeData.parse_obj(merge(yaml_args, json_args, cli_args))
 
-
 if __name__ == '__main__':
-    typer.run(main)
+    app()
