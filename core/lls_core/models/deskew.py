@@ -68,6 +68,20 @@ class DeskewParams(FieldAccessMixin, arbitrary_types_allowed=True):
     def dims(self):
         return self.image.dims
 
+    @validator("skew", pre=True)
+    def convert_skew(cls, v: Any):
+        # Allow skew to be provided as a string
+        if isinstance(v, str):
+            return DeskewDirection[v]
+        return v
+
+    @validator("physical_pixel_sizes", pre=True)
+    def convert_pixels(cls, v: Any):
+        # Allow the pixel sizes to be specified as a tuple
+        if isinstance(v, tuple) and len(v) == 3:
+            return DefinedPixelSizes(X=v[0], Y=v[1], Z=v[2])
+        return v
+
     # convert_image = validator("image", pre=True, allow_reuse=True)(image_like_to_image)
 
     @validator("image", pre=True)

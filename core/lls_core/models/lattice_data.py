@@ -95,7 +95,7 @@ class ProcessedSlices(BaseModel, arbitrary_types_allowed=True):
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
             if self.lattice_data.save_type == SaveFileType.h5:
                 bdv_writer = npy2bdv.BdvWriter(
-                    filename=str(self.lattice_data.make_filepath(make_filename_prefix(roi_index=str(roi)))),
+                    filename=str(self.lattice_data.make_filepath(make_filename_prefix(roi_index=roi))),
                     compression='gzip',
                     nchannels=len(self.lattice_data.channel_range),
                     subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)),
@@ -116,7 +116,7 @@ class ProcessedSlices(BaseModel, arbitrary_types_allowed=True):
                     first_result = result_list[0]
                     images_array = np.swapaxes(np.expand_dims([result.data for result in result_list], axis=0), 1, 2)
                     tifffile.imwrite(
-                        file = str(self.lattice_data.make_filepath(make_filename_prefix(channel=first_result.channel, time=time, roi_index=roi))),
+                        str(self.lattice_data.make_filepath(make_filename_prefix(channel=first_result.channel, time=time, roi_index=roi))),
                         data = images_array,
                         bigtiff=True,
                         resolution=(1./self.lattice_data.dx, 1./self.lattice_data.dy, "MICROMETER"),
@@ -460,7 +460,7 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
                 data = slice.data.compute()
             if self.deconvolution is not None:
                 if self.deconvolution.decon_processing == DeconvolutionChoice.cuda_gpu:
-                    data= pycuda_decon(
+                    data = pycuda_decon(
                         image=data,
                         psf=self.deconvolution.psf[slice.channel],
                         background=self.deconvolution.background,
@@ -471,14 +471,14 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
                         num_iter=self.deconvolution.psf_num_iter
                     )
                 else:
-                    data= skimage_decon(
-                            vol_zyx=data,
-                            psf=self.deconvolution.psf[slice.channel],
-                            num_iter=self.deconvolution.psf_num_iter,
-                            clip=False,
-                            filter_epsilon=0,
-                            boundary='nearest'
-                        )
+                    data = skimage_decon(
+                        vol_zyx=data,
+                        psf=self.deconvolution.psf[slice.channel],
+                        num_iter=self.deconvolution.psf_num_iter,
+                        clip=False,
+                        filter_epsilon=0,
+                        boundary='nearest'
+                    )
 
             yield slice.copy_with_data(
                 cle.pull_zyx(self.deskew_func(
@@ -522,74 +522,3 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
                 lattice_data=self,
                 slices=self._process_non_crop()
             )
-
-class AicsLatticeParams(TypedDict):
-    data: DataArray
-    physical_pixel_sizes: DefinedPixelSizes
-
-def lattice_params_from_aics(img: AICSImage, physical_pixel_sizes: PhysicalPixelSizes = PhysicalPixelSizes(None, None, None)) -> AicsLatticeParams:
-    # Note: The reason we copy all of these fields rather than just storing the AICSImage is because that class is mostly immutable and so not suitable
-
-    pixel_sizes = DefinedPixelSizes(
-        X = physical_pixel_sizes[0] or img.physical_pixel_sizes.X or LatticeData.physical_pixel_sizes.X,
-        Y = physical_pixel_sizes[1] or img.physical_pixel_sizes.Y or LatticeData.physical_pixel_sizes.Y, 
-        Z = physical_pixel_sizes[2] or img.physical_pixel_sizes.Z or LatticeData.physical_pixel_sizes.Z 
-    )
-
-    return AicsLatticeParams(
-        data = img.dask_data,
-        dims = img.dims,
-        physical_pixel_sizes = pixel_sizes,
-    )
-
-def img_from_array(arr: ArrayLike, dimension_order: Optional[str] = None, **kwargs: Any) -> AICSImage:
-    """
-    Creates an AICSImage from an array without metadata
-
-    Args:
-        arr (ArrayLike): An array
-        last_dimension: How to handle the dimension order
-        kwargs: Additional arguments to pass to the AICSImage constructor
-    """    
-    # dim_order: str
-
-    if len(arr.shape) < 3 or len(arr.shape) > 5:
-        raise ValueError("Array dimensions must be in the range [3, 5]")
-
-    # if aicsimageio tiffreader assigns last dim as time when it should be channel, user can override this
-    # if len(arr.shape) == 3:
-    #     dim_order="ZYX"
-    # else:
-    #     if last_dimension not in ["channel", "time"]:
-    #         raise ValueError("last_dimension must be either channel or time when convertin")
-    #     if len(arr.shape) == 4:
-    #         if last_dimension == "channel":
-    #             dim_order = "CZYX"
-    #         elif last_dimension == "time":
-    #             dim_order = "TZYX"
-    #     elif len(arr.shape) == 5:
-    #         if last_dimension == "channel":
-    #             dim_order = "CTZYX"
-    #         elif last_dimension == "time":
-    #             dim_order = "TCZYX"
-    #     else:
-    #         raise ValueError()
-
-    img = AICSImage(image=arr, dim_order=dimension_order, **kwargs)
-
-    # if last axes of "aicsimage data" shape is not equal to time, then swap channel and time
-    if img.data.shape[0] != img.dims.T or img.data.shape[1] != img.dims.C:
-        import numpy as np
-        arr = np.swapaxes(arr, 0, 1)
-    return AICSImage(image=arr, dim_order=dimension_order, **kwargs)
-
-def lattice_fom_array(arr: ArrayLike, last_dimension: Optional[Literal["channel", "time"]] = None, **kwargs: Any) -> AicsLatticeParams:
-    """
-    Creates a `LatticeData` from an array
-
-    Args:
-        arr: Array to use as the data source
-        last_dimension: See img_from_array
-    """   
-    aics = img_from_array(arr, last_dimension)
-    return lattice_params_from_aics(aics, **kwargs)

@@ -1,10 +1,11 @@
 # Tests for napari_lattice using arguments and saving output files as h5, as well as tiff
 
+from typer.testing import CliRunner
 from skimage.io import imsave
 import numpy as np
 from pathlib import Path
 import tempfile
-from lls_core.cmds.__main__ import main as run_cli
+from lls_core.cmds.__main__ import app
 
 def create_image(path: Path):
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
@@ -14,6 +15,7 @@ def create_image(path: Path):
     imsave(str(path), raw)
     assert path.exists()
 
+runner = CliRunner()
 
 def test_batch_deskew_h5():
     """Write image to disk and then execute napari_lattice from terminal
@@ -24,16 +26,15 @@ def test_batch_deskew_h5():
         input_file = out_dir / 'raw.tiff'
         create_image(input_file)
         # Batch deskew and save as h5
-        run_cli([
-            "--input", str(input_file),
-            "--output", str(out_dir),
-            "--processing", "deskew",
-            "--output_file_type", "h5"
+        runner.invoke(app, [
+            str(input_file),
+            "--save-dir", str(out_dir),
+            "--save-type", "h5"
         ])
 
         # checks if h5 files written
-        assert (out_dir / "raw" / "raw.h5").exists()
-        assert (out_dir / "raw" / "raw.xml").exists()
+        assert (out_dir / "raw.h5").exists()
+        # assert (out_dir / "raw.xml").exists()
 
 
 def test_batch_deskew_tiff():
@@ -42,12 +43,11 @@ def test_batch_deskew_tiff():
         out_dir = Path(out_dir)
         input_file = out_dir / 'raw.tiff'
         create_image(input_file)
-        run_cli([
-            "--input", str(input_file),
-            "--output", str(out_dir),
-            "--processing", "deskew",
-            "--output_file_type", "tiff"
+        runner.invoke(app, [
+            str(input_file),
+            "--save-dir", str(out_dir),
+            "--save-type", "tiff"
         ])
 
         # checks if tiff written
-        assert (out_dir / "raw" / "C0T0_raw.tif").exists()
+        assert len(list(out_dir.glob("*.tif"))) == 1

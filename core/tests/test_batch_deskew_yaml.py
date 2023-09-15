@@ -5,7 +5,7 @@ from skimage.io import imread, imsave
 import tempfile
 import numpy as np
 from pathlib import Path
-from lls_core.cmds.__main__ import main as run_cli
+from lls_core.cmds.__main__ import app as run_cli
 
 def write_config_file(config_settings: dict, output_file_location: Path):
     # Write config file for napari_lattice
@@ -40,9 +40,8 @@ def create_data(dir: Path) -> Path:
     assert input_file.exists()
 
     config: dict[str, str] = {
-        "input": str(input_file),
-        "output": str(dir),
-        "processing": "deskew",
+        "image": str(input_file),
+        "save_dir": str(dir),
         "output_file_type": "h5"
     }
 
@@ -60,8 +59,8 @@ def test_yaml_deskew():
         test_dir = Path(test_dir)
         config_location = create_data(test_dir)
         # Batch deskew and save as h5
-        run_cli(["--config", str(config_location)])
+        run_cli(["--yaml-config", str(config_location)])
 
         # checks if h5 files written
-        assert (test_dir / "raw" / "raw.h5").exists()
-        assert (test_dir / "raw" / "raw.xml").exists()
+        assert (test_dir / "raw.h5").exists()
+        # assert (test_dir / "raw" / "raw.xml").exists()

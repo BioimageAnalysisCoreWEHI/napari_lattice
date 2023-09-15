@@ -28,7 +28,7 @@ app = Typer(add_completion=False)
 
 @app.command()
 def main(
-    image: Path = Argument(help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi"),
+    image: Path = Argument(None, help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi"),
     skew: CliDeskewDirection = Option(
         default=DeskewParams.get_default("skew").name,
         help=DeskewParams.get_description("skew")
@@ -47,9 +47,9 @@ def main(
     z_start: Optional[int] = Option(None, help="The index of the first Z slice to use. All prior Z slices will be discarded."),
     z_end: Optional[int] = Option(None, help="The index of the last Z slice to use. The selected index and all subsequent Z slices will be discarded."),
 
-    enable_deconvolution: Annotated[bool, Option("--deconvolution/--disable-deconvolution")] = False,
+    enable_deconvolution: bool = Option(False, "--deconvolution/--disable-deconvolution"),
     decon_processing: DeconvolutionChoice = DeconvolutionParams.make_typer_field("decon_processing"),
-    psf: Annotated[List[Path], Option(help="A list of paths pointing to point spread functions to use for deconvolution. Each file should in a standard image format (.czi, .tiff etc), containing a 3D image array.")] = [],
+    psf: List[Path] = Option([], help="A list of paths pointing to point spread functions to use for deconvolution. Each file should in a standard image format (.czi, .tiff etc), containing a 3D image array."),
     psf_num_iter: int = DeconvolutionParams.make_typer_field("psf_num_iter"),
     background: str = DeconvolutionParams.make_typer_field("background"),
 
@@ -107,7 +107,7 @@ def main(
             from yaml import safe_load
             yaml_args = safe_load(fp)
 
-    return LatticeData.parse_obj(merge(yaml_args, json_args, cli_args))
+    LatticeData.parse_obj(merge(yaml_args, json_args, cli_args)).process().save_image()
 
 if __name__ == '__main__':
     app()
