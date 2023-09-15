@@ -12,87 +12,54 @@ import dask.array as da
 import dask.delayed as delayed
 import os 
 import numpy as np
-from napari.layers import Image
-from aicsimageio.aics_image import AICSImage
+from napari.layers import image, Layer
+from napari.layers._data_protocols import LayerDataProtocol
 
-from typing import List, Optional, Tuple, Collection, TYPE_CHECKING
+from typing_extensions import Literal
+from typing import Any, Optional, cast, TYPE_CHECKING, Tuple, List
 
-from lls_core.models.lattice_data import DefinedPixelSizes, AicsLatticeParams, PhysicalPixelSizes
+from lls_core.lattice_data import lattice_from_aics, LatticeData, img_from_array
+from aicsimageio.types import ArrayLike, ImageLike
 
 if TYPE_CHECKING:
-    from aicsimageio.types import ImageLike
+    from aicsimageio.aics_image import AICSImage
 
-class NapariImageParams(AicsLatticeParams):
-    save_name: str
-
-def lattice_params_from_napari(
-    imgs: Collection[Image],
-    dimension_order: Optional[str],
-    physical_pixel_sizes: PhysicalPixelSizes,
-    stack_along: str
-) -> NapariImageParams:
+def lattice_from_napari(
+    img: Layer,
+    last_dimension: Optional[Literal["channel", "time"]],
+    **kwargs: Any
+) -> LatticeData:
     """
     Factory function for generating a LatticeData from a Napari Image
+
+    Arguments:
+        kwargs: Extra arguments to pass to the LatticeData constructor
     """
-    from xarray import DataArray, concat
 
-    if len(imgs) < 1:
-        raise ValueError("At least one image must be provided.")
+    img_data_aics: AICSImage
 
-    if len(set(len(it.data.shape) for it in imgs)) > 1:
-        size_message = ",".join(f"{img.name}: {len(img.data.shape)}" for img in imgs)
-        raise ValueError(f"The input images have multiple different dimensions, which napari lattice doesn't support: {size_message}")
+    if 'aicsimage' in img.metadata.keys():
+        img_data_aics = img.metadata['aicsimage']
+    else:
+        if not last_dimension:
+            raise ValueError("Either the Napari image must have dimensional metadata, or last_dimension must be provided")
+        img_data_aics = img_from_array(cast(ArrayLike, img.data), last_dimension=last_dimension, physical_pixel_sizes=kwargs.get("physical_pixel_sizes"))
 
     save_name: str
-    pixel_sizes: set[PhysicalPixelSizes] = {physical_pixel_sizes}
-    save_names = []
-
-    # The pixel sizes according to the AICS metadata, if any
-    final_imgs: list[DataArray] = []
-
-    for img in imgs:
-        if img.source.path is None:
-            # remove colon (:) and any leading spaces
-            save_name = img.name.replace(":", "").strip()
-            # replace any group of spaces with "_"
-            save_name = '_'.join(save_name.split())
-        else:
-            file_name_noext = os.path.basename(img.source.path)
-            file_name = os.path.splitext(file_name_noext)[0]
-            # remove colon (:) and any leading spaces
-            save_name = file_name.replace(":", "").strip()
-            # replace any group of spaces with "_"
-            save_name = '_'.join(save_name.split())
-
-        save_names.append(save_name)
-            
-        if 'aicsimage' in img.metadata.keys():
-            img_data_aics: AICSImage = img.metadata['aicsimage']
-            # Only process pixel sizes that are not none
-            if all(img_data_aics.physical_pixel_sizes):
-                pixel_sizes.add(img_data_aics.physical_pixel_sizes)
-                # if pixel_size_metadata is not None and pixel_sizes != img_data_aics.physical_pixel_sizes:
-                #     raise Exception(f"Two or more layers that you have tried to merge have different pixel sizes according to their metadata! A previous image has size {physical_pixel_sizes}, whereas {img.name} has size {img_data_aics.physical_pixel_sizes}.")
-                # else:
-                #     pixel_size_metadata = img_data_aics.physical_pixel_sizes
-
-            calculated_order = tuple(img_data_aics.dims.order)
-        elif dimension_order is None:
-            raise ValueError("Either the Napari image must have dimensional metadata, or a dimension order must be provided")
-        else:
-            calculated_order = tuple(dimension_order)
-
-        final_imgs.append(DataArray(img.data, dims=calculated_order))
-
-    if len(pixel_sizes) > 1:
-        raise Exception(f"Two or more layers that you have tried to merge have different pixel sizes according to their metadata! {pixel_sizes}")
-    elif len(pixel_sizes) == 1:
-        final_pixel_size = DefinedPixelSizes.from_physical(pixel_sizes.pop())
+    if img.source.path is None:
+        # remove colon (:) and any leading spaces
+        save_name = img.name.replace(":", "").strip()
+        # replace any group of spaces with "_"
+        save_name = '_'.join(save_name.split())
     else:
-        final_pixel_size = DefinedPixelSizes.from_physical(physical_pixel_sizes)
+        file_name_noext = os.path.basename(img.source.path)
+        file_name = os.path.splitext(file_name_noext)[0]
+        # remove colon (:) and any leading spaces
+        save_name = file_name.replace(":", "").strip()
+        # replace any group of spaces with "_"
+        save_name = '_'.join(save_name.split())
 
-    final_img = concat(final_imgs, dim=stack_along)
-    return NapariImageParams(save_name=save_names[0], physical_pixel_sizes=final_pixel_size, data=final_img, dims=final_img.shape)
+    return lattice_from_aics(img_data_aics, save_name=save_name, **kwargs)
 
 def napari_get_reader(path: list[str] | str):
     """Check if file ends with h5 and returns reader function if true
@@ -175,6 +142,7 @@ def bdv_h5_reader(path):
     layer_type = "image"  # optional, default is "image"
     return [(images, add_kwargs, layer_type)]
 
+
 def tiff_reader(path: ImageLike) -> List[Tuple[AICSImage, dict, str]]:
     """Take path to tiff image and returns a list of LayerData tuples.
     Specifying tiff_reader to have better control over tifffile related errors when using AICSImage
@@ -190,3 +158,4 @@ def tiff_reader(path: ImageLike) -> List[Tuple[AICSImage, dict, str]]:
 
     layer_type = "image"  # optional, default is "image"
     return [(image, add_kwargs, layer_type)]
+

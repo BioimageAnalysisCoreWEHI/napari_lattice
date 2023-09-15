@@ -35,27 +35,29 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.6.3",
-    "aicspylibczi>=3.0.5",
+    "aicsimageio>=4.11.0",
     "dask",
-    "dask-image",
     "dask[distributed]",
+    # This isn't used directly, but we need to pin this version
+    "fsspec>=2022.8.2",
     # We need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
     "magic-class>=0.7.5",
     "magicgui",
-    "pyopencl",
-    "read-roi",
-    "gputools",
-    "pyclesperanto_prototype>=0.20.0",
-    "npy2bdv",
-    "redlionfish",
-    "tifffile", #>=2022.8.12
-    "fsspec>=2022.8.2",
-    "napari[all]",
+    "lls_core",
     "napari-aicsimageio>=0.7.2",
     "napari-spreadsheet",
+    "napari-workflow-inspector",
     "napari-workflows>=0.2.8",
-    "napari-workflow-inspector"
+    "napari>=0.4.11",
+    "npy2bdv",
+    "numpy",
+    "pandas",
+    "psutil",
+    "pyclesperanto_prototype>=0.20.0",
+    "qtpy",
+    "tqdm",
+    "typing_extensions",
+    "pyyaml",
 ]
 
 [project.urls]
@@ -78,3 +80,26 @@ testing = [
 
 [project.entry-points."napari.manifest"]
 napari_lattice = "napari_lattice:napari.yaml"
+
+[tool.fawltydeps]
+ignore_unused = [
+    # None of the testing packages are imported
+    "tox",
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+
+    # These napari plugins are needed to use the plugin, but aren't imported directly
+    "napari-aicsimageio",
+    "napari-workflow-inspector",
+
+    # This is pinned but unused
+    "fsspec",
+    "imageio"
+]
+output_format = "human_detailed"  
+
+[tool.pyright]
+typeCheckingMode = "off"
+reportUndefinedVariable = "error"
+reportMissingImports = "none"

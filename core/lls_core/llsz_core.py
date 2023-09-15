@@ -11,12 +11,11 @@ from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
     affine_transform_deskew_3d,
 )
 from numpy.typing import NDArray
-
  
 from lls_core.utils import calculate_crop_bbox, check_subclass, is_napari_shape, pad_image_nearest_multiple
 from lls_core import config, DeskewDirection, DeconvolutionChoice
-from lls_core.deconvolution import pycuda_decon
 from lls_core.types import ArrayLike
+from lls_core.deconvolution import pycuda_decon, skimage_decon
 
 # Enable Logging
 import logging

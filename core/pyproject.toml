@@ -40,7 +40,6 @@ dependencies = [
     # is misconfigured: https://github.com/AllenCellModeling/aicspylibczi/issues/90
     "aicspylibczi>=3.1.1",
     "dask",
-    "dask-image",
     "dask[distributed]",
     "pyopencl",
     "read-roi",
@@ -50,11 +49,22 @@ dependencies = [
     "npy2bdv",
     "redlionfish",
     # Older tifffile are not compatible with aicsimageio, see: https://github.com/AllenCellModeling/aicsimageio/issues/518
+
     "tifffile>=2023.3.15", #>=2022.8.12
     "fsspec>=2022.8.2",
+    "pyclesperanto_prototype>=0.20.0",
     "napari-workflows>=0.2.8",
+    "xarray[parallel]",
+    "npy2bdv",
+    "numpy",
+    "pandas",
+    "pyyaml",
+    "read-roi",
     "resource-backed-dask-array>=0.1.0",
-    "xarray[parallel]"
+    "scikit-image",
+    "tifffile",
+    "tqdm",
+    "typing_extensions"
 ]
 
 [project.urls]
@@ -72,6 +82,7 @@ testing = [
     "tox",
     "pytest",  # https://docs.pytest.org/en/latest/contents.html
     "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
+    "napari" # We use napari for type checking only, and not at runtime
 ]
 psf = [
     "pycudadecon"
@@ -87,3 +98,25 @@ plugins = [
 
 [tool.pydantic-mypy]
 init_typed = false
+
+[tool.pyright]
+typeCheckingMode = "off"
+reportUndefinedVariable = "error"
+reportMissingImports = "none"
+
+[tool.fawltydeps]
+ignore_unused = [
+    # None of the testing packages are imported
+    "tox",
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+
+    # These napari plugins are needed to use the plugin, but aren't imported directly
+    "napari-aicsimageio",
+    "napari-workflow-inspector",
+
+    # This is pinned but unused
+    "fsspec"
+]
+output_format = "human_detailed"  
