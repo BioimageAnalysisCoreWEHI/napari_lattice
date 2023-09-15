@@ -104,6 +104,16 @@ init_typed = false
 typeCheckingMode = "off"
 reportUndefinedVariable = "error"
 reportMissingImports = "none"
+reportMissingTypeStubs = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportUnknownLambdaType = false
+reportUnknownMemberType = false
+reportUnknownParameterType = false
+reportUntypedFunctionDecorator = false
+reportMissingTypeArgument = false
+reportPrivateUsage = false
+reportPrivateImportUsage = false
 
 [tool.fawltydeps]
 ignore_unused = [
