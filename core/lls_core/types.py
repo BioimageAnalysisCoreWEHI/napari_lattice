@@ -4,7 +4,7 @@ from dask.array.core import Array as DaskArray
 # from numpy.typing import NDArray
 from pyopencl.array import Array as OCLArray
 import numpy as np
-from pydantic_numpy import NDArray, NDArrayFp32, NumpyModel
+from numpy.typing import NDArray
 from xarray import DataArray
 from aicsimageio import AICSImage
 from os import PathLike, fspath

@@ -45,7 +45,6 @@ dependencies = [
     "read-roi",
     "pyclesperanto_prototype>=0.20.0",
     "pydantic~=1.0",
-    "pydantic-numpy~=2.0",
     "npy2bdv",
     # Older tifffile are not compatible with aicsimageio, see: https://github.com/AllenCellModeling/aicsimageio/issues/518
 
