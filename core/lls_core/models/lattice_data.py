@@ -580,6 +580,7 @@ def img_from_array(arr: ArrayLike, dimension_order: Optional[str] = None, **kwar
 
     # if last axes of "aicsimage data" shape is not equal to time, then swap channel and time
     if img.data.shape[0] != img.dims.T or img.data.shape[1] != img.dims.C:
+        import numpy as np
         arr = np.swapaxes(arr, 0, 1)
     return AICSImage(image=arr, dim_order=dimension_order, **kwargs)
 
