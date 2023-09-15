@@ -55,6 +55,7 @@ dependencies = [
     "npy2bdv",
     "numpy",
     "pandas",
+    "pkg_resources",
     "pyyaml",
     "read-roi",
     "resource-backed-dask-array>=0.1.0",
