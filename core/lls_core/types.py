@@ -19,8 +19,11 @@ def image_like_to_image(img: ImageLike) -> DataArray:
     """
     Converts an image in one of many formats to a DataArray
     """
-    if isinstance(img, PathLike):
+    # First try treating it as a path
+    try:
         img = AICSImage(fspath(img))
+    except TypeError:
+        pass
     if isinstance(img, AICSImage):
         return img.xarray_dask_data
     else:

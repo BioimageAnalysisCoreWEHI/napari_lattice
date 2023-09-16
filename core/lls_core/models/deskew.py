@@ -40,7 +40,7 @@ class DefinedPixelSizes(FieldAccessMixin):
         )
 
 
-class DeskewParams(FieldAccessMixin, arbitrary_types_allowed=True):
+class DeskewParams(FieldAccessMixin):
     image: DataArray = Field(
         description="A 3-5D array containing the image data"
     )

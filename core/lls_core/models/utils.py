@@ -1,9 +1,13 @@
 
 from typing import Any, Type
 from enum import Enum
-from pydantic import BaseModel
+from pydantic import BaseModel, Extra
 from typer import Option
+from contextlib import contextmanager
 
+def is_pathlike(x: Any) -> bool:
+    from os import PathLike
+    return isinstance(x, (str, bytes, PathLike))
 
 def enum_choices(enum: Type[Enum]) -> str:
     """
@@ -11,10 +15,25 @@ def enum_choices(enum: Type[Enum]) -> str:
     """
     return "{" +  ", ".join([it.name for it in enum]) + "}"
 
+@contextmanager
+def ignore_keyerror():
+    """
+    Context manager that ignores KeyErrors from missing fields.
+    This allows for the validation to continue even if a single field
+    is missing, eventually resulting in a more user-friendly error message
+    """
+    try:
+        yield
+    except KeyError:
+        pass
+
 class FieldAccessMixin(BaseModel):
     """
     Adds methods to a BaseModel for accessing useful field information
     """
+    class Config:
+        extra = Extra.forbid
+        arbitrary_types_allowed = True
 
     @classmethod
     def get_default(cls, field_name: str) -> Any:

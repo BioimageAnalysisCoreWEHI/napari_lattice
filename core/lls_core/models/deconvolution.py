@@ -18,7 +18,7 @@ class MakeKwargs(TypedDict, total=False):
     psf_num_iter: int
     background: str
 
-class DeconvolutionParams(FieldAccessMixin, arbitrary_types_allowed=True):
+class DeconvolutionParams(FieldAccessMixin):
     """
     Parameters for the optional deconvolution step
     """

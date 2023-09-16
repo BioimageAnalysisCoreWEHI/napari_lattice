@@ -23,6 +23,7 @@ from lls_core.llsz_core import crop_volume_deskew
 from lls_core.models.crop import CropParams
 from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.output import OutputParams, SaveFileType
+from lls_core.models.utils import ignore_keyerror
 from lls_core.types import ArrayLike
 from lls_core.models.deskew import DeskewParams
 from napari_workflows import Workflow
@@ -146,7 +147,7 @@ class CommonLatticeArgs(CommonDeskewArgs, CommonOutputArgs):
     crop: Optional[CropParams]
     workflow: Optional[Workflow]
 
-class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
+class LatticeData(OutputParams, DeskewParams):
     """
     Holds data and metadata for a given image in a consistent format
     """
@@ -167,7 +168,8 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         # This needs to be a root validator to ensure it runs before the 
         # reshaping validator. We can't override that either since it's 
         # a field validator and can't modify save_name
-        if values.get("save_name", None) is None and isinstance(values.get("image"), PathLike):
+        from lls_core.models.utils import is_pathlike
+        if values.get("save_name", None) is None and is_pathlike(values.get("image")):
             values["save_name"] = Path(values["image"]).stem
         return values
 
@@ -178,16 +180,14 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         """
         # This skips the conversion if no image was provided, to ensure a more 
         # user-friendly error is provided, namely "image was missing"
-        if "image" not in values:
-            return v
-
-        default_start = 0
-        default_end = values["image"].sizes["T"]
-        if v is None:
-            return range(default_start, default_end)
-        elif isinstance(v, tuple) and len(v) == 2:
-            # Allow 2-tuples to be used as input for this field
-            return range(v[0] or default_start, v[1] or default_end)
+        with ignore_keyerror():
+            default_start = 0
+            default_end = values["image"].sizes["T"]
+            if v is None:
+                return range(default_start, default_end)
+            elif isinstance(v, tuple) and len(v) == 2:
+                # Allow 2-tuples to be used as input for this field
+                return range(v[0] or default_start, v[1] or default_end)
         return v
 
     @validator("channel_range", pre=True, always=True)
@@ -195,16 +195,14 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         """
         Sets the default channel range if undefined
         """
-        if "image" not in values:
-            return v
-
-        default_start = 0
-        default_end = values["image"].sizes["C"]
-        if v is None:
-            return range(default_start, default_end)
-        elif isinstance(v, tuple) and len(v) == 2:
-            # Allow 2-tuples to be used as input for this field
-            return range(v[0] or default_start, v[1] or default_end)
+        with ignore_keyerror():
+            default_start = 0
+            default_end = values["image"].sizes["C"]
+            if v is None:
+                return range(default_start, default_end)
+            elif isinstance(v, tuple) and len(v) == 2:
+                # Allow 2-tuples to be used as input for this field
+                return range(v[0] or default_start, v[1] or default_end)
         return v
 
     @validator("time_range")
@@ -212,11 +210,13 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         """
         Validates that the time range is within the range of channels in our array
         """
-        max_time = values["image"].sizes["T"]
-        if v.start < 0:
-            raise ValueError("The lowest valid start value is 0")
-        if v.stop > max_time:
-            raise ValueError(f"The highest valid time value is the length of the time axis, which is {max_time}")
+        with ignore_keyerror():
+            max_time = values["image"].sizes["T"]
+            if v.start < 0:
+                raise ValueError("The lowest valid start value is 0")
+            if v.stop > max_time:
+                raise ValueError(f"The highest valid time value is the length of the time axis, which is {max_time}")
+
         return v
 
     @validator("channel_range")
@@ -224,17 +224,19 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         """
         Validates that the channel range is within the range of channels in our array
         """
-        max_channel = values["image"].sizes["C"]
-        if v.start < 0:
-            raise ValueError("The lowest valid start value is 0")
-        if v.stop > max_channel:
-            raise ValueError(f"The highest valid channel value is the length of the channel axis, which is {max_channel}")
+        with ignore_keyerror():
+            max_channel = values["image"].sizes["C"]
+            if v.start < 0:
+                raise ValueError("The lowest valid start value is 0")
+            if v.stop > max_channel:
+                raise ValueError(f"The highest valid channel value is the length of the channel axis, which is {max_channel}")
         return v
 
     @validator("channel_range")
     def channel_range_subset(cls, v: range, values: dict):
-        if min(v) < 0 or max(v) > values["image"].sizes["C"]:
-            raise ValueError("The output channel range must be a subset of the total available channels")
+        with ignore_keyerror():
+            if min(v) < 0 or max(v) > values["image"].sizes["C"]:
+                raise ValueError("The output channel range must be a subset of the total available channels")
         return v
 
     @validator("time_range")

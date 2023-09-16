@@ -4,7 +4,7 @@ from xarray import DataArray
 from lls_core.models.utils import FieldAccessMixin
 
 
-class CropParams(FieldAccessMixin, arbitrary_types_allowed=True):
+class CropParams(FieldAccessMixin):
     """
     Parameters for the optional cropping step
     """

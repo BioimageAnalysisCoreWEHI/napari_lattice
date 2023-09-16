@@ -10,7 +10,7 @@ class SaveFileType(StrEnum):
     h5 = "h5"
     tiff = "tiff"
 
-class OutputParams(FieldAccessMixin, arbitrary_types_allowed=True):
+class OutputParams(FieldAccessMixin):
     save_dir: DirectoryPath = Field(
         default = getcwd(),
         description="The directory where the output data will be saved"

@@ -18,7 +18,7 @@ from lls_core import DeconvolutionChoice, DeskewDirection
 from typer import Typer, Argument, Option
 
 from lls_core.models.output import SaveFileType
-from toolz.dicttoolz import merge
+from toolz.dicttoolz import merge, valfilter
 
 class CliDeskewDirection(StrEnum):
     X = auto()
@@ -107,7 +107,14 @@ def main(
             from yaml import safe_load
             yaml_args = safe_load(fp)
 
-    LatticeData.parse_obj(merge(yaml_args, json_args, cli_args)).process().save_image()
+
+    LatticeData.parse_obj(
+        # Merge all three sources of config: YAML, JSON and CLI
+        merge(
+            # Remove None values from all dictonaries, so that they merge appropriately
+            valfilter(lambda x: x is not None, it) for it in [yaml_args, json_args, cli_args]
+        )
+    ).process().save_image()
 
 if __name__ == '__main__':
     app()

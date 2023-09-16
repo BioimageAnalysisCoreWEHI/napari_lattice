@@ -1,11 +1,11 @@
 # Tests for napari_lattice using arguments and saving output files as h5, as well as tiff
 
-from typer.testing import CliRunner
 from skimage.io import imsave
 import numpy as np
 from pathlib import Path
 import tempfile
 from lls_core.cmds.__main__ import app
+from tests.utils import invoke
 
 def create_image(path: Path):
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
@@ -15,7 +15,6 @@ def create_image(path: Path):
     imsave(str(path), raw)
     assert path.exists()
 
-runner = CliRunner()
 
 def test_batch_deskew_h5():
     """Write image to disk and then execute napari_lattice from terminal
@@ -26,7 +25,7 @@ def test_batch_deskew_h5():
         input_file = out_dir / 'raw.tiff'
         create_image(input_file)
         # Batch deskew and save as h5
-        runner.invoke(app, [
+        invoke([
             str(input_file),
             "--save-dir", str(out_dir),
             "--save-type", "h5"
@@ -43,7 +42,7 @@ def test_batch_deskew_tiff():
         out_dir = Path(out_dir)
         input_file = out_dir / 'raw.tiff'
         create_image(input_file)
-        runner.invoke(app, [
+        invoke([
             str(input_file),
             "--save-dir", str(out_dir),
             "--save-type", "tiff"
