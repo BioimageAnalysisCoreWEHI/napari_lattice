@@ -167,7 +167,7 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         # This needs to be a root validator to ensure it runs before the 
         # reshaping validator. We can't override that either since it's 
         # a field validator and can't modify save_name
-        if values.get("save_name", None) is None and isinstance(values["image"], PathLike):
+        if values.get("save_name", None) is None and isinstance(values.get("image"), PathLike):
             values["save_name"] = Path(values["image"]).stem
         return values
 
@@ -176,6 +176,11 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         """
         Sets the default time range if undefined
         """
+        # This skips the conversion if no image was provided, to ensure a more 
+        # user-friendly error is provided, namely "image was missing"
+        if "image" not in values:
+            return v
+
         default_start = 0
         default_end = values["image"].sizes["T"]
         if v is None:
@@ -190,6 +195,9 @@ class LatticeData(OutputParams, DeskewParams, arbitrary_types_allowed=True):
         """
         Sets the default channel range if undefined
         """
+        if "image" not in values:
+            return v
+
         default_start = 0
         default_end = values["image"].sizes["C"]
         if v is None:

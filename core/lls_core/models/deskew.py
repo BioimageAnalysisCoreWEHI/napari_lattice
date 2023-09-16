@@ -106,6 +106,8 @@ class DeskewParams(FieldAccessMixin, arbitrary_types_allowed=True):
         Sets the default deskew shape values if the user has not provided them
         """
         # process the file to get shape of final deskewed image
+        if "image" not in values:
+            return values
         data: DataArray = cls.reshaping(values["image"])
         if values.get('deskew_vol_shape') is None:
             if values.get('deskew_affine_transform') is None:
