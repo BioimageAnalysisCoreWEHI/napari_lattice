@@ -60,7 +60,7 @@ def test_yaml_deskew():
         test_dir = Path(test_dir)
         config_location = create_data(test_dir)
         # Batch deskew and save as h5
-        invoke(["--yaml-config", str(config_location)], )
+        invoke(["process", "--yaml-config", str(config_location)], )
 
         # checks if h5 files written
         assert (test_dir / "raw.h5").exists()

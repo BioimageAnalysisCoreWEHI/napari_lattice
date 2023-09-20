@@ -7,19 +7,18 @@ from __future__ import annotations
 
 from enum import auto
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, Annotated, List, Optional, Tuple
 from strenum import StrEnum
 
 from lls_core.models.lattice_data import LatticeData
-from lls_core.models.deskew import DefinedPixelSizes, DeskewParams
+from lls_core.models.deskew import DeskewParams
 from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.output import OutputParams
 from lls_core.models.crop import CropParams
-from lls_core import DeconvolutionChoice, DeskewDirection
-from typer import Typer, Argument, Option
+from lls_core import DeconvolutionChoice
+from typer import Typer, Argument, Option, Context
 
 from lls_core.models.output import SaveFileType
-from toolz.dicttoolz import merge_with, valfilter
 
 if TYPE_CHECKING:
     from lls_core.models.utils import FieldAccessMixin
@@ -31,23 +30,15 @@ class CliDeskewDirection(StrEnum):
 
 app = Typer(add_completion=False, rich_markup_mode="rich")
 
-def format_default(default: str):
-    """
-    Given a string, formats it like a default value in Typer
-    """
-    from typer.rich_utils import STYLE_OPTION_DEFAULT
-    default_style = STYLE_OPTION_DEFAULT
-    return f"[{default_style}]\\[default: {default}][/{default_style}]"
-
-
-def field_from_model(model: Type[FieldAccessMixin], field_name: str, extra_description: str = "", description: Optional[str] = None, default: Optional[Any] = None) -> Any:
+def field_from_model(model: Type[FieldAccessMixin], field_name: str, extra_description: str = "", description: Optional[str] = None, default: Optional[Any] = None, **kwargs) -> Any:
     """
     Generates a type Field from a Pydantic model field
     """
     field = model.__fields__[field_name]
 
     from enum import Enum
-    default = field.get_default()
+    if default is None:
+        default = field.get_default()
     if isinstance(default, Enum):
         default = default.name
 
@@ -55,15 +46,15 @@ def field_from_model(model: Type[FieldAccessMixin], field_name: str, extra_descr
         description = f"{field.field_info.description} {extra_description}"
 
     return Option(
-        # We make all defaults None so they can be removed
-        default = None,
-        show_default=False,
-        help=f"{description}\n{format_default(default)}"
+        default = default,
+        help=description,
+        **kwargs
     )
 
 def handle_merge(values: list):
-    if len(values) > 0:
+    if len(values) > 1:
         raise ValueError(f"A parameter has been passed multiple times! Got: {', '.join(values)}")
+    return values[0]
 
 @app.command("dump-schema")
 def dump_schema() -> None:
@@ -72,63 +63,68 @@ def dump_schema() -> None:
     json.dump(LatticeData.to_definition_dict(), fp=sys.stdout, indent=4)
 
 @app.command("process")
-def main(
+def process(
+    ctx: Context,
     image: Path = Argument(None, help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi", show_default=False),
     skew: CliDeskewDirection = field_from_model(DeskewParams, "skew"),# DeskewParams.make_typer_field("skew"),
     angle: float = field_from_model(DeskewParams, "angle") ,
-    pixel_sizes: Tuple[float, float, float] = field_from_model(DeskewParams, "physical_pixel_sizes", extra_description="This takes three arguments, corresponding to the X Y and Z pixel dimensions respectively"),
+    pixel_sizes: Tuple[float, float, float] = field_from_model(DeskewParams, "physical_pixel_sizes", extra_description="This takes three arguments, corresponding to the X Y and Z pixel dimensions respectively", default=(
+        DeskewParams.get_default("physical_pixel_sizes").X,
+        DeskewParams.get_default("physical_pixel_sizes").Y,
+        DeskewParams.get_default("physical_pixel_sizes").Z
+    )),
     rois: List[Path] = field_from_model(CropParams, "roi_list", description="A list of paths pointing to regions of interest to crop to, in ImageJ format."), #Option([], help="A list of paths pointing to regions of interest to crop to, in ImageJ format."),
     # Ideally this and other range values would be defined as Tuples, but these seem to be broken: https://github.com/tiangolo/typer/discussions/667
-    z_start: Optional[int] = Option(None, help="The index of the first Z slice to use. All prior Z slices will be discarded. " + format_default("0"), show_default=False),
+    z_start: Optional[int] = Option(0, help="The index of the first Z slice to use. All prior Z slices will be discarded.", show_default=False),
     z_end: Optional[int] = Option(None, help="The index of the last Z slice to use. The selected index and all subsequent Z slices will be discarded. Defaults to the last z index of the image.", show_default=False),
 
-    enable_deconvolution: bool = Option(False, "--deconvolution/--disable-deconvolution"),
-    decon_processing: DeconvolutionChoice = DeconvolutionParams.make_typer_field("decon_processing"),
-    psf: List[Path] = field_from_model(DeconvolutionParams, "psf", description="A list of paths pointing to point spread functions to use for deconvolution. Each file should in a standard image format (.czi, .tiff etc), containing a 3D image array."),
-    psf_num_iter: int = field_from_model(DeconvolutionParams, "psf_num_iter"),
-    background: str = field_from_model(DeconvolutionParams, "background"),
+    enable_deconvolution: bool = Option(False, "--deconvolution/--disable-deconvolution", rich_help_panel="Deconvolution"),
+    decon_processing: DeconvolutionChoice = field_from_model(DeconvolutionParams, "decon_processing", rich_help_panel="Deconvolution"),
+    psf: List[Path] = field_from_model(DeconvolutionParams, "psf", description="A list of paths pointing to point spread functions to use for deconvolution. Each file should in a standard image format (.czi, .tiff etc), containing a 3D image array.", rich_help_panel="Deconvolution"),
+    psf_num_iter: int = field_from_model(DeconvolutionParams, "psf_num_iter", rich_help_panel="Deconvolution"),
+    background: str = field_from_model(DeconvolutionParams, "background", rich_help_panel="Deconvolution"),
 
-    time_start: Optional[int] = Option(None, help="Index of the first time slice to use (inclusive). Defaults to the first time index of the image.", show_default=False),
-    time_end: Optional[int] = Option(None, help="Index of the first time slice to use (exclusive). Defaults to the last time index of the image.", show_default=False),
+    time_start: Optional[int] = Option(0, help="Index of the first time slice to use (inclusive). Defaults to the first time index of the image.", rich_help_panel="Output"),
+    time_end: Optional[int] = Option(None, help="Index of the first time slice to use (exclusive). Defaults to the last time index of the image.", show_default=False, rich_help_panel="Output"),
 
-    channel_start: Optional[int] = Option(None, help="Index of the first channel slice to use (inclusive). Defaults to the first channel index of the image.", show_default=False),
-    channel_end: Optional[int] = Option(None, help="Index of the first channel slice to use (exclusive). Defaults to the last channel index of the image.", show_default=False),
+    channel_start: Optional[int] = Option(0, help="Index of the first channel slice to use (inclusive). Defaults to the first channel index of the image.", rich_help_panel="Output"),
+    channel_end: Optional[int] = Option(None, help="Index of the first channel slice to use (exclusive). Defaults to the last channel index of the image.", show_default=False, rich_help_panel="Output"),
     
-    save_dir: Path = field_from_model(OutputParams, "save_dir"),
-    save_name: Optional[str] = field_from_model(OutputParams, "save_name"),
-    save_type: SaveFileType = field_from_model(OutputParams, "save_type"),
+    save_dir: Path = field_from_model(OutputParams, "save_dir", rich_help_panel="Output"),
+    save_name: Optional[str] = field_from_model(OutputParams, "save_name", rich_help_panel="Output"),
+    save_type: SaveFileType = field_from_model(OutputParams, "save_type", rich_help_panel="Output"),
 
     workflow: Optional[Path] = Option(None, help="Path to a Napari Workflow file, in JSON format. If provided, the configured desekewing processing will be added to the chosen workflow.", show_default=False),
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
-    yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read.")
+    yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 ) -> None:
-    cli_args = dict(
-        image=image,
-        angle=angle,
-        skew=DeskewDirection[skew.name],
-        physical_pixel_sizes=DefinedPixelSizes(
-            X=pixel_sizes[0],
-            Y=pixel_sizes[1],
-            Z=pixel_sizes[2],
-        ),
-        crop=None if len(rois) == 0 else dict(
-            roi_list=rois,
-            z_range=(z_start, z_end)
-        ),
-        deconvolution=None if not enable_deconvolution else dict(
-            decon_processing = decon_processing,
-            psf = psf,
-            psf_num_iter = psf_num_iter,
-            background = background
-        ),
-        workflow=workflow,
-
-        time_range=(time_start, time_end),
-        channel_range=(channel_start, channel_end),
-        save_dir=save_dir,
-        save_name=save_name,
-        save_type=save_type
-    )
+    from toolz.dicttoolz import merge_with, update_in
+    cli_param_map = {
+        "image": ["image"],
+        "angle": ["angle"],
+        "skew": ["skew"],
+        "pixel_sizes": ["physical_pixel_sizes"],
+        "rois": ["crop", "roi_list"],
+        "z_start": ["crop", "z_range", 0],
+        "z_end": ["crop", "z_range", 1],
+        "decon_processing": ["deconvolution", "decon_processing"],
+        "psf": ["deconvolution", "psf"],
+        "psf_num_iter": ["deconvolution", "psf_num_iter"],
+        "background": ["deconvolution", "background"],
+        "workflow": ["workflow"],
+        "time_start": ["time_range", 0],
+        "time_end": ["time_range", 1],
+        "channel_start": ["channel_range", 0],
+        "channel_end": ["channel_range", 1],
+        "save_dir": ["save_dir"],
+        "save_name": ["save_name"],
+        "save_type": ["save_type"],
+    }
+    cli_args = {}
+    for source, dest in cli_param_map.items():
+        from click.core import ParameterSource
+        if ctx.get_parameter_source(source) != ParameterSource.DEFAULT:
+            cli_args = update_in(cli_args, dest, lambda x: ctx.params[source])
 
     json_args = {}
     if json_config is not None:
@@ -147,10 +143,12 @@ def main(
         # Merge all three sources of config: YAML, JSON and CLI
         merge_with(
             handle_merge,
-            # Remove None values from all dictonaries, so that they merge appropriately
-            *[valfilter(lambda x: x is not None, it) for it in [yaml_args, json_args, cli_args]]
+            [yaml_args, json_args, cli_args]
         )
     ).process().save_image()
 
-if __name__ == '__main__':
+def main():
     app()
+
+if __name__ == '__main__':
+    main()
