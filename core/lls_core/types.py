@@ -7,7 +7,12 @@ import numpy as np
 from numpy.typing import NDArray
 from xarray import DataArray
 from aicsimageio import AICSImage
-from os import PathLike, fspath
+from os import fspath, PathLike as OriginalPathLike
+
+# This is a superset of os.PathLike
+PathLike: TypeAlias = Union[str, bytes, OriginalPathLike]
+def is_pathlike(x: Any) -> TypeGuard[PathLike]:
+    return isinstance(x, (str, bytes, OriginalPathLike))
 
 ArrayLike: TypeAlias = Union[DaskArray, NDArray, OCLArray, DataArray]
 

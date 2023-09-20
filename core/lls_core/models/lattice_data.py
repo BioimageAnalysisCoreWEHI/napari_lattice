@@ -125,7 +125,6 @@ class ProcessedSlices(BaseModel, arbitrary_types_allowed=True):
                         imagej=True
                     )
 
-
 workflow: Optional[Workflow] = Field(
     default=None,
     description="If defined, this is a workflow to add lightsheet processing onto"
@@ -243,6 +242,13 @@ class LatticeData(OutputParams, DeskewParams):
     def time_range_subset(cls, v: range, values: dict):
         if min(v) < 0 or max(v) > values["image"].sizes["T"]:
             raise ValueError("The output time range must be a subset of the total available time points")
+        return v
+
+    @validator("deconvolution")
+    def check_psfs(cls, v: DeconvolutionParams, values: dict) -> DeconvolutionParams:
+        with ignore_keyerror():
+            if len(v.psf) != values["image"].sizes["C"]:
+                raise ValueError("There should be one PSF per channel")
         return v
 
     # Hack to ensure that .skew_dir behaves identically to .skew
@@ -483,7 +489,7 @@ class LatticeData(OutputParams, DeskewParams):
                 else:
                     data = skimage_decon(
                         vol_zyx=data,
-                        psf=self.deconvolution.psf[slice.channel],
+                        psf=self.deconvolution.psf[slice.channel].to_numpy(),
                         num_iter=self.deconvolution.psf_num_iter,
                         clip=False,
                         filter_epsilon=0,

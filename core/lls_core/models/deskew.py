@@ -42,19 +42,19 @@ class DefinedPixelSizes(FieldAccessMixin):
 
 class DeskewParams(FieldAccessMixin):
     image: DataArray = Field(
-        description="A 3-5D array containing the image data"
+        description="A 3-5D array containing the image data."
     )
     skew: DeskewDirection = Field(
         default=DeskewDirection.Y,
-        description=f"Axis along which to deskew the image. Choices: {enum_choices(DeskewDirection)}"
+        description=f"Axis along which to deskew the image. Choices: {enum_choices(DeskewDirection)}."
     )
     angle: float = Field(
         default=30.0,
-        description="Angle of deskewing, in degrees"
+        description="Angle of deskewing, in degrees."
     )
     physical_pixel_sizes: DefinedPixelSizes = Field(
     default_factory=DefinedPixelSizes,
-    description="Pixel size of the microscope, in microns"
+    description="Pixel size of the microscope, in microns."
 )
     deskew_vol_shape: Tuple[int, ...] = Field(
         init_var=False,

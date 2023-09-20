@@ -16,7 +16,7 @@ from . import DeskewDirection, config
 
 if TYPE_CHECKING:
     from xml.etree.ElementTree import Element
-
+    from dask.array.core import Array as DaskArray
     from napari.layers import Shapes
 
 # Enable Logging
@@ -350,3 +350,15 @@ def raise_if_none(obj: Optional[T], message: str) -> T:
     if obj is None:
         raise TypeError(message)
     return obj
+
+def array_to_dask(arr: ArrayLike) -> DaskArray:
+    from dask.array.core import Array as DaskArray, from_array
+    from xarray import DataArray
+    from resource_backed_dask_array import ResourceBackedDaskArray 
+
+    if isinstance(arr, DataArray):
+        arr = arr.data
+    if isinstance(arr, (DaskArray, ResourceBackedDaskArray)):
+        return arr
+    else:
+        return from_array(arr)

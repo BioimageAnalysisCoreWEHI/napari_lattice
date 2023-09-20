@@ -12,12 +12,6 @@ from lls_core.models.utils import enum_choices, FieldAccessMixin
 from lls_core.types import image_like_to_image, ImageLike
 
 Background = Union[float, Literal["auto", "second_last"]]
-class MakeKwargs(TypedDict, total=False):
-    decon_processing: Union[DeconvolutionChoice, str]
-    psf: List[ImageLike]
-    psf_num_iter: int
-    background: str
-
 class DeconvolutionParams(FieldAccessMixin):
     """
     Parameters for the optional deconvolution step
@@ -45,4 +39,14 @@ class DeconvolutionParams(FieldAccessMixin):
             return DeconvolutionChoice[v]
         return v
 
-    convert_image = validator("psf", pre=True, each_item=True, allow_reuse=True)(image_like_to_image)
+    @validator("psf", pre=True, each_item=True, allow_reuse=True)
+    def convert_image(cls, v):
+        img = image_like_to_image(v)
+        # Ensure the PSF is 3D
+        if "C" in img.dims:
+            img = img.isel(C=0)
+        if "T" in img.dims:
+            img = img.isel(T=0)
+        if len(img.dims) != 3:
+            raise ValueError("PSF is not a 3D array!")
+        return img

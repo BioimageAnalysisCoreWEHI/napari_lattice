@@ -16,9 +16,8 @@ import os
 import numpy as np
 import dask.array as da
 from dask.array.core import Array as DaskArray
-from resource_backed_dask_array import ResourceBackedDaskArray 
 
-from lls_core.utils import pad_image_nearest_multiple
+from lls_core.utils import array_to_dask, pad_image_nearest_multiple
 from lls_core.types import ArrayLike, is_arraylike
 
 if TYPE_CHECKING:
@@ -227,11 +226,7 @@ def skimage_decon(
     from skimage.restoration import richardson_lucy as rl_decon_skimage
 
     depth = tuple(np.array(psf.shape) // 2)
-    if not isinstance(vol_zyx, (
-        DaskArray,
-        ResourceBackedDaskArray,
-    )):
-        vol_zyx = da.asarray(vol_zyx)
+    vol_zyx = array_to_dask(vol_zyx)
     decon_data = vol_zyx.map_overlap(
         rl_decon_skimage,
         psf=psf,

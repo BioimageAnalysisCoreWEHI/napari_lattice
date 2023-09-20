@@ -331,7 +331,7 @@ class DeconvolutionFields(NapariFieldGroup, FieldGroup):
     """
     fields_enabled = field(False, label="Enabled")
     decon_processing = field(DeconvolutionChoice, label="Processing Algorithm")
-    psf = field(List[Path], label = "PSFs")
+    psf: MagicField[ValueWidget[List[Path]]] = field(List[Path], label = "PSFs")
     psf_num_iter = field(int, label = "Number of Iterations")
     background = field(ComboBox).with_choices(
         [it.value for it in BackgroundSource]
