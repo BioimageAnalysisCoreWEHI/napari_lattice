@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from enum import auto
 from pathlib import Path
-from typing import TYPE_CHECKING, Annotated, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple
 from strenum import StrEnum
 
 from lls_core.models.lattice_data import LatticeData

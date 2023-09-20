@@ -249,8 +249,10 @@ class LatticeData(OutputParams, DeskewParams):
         if v is None:
             return v
         with ignore_keyerror():
-            if len(v.psf) != values["image"].sizes["C"]:
-                raise ValueError("There should be one PSF per channel")
+            channels = values["image"].sizes["C"]
+            psfs = len(v.psf)
+            if psfs != channels:
+                raise ValueError(f"There should be one PSF per channel, but there are {psfs} PSFs and {channels} channels.")
         return v
 
     # Hack to ensure that .skew_dir behaves identically to .skew

@@ -64,8 +64,6 @@ def test_process_deconvolution(args: dict, background: Any):
 def test_save(path: str, channels: int, args: dict):
     with as_file(resources / path) as lattice_path, tempfile.TemporaryDirectory() as tempdir:
         args["image"] = lattice_path
-        if "deconvolution" in args:
-            args["deconvolution"]["psf"] = args["deconvolution"]["psf"] * channels
         args["save_dir"] = tempdir
         LatticeData.parse_obj(args).process().save_image()
         results = list(Path(tempdir).iterdir())
