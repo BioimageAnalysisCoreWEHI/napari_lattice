@@ -9,14 +9,14 @@ import tempfile
 from pathlib import Path
 
 inputs = pytest.mark.parametrize(
-    ["path", "channels"], [
-    ("RBC_tiny.czi", 1),
-    ("RBC_lattice.tif", 1),
-    ("LLS7_t1_ch1.czi", 1),
-    ("LLS7_t1_ch3.czi", 1),
-    ("LLS7_t2_ch1.czi", 1),
-    ("LLS7_t2_ch3.czi", 1),
-    ("multich_multi_time.tif", 3),
+    ["path"], [
+    ("RBC_tiny.czi", ),
+    ("RBC_lattice.tif", ),
+    ("LLS7_t1_ch1.czi", ),
+    ("LLS7_t1_ch3.czi", ),
+    ("LLS7_t2_ch1.czi", ),
+    ("LLS7_t2_ch3.czi", ),
+    ("multich_multi_time.tif", ),
 ])
 
 def open_psf(name: str):
@@ -38,11 +38,9 @@ parameterized = pytest.mark.parametrize("args", [
 
 @inputs
 @parameterized
-def test_process(path: str, channels:int, args: dict):
+def test_process(path: str, args: dict):
     with as_file(resources / path) as lattice_path:
         args["image"] = lattice_path
-        if "deconvolution" in args:
-            args["deconvolution"]["psf"] = args["deconvolution"]["psf"] * channels
         for slice in LatticeData.parse_obj(args).process().slices:
             assert slice.data.ndim == 3
 
@@ -61,7 +59,7 @@ def test_process_deconvolution(args: dict, background: Any):
 
 @inputs
 @parameterized
-def test_save(path: str, channels: int, args: dict):
+def test_save(path: str, args: dict):
     with as_file(resources / path) as lattice_path, tempfile.TemporaryDirectory() as tempdir:
         args["image"] = lattice_path
         args["save_dir"] = tempdir
