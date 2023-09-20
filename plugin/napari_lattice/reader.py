@@ -15,16 +15,21 @@ import numpy as np
 from napari.layers import Image
 from aicsimageio.aics_image import AICSImage
 
-from typing import List, Optional, Tuple, Collection, TYPE_CHECKING
+from typing import List, Optional, Tuple, Collection, TYPE_CHECKING, TypedDict
 
 from aicsimageio.types import PhysicalPixelSizes
-from lls_core.models.lattice_data import AicsLatticeParams
 from lls_core.models.deskew import DefinedPixelSizes
+
+from logging import getLogger
+logger = getLogger(__name__)
 
 if TYPE_CHECKING:
     from aicsimageio.types import ImageLike
+    from xarray import DataArray
 
-class NapariImageParams(AicsLatticeParams):
+class NapariImageParams(TypedDict):
+    data: DataArray
+    physical_pixel_sizes: DefinedPixelSizes
     save_name: str
 
 def lattice_params_from_napari(
@@ -73,12 +78,17 @@ def lattice_params_from_napari(
             # Only process pixel sizes that are not none
             if all(img_data_aics.physical_pixel_sizes):
                 pixel_sizes.add(img_data_aics.physical_pixel_sizes)
-                # if pixel_size_metadata is not None and pixel_sizes != img_data_aics.physical_pixel_sizes:
-                #     raise Exception(f"Two or more layers that you have tried to merge have different pixel sizes according to their metadata! A previous image has size {physical_pixel_sizes}, whereas {img.name} has size {img_data_aics.physical_pixel_sizes}.")
-                # else:
-                #     pixel_size_metadata = img_data_aics.physical_pixel_sizes
 
-            calculated_order = tuple(img_data_aics.dims.order)
+            metadata_order = list(img_data_aics.dims.order)
+            metadata_shape = list(img_data_aics.dims.shape)
+            while len(metadata_order) > len(img.data.shape):
+                logger.info(f"Image metadata implies there are more dimensions ({len(metadata_order)}) than the image actually has ({len(img.data.shape)})")
+                for i, size in enumerate(metadata_shape):
+                    if size not in img.data.shape:
+                        logger.info(f"Excluding the {metadata_order[i]} dimension to reconcile dimension order")
+                        del metadata_order[i]
+                        del metadata_shape[i]
+            calculated_order = metadata_order
         elif dimension_order is None:
             raise ValueError("Either the Napari image must have dimensional metadata, or a dimension order must be provided")
         else:

@@ -167,7 +167,7 @@ class LatticeData(OutputParams, DeskewParams):
         # This needs to be a root validator to ensure it runs before the 
         # reshaping validator. We can't override that either since it's 
         # a field validator and can't modify save_name
-        from lls_core.models.utils import is_pathlike
+        from lls_core.types import is_pathlike
         if values.get("save_name", None) is None and is_pathlike(values.get("image")):
             values["save_name"] = Path(values["image"]).stem
         return values
@@ -245,7 +245,9 @@ class LatticeData(OutputParams, DeskewParams):
         return v
 
     @validator("deconvolution")
-    def check_psfs(cls, v: DeconvolutionParams, values: dict) -> DeconvolutionParams:
+    def check_psfs(cls, v: Optional[DeconvolutionParams], values: dict):
+        if v is None:
+            return v
         with ignore_keyerror():
             if len(v.psf) != values["image"].sizes["C"]:
                 raise ValueError("There should be one PSF per channel")
@@ -478,7 +480,7 @@ class LatticeData(OutputParams, DeskewParams):
                 if self.deconvolution.decon_processing == DeconvolutionChoice.cuda_gpu:
                     data = pycuda_decon(
                         image=data,
-                        psf=self.deconvolution.psf[slice.channel],
+                        psf=self.deconvolution.psf[slice.channel].to_numpy(),
                         background=self.deconvolution.background,
                         dzdata=self.dz,
                         dxdata=self.dx,

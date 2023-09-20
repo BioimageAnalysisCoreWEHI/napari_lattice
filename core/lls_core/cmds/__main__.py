@@ -40,7 +40,7 @@ def format_default(default: str):
     return f"[{default_style}]\\[default: {default}][/{default_style}]"
 
 
-def field_from_model(model: Type[FieldAccessMixin], field_name: str, extra_description: str = "", description: Optional[str] = None) -> Any:
+def field_from_model(model: Type[FieldAccessMixin], field_name: str, extra_description: str = "", description: Optional[str] = None, default: Optional[Any] = None) -> Any:
     """
     Generates a type Field from a Pydantic model field
     """
@@ -66,7 +66,7 @@ def handle_merge(values: list):
         raise ValueError(f"A parameter has been passed multiple times! Got: {', '.join(values)}")
 
 @app.command("dump-schema")
-def dump_schema():
+def dump_schema() -> None:
     import json
     import sys
     json.dump(LatticeData.to_definition_dict(), fp=sys.stdout, indent=4)
@@ -101,7 +101,7 @@ def main(
     workflow: Optional[Path] = Option(None, help="Path to a Napari Workflow file, in JSON format. If provided, the configured desekewing processing will be added to the chosen workflow.", show_default=False),
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read.")
-):
+) -> None:
     cli_args = dict(
         image=image,
         angle=angle,
