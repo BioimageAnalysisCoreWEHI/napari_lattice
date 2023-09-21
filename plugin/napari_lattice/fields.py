@@ -1,7 +1,6 @@
 # FieldGroups that the users interact with to input data
 
 import logging
-from enum import Enum
 from pathlib import Path
 from typing import Any, Callable, List, Optional, Tuple, TypeVar, cast
 
@@ -23,7 +22,7 @@ from lls_core.models.output import SaveFileType
 from lls_core.workflow import workflow_from_path
 from magicclass import FieldGroup, MagicTemplate, field
 from magicclass.fields import MagicField
-from magicclass.widgets import ComboBox, Label, Widget
+from magicclass.widgets import ComboBox, Label, Widget, RadioButtons
 from napari.layers import Image, Shapes
 from napari.types import ShapesData
 from napari.utils import history
@@ -61,6 +60,10 @@ def get_friendly_validations(model: FieldGroup) -> str:
         return ""
     except BaseException as e:
         return exception_to_html(e)
+
+class PixelSizeSource(StrEnum):
+    Metadata = "Image Metadata"
+    Manual = "Manual"
 
 class WorkflowSource(StrEnum):
     ActiveWorkflow = "Active Workflow"
@@ -133,10 +136,8 @@ class StackAlong(StrEnum):
     CHANNEL = "Channel"
     TIME = "Time"
 
-class LastDimensionOptions(Enum):
-    XYZTC = "XYZTC"
-    XYZCT = "XYZCT"
-    Metadata = "Get from Metadata"
+
+
 
 class NapariFieldGroup:
     # This implementation is a bit ugly. This is a mixin that can only be used on a `FieldGroup`.
@@ -226,7 +227,7 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
         tooltip="All the image layers you select will be stacked into one image and then deskewed. To select multiple layers, hold Command (MacOS) or Control (Windows, Linux)."
     ).with_choices(lambda _x, _y: get_layers(Image))
     stack_along = field(
-        str
+        str,
     ).with_choices(
         [it.value for it in StackAlong]
     ).with_options(
@@ -234,6 +235,7 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
         tooltip="The direction along which to stack multiple selected layers.",
         value=StackAlong.CHANNEL
     )
+    pixel_sizes_source = field(PixelSizeSource.Metadata, widget_type="RadioButtons").with_options(label="Pixel Size Source", orientation="horizontal").with_choices([it.value for it in PixelSizeSource])
     pixel_sizes = field(Tuple[float, float, float]).with_options(
         label="Pixel Sizes: XYZ (µm)",
         tooltip="The size of each pixel in microns. The first field selects the X pixel size, then Y, then Z."
@@ -255,11 +257,12 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
     ).with_options(
         label="Dimension Order",
         tooltip="Specifies the order of dimensions in the input images. For example, if your image is a 4D array with multiple channels along the first axis, you will specify CZYX.",
-        value=LastDimensionOptions.Metadata.value
+        value="Get from Metadata"
     )
-    skew_dir = field(DeskewDirection.Y).with_options(
+    skew_dir = field(DeskewDirection.Y, widget_type="RadioButtons").with_options(
         label="Skew Direction",
-        tooltip="The axis along which to deskew"
+        tooltip="The axis along which to deskew",
+        orientation="horizontal"
     )
     errors = field(Label).with_options(label="Errors")
 
@@ -288,6 +291,12 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
         # Recalculate the dimension options whenever the image changes
         self.dimension_order.reset_choices()
 
+    @pixel_sizes_source.connect
+    @enable_if([pixel_sizes])
+    def _hide_pixel_sizes(self):
+        # Hide the "Pixel Sizes" option unless the user specifies manual pixel size source
+        return self.pixel_sizes_source.value == PixelSizeSource.Manual
+
     @img_layer.connect
     @enable_if([stack_along])
     def _hide_stack_along(self):
@@ -303,7 +312,7 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
         params = lattice_params_from_napari(
                 imgs=self.img_layer.value,
                 dimension_order=None if self.dimension_order.value == "Get from Metadata" else self.dimension_order.value,
-                physical_pixel_sizes=PhysicalPixelSizes(
+                physical_pixel_sizes= None if self.pixel_sizes_source.value == PixelSizeSource.Metadata else PhysicalPixelSizes(
                     X = self.pixel_sizes.value[0],
                     Y = self.pixel_sizes.value[1],
                     Z = self.pixel_sizes.value[2]

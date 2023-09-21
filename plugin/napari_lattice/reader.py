@@ -35,7 +35,7 @@ class NapariImageParams(TypedDict):
 def lattice_params_from_napari(
     imgs: Collection[Image],
     dimension_order: Optional[str],
-    physical_pixel_sizes: PhysicalPixelSizes,
+    physical_pixel_sizes: Optional[PhysicalPixelSizes],
     stack_along: str
 ) -> NapariImageParams:
     """
@@ -51,9 +51,9 @@ def lattice_params_from_napari(
         raise ValueError(f"The input images have multiple different dimensions, which napari lattice doesn't support: {size_message}")
 
     save_name: str
-    pixel_sizes: set[PhysicalPixelSizes] = {physical_pixel_sizes}
+    # This is a set of all pixel sizes that we have seen so far
+    metadata_pixel_sizes: set[PhysicalPixelSizes] = set()
     save_names = []
-
     # The pixel sizes according to the AICS metadata, if any
     final_imgs: list[DataArray] = []
 
@@ -75,9 +75,10 @@ def lattice_params_from_napari(
             
         if 'aicsimage' in img.metadata.keys():
             img_data_aics: AICSImage = img.metadata['aicsimage']
+            # If the user has not provided pixel sizes, we extract them fro the metadata
             # Only process pixel sizes that are not none
-            if all(img_data_aics.physical_pixel_sizes):
-                pixel_sizes.add(img_data_aics.physical_pixel_sizes)
+            if physical_pixel_sizes is None and all(img_data_aics.physical_pixel_sizes):
+                metadata_pixel_sizes.add(img_data_aics.physical_pixel_sizes)
 
             metadata_order = list(img_data_aics.dims.order)
             metadata_shape = list(img_data_aics.dims.shape)
@@ -96,12 +97,15 @@ def lattice_params_from_napari(
 
         final_imgs.append(DataArray(img.data, dims=calculated_order))
 
-    if len(pixel_sizes) > 1:
-        raise Exception(f"Two or more layers that you have tried to merge have different pixel sizes according to their metadata! {pixel_sizes}")
-    elif len(pixel_sizes) == 1:
-        final_pixel_size = DefinedPixelSizes.from_physical(pixel_sizes.pop())
-    else:
+    if physical_pixel_sizes:
         final_pixel_size = DefinedPixelSizes.from_physical(physical_pixel_sizes)
+    else:
+        if len(metadata_pixel_sizes) > 1:
+            raise Exception(f"Two or more layers that you have tried to merge have different pixel sizes according to their metadata! {metadata_pixel_sizes}")
+        elif len(metadata_pixel_sizes) < 1:
+            raise Exception("No pixel sizes could be determined from the image metadata. Consider manually specifying the pixel sizes.")
+        else:
+            final_pixel_size = DefinedPixelSizes.from_physical(metadata_pixel_sizes.pop())
 
     final_img = concat(final_imgs, dim=stack_along)
     return NapariImageParams(save_name=save_names[0], physical_pixel_sizes=final_pixel_size, data=final_img, dims=final_img.shape)

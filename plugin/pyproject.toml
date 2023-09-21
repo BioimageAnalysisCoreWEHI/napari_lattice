@@ -72,7 +72,7 @@ SourceCode = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 UserSupport = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
 
 [tool.setuptools.package-data]
-napari_lattice = ["*.yaml"]
+napari_lattice = ["*.yaml", "*.svg", "*.png"]
 
 [project.optional-dependencies]
 testing = [
