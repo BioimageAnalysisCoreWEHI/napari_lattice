@@ -1,3 +1,4 @@
+from copy import copy
 from typing import Any
 import pytest
 from lls_core.models import LatticeData
@@ -39,6 +40,7 @@ parameterized = pytest.mark.parametrize("args", [
 @inputs
 @parameterized
 def test_process(path: str, args: dict):
+    args = copy(args)
     with as_file(resources / path) as lattice_path:
         args["image"] = lattice_path
         for slice in LatticeData.parse_obj(args).process().slices:
@@ -48,6 +50,7 @@ def test_process(path: str, args: dict):
 @parameterized
 def test_process_deconvolution(args: dict, background: Any):
     root = Path(__file__).parent / "data" 
+    args = copy(args)
     args["image"] = root / "raw.tif"
     args["deconvolution"] = {
         "psf": [root / "psf.tif"],
@@ -60,6 +63,7 @@ def test_process_deconvolution(args: dict, background: Any):
 @inputs
 @parameterized
 def test_save(path: str, args: dict):
+    args = copy(args)
     with as_file(resources / path) as lattice_path, tempfile.TemporaryDirectory() as tempdir:
         args["image"] = lattice_path
         args["save_dir"] = tempdir
