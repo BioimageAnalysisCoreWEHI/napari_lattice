@@ -190,49 +190,6 @@ def dask_expand_dims(a: ArrayLike, axis: Union[Collection[int], int]):
     return a.reshape(shape)
 
 
-def read_imagej_roi(roi_zip_path: str):
-    """Read an ImageJ ROI zip file so it loaded into napari shapes layer
-        If non rectangular ROI, will convert into a rectangle based on extreme points
-    Args:
-        roi_zip_path (zip file): ImageJ ROI zip file
-
-    Returns:
-        list: List of ROIs
-    """
-    roi_extension = path.splitext(roi_zip_path)[1]
-
-    # handle reading single roi or collection of rois in zip file
-    if roi_extension == ".zip":
-        ij_roi = read_roi_zip(roi_zip_path)
-    elif roi_extension == ".roi":
-        ij_roi = read_roi_file(roi_zip_path)
-    else:
-        raise Exception("ImageJ ROI file needs to be a zip/roi file")
-
-    # initialise list of rois
-    roi_list = []
-
-    # Read through each roi and create a list so that it matches the organisation of the shapes from napari shapes layer
-    for k in ij_roi.keys():
-        if ij_roi[k]['type'] in ('oval', 'rectangle'):
-            width = ij_roi[k]['width']
-            height = ij_roi[k]['height']
-            left = ij_roi[k]['left']
-            top = ij_roi[k]['top']
-            roi = [[top, left], [top, left+width],
-                   [top+height, left+width], [top+height, left]]
-            roi_list.append(roi)
-        elif ij_roi[k]['type'] in ('polygon', 'freehand'):
-            left = min(ij_roi[k]['x'])
-            top = min(ij_roi[k]['y'])
-            right = max(ij_roi[k]['x'])
-            bottom = max(ij_roi[k]['y'])
-            roi = [[top, left], [top, right], [bottom, right], [bottom, left]]
-            roi_list.append(roi)
-        else:
-            print("Cannot read ROI ",
-                  ij_roi[k], ".Recognised as type ", ij_roi[k]['type'])
-    return roi_list
 
 def pad_image_nearest_multiple(img: NDArray, nearest_multiple: int) -> NDArray:
     """pad an Image to the nearest multiple of provided number

@@ -14,7 +14,6 @@ def create_image(path: Path):
     imsave(str(path), raw)
     assert path.exists()
 
-
 def test_batch_deskew_h5():
     """Write image to disk and then execute napari_lattice from terminal
        Checks if an deskewed output file is created for both tif and h5

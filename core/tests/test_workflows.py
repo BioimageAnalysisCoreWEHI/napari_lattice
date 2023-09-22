@@ -1,126 +1,53 @@
-from skimage.io import imread, imsave
+from typing import Callable
 import os
-import numpy as np
-from pathlib import Path
-import platform
-import pyclesperanto_prototype as cle
+from copy import copy
+from numpy.typing import NDArray
 
 from napari_workflows import Workflow
-from napari_workflows._io_yaml_v1 import load_workflow, save_workflow
+import tempfile
 
-from lls_core.cmds.__main__ import main as run_cli
-
-# For testing in Windows
-if platform.system() == "Windows":
-    home_dir = str(Path.home())
-    home_dir = home_dir.replace("\\", "\\\\")
-    img_dir = home_dir + "\\\\raw.tiff"
-    workflow_location = home_dir + "\\\\deskew_segment.yaml"
-    config_location = home_dir + "\\\\config_deskew.yaml"
-else:
-    home_dir = str(Path.home())
-    img_dir = os.path.join(home_dir, "raw.tiff")
-    workflow_location = os.path.join(home_dir, "deskew_segment.yaml")
-    config_location = os.path.join(home_dir, "config_deskew.yaml")
+from tests.utils import invoke
+from pathlib import Path
+from .params import config_types
+from .utils import invoke
 
 
-def write_config_file(config_settings, output_file_location):
-    with open(output_file_location, 'w') as f:
-        for key, val in config_settings.items():
-            if val is not None:
-                if type(val) is str:
-                    print('%s: "%s"' % (key, val), file=f)
-
-                if type(val) is int:
-                    print('%s: %i' % (key, val), file=f)
-
-                if type(val) is list:
-                    print("%s:" % key, file=f)
-                    for x in val:
-                        if type(x) is int:
-                            print(" - %i" % x, file=f)
-                        else:
-                            print(' - "%s"' % x, file=f)
-
-    print("Config found written to %s" % output_file_location)
-
-
-def create_data():
-    # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
-    raw = np.zeros((5, 5, 5))
-    raw[2, 2, 2] = 10
-    # Save image as a tif filw in home directory
-    imsave(img_dir, raw)
-    assert os.path.exists(img_dir)
-
-    # Create a config file
-    config = {
-        "input": img_dir,
-        "output": home_dir,
-        "processing": "workflow",
-        "workflow_path": workflow_location,
-        "output_file_type": "h5"}
-
-    write_config_file(config, config_location)
-    assert os.path.exists(config_location)
-
-
-def create_workflow():
-    # Zeiss lattice
-    voxel_size_x_in_microns = 0.14499219272808386
-    voxel_size_y_in_microns = 0.14499219272808386
-    voxel_size_z_in_microns = 0.3
-    deskewing_angle_in_degrees = 30.0
-
-    # Instantiate segmentation workflow
-    image_seg_workflow = Workflow()
-
-    image_seg_workflow.set("gaussian", cle.gaussian_blur,
-                           "input", sigma_x=1, sigma_y=1, sigma_z=1)
-
-    image_seg_workflow.set("binarisation", cle.threshold,
-                           "gaussian", constant=0.5)
-
-    image_seg_workflow.set(
-        "labeling", cle.connected_components_labeling_box, "binarisation")
-
-    save_workflow(workflow_location, image_seg_workflow)
-
-    assert os.path.exists(workflow_location)
-
-
-def test_napari_workflow():
-    """Test napari workflow to see if it works before we run it using napari_lattice
-       This is without deskewing
+def test_napari_workflow(workflow: Workflow, test_image: NDArray):
     """
-    create_data()
-    create_workflow()
-
-    image_seg_workflow = load_workflow(workflow_location)
-
-    # Open the saved image from above
-    raw = imread(img_dir)
+    Test napari workflow to see if it works before we run it using napari_lattice
+    This is without deskewing
+    """
+    workflow = copy(workflow)
     # Set input image to be the "raw" image
-    image_seg_workflow.set("input", raw)
-    labeling = image_seg_workflow.get("labeling")
-    assert (labeling[2, 2, 2] == 1)
+    workflow.set("input", test_image)
+    labeling = workflow.get("labeling")
+    assert labeling[2, 2, 2] == 1
 
-
-def test_workflow_lattice():
-    """Test workflow by loading into napari lattice
-       This will apply deskewing before processing the workflow
+@config_types
+def test_workflow_cli(workflow_config_cli: dict, save_func: Callable, cli_param: str):
     """
-    # Deskew, apply workflow and save as h5
-    run_cli(["--config", config_location])
+    Test workflow processing via CLI
+    This will apply deskewing before processing the workflow
+    """
+    with tempfile.NamedTemporaryFile(mode="w") as fp:
+        save_func(workflow_config_cli, fp)
+        fp.flush()
+
+        # Deskew, apply workflow and save as h5
+        invoke([
+            "process",
+            cli_param, fp.name
+        ])
 
     # checks if h5 file written
-    h5_img = os.path.join(home_dir, "raw", "_0_raw.h5")
-    assert os.path.exists(h5_img)
+    save_dir = Path(workflow_config_cli["save_dir"])
+    saved_files = list(save_dir.glob("*.h5"))
+    assert len(saved_files) > 0
+    assert len(list(save_dir.glob("*.xml"))) > 0
 
     import npy2bdv
-    h5_file = npy2bdv.npy2bdv.BdvEditor(h5_img)
-
-    label_img = h5_file.read_view(time=0, channel=0)
-
-    assert (label_img.shape == (3, 14, 5))
-    assert (label_img[1, 6, 2] == 1)
+    for h5_img in saved_files:
+        h5_file = npy2bdv.npy2bdv.BdvEditor(str(h5_img))
+        label_img = h5_file.read_view(time=0, channel=0)
+        assert label_img.shape == (3, 14, 5)
+        assert label_img[1, 6, 2] == 1

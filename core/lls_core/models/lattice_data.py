@@ -104,12 +104,14 @@ class ProcessedSlices(BaseModel, arbitrary_types_allowed=True):
                 )
                 for result in roi_results:
                     bdv_writer.append_view(
-                        result.data,
+                        np.array(result.data),
                         time=result.time,
                         channel=result.channel,
                         voxel_size_xyz=(self.lattice_data.dx, self.lattice_data.dy, self.lattice_data.new_dz),
                         voxel_units='um'
                     )
+                bdv_writer.write_xml()
+                bdv_writer.close()
             elif self.lattice_data.save_type == SaveFileType.tiff:
                 # For each time point, we write a separate TIFF
                 for time, results in groupby(roi_results, key=lambda it: it.time):
@@ -171,6 +173,17 @@ class LatticeData(OutputParams, DeskewParams):
         if values.get("save_name", None) is None and is_pathlike(values.get("image")):
             values["save_name"] = Path(values["image"]).stem
         return values
+
+    @validator("workflow", pre=True)
+    def parse_workflow(cls, v: Any):
+        # Load the workflow from disk if it was provided as a path
+        from lls_core.types import is_pathlike
+        from napari_workflows._io_yaml_v1 import load_workflow
+        from os import fspath
+
+        if is_pathlike(v):
+            return load_workflow(fspath(v))
+        return v
 
     @validator("time_range", pre=True, always=True)
     def parse_time_range(cls, v: Any, values: dict) -> Any:
@@ -255,58 +268,6 @@ class LatticeData(OutputParams, DeskewParams):
                 raise ValueError(f"There should be one PSF per channel, but there are {psfs} PSFs and {channels} channels.")
         return v
 
-    # Hack to ensure that .skew_dir behaves identically to .skew
-    @property
-    def skew_dir(self) -> DeskewDirection:
-        return self.skew
-
-    @skew_dir.setter
-    def skew_dir(self, value: DeskewDirection):
-        self.skew = value
-
-    @property
-    def deskew_func(self):
-        # Chance deskew function absed on skew direction
-        if self.skew == DeskewDirection.Y:
-            return cle.deskew_y
-        elif self.skew == DeskewDirection.X:
-            return cle.deskew_x
-        else:
-            raise ValueError()
-
-    @property
-    def dx(self) -> float:
-        return self.physical_pixel_sizes.X
-
-    @dx.setter
-    def dx(self, value: float):
-        self.physical_pixel_sizes.X = value
-
-    @property
-    def dy(self) -> float:
-        return self.physical_pixel_sizes.Y
-
-    @dy.setter
-    def dy(self, value: float):
-        self.physical_pixel_sizes.Y = value
-
-    @property
-    def dz(self) -> float:
-        return self.physical_pixel_sizes.Z
-
-    @dz.setter
-    def dz(self, value: float):
-        self.physical_pixel_sizes.Z = value
-
-    def get_angle(self) -> float:
-        return self.angle
-
-    def set_angle(self, angle: float) -> None:
-        self.angle = angle
-
-    def set_skew(self, skew: DeskewDirection) -> None:
-        self.skew = skew
-
     @property
     def cropping_enabled(self) -> bool:
         "True if cropping should be performed"
@@ -316,20 +277,6 @@ class LatticeData(OutputParams, DeskewParams):
     def deconv_enabled(self) -> bool:
         "True if deconvolution should be performed"
         return self.deconvolution is not None
-
-    @property
-    def time(self) -> int:
-        """Number of time points"""
-        return self.image.sizes["T"]
-
-    @property
-    def channels(self) -> int:
-        """Number of channels"""
-        return self.image.sizes["C"]
-
-    @property
-    def new_dz(self):
-        return math.sin(self.angle * math.pi / 180.0) * self.dz
 
     def __post_init__(self):
         logger.info(f"Channels: {self.channels}, Time: {self.time}")
@@ -342,15 +289,6 @@ class LatticeData(OutputParams, DeskewParams):
             raise ValueError("channel is out of range")
 
         return self.image.isel(T=time, C=channel)
-
-        if len(self.image.shape) == 3:
-            return self.image
-        elif len(self.image.shape) == 4:
-            return self.image[time, :, :, :]
-        elif len(self.image.shape) == 5:
-            return self.image[time, channel, :, :, :]
-
-        raise Exception("Lattice data must be 3-5 dimensions")
 
     def iter_slices(self) -> Iterable[SlicedData[ArrayLike]]:
         """
@@ -377,11 +315,12 @@ class LatticeData(OutputParams, DeskewParams):
             update_with: dictionary of arguments to update the generated lattices with
         """
         for subarray in self.iter_slices():
-            yield subarray.copy_with_data(
-                self.copy(update={ "image": subarray,
-                    **update_with
-                })
-            )
+            # Copy doesn't manu
+            new_lattice = self.copy_validate(update={
+                "image": subarray.data,
+                **update_with
+            })
+            yield subarray.copy_with_data( new_lattice)
 
     def generate_workflows(
         self,
@@ -394,14 +333,22 @@ class LatticeData(OutputParams, DeskewParams):
                 return
 
             from copy import copy
+            from lls_core.workflow import get_workflow_inputs, update_workflow
             # We make a copy of the lattice for each slice, each of which has no associated workflow
             for lattice_slice in self.iter_sublattices(update_with={"workflow": None}):
                 user_workflow = copy(self.workflow)   
                 user_workflow.set(
                     "deskew_image",
-                    LatticeData.process,
+                    LatticeData.process_into_image,
                     lattice_slice.data
                 )
+                for task_name, arg_index, arg_name in get_workflow_inputs(user_workflow):
+                    update_workflow(
+                        user_workflow,
+                        task_name,
+                        arg_index,
+                        "deskew_image"
+                    )
                 yield lattice_slice.copy_with_data(user_workflow)
 
     def check_incomplete_acquisition(self, volume: ArrayLike, time_point: int, channel: int):
@@ -510,6 +457,22 @@ class LatticeData(OutputParams, DeskewParams):
                     voxel_size_z=self.dz
                 ))
             )
+
+    def _process_workflow(self) -> ProcessedSlices:
+        outputs = []
+        for workflow in self.generate_workflows():
+            for leaf in workflow.data.leafs():
+                outputs.append(
+                    workflow.copy_with_data(
+                        workflow.data.get(leaf)
+                    )
+                )
+
+        return ProcessedSlices(
+            slices = outputs,
+            lattice_data=self
+        )
+
     def process(self) -> ProcessedSlices:
         """
         Execute the processing and return the result.
@@ -518,20 +481,7 @@ class LatticeData(OutputParams, DeskewParams):
         ProcessedSlices.update_forward_refs()
 
         if self.workflow is not None:
-            outputs = []
-            for workflow in self.generate_workflows():
-                for leaf in workflow.data.leafs():
-                    outputs.append(
-                        workflow.copy_with_data(
-                            workflow.data.get(leaf)
-                        )
-                    )
-
-            return ProcessedSlices(
-                slices = outputs,
-                lattice_data=self
-            )
-
+            return self._process_workflow()
         elif self.cropping_enabled:
             return ProcessedSlices(
                 lattice_data=self,
@@ -542,3 +492,12 @@ class LatticeData(OutputParams, DeskewParams):
                 lattice_data=self,
                 slices=self._process_non_crop()
             )
+
+    def process_into_image(self) -> ArrayLike:
+        """
+        Shortcut method for calling process, then extracting one image layer.
+        This is mostly here to simplify the Workflow integration
+        """
+        for slice in self.process().slices:
+            return slice.data
+        raise Exception("No slices produced!")

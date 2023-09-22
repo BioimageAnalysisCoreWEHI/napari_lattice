@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from os import path
 from pathlib import Path
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import dask.array as da
 import numpy as np
@@ -16,11 +16,26 @@ from typing_extensions import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from napari_workflows import Workflow
-    from lls_core.models import LatticeData
 
 import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+def get_workflow_inputs(workflow: Workflow):
+    """
+    Yields tuples of (task_name, argument_index, input_argument) corresponding to the workflow's inputs,
+    namely the arguments that are unfilled.
+    Note that the index returned is the index in the overall task tuple, which includes the task name
+    """
+    for root_arg in workflow.roots():
+        for taskname, (task_func, *args) in workflow._tasks.items():
+            if root_arg in args:
+                yield taskname, args.index(root_arg) + 1, root_arg
+
+def update_workflow(workflow: Workflow, task_name: str, task_index: int, new_value: Any):
+    task = list(workflow.get_task(task_name))
+    task[task_index] = new_value
+    workflow.set_task(task_name, tuple(task))
 
 def get_first_last_image_and_task(user_workflow: Workflow) -> Tuple[str, str, str, str]:
     """
@@ -51,7 +66,7 @@ def get_first_last_image_and_task(user_workflow: Workflow) -> Tuple[str, str, st
 
 def modify_workflow_task(old_arg: str, task_key: str, new_arg: str, workflow: Workflow) -> tuple:
     """
-    Modify items in a workflow task
+    Replies one argument in a workflow with another
     Workflow is not modified, only a new task with updated arg is returned
     Args:
         old_arg: The argument in the workflow that needs to be modified

@@ -91,11 +91,11 @@ class LLSZWidget(LlszTemplate):
                 for field in [self.deskew_fields, self.deconv_fields, self.cropping_fields, self.workflow_fields, self.output_fields]:
                     field._validate()
 
-            deskew_fields = DeskewFields(name = "1. Deskew")
-            deconv_fields = DeconvolutionFields(name = "2. Deconvolution")
-            cropping_fields = CroppingFields(name = "3. Crop")
-            workflow_fields = WorkflowFields(name = "4. Workflow")
-            output_fields = OutputFields(name = "5. Output")
+            deskew_fields = DeskewFields()
+            deconv_fields = DeconvolutionFields()
+            cropping_fields = CroppingFields()
+            workflow_fields = WorkflowFields()
+            output_fields = OutputFields()
 
     @set_options(header=dict(widget_type="Label", label="<h3>Preview Deskew</h3>"),
                 time=dict(label="Time:", max=2**15),
@@ -106,7 +106,7 @@ class LLSZWidget(LlszTemplate):
     def preview(self, header:str, time: int, channel: int):
         # We only need to process one time point for the preview, 
         # so we made a copy using a subset of the times
-        lattice = self._make_model().copy(update=dict(
+        lattice = self._make_model().copy_validate(update=dict(
             time_range = range(time, time+1),
             channel_range = range(time, time+1),
         ))

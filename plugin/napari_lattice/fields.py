@@ -20,9 +20,9 @@ from lls_core.models import (
 from lls_core.models.deskew import DefinedPixelSizes
 from lls_core.models.output import SaveFileType
 from lls_core.workflow import workflow_from_path
-from magicclass import FieldGroup, MagicTemplate, field
+from magicclass import FieldGroup, MagicTemplate, field, magicclass, set_design
 from magicclass.fields import MagicField
-from magicclass.widgets import ComboBox, Label, Widget, RadioButtons
+from magicclass.widgets import ComboBox, Label, Widget
 from napari.layers import Image, Shapes
 from napari.types import ShapesData
 from napari.utils import history
@@ -75,20 +75,19 @@ class BackgroundSource(StrEnum):
     Custom = "Custom"
 
 
-def enable_field(parent: MagicTemplate, field: MagicField, enabled: bool = True) -> None:
+def enable_field(field: MagicField, enabled: bool = True) -> None:
     """
     Enable the widget associated with a field
 
     Args:
-        parent: The parent magicclass that contains the field
         field: The field to enable/disable
         enabled: If False, disable the field instead of enabling it
     """
-    real_field = getattr(parent, field.name)
-    if not isinstance(real_field, Widget):
-        raise Exception("Define your fields with field() not vfield()!")
-    real_field.visible = enabled
-    real_field.enabled = enabled
+    for real_field in field._guis.values():
+        if not isinstance(real_field, Widget):
+            raise Exception("Define your fields with field() not vfield()!")
+        real_field.visible = enabled
+        real_field.enabled = enabled
 
 
 EnabledHandlerType = TypeVar("EnabledHandlerType")
@@ -114,18 +113,18 @@ def enable_if(fields: List[MagicField]):
 
     def _decorator(fn: Callable[[EnabledHandlerType], bool])-> Callable[[EnabledHandlerType], None]:
         for field in fields:
-            field.visible = False
             field.enabled = False
+            field.visible = False
 
-        def make_handler(fn: Callable) -> Callable[[EnabledHandlerType], None]:
-            def handler(parent: EnabledHandlerType):
-                enable = fn(parent)
+        def make_handler(fn: Callable[[EnabledHandlerType], bool]) -> Callable[[EnabledHandlerType], None]:
+            def handler(value: Any):
+                enable = fn(value)
                 for field in fields:
                     if enable:
                         logger.info(f"{field.name} Activated")
                     else:
                         logger.info(f"{field.name} Deactivated")
-                    enable_field(parent, field, enabled=enable)
+                    enable_field(field, enabled=enable)
             return handler
 
         return make_handler(fn)
@@ -135,9 +134,6 @@ def enable_if(fields: List[MagicField]):
 class StackAlong(StrEnum):
     CHANNEL = "Channel"
     TIME = "Time"
-
-
-
 
 class NapariFieldGroup:
     # This implementation is a bit ugly. This is a mixin that can only be used on a `FieldGroup`.
@@ -203,7 +199,8 @@ class DeskewKwargs(NapariImageParams):
     angle: float
     skew: DeskewDirection
 
-class DeskewFields(NapariFieldGroup, FieldGroup):
+@magicclass(name="1. Deskew")
+class DeskewFields(NapariFieldGroup):
 
     def _get_dimension_options(self, _) -> List[str]:
         """
@@ -293,15 +290,15 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
 
     @pixel_sizes_source.connect
     @enable_if([pixel_sizes])
-    def _hide_pixel_sizes(self):
+    def _hide_pixel_sizes(pixel_sizes_source: str):
         # Hide the "Pixel Sizes" option unless the user specifies manual pixel size source
-        return self.pixel_sizes_source.value == PixelSizeSource.Manual
+        return pixel_sizes_source == PixelSizeSource.Manual
 
     @img_layer.connect
     @enable_if([stack_along])
-    def _hide_stack_along(self):
+    def _hide_stack_along(img_layer):
         # Hide the "Stack Along" option if we only have one image
-        return len(self.img_layer.value) > 1
+        return len(img_layer.value) > 1
 
     def _get_kwargs(self) -> DeskewKwargs:
         """
@@ -334,7 +331,8 @@ class DeskewFields(NapariFieldGroup, FieldGroup):
             skew = kwargs["skew"]
         )
 
-class DeconvolutionFields(NapariFieldGroup, FieldGroup):
+@magicclass(name="2. Deconvolution")
+class DeconvolutionFields(NapariFieldGroup):
     """
     A counterpart to the DeconvolutionParams Pydantic class
     """
@@ -355,8 +353,8 @@ class DeconvolutionFields(NapariFieldGroup, FieldGroup):
     @enable_if(
         [background_custom]
     )
-    def _enable_custom_background(self) -> bool:
-        return self.background.value == BackgroundSource.Custom
+    def _enable_custom_background(background: str) -> bool:
+        return background == BackgroundSource.Custom
 
     @fields_enabled.connect
     @enable_if(
@@ -367,8 +365,8 @@ class DeconvolutionFields(NapariFieldGroup, FieldGroup):
             background
         ]
     )
-    def _enable_fields(self) -> bool:
-        return self.fields_enabled.value
+    def _enable_fields(enabled) -> bool:
+        return enabled
 
     def _make_model(self) -> Optional[DeconvolutionParams]:
         if not self.fields_enabled.value:
@@ -386,12 +384,13 @@ class DeconvolutionFields(NapariFieldGroup, FieldGroup):
             psf_num_iter=self.psf_num_iter.value
         )
 
-class CroppingFields(NapariFieldGroup, FieldGroup):
+@magicclass(name="3. Crop")
+class CroppingFields(MagicTemplate, NapariFieldGroup):
     """
     A counterpart to the CropParams Pydantic class
     """
     fields_enabled = field(False, label="Enabled")
-    shapes= field(List[Shapes], widget_type="Select", label = "ROIs").with_options(choices=lambda _x, _y: get_layers(Shapes))
+    shapes= field(List[Shapes], widget_type="Select", label = "ROI Shape Layers").with_options(choices=lambda _x, _y: get_layers(Shapes))
     z_range = field(Tuple[int, int]).with_options(
         label = "Z Range",
         value = (0, 1),
@@ -402,21 +401,46 @@ class CroppingFields(NapariFieldGroup, FieldGroup):
     )
     errors = field(Label).with_options(label="Errors")
 
+    def _get_deskew(self) -> DeskewParams:
+        "Returns the DeskewParams from the other tab"
+        from napari_lattice.dock_widget import LLSZWidget
+        parent = self.find_ancestor(LLSZWidget)
+        return parent.LlszMenu.WidgetContainer.deskew_fields._make_model()
+
+    @set_design(text="Import ROI")
+    def import_roi(self, path: Path):
+        from lls_core.cropping import read_imagej_roi
+        from napari_lattice.utils import get_viewer
+        import numpy as np
+        roi_list = read_imagej_roi(path)
+        # convert to canvas coordinates
+        roi_list = (np.array(roi_list) * self._get_deskew().dy).tolist()
+        viewer = get_viewer()
+        viewer.add_shapes(roi_list, shape_type='polygon', edge_width=1, edge_color='yellow', face_color=[1, 1, 1, 0])
+
+    @set_design(text="New Crop")
+    def new_crop_layer(self):
+        from napari_lattice.utils import get_viewer
+        shapes = get_viewer().add_shapes()
+        shapes.mode = "SELECT"
+        shapes.name = "Napari Lattice Crop"
+
     @fields_enabled.connect
     @enable_if([shapes, z_range])
-    def _enable_workflow(self) -> bool:
-        return self.fields_enabled.value
+    def _enable_crop(enabled: bool) -> bool:
+        return enabled
 
     def _make_model(self) -> Optional[CropParams]:
         import numpy as np
         if self.fields_enabled.value:
             return CropParams(
                 z_range=self.z_range.value,
-                roi_list=ShapesData([np.array(shape.data) for shape in self.shapes.value])
+                roi_list=ShapesData([np.array(shape.data) / self._get_deskew().dy  for shape in self.shapes.value])
             )
         return None
 
-class WorkflowFields(NapariFieldGroup, FieldGroup):
+@magicclass(name="4. Workflow")
+class WorkflowFields(NapariFieldGroup):
     """
     Handles the workflow related parameters
     """
@@ -427,8 +451,8 @@ class WorkflowFields(NapariFieldGroup, FieldGroup):
 
     @fields_enabled.connect
     @enable_if([workflow_source])
-    def _enable_workflow(self) -> bool:
-        return self.fields_enabled.value
+    def _enable_workflow(enabled: bool) -> bool:
+        return enabled
 
     @fields_enabled.connect
     @enable_if([workflow_path])
@@ -445,8 +469,8 @@ class WorkflowFields(NapariFieldGroup, FieldGroup):
         else:
             return workflow_from_path(self.workflow_path.value)
 
-# @magicclass(name="5. Output")
-class OutputFields(NapariFieldGroup, FieldGroup):
+@magicclass(name="5. Output")
+class OutputFields(NapariFieldGroup):
     set_logging = field(Log_Levels.INFO).with_options(label="Logging Level")
     time_range = field(Tuple[int, int]).with_options(
         label="Time Export Range",

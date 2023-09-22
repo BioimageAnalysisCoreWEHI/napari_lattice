@@ -32,4 +32,7 @@ def image_like_to_image(img: ImageLike) -> DataArray:
     if isinstance(img, AICSImage):
         return img.xarray_dask_data
     else:
+        for required_key in ("shape", "dtype", "ndim", "__array__", "__array_ufunc__"):
+            if not hasattr(img, required_key):
+                raise ValueError(f"The provided object {img} is not array like!")
         return DataArray(img)

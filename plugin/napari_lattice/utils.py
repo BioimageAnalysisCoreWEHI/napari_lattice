@@ -19,5 +19,7 @@ def get_layers(type: Type[LayerType]) -> Sequence[LayerType]:
     For example, if you pass `napari.layers.Image`, it will return a list of
     Image layers
     """
-    viewer = get_viewer()
+    viewer = current_viewer()
+    if viewer is None:
+        return []
     return [layer for layer in viewer.layers if isinstance(layer, type)]

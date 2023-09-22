@@ -64,9 +64,76 @@ class DeskewParams(FieldAccessMixin):
 
     deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False, default=None, description="Deskewing transformation function. This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
 
+    # Hack to ensure that .skew_dir behaves identically to .skew
+    @property
+    def skew_dir(self) -> DeskewDirection:
+        return self.skew
+
+    @skew_dir.setter
+    def skew_dir(self, value: DeskewDirection):
+        self.skew = value
+
+    @property
+    def deskew_func(self):
+        # Chance deskew function absed on skew direction
+        if self.skew == DeskewDirection.Y:
+            return cle.deskew_y
+        elif self.skew == DeskewDirection.X:
+            return cle.deskew_x
+        else:
+            raise ValueError()
+
+    @property
+    def dx(self) -> float:
+        return self.physical_pixel_sizes.X
+
+    @dx.setter
+    def dx(self, value: float):
+        self.physical_pixel_sizes.X = value
+
+    @property
+    def dy(self) -> float:
+        return self.physical_pixel_sizes.Y
+
+    @dy.setter
+    def dy(self, value: float) -> None:
+        self.physical_pixel_sizes.Y = value
+
+    @property
+    def dz(self) -> float:
+        return self.physical_pixel_sizes.Z
+
+    @dz.setter
+    def dz(self, value: float):
+        self.physical_pixel_sizes.Z = value
+
+    def get_angle(self) -> float:
+        return self.angle
+
+    def set_angle(self, angle: float) -> None:
+        self.angle = angle
+
+    def set_skew(self, skew: DeskewDirection) -> None:
+        self.skew = skew
+
     @property
     def dims(self):
         return self.image.dims
+
+    @property
+    def time(self) -> int:
+        """Number of time points"""
+        return self.image.sizes["T"]
+
+    @property
+    def channels(self) -> int:
+        """Number of channels"""
+        return self.image.sizes["C"]
+
+    @property
+    def new_dz(self):
+        import math
+        return math.sin(self.angle * math.pi / 180.0) * self.dz
 
     @validator("skew", pre=True)
     def convert_skew(cls, v: Any):
@@ -81,8 +148,6 @@ class DeskewParams(FieldAccessMixin):
         if isinstance(v, tuple) and len(v) == 3:
             return DefinedPixelSizes(X=v[0], Y=v[1], Z=v[2])
         return v
-
-    # convert_image = validator("image", pre=True, allow_reuse=True)(image_like_to_image)
 
     @validator("image", pre=True)
     def reshaping(cls, v: Any):

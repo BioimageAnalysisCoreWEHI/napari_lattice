@@ -1,8 +1,8 @@
 
 from typing import Any, Type
+from typing_extensions import Self
 from enum import Enum
 from pydantic import BaseModel, Extra
-from typer import Option
 from contextlib import contextmanager
 
 def enum_choices(enum: Type[Enum]) -> str:
@@ -30,6 +30,7 @@ class FieldAccessMixin(BaseModel):
     class Config:
         extra = Extra.forbid
         arbitrary_types_allowed = True
+        validate_assignment = True
 
     @classmethod
     def get_default(cls, field_name: str) -> Any:
@@ -60,13 +61,10 @@ class FieldAccessMixin(BaseModel):
             ret[key] = value
         return ret
 
-    @classmethod
-    def make_typer_field(cls, field_name: str, extra_description: str = "") -> Any:
+    def copy_validate(self, **kwargs) -> Self:
         """
-        Convert this field into a Typer field
+        Like `.copy()`, but validates the results.
+        See https://github.com/pydantic/pydantic/issues/418 for more information
         """
-        field = cls.__fields__[field_name]
-        return Option(
-            default = field.get_default(),
-            help=field.field_info.description + extra_description
-        )
+        updated = self.copy(**kwargs)
+        return updated.validate(updated.dict())
