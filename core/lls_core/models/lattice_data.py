@@ -179,10 +179,10 @@ class LatticeData(OutputParams, DeskewParams):
         # Load the workflow from disk if it was provided as a path
         from lls_core.types import is_pathlike
         from lls_core.workflow import workflow_from_path
-        from os import fspath
+        from pathlib import Path
 
         if is_pathlike(v):
-            return workflow_from_path(fspath(v))
+            return workflow_from_path(Path(v))
         return v
 
     @validator("time_range", pre=True, always=True)

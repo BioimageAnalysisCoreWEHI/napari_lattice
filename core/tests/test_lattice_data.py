@@ -5,6 +5,7 @@ from lls_core.sample import resources
 from importlib_resources import as_file
 import tempfile
 from pathlib import Path
+from napari_workflows import Workflow
 
 from .params import inputs, parameterized
 
@@ -48,11 +49,11 @@ def test_process_deconvolution(args: dict, background: Any):
         assert slice.data.ndim == 3
 
 @parameterized
-def test_process_workflow(args: dict):
+def test_process_workflow(args: dict, workflow: Workflow):
     root = Path(__file__).parent / "data" 
     for slice in LatticeData.parse_obj({
         "image": root / "raw.tif",
-        "workflow": root / "raw.tif",
+        "workflow": workflow,
         **args
     }).process().slices:
         assert slice.data.ndim == 3
