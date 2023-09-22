@@ -178,11 +178,11 @@ class LatticeData(OutputParams, DeskewParams):
     def parse_workflow(cls, v: Any):
         # Load the workflow from disk if it was provided as a path
         from lls_core.types import is_pathlike
-        from napari_workflows._io_yaml_v1 import load_workflow
+        from lls_core.workflow import workflow_from_path
         from os import fspath
 
         if is_pathlike(v):
-            return load_workflow(fspath(v))
+            return workflow_from_path(fspath(v))
         return v
 
     @validator("time_range", pre=True, always=True)
