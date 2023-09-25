@@ -111,6 +111,7 @@ reportUntypedFunctionDecorator = false
 reportMissingTypeArgument = false
 reportPrivateUsage = false
 reportPrivateImportUsage = false
+reportUnnecessaryComparison = false
 
 [tool.fawltydeps]
 ignore_unused = [

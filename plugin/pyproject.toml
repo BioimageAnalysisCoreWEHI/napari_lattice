@@ -53,14 +53,11 @@ dependencies = [
     "napari>=0.4.11",
     "npy2bdv",
     "numpy",
-    "pandas",
     "psutil",
     "pyclesperanto_prototype>=0.20.0",
     "pydantic",
     "qtpy",
-    "tqdm",
     "typing_extensions>=4.7.0",
-    "pyyaml",
     "StrEnum",
     "xarray"
 ]
@@ -97,6 +94,7 @@ ignore_unused = [
     # These napari plugins are needed to use the plugin, but aren't imported directly
     "napari-aicsimageio",
     "napari-workflow-inspector",
+    "napari-spreadsheet",
 
     # This is pinned but unused
     "fsspec",
@@ -118,3 +116,4 @@ reportUntypedFunctionDecorator = false
 reportMissingTypeArgument = false
 reportPrivateUsage = false
 reportPrivateImportUsage = false
+reportUnnecessaryComparison = false

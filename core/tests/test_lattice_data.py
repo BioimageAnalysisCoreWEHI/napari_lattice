@@ -9,6 +9,8 @@ from napari_workflows import Workflow
 
 from .params import inputs, parameterized
 
+root = Path(__file__).parent / "data" 
+
 def open_psf(name: str):
     with as_file(resources / "psfs" / "zeiss_simulated" / name) as path:
         return path
@@ -37,7 +39,6 @@ def test_save(path: str, args: dict):
 @pytest.mark.parametrize(["background"], [(1, ), ("auto",), ("second_last",)])
 @parameterized
 def test_process_deconvolution(args: dict, background: Any):
-    root = Path(__file__).parent / "data" 
     for slice in LatticeData.parse_obj({
         "image": root / "raw.tif",
         "deconvolution": {
@@ -50,10 +51,22 @@ def test_process_deconvolution(args: dict, background: Any):
 
 @parameterized
 def test_process_workflow(args: dict, workflow: Workflow):
-    root = Path(__file__).parent / "data" 
     for slice in LatticeData.parse_obj({
         "image": root / "raw.tif",
         "workflow": workflow,
         **args
     }).process().slices:
         assert slice.data.ndim == 3
+
+@parameterized
+def test_process_crop(args: dict, workflow: Workflow):
+    with as_file(resources / "RBC_tiny.czi") as lattice_path:
+        rois = root / "crop" / "two_rois.zip"
+        for slice in LatticeData.parse_obj({
+            "image": lattice_path,
+            "crop": {
+                "roi_list": [rois]
+            },
+            **args
+        }).process().slices:
+            assert slice.data.ndim == 3

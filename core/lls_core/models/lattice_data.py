@@ -185,6 +185,20 @@ class LatticeData(OutputParams, DeskewParams):
             return workflow_from_path(Path(v))
         return v
 
+    @validator("crop")
+    def default_z_range(cls, v: CropParams, values: dict):
+        # If any part of the z range is missing, assume the user wants all Z indices
+        with ignore_keyerror():
+            default_start = 0
+            default_end = values["image"].sizes["Z"]
+            if v.z_range is None:
+                v.z_range = (default_start, default_end)
+            if v.z_range[0] is None:
+                v.z_range[0] = default_start
+            if v.z_range[1] is None:
+                v.z_range[1] = default_end
+            return v
+
     @validator("time_range", pre=True, always=True)
     def parse_time_range(cls, v: Any, values: dict) -> Any:
         """
@@ -371,7 +385,8 @@ class LatticeData(OutputParams, DeskewParams):
 
     @property
     def deskewed_volume(self) -> DaskArray:
-        return da.zeros(self.deskew_vol_shape)
+        from dask.array import zeros
+        return zeros(self.deskew_vol_shape)
 
     def _process_crop(self) -> Iterable[ProcessedVolume]:
         """
@@ -383,7 +398,7 @@ class LatticeData(OutputParams, DeskewParams):
         # We have an extra level of iteration for the crop path: iterating over each ROI
         for roi_index, roi in enumerate(tqdm(self.crop.roi_list, desc="ROI:", position=0)):
             # pass arguments for save tiff, callable and function arguments
-            logger.info("Processing ROI ", roi_index)
+            logger.info(f"Processing ROI {roi_index}")
             
             deconv_args: dict[Any, Any] = {}
             if self.deconvolution is not None:
@@ -393,14 +408,14 @@ class LatticeData(OutputParams, DeskewParams):
                     decon_processing=self.deconvolution.decon_processing
                 )
 
-            for time_idx, time, ch_idx, ch, data in self.iter_slices():
-                yield ProcessedVolume(
-                    data = crop_volume_deskew(
-                        original_volume=data,
+            for slice in self.iter_slices():
+                yield slice.copy_with_data(
+                    crop_volume_deskew(
+                        original_volume=slice.data,
                         deconvolution=self.deconv_enabled,
                         get_deskew_and_decon=False,
                         debug=False,
-                        roi_shape=roi,
+                        roi_shape=list(roi),
                         linear_interpolation=True,
                         voxel_size_x=self.dx,
                         voxel_size_y=self.dy,
@@ -410,13 +425,9 @@ class LatticeData(OutputParams, DeskewParams):
                         z_start=self.crop.z_range[0],
                         z_end=self.crop.z_range[1],
                         **deconv_args
-                    ),
-                    channel=ch,
-                    channel_index=ch_idx,
-                    time=time,
-                    time_index=time_idx,
-                    roi_index=roi_index
-                ) 
+                    )
+                )
+                
     def _process_non_crop(self) -> Iterable[ProcessedVolume]:
         """
         Yields processed image slices without cropping

@@ -31,11 +31,11 @@ def test_image() -> NDArray[np.float64]:
 
 @pytest.fixture
 def workflow_config(workflow: Workflow, test_image: NDArray):
-        # Create a config file
-        yield {
-            "image": test_image,
-            "workflow": workflow,
-        }
+    # Create a config file
+    yield {
+        "image": test_image,
+        "workflow": workflow,
+    }
 
 @pytest.fixture
 def workflow_config_cli(workflow: Workflow, test_image: NDArray):
