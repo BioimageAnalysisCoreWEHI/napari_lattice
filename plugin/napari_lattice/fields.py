@@ -86,8 +86,11 @@ def enable_field(field: MagicField, enabled: bool = True) -> None:
     for real_field in field._guis.values():
         if not isinstance(real_field, Widget):
             raise Exception("Define your fields with field() not vfield()!")
-        real_field.visible = enabled
-        real_field.enabled = enabled
+        try:
+            real_field.visible = enabled
+            real_field.enabled = enabled
+        except RuntimeError:
+            pass
 
 
 EnabledHandlerType = TypeVar("EnabledHandlerType")
@@ -136,17 +139,8 @@ class StackAlong(StrEnum):
     TIME = "Time"
 
 class NapariFieldGroup:
-    # This implementation is a bit ugly. This is a mixin that can only be used on a `FieldGroup`.
-    # However, it can't inherit from FieldGroup because then the metaclass would look for fields in this
-    # class definition, find none, and then make an empty GUI page when this is rendered.
-    # It also can't inherit from a FieldGroup-like Protocol as mypy suggests for mixin classes
-    # (https://mypy.readthedocs.io/en/latest/more_types.html#mixin-classes) because it doesn't 
-    # implement the attributes of a FieldGroup. Ideally this could be a Protocol subclass as well
-    # to make it remain abstract, but the Protocol metaclass interferes with the FieldGroup metaclass
-    def __init__(self, *args: Any, **kwargs: Any):
-        super().__init__(*args, **kwargs)
+    def __post_init__(self):
         self = cast(FieldGroup, self)
-        # self._widget._mgui_bind_parent_change_callback(self._validate)
         self.changed.connect(self._validate, unique=False)
 
         # Style the error label. 
@@ -156,12 +150,9 @@ class NapariFieldGroup:
         if isinstance(errors, QLabel):
             errors.setStyleSheet("color: red;")
             errors.setWordWrap(True)
-        # super(Container, self).connect(self._validate)
-        # self.connect(self._validate)
 
-    # def _on_value_change(self, *args, **kwargs) -> None:
-    #     super()._on_value_change(*args, **kwargs)
-    #     self._validate()
+        from qtpy.QtCore import Qt
+        self._widget._layout.setAlignment(Qt.AlignTop)
 
     def _get_parent_tab_widget(self: Any) -> QTabWidget:
         return self.parent.parentWidget()
@@ -290,15 +281,17 @@ class DeskewFields(NapariFieldGroup):
 
     @pixel_sizes_source.connect
     @enable_if([pixel_sizes])
+    @staticmethod
     def _hide_pixel_sizes(pixel_sizes_source: str):
         # Hide the "Pixel Sizes" option unless the user specifies manual pixel size source
         return pixel_sizes_source == PixelSizeSource.Manual
 
     @img_layer.connect
     @enable_if([stack_along])
-    def _hide_stack_along(img_layer):
+    @staticmethod
+    def _hide_stack_along(img_layer: List[Image]):
         # Hide the "Stack Along" option if we only have one image
-        return len(img_layer.value) > 1
+        return len(img_layer) > 1
 
     def _get_kwargs(self) -> DeskewKwargs:
         """
@@ -353,6 +346,7 @@ class DeconvolutionFields(NapariFieldGroup):
     @enable_if(
         [background_custom]
     )
+    @staticmethod
     def _enable_custom_background(background: str) -> bool:
         return background == BackgroundSource.Custom
 
@@ -365,7 +359,8 @@ class DeconvolutionFields(NapariFieldGroup):
             background
         ]
     )
-    def _enable_fields(enabled) -> bool:
+    @staticmethod
+    def _enable_fields(enabled: bool) -> bool:
         return enabled
 
     def _make_model(self) -> Optional[DeconvolutionParams]:
@@ -451,17 +446,17 @@ class WorkflowFields(NapariFieldGroup):
 
     @fields_enabled.connect
     @enable_if([workflow_source])
+    @staticmethod
     def _enable_workflow(enabled: bool) -> bool:
         return enabled
 
     @fields_enabled.connect
     @enable_if([workflow_path])
-    def _workflow_path(self) -> bool:
-        return self.workflow_source.value == WorkflowSource.CustomPath
+    @staticmethod
+    def _workflow_path(workflow_source: WorkflowSource) -> bool:
+        return workflow_source == WorkflowSource.CustomPath
 
     def _make_model(self) -> Optional[Workflow]:
-        from lls_core.workflow import _import_workflow_modules
-        from napari_workflows._io_yaml_v1 import load_workflow
         if not self.fields_enabled.value:
             return None
         if self.workflow_source.value == WorkflowSource.ActiveWorkflow:

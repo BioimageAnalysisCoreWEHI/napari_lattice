@@ -1,15 +1,10 @@
 # Enable Logging
 import logging
-from pathlib import Path
-from typing import Union
 
 import numpy as np
 from lls_core.models.lattice_data import LatticeData
-from lls_core.workflow import _import_workflow_modules
-from magicclass import MagicTemplate, field, magicclass, set_options
+from magicclass import MagicTemplate, field, magicclass, set_options, vfield
 from magicclass.wrappers import set_design
-from napari import Viewer
-from napari.layers import Shapes
 from napari_lattice.fields import (
     CroppingFields,
     DeconvolutionFields,
@@ -18,8 +13,6 @@ from napari_lattice.fields import (
     WorkflowFields,
 )
 from napari_lattice.icons import GREY
-from napari_workflows import Workflow, WorkflowManager
-from napari_workflows._io_yaml_v1 import load_workflow
 from qtpy.QtCore import Qt
 from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QTabWidget
@@ -27,21 +20,11 @@ from qtpy.QtWidgets import QTabWidget
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-class LlszTemplate(MagicTemplate):
-    @property
-    def llsz_parent(self) -> "LLSZWidget":
-        return self.find_ancestor(LLSZWidget)
-        
-def parent_viewer(mc: MagicTemplate) -> Viewer:
-    viewer = mc.parent_viewer
-    if viewer is None:
-        raise Exception("This function can only be used when inside of a Napari viewer")
-    return mc.parent_viewer
-
 @magicclass(widget_type="split")
-class LLSZWidget(LlszTemplate):
-    open_file: bool = False
-    shapes_layer: Shapes
+class LLSZWidget(MagicTemplate):
+    def __post_init__(self):
+        # aligning collapsible widgets at the top instead of having them centered vertically
+        self._widget._layout.setAlignment(Qt.AlignTop)
 
     def _check_validity(self) -> bool:
         """
@@ -73,14 +56,14 @@ class LLSZWidget(LlszTemplate):
         )
 
     @magicclass(widget_type="split")
-    class LlszMenu(LlszTemplate):
+    class LlszMenu(MagicTemplate):
 
         main_heading = field("<h3>Napari Lattice: Visualization & Analysis</h3>", widget_type="Label")
         heading1 = field("Drag and drop an image file onto napari.", widget_type="Label")
 
         # Tabbed Widget container to house all the widgets
         @magicclass(widget_type="tabbed", name="Functions", labels=False)
-        class WidgetContainer(LlszTemplate):
+        class WidgetContainer(MagicTemplate):
 
             def __post_init__(self):
                 tab_widget: QTabWidget= self._widget._tab_widget
@@ -91,11 +74,11 @@ class LLSZWidget(LlszTemplate):
                 for field in [self.deskew_fields, self.deconv_fields, self.cropping_fields, self.workflow_fields, self.output_fields]:
                     field._validate()
 
-            deskew_fields = DeskewFields()
-            deconv_fields = DeconvolutionFields()
-            cropping_fields = CroppingFields()
-            workflow_fields = WorkflowFields()
-            output_fields = OutputFields()
+            deskew_fields = vfield(DeskewFields)
+            deconv_fields = vfield(DeconvolutionFields)
+            cropping_fields = vfield(CroppingFields)
+            workflow_fields = vfield(WorkflowFields)
+            output_fields = vfield(OutputFields)
 
     @set_options(header=dict(widget_type="Label", label="<h3>Preview Deskew</h3>"),
                 time=dict(label="Time:", max=2**15),
@@ -125,35 +108,3 @@ class LLSZWidget(LlszTemplate):
     def save(self):
         lattice = self._make_model()
         lattice.process().save_image()
-
-def _napari_lattice_widget_wrapper() -> LLSZWidget:
-    # split widget type enables a resizable widget
-    #max_height = 50
-    # Important to have this or napari won't recognize the classes and magicclass qidgets
-    widget = LLSZWidget()
-    # aligning collapsible widgets at the top instead of having them centered vertically
-    widget._widget._layout.setAlignment(Qt.AlignTop)
-
-    # widget._widget._layout.setWidgetResizable(True)
-    return widget
-
-def get_workflow(source: Union[Path, Viewer]) -> Workflow:
-    """
-    Gets a user defined workflow object, either from a viewer or from a file
-
-    Args:
-        source: Either the path to a workflow file, or a Napari viewer from which to extract the workflow
-    """
-    if isinstance(source, Viewer):
-        # installs the workflow to napari
-        user_workflow = WorkflowManager.install(source).workflow
-        logger.info("Workflow installed")
-    else:
-        _import_workflow_modules(source)
-        user_workflow = load_workflow(str(source))
-
-    if not isinstance(user_workflow, Workflow):
-        raise Exception("Workflow file is not a napari workflow object. Check file! You can use workflow inspector if needed")
-
-    logger.info(f"Workflow loaded: {user_workflow}")
-    return user_workflow

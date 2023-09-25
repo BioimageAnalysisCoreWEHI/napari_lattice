@@ -36,16 +36,17 @@ classifiers = [
 requires-python = ">=3.8"
 dependencies = [
     "aicsimageio>=4.6.3",
-    "dask",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version
     "fsspec>=2022.8.2",
     "importlib_resources",
-    # We need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
     "lls_core",
+    # We need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
     "magic-class>=0.7.5",
     "magicgui",
-    "napari-aicsimageio>=0.7.2",
+    # Currently commented out to avoid installation issues, although
+    # This can be reinstated once https://github.com/pypa/pip/pull/12095 is merged
+    # "napari-aicsimageio>=0.7.2",
     "napari-spreadsheet",
     "napari-workflow-inspector",
     "napari-workflows>=0.2.8",

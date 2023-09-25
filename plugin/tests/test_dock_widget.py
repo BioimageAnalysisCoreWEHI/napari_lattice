@@ -1,5 +1,5 @@
 from __future__ import annotations
-from napari_lattice.dock_widget import _napari_lattice_widget_wrapper
+from napari_lattice.dock_widget import LLSZWidget
 import numpy as np
 from typing import Callable, TYPE_CHECKING
 from magicclass.testing import check_function_gui_buildable, FunctionGuiTester
@@ -37,18 +37,9 @@ def test_dock_widget(make_napari_viewer: Callable[[], Viewer]):
     viewer.add_image(np.random.random((100, 100)))
 
     # Test if napari-lattice widget can be created in napari
-    gui = _napari_lattice_widget_wrapper()
-    viewer.window.add_dock_widget(gui)
+    viewer.window.add_dock_widget(LLSZWidget())
 
 def test_check_buildable():
-    widget = _napari_lattice_widget_wrapper()
-    check_function_gui_buildable(widget)
-
-def test_plugin_initialize(make_napari_viewer: Callable[[], Viewer]):
-    ui = _napari_lattice_widget_wrapper()
-    viewer = make_napari_viewer()
-    viewer.window.add_dock_widget(ui)
-    image = Image(np.random.random((100, 100, 100, 100)))
+    ui = LLSZWidget()
     set_debug(ui)
-    tester = FunctionGuiTester(ui.LlszMenu.Choose_Image_Layer)
-    tester.call(img_layer=image, last_dimension_channel="time")
+    check_function_gui_buildable(ui)

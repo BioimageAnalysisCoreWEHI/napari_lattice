@@ -4,7 +4,7 @@ contributions:
   commands:   
   - id: napari-lattice.dock_widget
     title: Create napari_lattice widget
-    python_name: napari_lattice.dock_widget:_napari_lattice_widget_wrapper 
+    python_name: napari_lattice.dock_widget:LLSZWidget
 
 # ~~ Reader ~~
   - id: napari-lattice.get_reader
