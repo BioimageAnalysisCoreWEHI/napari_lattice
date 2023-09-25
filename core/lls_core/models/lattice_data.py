@@ -188,6 +188,8 @@ class LatticeData(OutputParams, DeskewParams):
     @validator("crop")
     def default_z_range(cls, v: CropParams, values: dict):
         # If any part of the z range is missing, assume the user wants all Z indices
+        if v is None:
+            return v
         with ignore_keyerror():
             default_start = 0
             default_end = values["image"].sizes["Z"]
