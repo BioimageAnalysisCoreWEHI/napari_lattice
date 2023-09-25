@@ -93,7 +93,8 @@ def enable_field(field: MagicField, enabled: bool = True) -> None:
             pass
 
 
-EnabledHandlerType = TypeVar("EnabledHandlerType")
+FieldValueType = TypeVar("FieldValueType")
+SelfType = TypeVar("SelfType")
 def enable_if(fields: List[MagicField]):
     """ 
     Makes an event handler that should be used via `fields_enabled.connect(make_enabled_handler())`.
@@ -114,14 +115,14 @@ def enable_if(fields: List[MagicField]):
 
     # Start by disabling all the fields
 
-    def _decorator(fn: Callable[[EnabledHandlerType], bool])-> Callable[[EnabledHandlerType], None]:
+    def _decorator(fn: Callable[[SelfType, FieldValueType], bool])-> Callable[[SelfType, FieldValueType], None]:
         for field in fields:
             field.enabled = False
             field.visible = False
 
-        def make_handler(fn: Callable[[EnabledHandlerType], bool]) -> Callable[[EnabledHandlerType], None]:
-            def handler(value: Any):
-                enable = fn(value)
+        def make_handler(fn: Callable[[SelfType, FieldValueType], bool]) -> Callable[[SelfType, FieldValueType], None]:
+            def handler(self: Any, value: Any):
+                enable = fn(self, value)
                 for field in fields:
                     if enable:
                         logger.info(f"{field.name} Activated")
@@ -281,15 +282,13 @@ class DeskewFields(NapariFieldGroup):
 
     @pixel_sizes_source.connect
     @enable_if([pixel_sizes])
-    @staticmethod
-    def _hide_pixel_sizes(pixel_sizes_source: str):
+    def _hide_pixel_sizes(self, pixel_sizes_source: str):
         # Hide the "Pixel Sizes" option unless the user specifies manual pixel size source
         return pixel_sizes_source == PixelSizeSource.Manual
 
     @img_layer.connect
     @enable_if([stack_along])
-    @staticmethod
-    def _hide_stack_along(img_layer: List[Image]):
+    def _hide_stack_along(self, img_layer: List[Image]):
         # Hide the "Stack Along" option if we only have one image
         return len(img_layer) > 1
 
@@ -346,8 +345,7 @@ class DeconvolutionFields(NapariFieldGroup):
     @enable_if(
         [background_custom]
     )
-    @staticmethod
-    def _enable_custom_background(background: str) -> bool:
+    def _enable_custom_background(self, background: str) -> bool:
         return background == BackgroundSource.Custom
 
     @fields_enabled.connect
@@ -359,8 +357,7 @@ class DeconvolutionFields(NapariFieldGroup):
             background
         ]
     )
-    @staticmethod
-    def _enable_fields(enabled: bool) -> bool:
+    def _enable_fields(self, enabled: bool) -> bool:
         return enabled
 
     def _make_model(self) -> Optional[DeconvolutionParams]:
@@ -446,14 +443,12 @@ class WorkflowFields(NapariFieldGroup):
 
     @fields_enabled.connect
     @enable_if([workflow_source])
-    @staticmethod
-    def _enable_workflow(enabled: bool) -> bool:
+    def _enable_workflow(self, enabled: bool) -> bool:
         return enabled
 
     @fields_enabled.connect
     @enable_if([workflow_path])
-    @staticmethod
-    def _workflow_path(workflow_source: WorkflowSource) -> bool:
+    def _workflow_path(self, workflow_source: WorkflowSource) -> bool:
         return workflow_source == WorkflowSource.CustomPath
 
     def _make_model(self) -> Optional[Workflow]:
