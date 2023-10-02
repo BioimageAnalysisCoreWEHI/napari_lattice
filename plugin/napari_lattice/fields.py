@@ -452,7 +452,7 @@ class WorkflowFields(NapariFieldGroup):
     def _enable_workflow(self, enabled: bool) -> bool:
         return enabled
 
-    @fields_enabled.connect
+    @workflow_source.connect
     @enable_if([workflow_path])
     def _workflow_path(self, workflow_source: WorkflowSource) -> bool:
         return workflow_source == WorkflowSource.CustomPath

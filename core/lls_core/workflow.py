@@ -157,6 +157,11 @@ def _import_workflow_modules(workflow: Path) -> None:
     Args:
         workflow: Path to the workflow YAML file
     """
+    if not workflow.exists():
+        raise Exception("Workflow doesn't exist!")
+    if not workflow.is_file():
+        raise Exception("Workflow must be a file!")
+
     counter = 0
     for script in workflow.parent.glob("*.py"):
         if script.stem == "__init__":
