@@ -37,9 +37,12 @@ class LLSZWidget(MagicTemplate):
             return False
 
     def _make_model(self) -> LatticeData:
+        from rich import print
+        from sys import stdout
+
         deskew_args = self.LlszMenu.WidgetContainer.deskew_fields._get_kwargs()
         output_args = self.LlszMenu.WidgetContainer.output_fields._make_model()
-        return LatticeData(
+        params = LatticeData(
             image=deskew_args["data"],
             angle=deskew_args["angle"],
             channel_range=output_args.channel_range,
@@ -54,6 +57,9 @@ class LLSZWidget(MagicTemplate):
             deconvolution=self.LlszMenu.WidgetContainer.deconv_fields._make_model(),
             crop=self.LlszMenu.WidgetContainer.cropping_fields._make_model()
         )
+        # Log the lattice
+        print(params, file=stdout)
+        return params
 
     @magicclass(widget_type="split")
     class LlszMenu(MagicTemplate):
