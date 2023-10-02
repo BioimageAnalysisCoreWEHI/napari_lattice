@@ -97,7 +97,7 @@ FieldValueType = TypeVar("FieldValueType")
 SelfType = TypeVar("SelfType")
 def enable_if(fields: List[MagicField]):
     """ 
-    Makes an event handler that should be used via `fields_enabled.connect(make_enabled_handler())`.
+    Makes an event handler that dynamically disables and enables a set of fields based on a criteria
     Args:
         condition: A function that takes an instance of the class and returns True if the fields should be enabled
         fields: A list of fields to be dynamically enabled or disabled
@@ -107,8 +107,8 @@ def enable_if(fields: List[MagicField]):
             @enable_if(
                 [some_field]
             )
-            def _enable_fields(self) -> bool:
-                return some_field.value
+            def _enable_fields(self, value) -> bool:
+                return value
     """
     # Ideally we could use subclassing to add both the vfield and this event handler, but there
     # seems to be a bug preventing this: https://github.com/hanjinliu/magic-class/issues/113.
