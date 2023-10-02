@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, NamedTuple, Tuple, List
 
 if TYPE_CHECKING:
     from lls_core.types import PathLike
+    from typing_extensions import Self
     from numpy.typing import NDArray
 
 class Roi(NamedTuple):
@@ -10,6 +11,11 @@ class Roi(NamedTuple):
     top_right: Tuple[int, int]
     bottom_left: Tuple[int, int]
     bottom_right: Tuple[int, int]
+
+    @classmethod
+    def from_array(cls, array: NDArray) -> Self:
+        import numpy as np
+        return Roi(*np.reshape(array, (-1, 2)).tolist())
 
 def read_roi_array(roi: PathLike) -> NDArray:
     from read_roi import read_roi_file

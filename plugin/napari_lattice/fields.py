@@ -420,12 +420,12 @@ class CroppingFields(MagicTemplate, NapariFieldGroup):
     def new_crop_layer(self):
         from napari_lattice.utils import get_viewer
         shapes = get_viewer().add_shapes()
-        shapes.mode = "SELECT"
+        shapes.mode = "ADD_RECTANGLE"
         shapes.name = "Napari Lattice Crop"
 
     @fields_enabled.connect
     @enable_if([shapes, z_range])
-    def _enable_crop(enabled: bool) -> bool:
+    def _enable_crop(self, enabled: bool) -> bool:
         return enabled
 
     def _make_model(self) -> Optional[CropParams]:

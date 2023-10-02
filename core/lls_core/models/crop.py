@@ -21,6 +21,7 @@ class CropParams(FieldAccessMixin):
     def read_roi(cls, v: Any) -> List[Roi]:
         from lls_core.types import is_pathlike
         from lls_core.cropping import read_imagej_roi
+        from numpy import ndarray
         # Allow a single path
         if is_pathlike(v):
             v = [v]
@@ -29,6 +30,8 @@ class CropParams(FieldAccessMixin):
         for item in v:
             if is_pathlike(item):
                 rois += read_imagej_roi(item)
+            elif isinstance(item, ndarray):
+                rois.append(Roi.from_array(item))
             elif isinstance(item, Roi):
                 rois.append(item)
             else:
