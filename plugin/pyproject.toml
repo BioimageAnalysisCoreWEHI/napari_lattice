@@ -58,6 +58,7 @@ dependencies = [
     "pydantic",
     "qtpy",
     "typing_extensions>=4.7.0",
+    "rich",
     "StrEnum",
     "xarray"
 ]
