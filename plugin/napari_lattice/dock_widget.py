@@ -112,5 +112,7 @@ class LLSZWidget(MagicTemplate):
 
     @set_design(text="Save")
     def save(self):
+        from napari.utils.notifications import show_info
         lattice = self._make_model()
         lattice.process().save_image()
+        show_info(f"Deskewing successfuly completed. Results are located in {lattice.save_dir}")
