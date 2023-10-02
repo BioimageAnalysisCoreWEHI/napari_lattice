@@ -22,9 +22,6 @@ parameterized = pytest.mark.parametrize("args", [
     {"physical_pixel_sizes": (1, 1, 1)},
     {"save_type": SaveFileType.h5},
     {"save_type": SaveFileType.tiff},
-
-    # # Cropping enabled
-    # {"crop": {"roi_list": []}}core/lls_core/cropping.py,
 ])
 
 # Allows parameterisation over two serialization formats
