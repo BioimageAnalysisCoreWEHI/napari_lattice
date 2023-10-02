@@ -67,10 +67,10 @@ class LLSZWidget(MagicTemplate):
 
             def __post_init__(self):
                 tab_widget: QTabWidget= self._widget._tab_widget
-                from importlib_resources import as_file
-                for i in range(5):
-                    with as_file(GREY) as path:
-                        tab_widget.setTabIcon(i, QIcon(str(path)))
+                # Manually set the tab labels, because by default magicgui uses the widget names, but setting
+                # the names to human readable text makes them difficult to access via self
+                for i, label in enumerate(["1. Deskew", "2. Deconvolution", "3. Crop", "4. Workflow", "5. Output"]):
+                    tab_widget.setTabText(i, label)
                 for field in [self.deskew_fields, self.deconv_fields, self.cropping_fields, self.workflow_fields, self.output_fields]:
                     field._validate()
 

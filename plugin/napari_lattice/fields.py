@@ -191,7 +191,7 @@ class DeskewKwargs(NapariImageParams):
     angle: float
     skew: DeskewDirection
 
-@magicclass(name="1. Deskew")
+@magicclass
 class DeskewFields(NapariFieldGroup):
 
     def _get_dimension_options(self, _) -> List[str]:
@@ -323,7 +323,7 @@ class DeskewFields(NapariFieldGroup):
             skew = kwargs["skew"]
         )
 
-@magicclass(name="2. Deconvolution")
+@magicclass
 class DeconvolutionFields(NapariFieldGroup):
     """
     A counterpart to the DeconvolutionParams Pydantic class
@@ -376,7 +376,7 @@ class DeconvolutionFields(NapariFieldGroup):
             psf_num_iter=self.psf_num_iter.value
         )
 
-@magicclass(name="3. Crop")
+@magicclass
 class CroppingFields(MagicTemplate, NapariFieldGroup):
     """
     A counterpart to the CropParams Pydantic class
@@ -431,7 +431,7 @@ class CroppingFields(MagicTemplate, NapariFieldGroup):
             )
         return None
 
-@magicclass(name="4. Workflow")
+@magicclass
 class WorkflowFields(NapariFieldGroup):
     """
     Handles the workflow related parameters
@@ -459,7 +459,7 @@ class WorkflowFields(NapariFieldGroup):
         else:
             return workflow_from_path(self.workflow_path.value)
 
-@magicclass(name="5. Output")
+@magicclass
 class OutputFields(NapariFieldGroup):
     set_logging = field(Log_Levels.INFO).with_options(label="Logging Level")
     time_range = field(Tuple[int, int]).with_options(
