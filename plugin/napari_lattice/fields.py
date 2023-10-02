@@ -178,8 +178,14 @@ class NapariFieldGroup:
         with as_file(icon) as path:
             tab_parent.setTabIcon(index, QIcon(str(path)))
 
+    def reset_choices(self: Any):
+        # This is used to prevent validation from re-running when a napari layer is added or removed
+        from magicgui.widgets import Container
+        with self.changed.blocked():
+            super(Container, self).reset_choices()
+
     def _validate(self: Any):
-        self.errors.value =  get_friendly_validations(self)
+        self.errors.value = get_friendly_validations(self)
         valid = not bool(self.errors.value)
         self.errors.visible = not valid
         self._set_valid(valid)
