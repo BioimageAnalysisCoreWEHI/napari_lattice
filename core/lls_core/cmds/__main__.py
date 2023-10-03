@@ -28,7 +28,7 @@ class CliDeskewDirection(StrEnum):
     X = auto()
     Y = auto()
 
-app = Typer(add_completion=False, rich_markup_mode="rich")
+app = Typer(add_completion=False, rich_markup_mode="rich", no_args_is_help=True)
 
 def field_from_model(model: Type[FieldAccessMixin], field_name: str, extra_description: str = "", description: Optional[str] = None, default: Optional[Any] = None, **kwargs) -> Any:
     """
