@@ -16,17 +16,41 @@ from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.output import OutputParams
 from lls_core.models.crop import CropParams
 from lls_core import DeconvolutionChoice
-from typer import Typer, Argument, Option, Context
+from typer import Typer, Argument, Option, Context, Exit
 
 from lls_core.models.output import SaveFileType
+from pydantic import ValidationError
 
 if TYPE_CHECKING:
     from lls_core.models.utils import FieldAccessMixin
     from typing import Type, Any
+    from rich.table import Table
 
 class CliDeskewDirection(StrEnum):
     X = auto()
     Y = auto()
+
+CLI_PARAM_MAP = {
+    "image": ["image"],
+    "angle": ["angle"],
+    "skew": ["skew"],
+    "pixel_sizes": ["physical_pixel_sizes"],
+    "rois": ["crop", "roi_list"],
+    "z_start": ["crop", "z_range", 0],
+    "z_end": ["crop", "z_range", 1],
+    "decon_processing": ["deconvolution", "decon_processing"],
+    "psf": ["deconvolution", "psf"],
+    "psf_num_iter": ["deconvolution", "psf_num_iter"],
+    "background": ["deconvolution", "background"],
+    "workflow": ["workflow"],
+    "time_start": ["time_range", 0],
+    "time_end": ["time_range", 1],
+    "channel_start": ["channel_range", 0],
+    "channel_end": ["channel_range", 1],
+    "save_dir": ["save_dir"],
+    "save_name": ["save_name"],
+    "save_type": ["save_type"],
+}
 
 app = Typer(add_completion=False, rich_markup_mode="rich", no_args_is_help=True)
 
@@ -55,6 +79,25 @@ def handle_merge(values: list):
     if len(values) > 1:
         raise ValueError(f"A parameter has been passed multiple times! Got: {', '.join(values)}")
     return values[0]
+
+def rich_validation(e: ValidationError) -> Table:
+    """
+    Converts 
+    """
+    from rich.table import Table
+
+    table = Table(title="Validation Errors")
+    table.add_column("Model Field")
+    # table.add_column("Command Line Argument")
+    table.add_column("Error")
+
+    for error in e.errors():
+        table.add_row(
+            str(error["loc"][0]),
+            str(error["msg"]),
+        )
+
+    return table
 
 @app.command("dump-schema")
 def dump_schema() -> None:
@@ -99,29 +142,8 @@ def process(
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 ) -> None:
     from toolz.dicttoolz import merge_with, update_in
-    cli_param_map = {
-        "image": ["image"],
-        "angle": ["angle"],
-        "skew": ["skew"],
-        "pixel_sizes": ["physical_pixel_sizes"],
-        "rois": ["crop", "roi_list"],
-        "z_start": ["crop", "z_range", 0],
-        "z_end": ["crop", "z_range", 1],
-        "decon_processing": ["deconvolution", "decon_processing"],
-        "psf": ["deconvolution", "psf"],
-        "psf_num_iter": ["deconvolution", "psf_num_iter"],
-        "background": ["deconvolution", "background"],
-        "workflow": ["workflow"],
-        "time_start": ["time_range", 0],
-        "time_end": ["time_range", 1],
-        "channel_start": ["channel_range", 0],
-        "channel_end": ["channel_range", 1],
-        "save_dir": ["save_dir"],
-        "save_name": ["save_name"],
-        "save_type": ["save_type"],
-    }
     cli_args = {}
-    for source, dest in cli_param_map.items():
+    for source, dest in CLI_PARAM_MAP.items():
         from click.core import ParameterSource
         if ctx.get_parameter_source(source) != ParameterSource.DEFAULT:
             cli_args = update_in(cli_args, dest, lambda x: ctx.params[source])
@@ -138,14 +160,21 @@ def process(
             from yaml import safe_load
             yaml_args = safe_load(fp)
 
-
-    LatticeData.parse_obj(
-        # Merge all three sources of config: YAML, JSON and CLI
-        merge_with(
-            handle_merge,
-            [yaml_args, json_args, cli_args]
+    try:
+        lattice = LatticeData.parse_obj(
+            # Merge all three sources of config: YAML, JSON and CLI
+            merge_with(
+                handle_merge,
+                [yaml_args, json_args, cli_args]
+            )
         )
-    ).process().save_image()
+    except ValidationError as e:
+        from rich.console import Console
+        Console().print(rich_validation(e))
+        # Console().print(ctx.get_help())
+        raise Exit(code=1)
+        
+    lattice.process().save_image()
 
 def main():
     app()
