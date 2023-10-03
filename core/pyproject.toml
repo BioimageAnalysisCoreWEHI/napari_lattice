@@ -54,6 +54,7 @@ dependencies = [
     "pydantic~=1.0",
     "pyyaml",
     "read-roi",
+    "rich",
     "resource-backed-dask-array>=0.1.0",
     "scikit-image",
     "StrEnum",
