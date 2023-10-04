@@ -35,7 +35,6 @@ def test_workflow_cli(workflow_config_cli: dict, save_func: Callable, cli_param:
 
         # Deskew, apply workflow and save as h5
         invoke([
-            "process",
             cli_param, fp.name
         ])
 
