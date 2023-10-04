@@ -17,5 +17,5 @@ def test_deskew():
 
 def test_lattice_data_deskew():
     raw = DataArray(np.zeros((5, 5, 5)), dims=["X", "Y", "Z"])
-    lattice = LatticeData(image=raw, physical_pixel_sizes = (1, 1, 1), save_name="test")
+    lattice = LatticeData(input_image=raw, physical_pixel_sizes = (1, 1, 1), save_name="test")
     assert lattice.deskew_vol_shape == [2, 9, 5]

@@ -24,7 +24,6 @@ def test_batch_deskew_h5():
         create_image(input_file)
         # Batch deskew and save as h5
         invoke([
-            "process",
             str(input_file),
             "--save-dir", str(out_dir),
             "--save-type", "h5"
@@ -42,7 +41,6 @@ def test_batch_deskew_tiff():
         input_file = out_dir / 'raw.tiff'
         create_image(input_file)
         invoke([
-            "process",
             str(input_file),
             "--save-dir", str(out_dir),
             "--save-type", "tiff"

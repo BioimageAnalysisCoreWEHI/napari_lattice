@@ -41,7 +41,7 @@ def create_data(dir: Path) -> Path:
     assert input_file.exists()
 
     config: dict[str, str] = {
-        "image": str(input_file),
+        "input_image": str(input_file),
         "save_dir": str(dir),
         "save_type": "h5"
     }
@@ -60,7 +60,7 @@ def test_yaml_deskew():
         test_dir = Path(test_dir)
         config_location = create_data(test_dir)
         # Batch deskew and save as h5
-        invoke(["process", "--yaml-config", str(config_location)], )
+        invoke(["--yaml-config", str(config_location)], )
 
         # checks if h5 files written
         assert (test_dir / "raw.h5").exists()

@@ -33,7 +33,7 @@ def test_image() -> NDArray[np.float64]:
 def workflow_config(workflow: Workflow, test_image: NDArray):
     # Create a config file
     yield {
-        "image": test_image,
+        "input_image": test_image,
         "workflow": workflow,
     }
 
@@ -56,7 +56,7 @@ def workflow_config_cli(workflow: Workflow, test_image: NDArray):
             key: str(val)
             for key, val in 
             {
-                "image": input,
+                "input_image": input,
                 "save_dir": output,
                 "workflow": workflow_path,
             }.items()

@@ -19,7 +19,7 @@ def open_psf(name: str):
 def test_process(path: str, args: dict):
     with as_file(resources / path) as lattice_path:
         for slice in LatticeData.parse_obj({
-            "image": lattice_path,
+            "input_image": lattice_path,
             **args
         }).process().slices:
             assert slice.data.ndim == 3
@@ -29,7 +29,7 @@ def test_process(path: str, args: dict):
 def test_save(path: str, args: dict):
     with as_file(resources / path) as lattice_path, tempfile.TemporaryDirectory() as tempdir:
         LatticeData.parse_obj({
-            "image": lattice_path,
+            "input_image": lattice_path,
             "save_dir": tempdir,
             **args
         }).process().save_image()
@@ -40,7 +40,7 @@ def test_save(path: str, args: dict):
 @parameterized
 def test_process_deconvolution(args: dict, background: Any):
     for slice in LatticeData.parse_obj({
-        "image": root / "raw.tif",
+        "input_image": root / "raw.tif",
         "deconvolution": {
             "psf": [root / "psf.tif"],
             "background": background
@@ -52,7 +52,7 @@ def test_process_deconvolution(args: dict, background: Any):
 @parameterized
 def test_process_workflow(args: dict, workflow: Workflow):
     for slice in LatticeData.parse_obj({
-        "image": root / "raw.tif",
+        "input_image": root / "raw.tif",
         "workflow": workflow,
         **args
     }).process().slices:
@@ -63,7 +63,7 @@ def test_process_crop(args: dict, workflow: Workflow):
     with as_file(resources / "RBC_tiny.czi") as lattice_path:
         rois = root / "crop" / "two_rois.zip"
         for slice in LatticeData.parse_obj({
-            "image": lattice_path,
+            "input_image": lattice_path,
             "crop": {
                 "roi_list": [rois]
             },
