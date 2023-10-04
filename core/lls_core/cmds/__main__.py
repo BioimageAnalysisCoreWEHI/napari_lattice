@@ -36,6 +36,7 @@ CLI_PARAM_MAP = {
     "skew": ["skew"],
     "pixel_sizes": ["physical_pixel_sizes"],
     "rois": ["crop", "roi_list"],
+    "roi_indices": ["crop", "roi_subset"],
     "z_start": ["crop", "z_range", 0],
     "z_end": ["crop", "z_range", 1],
     "decon_processing": ["deconvolution", "decon_processing"],
@@ -110,7 +111,9 @@ def process(
         DeskewParams.get_default("physical_pixel_sizes").Y,
         DeskewParams.get_default("physical_pixel_sizes").Z
     )),
+
     rois: List[Path] = field_from_model(CropParams, "roi_list", description="A list of paths pointing to regions of interest to crop to, in ImageJ format."), #Option([], help="A list of paths pointing to regions of interest to crop to, in ImageJ format."),
+    roi_indices: List[int] = field_from_model(CropParams, "roi_subset"),
     # Ideally this and other range values would be defined as Tuples, but these seem to be broken: https://github.com/tiangolo/typer/discussions/667
     z_start: Optional[int] = Option(0, help="The index of the first Z slice to use. All prior Z slices will be discarded.", show_default=False),
     z_end: Optional[int] = Option(None, help="The index of the last Z slice to use. The selected index and all subsequent Z slices will be discarded. Defaults to the last z index of the image.", show_default=False),

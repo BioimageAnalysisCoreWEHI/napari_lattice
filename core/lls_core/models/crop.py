@@ -1,8 +1,7 @@
-from typing import List, Tuple, Any
+from typing import Iterable, List, Tuple, Any
 from pydantic import Field, NonNegativeInt, validator
 from lls_core.models.utils import FieldAccessMixin
 from lls_core.cropping import Roi
-
 
 class CropParams(FieldAccessMixin):
     """
@@ -12,10 +11,20 @@ class CropParams(FieldAccessMixin):
         description="List of regions of interest, each of which must be an NxD array, where N is the number of vertices and D the coordinates of each vertex.",
         default = []
     )
+    roi_subset: List[int] = Field(
+        description="A subset of all the ROIs to process",
+        default=None
+    )
     z_range: Tuple[NonNegativeInt, NonNegativeInt] = Field(
         default=None,
         description="The range of Z slices to take. All Z slices before the first index or after the last index will be cropped out."
     )
+
+    @property
+    def selected_rois(self) -> Iterable[Roi]:
+        "Returns the relevant ROIs that should be processed"
+        for i in self.roi_subset:
+            yield self.roi_list[i]
 
     @validator("roi_list", pre=True)
     def read_roi(cls, v: Any) -> List[Roi]:
@@ -38,3 +47,10 @@ class CropParams(FieldAccessMixin):
                 raise ValueError(f"{item} cannot be intepreted as an ROI")
 
         return rois
+
+    @validator("roi_subset", pre=True)
+    def default_roi_range(cls, v: Any, values: dict):
+        # If the roi range isn't provided, assume all rois should be processed
+        if v is None:
+            return list(range(len(values["roi_list"])))
+        return v

@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List, Optional
 import pytest
 from lls_core.models import LatticeData
 from lls_core.sample import resources
@@ -58,14 +58,20 @@ def test_process_workflow(args: dict, workflow: Workflow):
     }).process().slices:
         assert slice.data.ndim == 3
 
+@pytest.mark.parametrize(["roi_subset"], [
+    [None],
+    [[0]],
+    [[0, 1]],
+])
 @parameterized
-def test_process_crop(args: dict, workflow: Workflow):
+def test_process_crop(args: dict, roi_subset: Optional[List[int]], workflow: Workflow):
     with as_file(resources / "RBC_tiny.czi") as lattice_path:
         rois = root / "crop" / "two_rois.zip"
         for slice in LatticeData.parse_obj({
             "input_image": lattice_path,
             "crop": {
-                "roi_list": [rois]
+                "roi_list": [rois],
+                "roi_subset": roi_subset
             },
             **args
         }).process().slices:
