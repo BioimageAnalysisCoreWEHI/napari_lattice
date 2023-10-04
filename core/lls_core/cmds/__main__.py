@@ -31,7 +31,7 @@ class CliDeskewDirection(StrEnum):
     Y = auto()
 
 CLI_PARAM_MAP = {
-    "image": ["image"],
+    "input_image": ["input_image"],
     "angle": ["angle"],
     "skew": ["skew"],
     "pixel_sizes": ["physical_pixel_sizes"],
@@ -87,7 +87,7 @@ def rich_validation(e: ValidationError) -> Table:
     from rich.table import Table
 
     table = Table(title="Validation Errors")
-    table.add_column("Model Field")
+    table.add_column("Parameter")
     # table.add_column("Command Line Argument")
     table.add_column("Error")
 
@@ -102,7 +102,7 @@ def rich_validation(e: ValidationError) -> Table:
 @app.command()
 def process(
     ctx: Context,
-    image: Path = Argument(None, help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi", show_default=False),
+    input_image: Path = Argument(None, help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi", show_default=False),
     skew: CliDeskewDirection = field_from_model(DeskewParams, "skew"),# DeskewParams.make_typer_field("skew"),
     angle: float = field_from_model(DeskewParams, "angle") ,
     pixel_sizes: Tuple[float, float, float] = field_from_model(DeskewParams, "physical_pixel_sizes", extra_description="This takes three arguments, corresponding to the X Y and Z pixel dimensions respectively", default=(
@@ -135,8 +135,10 @@ def process(
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 ) -> None:
+    from click.core import ParameterSource
+
     # Just print help if the user didn't provide any arguments
-    if len(ctx.args) == 0:
+    if all(src != ParameterSource.COMMANDLINE for src in ctx._parameter_source.values()):
         print(ctx.get_help())
         raise Exit()
 

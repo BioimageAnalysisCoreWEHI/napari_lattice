@@ -41,7 +41,7 @@ class DefinedPixelSizes(FieldAccessMixin):
 
 
 class DeskewParams(FieldAccessMixin):
-    image: DataArray = Field(
+    input_image: DataArray = Field(
         description="A 3-5D array containing the image data."
     )
     skew: DeskewDirection = Field(
@@ -118,17 +118,17 @@ class DeskewParams(FieldAccessMixin):
 
     @property
     def dims(self):
-        return self.image.dims
+        return self.input_image.dims
 
     @property
     def time(self) -> int:
         """Number of time points"""
-        return self.image.sizes["T"]
+        return self.input_image.sizes["T"]
 
     @property
     def channels(self) -> int:
         """Number of channels"""
-        return self.image.sizes["C"]
+        return self.input_image.sizes["C"]
 
     @property
     def new_dz(self):
@@ -149,7 +149,7 @@ class DeskewParams(FieldAccessMixin):
             return DefinedPixelSizes(X=v[0], Y=v[1], Z=v[2])
         return v
 
-    @validator("image", pre=True)
+    @validator("input_image", pre=True)
     def reshaping(cls, v: Any):
         # This allows a user to pass in any array-like object and have it
         # converted and reshaped appropriately
@@ -163,7 +163,7 @@ class DeskewParams(FieldAccessMixin):
         return array.transpose("T", "C", "Z", "Y", "X")
 
     def get_3d_slice(self) -> DataArray:
-        return self.image.isel(C=0, T=0)
+        return self.input_image.isel(C=0, T=0)
 
     @root_validator(pre=False)
     def set_deskew(cls, values: dict) -> dict:
@@ -171,9 +171,9 @@ class DeskewParams(FieldAccessMixin):
         Sets the default deskew shape values if the user has not provided them
         """
         # process the file to get shape of final deskewed image
-        if "image" not in values:
+        if "input_image" not in values:
             return values
-        data: DataArray = cls.reshaping(values["image"])
+        data: DataArray = cls.reshaping(values["input_image"])
         if values.get('deskew_vol_shape') is None:
             if values.get('deskew_affine_transform') is None:
                 # If neither has been set, calculate them ourselves

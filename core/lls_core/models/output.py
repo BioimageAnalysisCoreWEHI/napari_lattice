@@ -1,4 +1,4 @@
-from pydantic import Field, validator, DirectoryPath
+from pydantic import Field, DirectoryPath
 from strenum import StrEnum
 from os import getcwd
 from pathlib import Path

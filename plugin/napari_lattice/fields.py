@@ -323,7 +323,7 @@ class DeskewFields(NapariFieldGroup):
     def _make_model(self) -> DeskewParams:
         kwargs = self._get_kwargs()
         return DeskewParams(
-            image=kwargs["data"],
+            input_image=kwargs["data"],
             physical_pixel_sizes=kwargs["physical_pixel_sizes"],
             angle=kwargs["angle"],
             skew = kwargs["skew"]

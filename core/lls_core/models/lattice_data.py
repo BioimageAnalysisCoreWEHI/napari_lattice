@@ -170,8 +170,8 @@ class LatticeData(OutputParams, DeskewParams):
         # reshaping validator. We can't override that either since it's 
         # a field validator and can't modify save_name
         from lls_core.types import is_pathlike
-        if values.get("save_name", None) is None and is_pathlike(values.get("image")):
-            values["save_name"] = Path(values["image"]).stem
+        if values.get("save_name", None) is None and is_pathlike(values.get("input_image")):
+            values["save_name"] = Path(values["input_image"]).stem
         return values
 
     @validator("workflow", pre=True)
@@ -192,7 +192,7 @@ class LatticeData(OutputParams, DeskewParams):
             return v
         with ignore_keyerror():
             default_start = 0
-            default_end = values["image"].sizes["Z"]
+            default_end = values["input_image"].sizes["Z"]
             if v.z_range is None:
                 v.z_range = (default_start, default_end)
             if v.z_range[0] is None:
@@ -210,7 +210,7 @@ class LatticeData(OutputParams, DeskewParams):
         # user-friendly error is provided, namely "image was missing"
         with ignore_keyerror():
             default_start = 0
-            default_end = values["image"].sizes["T"]
+            default_end = values["input_image"].sizes["T"]
             if v is None:
                 return range(default_start, default_end)
             elif isinstance(v, tuple) and len(v) == 2:
@@ -225,7 +225,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         with ignore_keyerror():
             default_start = 0
-            default_end = values["image"].sizes["C"]
+            default_end = values["input_image"].sizes["C"]
             if v is None:
                 return range(default_start, default_end)
             elif isinstance(v, tuple) and len(v) == 2:
@@ -239,7 +239,7 @@ class LatticeData(OutputParams, DeskewParams):
         Validates that the time range is within the range of channels in our array
         """
         with ignore_keyerror():
-            max_time = values["image"].sizes["T"]
+            max_time = values["input_image"].sizes["T"]
             if v.start < 0:
                 raise ValueError("The lowest valid start value is 0")
             if v.stop > max_time:
@@ -253,7 +253,7 @@ class LatticeData(OutputParams, DeskewParams):
         Validates that the channel range is within the range of channels in our array
         """
         with ignore_keyerror():
-            max_channel = values["image"].sizes["C"]
+            max_channel = values["input_image"].sizes["C"]
             if v.start < 0:
                 raise ValueError("The lowest valid start value is 0")
             if v.stop > max_channel:
@@ -263,13 +263,13 @@ class LatticeData(OutputParams, DeskewParams):
     @validator("channel_range")
     def channel_range_subset(cls, v: range, values: dict):
         with ignore_keyerror():
-            if min(v) < 0 or max(v) > values["image"].sizes["C"]:
+            if min(v) < 0 or max(v) > values["input_image"].sizes["C"]:
                 raise ValueError("The output channel range must be a subset of the total available channels")
         return v
 
     @validator("time_range")
     def time_range_subset(cls, v: range, values: dict):
-        if min(v) < 0 or max(v) > values["image"].sizes["T"]:
+        if min(v) < 0 or max(v) > values["input_image"].sizes["T"]:
             raise ValueError("The output time range must be a subset of the total available time points")
         return v
 
@@ -278,7 +278,7 @@ class LatticeData(OutputParams, DeskewParams):
         if v is None:
             return v
         with ignore_keyerror():
-            channels = values["image"].sizes["C"]
+            channels = values["input_image"].sizes["C"]
             psfs = len(v.psf)
             if psfs != channels:
                 raise ValueError(f"There should be one PSF per channel, but there are {psfs} PSFs and {channels} channels.")
@@ -304,7 +304,7 @@ class LatticeData(OutputParams, DeskewParams):
         if channel > self.channels:
             raise ValueError("channel is out of range")
 
-        return self.image.isel(T=time, C=channel)
+        return self.input_image.isel(T=time, C=channel)
 
     def iter_slices(self) -> Iterable[SlicedData[ArrayLike]]:
         """
@@ -333,7 +333,7 @@ class LatticeData(OutputParams, DeskewParams):
         for subarray in self.iter_slices():
             # Copy doesn't manu
             new_lattice = self.copy_validate(update={
-                "image": subarray.data,
+                "input_image": subarray.data,
                 **update_with
             })
             yield subarray.copy_with_data( new_lattice)
