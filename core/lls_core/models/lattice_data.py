@@ -1,19 +1,14 @@
 from __future__ import annotations
-from os import PathLike
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
 from pydantic import BaseModel, DirectoryPath, Field, NonNegativeInt, root_validator, validator
-from aicsimageio.aics_image import AICSImage
-import math
 from dask.array.core import Array as DaskArray
-import dask as da
 from itertools import groupby
 import tifffile
 
-from typing import Any, Iterable, List, Literal, Optional, TYPE_CHECKING
+from typing import Any, Iterable, List, Optional, TYPE_CHECKING
 from typing_extensions import TypedDict, NotRequired, Generic, TypeVar
 
-from aicsimageio.types import PhysicalPixelSizes
 import pyclesperanto_prototype as cle
 from tqdm import tqdm
 
@@ -261,15 +256,15 @@ class LatticeData(OutputParams, DeskewParams):
         return v
 
     @validator("channel_range")
-    def channel_range_subset(cls, v: range, values: dict):
+    def channel_range_subset(cls, v: Optional[range], values: dict):
         with ignore_keyerror():
-            if min(v) < 0 or max(v) > values["input_image"].sizes["C"]:
+            if v is not None and (min(v) < 0 or max(v) > values["input_image"].sizes["C"]):
                 raise ValueError("The output channel range must be a subset of the total available channels")
         return v
 
     @validator("time_range")
-    def time_range_subset(cls, v: range, values: dict):
-        if min(v) < 0 or max(v) > values["input_image"].sizes["T"]:
+    def time_range_subset(cls, v: Optional[range], values: dict):
+        if v is not None and (min(v) < 0 or max(v) > values["input_image"].sizes["T"]):
             raise ValueError("The output time range must be a subset of the total available time points")
         return v
 
