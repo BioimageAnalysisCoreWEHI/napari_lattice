@@ -99,13 +99,7 @@ def rich_validation(e: ValidationError) -> Table:
 
     return table
 
-@app.command("dump-schema")
-def dump_schema() -> None:
-    import json
-    import sys
-    json.dump(LatticeData.to_definition_dict(), fp=sys.stdout, indent=4)
-
-@app.command("process")
+@app.command()
 def process(
     ctx: Context,
     image: Path = Argument(None, help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi", show_default=False),
@@ -141,6 +135,11 @@ def process(
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 ) -> None:
+    # Just print help if the user didn't provide any arguments
+    if len(ctx.args) == 0:
+        print(ctx.get_help())
+        raise Exit()
+
     from toolz.dicttoolz import merge_with, update_in
     cli_args = {}
     for source, dest in CLI_PARAM_MAP.items():
