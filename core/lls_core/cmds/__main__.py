@@ -134,7 +134,7 @@ def process(
     save_name: Optional[str] = field_from_model(OutputParams, "save_name", rich_help_panel="Output"),
     save_type: SaveFileType = field_from_model(OutputParams, "save_type", rich_help_panel="Output"),
 
-    workflow: Optional[Path] = Option(None, help="Path to a Napari Workflow file, in JSON format. If provided, the configured desekewing processing will be added to the chosen workflow.", show_default=False),
+    workflow: Optional[Path] = Option(None, help="Path to a Napari Workflow file, in YAML format. If provided, the configured desekewing processing will be added to the chosen workflow.", show_default=False),
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 ) -> None:
