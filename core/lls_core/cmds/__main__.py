@@ -120,7 +120,7 @@ def process(
 
     enable_deconvolution: bool = Option(False, "--deconvolution/--disable-deconvolution", rich_help_panel="Deconvolution"),
     decon_processing: DeconvolutionChoice = field_from_model(DeconvolutionParams, "decon_processing", rich_help_panel="Deconvolution"),
-    psf: List[Path] = field_from_model(DeconvolutionParams, "psf", description="A list of paths pointing to point spread functions to use for deconvolution. Each file should in a standard image format (.czi, .tiff etc), containing a 3D image array.", rich_help_panel="Deconvolution"),
+    psf: List[Path] = field_from_model(DeconvolutionParams, "psf", description="One or more paths pointing to point spread functions to use for deconvolution. Each file should in a standard image format (.czi, .tiff etc), containing a 3D image array. This option can be used multiple times to provide multiple PSF files.", rich_help_panel="Deconvolution"),
     psf_num_iter: int = field_from_model(DeconvolutionParams, "psf_num_iter", rich_help_panel="Deconvolution"),
     background: str = field_from_model(DeconvolutionParams, "background", rich_help_panel="Deconvolution"),
 

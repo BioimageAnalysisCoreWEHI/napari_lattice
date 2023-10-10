@@ -176,7 +176,7 @@ class LatticeData(OutputParams, DeskewParams):
                 values["save_dir"] = Path(input_image).parent
             elif is_pathlike(save_dir):
                 # Convert a string path to a Path object
-                values["save_name"] = Path(save_dir)
+                values["save_dir"] = Path(save_dir)
 
         return values
 
