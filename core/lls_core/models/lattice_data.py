@@ -160,13 +160,24 @@ class LatticeData(OutputParams, DeskewParams):
     workflow: Optional[Workflow] = workflow
 
     @root_validator(pre=True)
-    def default_save_name(cls, values: dict):
+    def use_image_path(cls, values: dict):
         # This needs to be a root validator to ensure it runs before the 
         # reshaping validator. We can't override that either since it's 
         # a field validator and can't modify save_name
         from lls_core.types import is_pathlike
-        if values.get("save_name", None) is None and is_pathlike(values.get("input_image")):
-            values["save_name"] = Path(values["input_image"]).stem
+        input_image = values.get("input_image")
+        if is_pathlike(input_image):
+            if values.get("save_name") is None:
+                values["save_name"] = Path(values["input_image"]).stem
+
+            save_dir = values.get("save_dir")
+            if save_dir is None:
+                # By default, make the save dir be the same dir as the input
+                values["save_dir"] = Path(input_image).parent
+            elif is_pathlike(save_dir):
+                # Convert a string path to a Path object
+                values["save_name"] = Path(save_dir)
+
         return values
 
     @validator("workflow", pre=True)

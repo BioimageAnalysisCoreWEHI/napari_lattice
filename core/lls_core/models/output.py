@@ -12,7 +12,7 @@ class SaveFileType(StrEnum):
 
 class OutputParams(FieldAccessMixin):
     save_dir: DirectoryPath = Field(
-        default = getcwd(),
+        default=None,
         description="The directory where the output data will be saved"
     )
     save_name: str = Field(
@@ -23,7 +23,7 @@ class OutputParams(FieldAccessMixin):
         description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: {enum_choices(SaveFileType)}"
 )
     time_range: range = Field(
-        default = None,
+        default=None,
         description="The range of times to process. This defaults to all time points in the image array."
     )
     channel_range: range = Field(
