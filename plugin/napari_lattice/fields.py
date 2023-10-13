@@ -489,7 +489,9 @@ class OutputFields(NapariFieldGroup):
     )
     save_path = field(Path).with_options(
         label = "Save Directory",
-        value = Path(history.get_save_history()[0])
+        value = Path(history.get_save_history()[0]),
+        # Directory select
+        mode="d"
     )
     save_name = field(str).with_options(
         label = "Save Prefix"
