@@ -319,3 +319,18 @@ def array_to_dask(arr: ArrayLike) -> DaskArray:
         return arr
     else:
         return from_array(arr)
+
+def make_filename_prefix(prefix: Optional[str] = None, roi_index: Optional[str] = None, channel: Optional[str] = None, time: Optional[str] = None) -> str:
+    """
+    Generates a filename for this result
+    """
+    components: List[str] = []
+    if prefix is not None:
+        components.append(prefix)
+    if roi_index is not None:
+        components.append(f"ROI_{roi_index}")
+    if channel is not None:
+        components.append(f"C{channel}")
+    if time is not None:
+        components.append(f"T{time}")
+    return "_".join(components)

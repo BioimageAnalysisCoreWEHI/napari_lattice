@@ -2,8 +2,12 @@ from pydantic import Field, DirectoryPath
 from strenum import StrEnum
 from os import getcwd
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from lls_core.models.utils import FieldAccessMixin, enum_choices
+
+if TYPE_CHECKING:
+    from lls_core.writers import Writer, BdvWriter, TiffWriter
 
 #Choice of File extension to save
 class SaveFileType(StrEnum):

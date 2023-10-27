@@ -65,7 +65,7 @@ class LLSZWidget(MagicTemplate):
     class LlszMenu(MagicTemplate):
 
         main_heading = field("<h3>Napari Lattice: Visualization & Analysis</h3>", widget_type="Label")
-        heading1 = field("Drag and drop an image file onto napari.", widget_type="Label")
+        heading1 = field("Select the tabs one at a time to specify analysis parameters. Tabs 1 and 5 are mandatory.", widget_type="Label")
 
         # Tabbed Widget container to house all the widgets
         @magicclass(widget_type="tabbed", name="Functions", labels=False)

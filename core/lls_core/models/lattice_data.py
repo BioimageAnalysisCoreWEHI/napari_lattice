@@ -4,9 +4,8 @@ from __future__ import annotations
 from pydantic import BaseModel, DirectoryPath, Field, NonNegativeInt, root_validator, validator
 from dask.array.core import Array as DaskArray
 from itertools import groupby
-import tifffile
 
-from typing import Any, Iterable, List, Optional, TYPE_CHECKING
+from typing import Any, Iterable, List, Optional, TYPE_CHECKING, Type
 from typing_extensions import TypedDict, NotRequired, Generic, TypeVar
 
 import pyclesperanto_prototype as cle
@@ -18,6 +17,7 @@ from lls_core.llsz_core import crop_volume_deskew
 from lls_core.models.crop import CropParams
 from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.output import OutputParams, SaveFileType
+from lls_core.models.results import WorkflowSlices
 from lls_core.models.utils import ignore_keyerror
 from lls_core.types import ArrayLike
 from lls_core.models.deskew import DeskewParams
@@ -29,98 +29,12 @@ if TYPE_CHECKING:
     import pyclesperanto_prototype as cle
     from lls_core.models.deskew import DefinedPixelSizes
     from numpy.typing import NDArray
+    from lls_core.models.results import ImageSlice, ImageSlices, ProcessedSlice, ProcessedSlices
+    from lls_core.writers import Writer, BdvWriter, TiffWriter
 
 import logging
 
 logger = logging.getLogger(__name__)
-
-def make_filename_prefix(prefix: Optional[str] = None, roi_index: Optional[str] = None, channel: Optional[str] = None, time: Optional[str] = None) -> str:
-    """
-    Generates a filename for this result
-    """
-    components: List[str] = []
-    if prefix is not None:
-        components.append(prefix)
-    if roi_index is not None:
-        components.append(f"ROI_{roi_index}")
-    if channel is not None:
-        components.append(f"C{channel}")
-    if time is not None:
-        components.append(f"T{time}")
-    return "_".join(components)
-
-T = TypeVar("T")
-S = TypeVar("S")
-class SlicedData(BaseModel, Generic[T], arbitrary_types_allowed=True):
-    data: T
-    time_index: NonNegativeInt
-    time: NonNegativeInt
-    channel_index: NonNegativeInt
-    channel: NonNegativeInt
-    roi_index: Optional[NonNegativeInt] = None
-
-    def copy_with_data(self, data: S) -> SlicedData[S]:
-        """
-        Return a modified version of this with new inner data
-        """
-        from typing_extensions import cast
-        return cast(
-            SlicedData[S],
-            self.copy(update={
-                "data": data
-            })
-        ) 
-ProcessedVolume = SlicedData[ArrayLike]
-
-class ProcessedSlices(BaseModel, arbitrary_types_allowed=True):
-    #: Iterable of result slices.
-    #: Note that this is a finite iterator that can only be iterated once
-    slices: Iterable[ProcessedVolume]
-
-    #: The "parent" LatticeData that was used to create this result
-    lattice_data: LatticeData
-
-    def save_image(self):
-        """
-        Saves result slices to disk
-        """
-        # TODO: refactor this into a class system, one for each format
-        import numpy as np
-        import npy2bdv
-
-        for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
-            if self.lattice_data.save_type == SaveFileType.h5:
-                bdv_writer = npy2bdv.BdvWriter(
-                    filename=str(self.lattice_data.make_filepath(make_filename_prefix(roi_index=roi))),
-                    compression='gzip',
-                    nchannels=len(self.lattice_data.channel_range),
-                    subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)),
-                    overwrite=False
-                )
-                for result in roi_results:
-                    bdv_writer.append_view(
-                        np.array(result.data),
-                        time=result.time,
-                        channel=result.channel,
-                        voxel_size_xyz=(self.lattice_data.dx, self.lattice_data.dy, self.lattice_data.new_dz),
-                        voxel_units='um'
-                    )
-                bdv_writer.write_xml()
-                bdv_writer.close()
-            elif self.lattice_data.save_type == SaveFileType.tiff:
-                # For each time point, we write a separate TIFF
-                for time, results in groupby(roi_results, key=lambda it: it.time):
-                    result_list = list(results)
-                    first_result = result_list[0]
-                    images_array = np.swapaxes(np.expand_dims([result.data for result in result_list], axis=0), 1, 2)
-                    tifffile.imwrite(
-                        str(self.lattice_data.make_filepath(make_filename_prefix(channel=first_result.channel, time=time, roi_index=roi))),
-                        data = images_array,
-                        bigtiff=True,
-                        resolution=(1./self.lattice_data.dx, 1./self.lattice_data.dy, "MICROMETER"),
-                        metadata={'spacing': self.lattice_data.new_dz, 'unit': 'um', 'axes': 'TZCYX'},
-                        imagej=True
-                    )
 
 workflow: Optional[Workflow] = Field(
     default=None,
@@ -312,16 +226,17 @@ class LatticeData(OutputParams, DeskewParams):
 
         return self.input_image.isel(T=time, C=channel)
 
-    def iter_slices(self) -> Iterable[SlicedData[ArrayLike]]:
+    def iter_slices(self) -> Iterable[ProcessedSlice[ArrayLike]]:
         """
         Yields array slices for each time and channel of interest.
 
         Returns:
             An iterable of tuples. Each tuple contains (time_index, time, channel_index, channel, slice)
         """
+        from lls_core.models.results import ProcessedSlice
         for time_idx, time in enumerate(self.time_range):
             for ch_idx, ch in enumerate(self.channel_range):
-                yield SlicedData(
+                yield ProcessedSlice(
                     data=self.slice_data(time=time, channel=ch),
                     time_index=time_idx,
                     time= time,
@@ -329,7 +244,7 @@ class LatticeData(OutputParams, DeskewParams):
                     channel=ch,
                 ) 
 
-    def iter_sublattices(self, update_with: dict = {}) -> Iterable[SlicedData[LatticeData]]:
+    def iter_sublattices(self, update_with: dict = {}) -> Iterable[ProcessedSlice[LatticeData]]:
         """
         Yields copies of the current LatticeData, one for each slice.
         These copies can then be processed separately.
@@ -337,16 +252,17 @@ class LatticeData(OutputParams, DeskewParams):
             update_with: dictionary of arguments to update the generated lattices with
         """
         for subarray in self.iter_slices():
-            # Copy doesn't manu
             new_lattice = self.copy_validate(update={
                 "input_image": subarray.data,
+                "time_range": range(1),
+                "channel_range": range(1),
                 **update_with
             })
             yield subarray.copy_with_data( new_lattice)
 
     def generate_workflows(
         self,
-    ) -> Iterable[SlicedData[Workflow]]:
+    ) -> Iterable[ProcessedSlice[Workflow]]:
             """
             Yields copies of the input workflow, modified with the addition of deskewing and optionally,
             cropping and deconvolution
@@ -396,7 +312,7 @@ class LatticeData(OutputParams, DeskewParams):
         from dask.array import zeros
         return zeros(self.deskew_vol_shape)
 
-    def _process_crop(self) -> Iterable[ProcessedVolume]:
+    def _process_crop(self) -> Iterable[ImageSlice]:
         """
         Yields processed image slices with cropping enabled
         """
@@ -436,7 +352,7 @@ class LatticeData(OutputParams, DeskewParams):
                     )
                 )
                 
-    def _process_non_crop(self) -> Iterable[ProcessedVolume]:
+    def _process_non_crop(self) -> Iterable[ImageSlice]:
         """
         Yields processed image slices without cropping
         """
@@ -477,7 +393,9 @@ class LatticeData(OutputParams, DeskewParams):
                 ))
             )
 
-    def _process_workflow(self) -> ProcessedSlices:
+    def process_workflow(self) -> WorkflowSlices:
+        from lls_core.models.results import WorkflowSlices
+        WorkflowSlices.update_forward_refs(LatticeData=LatticeData)
         outputs = []
         for workflow in self.generate_workflows():
             for leaf in workflow.data.leafs():
@@ -487,7 +405,7 @@ class LatticeData(OutputParams, DeskewParams):
                     )
                 )
 
-        return ProcessedSlices(
+        return WorkflowSlices(
             slices = outputs,
             lattice_data=self
         )
@@ -497,11 +415,12 @@ class LatticeData(OutputParams, DeskewParams):
         Execute the processing and return the result.
         This is the main public API for processing
         """
-        ProcessedSlices.update_forward_refs()
+        from lls_core.models.results import ProcessedSlices
+        ProcessedSlices.update_forward_refs(LatticeData=LatticeData)
 
-        if self.workflow is not None:
-            return self._process_workflow()
-        elif self.cropping_enabled:
+        # if self.workflow is not None:
+        #     return self._process_workflow()
+        if self.cropping_enabled:
             return ProcessedSlices(
                 lattice_data=self,
                 slices=self._process_crop()
@@ -520,3 +439,11 @@ class LatticeData(OutputParams, DeskewParams):
         for slice in self.process().slices:
             return slice.data
         raise Exception("No slices produced!")
+
+    def get_writer(self) -> Type[Writer]:
+        from lls_core.writers import BdvWriter, TiffWriter
+        if self.save_type == SaveFileType.h5:
+            return BdvWriter
+        elif self.save_type == SaveFileType.tiff:
+            return TiffWriter
+        raise Exception("Unknown output type")
