@@ -70,15 +70,16 @@ def test_image_workflow(image_path: Path, image_workflow: Workflow):
 def test_table_workflow(image_path: Path, table_workflow: Workflow):
     # Test a complex workflow that returns a tuple of images and data
     with tempfile.TemporaryDirectory() as tmpdir:
-        for roi, output in LatticeData(
+        params = LatticeData(
             input_image = image_path,
             workflow = table_workflow,
             save_dir = tmpdir
-        ).process_workflow().process():
+        )
+        for roi, output in params.process_workflow().process():
             assert isinstance(output, (DataFrame, Path))
             if isinstance(output, DataFrame):
                 nrow, ncol = output.shape
-                assert nrow > 0
+                assert nrow == params.nslices
                 assert ncol > 0
             else:
                 assert valid_image_path(output)

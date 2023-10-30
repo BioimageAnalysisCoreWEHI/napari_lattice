@@ -1,13 +1,13 @@
-from pydantic import Field, DirectoryPath
+from pydantic import Field, DirectoryPath, validator
 from strenum import StrEnum
 from os import getcwd
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from lls_core.models.utils import FieldAccessMixin, enum_choices
 
 if TYPE_CHECKING:
-    from lls_core.writers import Writer, BdvWriter, TiffWriter
+    pass
 
 #Choice of File extension to save
 class SaveFileType(StrEnum):
@@ -16,16 +16,19 @@ class SaveFileType(StrEnum):
 
 class OutputParams(FieldAccessMixin):
     save_dir: DirectoryPath = Field(
-        default=None,
         description="The directory where the output data will be saved"
     )
+    save_suffix: str = Field(
+        default="_deskewed",
+        description="The filename suffix that will be used for output files. This will be added as a suffix to the input file name if the input image was specified using a file name. If the input image was provided as an in-memory object, the `save_name` field should instead be specified."
+    )
     save_name: str = Field(
-        description="The filename prefix that will be used for output files, without a leading directory or file extension. The final output files will have additional elements added to the end of this prefix to indicate the region of interest, channel, timepoint, file extension etc."
+        description="The filename that will be used for output files. This should not contain a leading directory or file extension. The final output files will have additional elements added to the end of this prefix to indicate the region of interest, channel, timepoint, file extension etc."
     )
     save_type: SaveFileType = Field(
         default=SaveFileType.h5,
         description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: {enum_choices(SaveFileType)}"
-)
+    )
     time_range: range = Field(
         default=None,
         description="The range of times to process. This defaults to all time points in the image array."
@@ -34,6 +37,18 @@ class OutputParams(FieldAccessMixin):
         description="The filename prefix that will be used for output files, without a leading directory or file extension. The final output files will have additional elements added to the end of this prefix to indicate the region of interest, channel, timepoint, file extension etc.",
         default=None
     )
+
+    @validator("save_dir", pre=True)
+    def validate_save_dir(cls, v: Path):
+        if isinstance(v, Path) and not v.is_absolute():
+            # This stops the empty path being considered a valid directory
+            raise ValueError("The save directory must be an absolute path that exists")
+        return v
+
+    @validator("save_name")
+    def add_save_suffix(cls, v: str, values: dict):
+        # This is the only place that the save suffix is used.
+        return v + values["save_suffix"]
 
     @property
     def file_extension(self):

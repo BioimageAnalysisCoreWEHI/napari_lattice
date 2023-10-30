@@ -1,5 +1,7 @@
 # Enable Logging
 import logging
+from textwrap import dedent
+from typing import cast
 
 import numpy as np
 from lls_core.models.lattice_data import LatticeData
@@ -63,9 +65,26 @@ class LLSZWidget(MagicTemplate):
 
     @magicclass(widget_type="split")
     class LlszMenu(MagicTemplate):
-
         main_heading = field("<h3>Napari Lattice: Visualization & Analysis</h3>", widget_type="Label")
-        heading1 = field("Select the tabs one at a time to specify analysis parameters. Tabs 1 and 5 are mandatory.", widget_type="Label")
+        heading1 = field(dedent("""
+        <div>
+        Specify deskewing parameters and image layers in Tab 1.
+        Additional analysis parameters can be configured in the other tabs.
+        When you are ready to save, go to Tab 5.
+        Output to specify the output directory.
+        For more information, <a href="https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki">please refer to the documentation here</a>.
+        </div>
+        """.strip()), widget_type="Label")
+
+        def __post_init__(self):
+            from qtpy.QtCore import Qt
+            from qtpy.QtWidgets import QLabel, QLayout
+
+            if isinstance(self._widget._layout, QLayout):
+                self._widget._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+            if isinstance(self.heading1.native, QLabel):
+                self.heading1.native.setWordWrap(True)
 
         # Tabbed Widget container to house all the widgets
         @magicclass(widget_type="tabbed", name="Functions", labels=False)

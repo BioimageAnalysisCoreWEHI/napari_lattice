@@ -1,12 +1,11 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from pydantic import BaseModel, DirectoryPath, Field, NonNegativeInt, root_validator, validator
+from pydantic import DirectoryPath, Field, root_validator, validator
 from dask.array.core import Array as DaskArray
-from itertools import groupby
 
-from typing import Any, Iterable, List, Optional, TYPE_CHECKING, Type
-from typing_extensions import TypedDict, NotRequired, Generic, TypeVar
+from typing import Any, Iterable, Optional, TYPE_CHECKING
+from typing_extensions import TypedDict, NotRequired
 
 import pyclesperanto_prototype as cle
 from tqdm import tqdm
@@ -27,10 +26,7 @@ from pathlib import Path
 
 if TYPE_CHECKING:
     import pyclesperanto_prototype as cle
-    from lls_core.models.deskew import DefinedPixelSizes
-    from numpy.typing import NDArray
-    from lls_core.models.results import ImageSlice, ImageSlices, ProcessedSlice, ProcessedSlices
-    from lls_core.writers import Writer, BdvWriter, TiffWriter
+    from lls_core.models.results import ImageSlice, ImageSlices, ProcessedSlice
 
 import logging
 
@@ -40,22 +36,6 @@ workflow: Optional[Workflow] = Field(
     default=None,
     description="If defined, this is a workflow to add lightsheet processing onto"
 )
-
-class CommonOutputArgs(TypedDict):
-    # Arguments
-    save_dir: NotRequired[DirectoryPath]
-    save_type: SaveFileType
-    time_range: range
-    channel_range: range
-
-class CommonDeskewArgs(TypedDict):
-    skew: DeskewDirection
-    angle: float
-
-class CommonLatticeArgs(CommonDeskewArgs, CommonOutputArgs):
-    deconvolution: Optional[DeconvolutionParams]
-    crop: Optional[CropParams]
-    workflow: Optional[Workflow]
 
 class LatticeData(OutputParams, DeskewParams):
     """
@@ -78,6 +58,8 @@ class LatticeData(OutputParams, DeskewParams):
         # This needs to be a root validator to ensure it runs before the 
         # reshaping validator. We can't override that either since it's 
         # a field validator and can't modify save_name
+        # TODO: separate the image file from the image file path as two separate fields,
+        # so we don't have to put so much logic here
         from lls_core.types import is_pathlike
         input_image = values.get("input_image")
         if is_pathlike(input_image):

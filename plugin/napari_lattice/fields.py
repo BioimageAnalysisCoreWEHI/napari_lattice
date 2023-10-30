@@ -150,10 +150,10 @@ class NapariFieldGroup:
         from qtpy.QtWidgets import QLabel
         if isinstance(errors, QLabel):
             errors.setStyleSheet("color: red;")
-            errors.setWordWrap(True)
+            # errors.setWordWrap(True)
 
         from qtpy.QtCore import Qt
-        self._widget._layout.setAlignment(Qt.AlignTop)
+        self._widget._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
     def _get_parent_tab_widget(self: Any) -> QTabWidget:
         return self.parent.parentWidget()
@@ -489,12 +489,12 @@ class OutputFields(NapariFieldGroup):
     )
     save_path = field(Path).with_options(
         label = "Save Directory",
-        value = Path(history.get_save_history()[0]),
         # Directory select
         mode="d"
     )
-    save_name = field(str).with_options(
-        label = "Save Prefix"
+    save_suffix = field(str).with_options(
+        value=OutputParams.get_default("save_suffix"),
+        label = "Save Suffix",
     )
     errors = field(Label).with_options(label="Errors")
 
@@ -503,6 +503,8 @@ class OutputFields(NapariFieldGroup):
             channel_range=range(self.channel_range.value[0], self.channel_range.value[1]),
             time_range=range(self.time_range.value[0], self.time_range.value[1]),
             save_dir=self.save_path.value,
-            save_name=self.save_name.value,
-            save_type=self.save_type.value
+            save_suffix=self.save_suffix.value,
+            save_type=self.save_type.value,
+            # This is just to avoid the validation error caused by the missing field
+            save_name="PLACEHOLDER"
         )

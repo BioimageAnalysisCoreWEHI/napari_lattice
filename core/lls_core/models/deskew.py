@@ -131,6 +131,11 @@ class DeskewParams(FieldAccessMixin):
         return self.input_image.sizes["C"]
 
     @property
+    def nslices(self) -> int:
+        """The number of 3D slices within the image"""
+        return self.time * self.channels
+
+    @property
     def new_dz(self):
         import math
         return math.sin(self.angle * math.pi / 180.0) * self.dz
