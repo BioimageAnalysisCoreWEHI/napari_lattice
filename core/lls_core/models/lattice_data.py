@@ -1,16 +1,15 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from pydantic import DirectoryPath, Field, root_validator, validator
+from pydantic import Field, root_validator, validator
 from dask.array.core import Array as DaskArray
 
-from typing import Any, Iterable, Optional, TYPE_CHECKING
-from typing_extensions import TypedDict, NotRequired
+from typing import Any, Iterable, Optional, TYPE_CHECKING, Type
 
 import pyclesperanto_prototype as cle
 from tqdm import tqdm
 
-from lls_core import DeskewDirection, DeconvolutionChoice
+from lls_core import DeconvolutionChoice
 from lls_core.deconvolution import pycuda_decon, skimage_decon
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core.models.crop import CropParams
@@ -27,6 +26,7 @@ from pathlib import Path
 if TYPE_CHECKING:
     import pyclesperanto_prototype as cle
     from lls_core.models.results import ImageSlice, ImageSlices, ProcessedSlice
+    from lls_core.writers import Writer
 
 import logging
 
