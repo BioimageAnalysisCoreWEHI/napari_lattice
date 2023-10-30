@@ -34,9 +34,9 @@ class NapariImageParams(TypedDict):
 
 def lattice_params_from_napari(
     imgs: Collection[Image],
-    dimension_order: Optional[str],
-    physical_pixel_sizes: Optional[PhysicalPixelSizes],
-    stack_along: str
+    stack_along: str,
+    dimension_order: Optional[str] = None,
+    physical_pixel_sizes: Optional[PhysicalPixelSizes] = None,
 ) -> NapariImageParams:
     """
     Factory function for generating a LatticeData from a Napari Image

@@ -205,7 +205,7 @@ class DeskewFields(NapariFieldGroup):
         Returns the list of dimension order options that might be possible for the current image stack
         """
         default = ["Get from Metadata"]
-        ndims = max([len(layer.data.shape)  for layer in self.img_layer.value], default=None)
+        ndims = max([len(layer.data.shape) for layer in self.img_layer.value], default=None)
         if ndims is None:
             return default
         elif ndims == 3:
