@@ -2,8 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from itertools import groupby
-from typing import TYPE_CHECKING, Iterator, List, Optional
+from typing import TYPE_CHECKING, Iterable, Iterator, List, Optional
 
 from lls_core.types import ArrayLike
 
@@ -15,41 +14,52 @@ RoiIndex = Optional[NonNegativeInt]
 if TYPE_CHECKING:
     from lls_core.models.lattice_data import LatticeData
     import npy2bdv
-    from lls_core.models.results import ProcessedSlice
+    from lls_core.models.results import ProcessedSlice, ImageSlice
+    from pathlib import Path
 
 
 @dataclass
 class Writer(ABC):
+    """
+    A writer is an abstraction over the logic used to write image slices to disk
+    Writers need to work incrementally, in order that we don't need the entire multidimensional
+    image in memory at the same time
+    """
     lattice: LatticeData
     roi_index: RoiIndex
+    written_files: List[Path] = field(default_factory=list, init=False)
 
     @abstractmethod
-    def get_filepath(self) -> str:
-        pass
-    
-    @abstractmethod
     def write_slice(self, slice: ProcessedSlice[ArrayLike]):
+        """
+        Writes a 3D image slice
+        """
         pass
 
     def close(self):
+        """
+        Called when no more image slices are available, and the writer should finalise its output files
+        """
         pass
 
 @dataclass
 class BdvWriter(Writer):
+    """
+    A writer for for Fiji BigDataViewer output format
+    """
     bdv_writer: npy2bdv.BdvWriter = field(init=False)
-
-    def get_filepath(self) -> str:
-        return str(self.lattice.make_filepath(make_filename_prefix(roi_index=self.roi_index)))
 
     def __post_init__(self):
         import npy2bdv
+        path = self.lattice.make_filepath(make_filename_prefix(roi_index=self.roi_index))
         self.bdv_writer = npy2bdv.BdvWriter(
-            filename=self.get_filepath(),
+            filename=str(path),
             compression='gzip',
             nchannels=len(self.lattice.channel_range),
             subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)),
             overwrite=False
         )
+        self.written_files.append(path)
 
     def write_slice(self, slice: ProcessedSlice[ArrayLike]):
         import numpy as np
@@ -67,33 +77,52 @@ class BdvWriter(Writer):
 
 @dataclass
 class TiffWriter(Writer):
-    pending_slices: list = field(default_factory=list, init=False)
+    """
+    A writer for for TIFF output format
+    """
+    pending_slices: List[ImageSlice] = field(default_factory=list, init=False)
     time: Optional[NonNegativeInt] = None
-
-    def get_filepath(self) -> str:
-        return str(self.lattice.make_filepath(make_filename_prefix(roi_index=self.roi_index)))
 
     def __post_init__(self):
         self.pending_slices = []
-
-    def write_slice(self, slice: ProcessedSlice[ArrayLike]):
+    
+    def flush(self):
+        "Write out all pending slices"
         import numpy as np
         import tifffile
-        if slice.time != self.time and len(self.pending_slices) > 0:
-            # Write the old timepoint once we 
+        if len(self.pending_slices) > 0:
             first_result = self.pending_slices[0]
-            images_array = np.swapaxes(np.expand_dims([result.data for result in self.pending_slices], axis=0), 1, 2)
+            images_array = np.swapaxes(
+                np.expand_dims([result.data for result in self.pending_slices], axis=0),
+                1, 2
+            ).astype("uint16")
+            # ImageJ TIFF can only handle 16-bit uints, not 32
+            path = self.lattice.make_filepath(
+                make_filename_prefix(
+                    channel=first_result.channel,
+                    time=first_result.time,
+                    roi_index=first_result.roi_index
+                )
+            )
             tifffile.imwrite(
-                str(self.lattice.make_filepath(make_filename_prefix(channel=first_result.channel, time=slice.time, roi_index=slice.roi))),
+                str(path),
                 data = images_array,
                 bigtiff=True,
                 resolution=(1./self.lattice.dx, 1./self.lattice.dy, "MICROMETER"),
                 metadata={'spacing': self.lattice.new_dz, 'unit': 'um', 'axes': 'TZCYX'},
                 imagej=True
             )
+            self.written_files.append(path)
 
             # Reinitialise
             self.pending_slices = []
 
+    def write_slice(self, slice: ProcessedSlice[ArrayLike]):
+        if slice.time != self.time:
+            self.flush()
+
         self.time = slice.time
         self.pending_slices.append(slice)
+
+    def close(self):
+        self.flush()

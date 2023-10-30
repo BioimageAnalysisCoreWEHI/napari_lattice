@@ -13,16 +13,16 @@ from aicsimageio.aics_image import AICSImage
 
 from tests.utils import invoke
 from pathlib import Path
-from .params import config_types, inputs
+from .params import config_types
 from .utils import invoke, valid_image_path
 
 
-def test_napari_workflow(workflow: Workflow, test_image: NDArray):
+def test_napari_workflow(image_workflow: Workflow, test_image: NDArray):
     """
     Test napari workflow to see if it works before we run it using napari_lattice
     This is without deskewing
     """
-    workflow = copy(workflow)
+    workflow = copy(image_workflow)
     # Set input image to be the "raw" image
     workflow.set("input", test_image)
     labeling = workflow.get("labeling")

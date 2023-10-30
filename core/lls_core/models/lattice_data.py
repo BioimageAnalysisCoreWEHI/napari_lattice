@@ -410,26 +410,36 @@ class LatticeData(OutputParams, DeskewParams):
             lattice_data=self
         )
 
-    def process(self) -> ProcessedSlices:
+    def process(self) -> ImageSlices:
         """
         Execute the processing and return the result.
-        This is the main public API for processing
+        This will not execute the attached workflow.
         """
-        from lls_core.models.results import ProcessedSlices
-        ProcessedSlices.update_forward_refs(LatticeData=LatticeData)
+        from lls_core.models.results import ImageSlices
+        ImageSlices.update_forward_refs(LatticeData=LatticeData)
 
         # if self.workflow is not None:
         #     return self._process_workflow()
         if self.cropping_enabled:
-            return ProcessedSlices(
+            return ImageSlices(
                 lattice_data=self,
                 slices=self._process_crop()
             )
         else:
-            return ProcessedSlices(
+            return ImageSlices(
                 lattice_data=self,
                 slices=self._process_non_crop()
             )
+
+    def save(self):
+        """
+
+        This is the main public API for processing
+        """
+        if self.workflow:
+            list(self.process_workflow().save())
+        else:
+            self.process().save_image()
 
     def process_into_image(self) -> ArrayLike:
         """

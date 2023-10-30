@@ -41,8 +41,9 @@ class ProcessedSlice(BaseModel, Generic[T], arbitrary_types_allowed=True):
 
 class ProcessedSlices(BaseModel, Generic[T], arbitrary_types_allowed=True):
     """
-    The main output from deskewing. A class that holds an iterable of 
-    output image slices.
+    A generic parent class for holding deskewing outputs.
+    This will never be instantiated directly.
+    Refer to the concrete child classes for more detail.
     """
     #: Iterable of result slices.
     #: Note that this is a finite iterator that can only be iterated once
@@ -54,7 +55,9 @@ class ProcessedSlices(BaseModel, Generic[T], arbitrary_types_allowed=True):
 ImageSlice = ProcessedSlice[ArrayLike]
 class ImageSlices(ProcessedSlices[ArrayLike]):
     """
-    A collection of image slices
+    A collection of image slices, which is the main output from deskewing.
+    This holds an iterable of output image slices before they are saved to disk,
+    and provides a `save_image()` method for this purpose.
     """
     def save_image(self):
         """
@@ -65,6 +68,7 @@ class ImageSlices(ProcessedSlices[ArrayLike]):
             writer = Writer(self.lattice_data, roi_index=roi)
             for slice in roi_results:
                 writer.write_slice(slice)
+            writer.close()
 
 
 RawWorkflowOutput = Union[
@@ -79,12 +83,16 @@ ProcessedWorkflowOutput = Union[
 ]
 
 class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
+    """
+    The counterpart of `ImageSlices`, but for workflow outputs.
+    This is needed because workflows have vastly different outputs that may include regular
+    Python types rather than only image slices.
+    """
     def process(self) -> Iterable[Tuple[RoiIndex, ProcessedWorkflowOutput]]:
         """
         Incrementally processes the workflow outputs, and returns both image paths and data frames of the outputs,
         for image slices and dict/list outputs respectively
         """
-        from pathlib import Path
         import pandas as pd
 
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
@@ -114,11 +122,17 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
             for element in values:
                 if isinstance(element, Writer):
                     element.close()
-                    yield roi, Path(element.get_filepath())
+                    for file in element.written_files:
+                        yield roi, file
                 else:
                     yield roi, pd.DataFrame(element)
 
     def save(self) -> Iterable[Path]:
+        """
+        Processes all workflow outputs and saves them to disk.
+        Images are saved in the format specified in the `LatticeData`, while
+        other data types are saved as a data frame.
+        """
         for roi, result in self.process():
             if isinstance(result, DataFrame):
                 path = self.lattice_data.make_filepath(make_filename_prefix(roi_index=roi))

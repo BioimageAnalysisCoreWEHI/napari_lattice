@@ -64,22 +64,22 @@ def test_image() -> NDArray[np.float64]:
     return raw
 
 @pytest.fixture
-def workflow_config(workflow: Workflow, test_image: NDArray):
+def workflow_config(image_workflow: Workflow, test_image: NDArray):
     # Create a config file
     yield {
         "input_image": test_image,
-        "workflow": workflow,
+        "workflow": image_workflow,
     }
 
 @pytest.fixture
-def workflow_config_cli(workflow: Workflow, test_image: NDArray):
+def workflow_config_cli(image_workflow: Workflow, test_image: NDArray):
     with tempfile.TemporaryDirectory() as tempdir_str:
         tempdir = Path(tempdir_str)
         input = tempdir / "raw.tiff"
         output = tempdir / "output"
         output.mkdir(parents=True)
         workflow_path = tempdir / "workflow.json"
-        save_workflow(str(workflow_path), workflow) 
+        save_workflow(str(workflow_path), image_workflow) 
         
         # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
         imsave(input, test_image)

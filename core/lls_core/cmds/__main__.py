@@ -178,7 +178,7 @@ def process(
         # Console().print(ctx.get_help())
         raise Exit(code=1)
         
-    lattice.process().save_image()
+    lattice.save()
 
 def main():
     app()

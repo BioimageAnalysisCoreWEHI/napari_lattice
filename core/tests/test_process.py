@@ -8,29 +8,26 @@ from pathlib import Path
 from napari_workflows import Workflow
 from pytest import FixtureRequest
 
-from .params import inputs, parameterized
+from .params import parameterized
 
 root = Path(__file__).parent / "data" 
 
 def open_psf(name: str):
     with as_file(resources / "psfs" / "zeiss_simulated" / name) as path:
         return path
-@inputs
 @parameterized
-def test_process(path: str, args: dict):
-    with as_file(resources / path) as lattice_path:
-        for slice in LatticeData.parse_obj({
-            "input_image": lattice_path,
-            **args
-        }).process().slices:
-            assert slice.data.ndim == 3
+def test_process(image_path: str, args: dict):
+    for slice in LatticeData.parse_obj({
+        "input_image": image_path,
+        **args
+    }).process().slices:
+        assert slice.data.ndim == 3
 
-@inputs
 @parameterized
-def test_save(path: str, args: dict):
-    with as_file(resources / path) as lattice_path, tempfile.TemporaryDirectory() as tempdir:
+def test_save(image_path: str, args: dict):
+    with tempfile.TemporaryDirectory() as tempdir:
         LatticeData.parse_obj({
-            "input_image": lattice_path,
+            "input_image": image_path,
             "save_dir": tempdir,
             **args
         }).process().save_image()
@@ -72,7 +69,7 @@ def test_process_workflow(args: dict, request: FixtureRequest, workflow_name: st
     [[0, 1]],
 ])
 @parameterized
-def test_process_crop(args: dict, roi_subset: Optional[List[int]], workflow: Workflow):
+def test_process_crop(args: dict, roi_subset: Optional[List[int]]):
     with as_file(resources / "RBC_tiny.czi") as lattice_path:
         rois = root / "crop" / "two_rois.zip"
         for slice in LatticeData.parse_obj({
