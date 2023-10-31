@@ -1,11 +1,8 @@
 from __future__ import annotations
-from pathlib import Path
 
 from importlib_resources import as_file
-from xarray import DataArray
 from napari_lattice.dock_widget import LLSZWidget
-import numpy as np
-from typing import Callable, TYPE_CHECKING, Tuple
+from typing import Callable, TYPE_CHECKING
 from magicclass.testing import check_function_gui_buildable, FunctionGuiTester
 from magicclass import MagicTemplate
 from magicclass.widgets import Widget
@@ -13,7 +10,7 @@ from magicclass._gui._gui_modes import ErrorMode
 import pytest
 from lls_core.sample import resources
 from aicsimageio.aics_image import AICSImage
-from plugin.napari_lattice.fields import PixelSizeSource
+from napari_lattice.fields import PixelSizeSource
 from tempfile import TemporaryDirectory
 
 if TYPE_CHECKING:

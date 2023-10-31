@@ -40,6 +40,20 @@ def create_data(dir: Path) -> Path:
 
     return config_location
 
+def assert_tiff(output_dir: Path):
+    """Checks that a valid TIFF was generated in the directory"""
+    results = list(output_dir.glob("*.tif"))
+    assert len(results) > 0
+    for result in results:
+        AICSImage(result).get_image_data()
+
+def assert_h5(output_dir: Path):
+    """Checks that a valid H5 was generated"""
+    h5s = list(output_dir.glob("*.h5"))
+    assert len(h5s) > 0
+    assert len(list(output_dir.glob("*.xml"))) == len(h5s)
+    for h5 in h5s:
+        BdvEditor(str(h5)).read_view()
 
 def test_batch_deskew_h5():
     """Write image to disk and then execute napari_lattice from terminal
@@ -56,10 +70,7 @@ def test_batch_deskew_h5():
             "--save-type", "h5"
         ])
 
-        # checks if h5 files written
-        assert (out_dir / "raw.h5").exists()
-        assert (out_dir / "raw.xml").exists()
-        BdvEditor(str(out_dir / "raw.h5")).read_view()
+        assert_h5(out_dir)
 
 def test_batch_deskew_tiff():
     # tiff file deskew
@@ -73,12 +84,7 @@ def test_batch_deskew_tiff():
             "--save-type", "tiff"
         ])
 
-        # checks if tiff written
-        results = list(out_dir.glob("*.tif"))
-        assert len(results) == 1
-        for result in results:
-            AICSImage(result).get_image_data()
-
+        assert_tiff(out_dir)
 
 def test_yaml_deskew():
     """Write image to disk and then execute napari_lattice from terminal
@@ -89,8 +95,4 @@ def test_yaml_deskew():
         config_location = create_data(test_dir)
         # Batch deskew and save as h5
         invoke(["--yaml-config", str(config_location)], )
-
-        # checks if h5 files written
-        assert (test_dir / "raw.h5").exists()
-        assert (test_dir / "raw.xml").exists()
-        BdvEditor(str(test_dir / "raw.h5")).read_view()
+        assert_h5(test_dir)

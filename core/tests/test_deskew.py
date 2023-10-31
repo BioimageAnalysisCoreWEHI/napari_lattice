@@ -3,6 +3,7 @@ import pyclesperanto_prototype as cle
 import numpy as np 
 from lls_core.models.lattice_data import LatticeData
 from xarray import DataArray
+import tempfile
 
 def test_deskew():
 
@@ -17,5 +18,11 @@ def test_deskew():
 
 def test_lattice_data_deskew():
     raw = DataArray(np.zeros((5, 5, 5)), dims=["X", "Y", "Z"])
-    lattice = LatticeData(input_image=raw, physical_pixel_sizes = (1, 1, 1), save_name="test")
-    assert lattice.deskew_vol_shape == [2, 9, 5]
+    with tempfile.TemporaryDirectory() as tmpdir:
+        lattice = LatticeData(
+            input_image=raw,
+            physical_pixel_sizes = (1, 1, 1),
+            save_name="test",
+            save_dir=tmpdir
+        )
+        assert lattice.deskew_vol_shape == [2, 9, 5]
