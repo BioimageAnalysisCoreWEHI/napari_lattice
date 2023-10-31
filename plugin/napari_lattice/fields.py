@@ -25,7 +25,6 @@ from magicclass.fields import MagicField
 from magicclass.widgets import ComboBox, Label, Widget
 from napari.layers import Image, Shapes
 from napari.types import ShapesData
-from napari.utils import history
 from napari_lattice.icons import GREEN, GREY, RED
 from napari_lattice.reader import NapariImageParams, lattice_params_from_napari
 from napari_lattice.utils import get_layers
@@ -139,7 +138,7 @@ class StackAlong(StrEnum):
     CHANNEL = "Channel"
     TIME = "Time"
 
-class NapariFieldGroup:
+class NapariFieldGroup(MagicTemplate):
     def __post_init__(self):
         self = cast(FieldGroup, self)
         self.changed.connect(self._validate, unique=False)
@@ -155,13 +154,17 @@ class NapariFieldGroup:
         from qtpy.QtCore import Qt
         self._widget._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
-    def _get_parent_tab_widget(self: Any) -> QTabWidget:
-        return self.parent.parentWidget()
+    def _get_parent_tab_widget(self) -> QTabWidget:
+        qwidget = self.native
+        # Walk up the widget tree until we find the tab widget
+        while not isinstance(qwidget, QTabWidget):
+            qwidget = qwidget.parent()
+        return qwidget
 
-    def _get_tab_index(self: Any) -> int:
+    def _get_tab_index(self) -> int:
         return self._get_parent_tab_widget().indexOf(self._widget._qwidget)
 
-    def _set_valid(self: Any, valid: bool):
+    def _set_valid(self, valid: bool):
         from qtpy.QtGui import QIcon
         from importlib_resources import as_file
         tab_parent = self._get_parent_tab_widget()
@@ -178,13 +181,13 @@ class NapariFieldGroup:
         with as_file(icon) as path:
             tab_parent.setTabIcon(index, QIcon(str(path)))
 
-    def reset_choices(self: Any):
+    def reset_choices(self):
         # This is used to prevent validation from re-running when a napari layer is added or removed
         from magicgui.widgets import Container
         with self.changed.blocked():
             super(Container, self).reset_choices()
 
-    def _validate(self: Any):
+    def _validate(self):
         self.errors.value = get_friendly_validations(self)
         valid = not bool(self.errors.value)
         self.errors.visible = not valid
@@ -383,7 +386,7 @@ class DeconvolutionFields(NapariFieldGroup):
         )
 
 @magicclass
-class CroppingFields(MagicTemplate, NapariFieldGroup):
+class CroppingFields(NapariFieldGroup):
     """
     A counterpart to the CropParams Pydantic class
     """

@@ -1,7 +1,6 @@
 # Enable Logging
 import logging
 from textwrap import dedent
-from typing import cast
 
 import numpy as np
 from lls_core.models.lattice_data import LatticeData
@@ -14,9 +13,7 @@ from napari_lattice.fields import (
     OutputFields,
     WorkflowFields,
 )
-from napari_lattice.icons import GREY
 from qtpy.QtCore import Qt
-from qtpy.QtGui import QIcon
 from qtpy.QtWidgets import QTabWidget
 
 logger = logging.getLogger(__name__)
