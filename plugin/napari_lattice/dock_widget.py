@@ -35,13 +35,13 @@ class LLSZWidget(MagicTemplate):
         except:
             return False
 
-    def _make_model(self) -> LatticeData:
+    def _make_model(self, validate: bool = True) -> LatticeData:
         from rich import print
         from sys import stdout
 
         deskew_args = self.LlszMenu.WidgetContainer.deskew_fields._get_kwargs()
-        output_args = self.LlszMenu.WidgetContainer.output_fields._make_model()
-        params = LatticeData(
+        output_args = self.LlszMenu.WidgetContainer.output_fields._make_model(validate=False)
+        args = dict(
             input_image=deskew_args["data"],
             angle=deskew_args["angle"],
             channel_range=output_args.channel_range,
@@ -56,6 +56,7 @@ class LLSZWidget(MagicTemplate):
             deconvolution=self.LlszMenu.WidgetContainer.deconv_fields._make_model(),
             crop=self.LlszMenu.WidgetContainer.cropping_fields._make_model()
         )
+        params = LatticeData.make(validate=validate, **args)
         # Log the lattice
         print(params, file=stdout)
         return params
@@ -108,12 +109,18 @@ class LLSZWidget(MagicTemplate):
                 call_button="Preview"
                 )
     @set_design(text="Preview")
-    def preview(self, header:str, time: int, channel: int):
+    def preview(self, header: str, time: int, channel: int):
+        from pathlib import Path
+
         # We only need to process one time point for the preview, 
         # so we made a copy using a subset of the times
-        lattice = self._make_model().copy_validate(update=dict(
+        lattice = self._make_model(validate=False).copy_validate(update=dict(
             time_range = range(time, time+1),
             channel_range = range(time, time+1),
+            # Patch in a placeholder for the save dir because previewing doesn't use it
+            # TODO: use a more elegant solution such as making the "saveable" lattice
+            # a child class which more validations
+            save_dir = Path.home()
         ))
 
         for slice in lattice.process().slices:

@@ -68,10 +68,18 @@ def test_dock_widget(make_napari_viewer: Callable[[], Viewer], image_data: AICSI
         fields.img_layer.value = list(viewer.layers)
         fields.dimension_order.value = image_data.dims.order
         fields.pixel_sizes_source.value = PixelSizeSource.Manual
+
+        # Test previewing
+        tester = FunctionGuiTester(ui.preview)
+        tester.call("", 0, 0)
+
+        # Add the save path which shouldn't be needed for previewing
         ui.LlszMenu.WidgetContainer.output_fields.save_path.value = tmpdir
-        # fields.pixel_sizes.value = image_data.physical_pixel_sizes
+        
+        # Test saving
         tester = FunctionGuiTester(ui.save)
         tester.call()
+
 
 def test_check_buildable():
     ui = LLSZWidget()

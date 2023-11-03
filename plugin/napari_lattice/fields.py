@@ -501,8 +501,10 @@ class OutputFields(NapariFieldGroup):
     )
     errors = field(Label).with_options(label="Errors")
 
-    def _make_model(self) -> OutputParams:
-        return OutputParams(
+    def _make_model(self, validate: bool = True) -> OutputParams:
+        return OutputParams.make(
+            validate=validate,
+
             channel_range=range(self.channel_range.value[0], self.channel_range.value[1]),
             time_range=range(self.time_range.value[0], self.time_range.value[1]),
             save_dir=self.save_path.value,

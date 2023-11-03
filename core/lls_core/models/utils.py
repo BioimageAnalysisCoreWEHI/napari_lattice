@@ -68,3 +68,13 @@ class FieldAccessMixin(BaseModel):
         """
         updated = self.copy(**kwargs)
         return updated.validate(updated.dict())
+
+    @classmethod
+    def make(cls, validate: bool = True, **kwargs: Any):
+        """
+        Creates an instance of this class, with validation either enabled or disabled 
+        """
+        if validate:
+            return cls(**kwargs)
+        else:
+            return cls.construct(**kwargs)
