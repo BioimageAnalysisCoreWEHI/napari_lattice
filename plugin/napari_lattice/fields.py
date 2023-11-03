@@ -397,7 +397,6 @@ class CroppingFields(NapariFieldGroup):
         value = (0, 1),
         options = dict(
             min = 0,
-            max = 1
         ),
     )
     errors = field(Label).with_options(label="Errors")

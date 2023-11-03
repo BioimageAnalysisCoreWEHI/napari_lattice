@@ -89,18 +89,27 @@ class LatticeData(OutputParams, DeskewParams):
 
     @validator("crop")
     def default_z_range(cls, v: CropParams, values: dict):
-        # If any part of the z range is missing, assume the user wants all Z indices
         if v is None:
             return v
         with ignore_keyerror():
+            # Fill in missing parts of the z range with the min/max z values
             default_start = 0
             default_end = values["input_image"].sizes["Z"]
+
+            # Set defaults
             if v.z_range is None:
                 v.z_range = (default_start, default_end)
             if v.z_range[0] is None:
                 v.z_range[0] = default_start
             if v.z_range[1] is None:
                 v.z_range[1] = default_end
+
+            # Validate
+            if v.z_range[1] > default_end:
+                raise ValueError(f"The z-index endpoint of {v.z_range[1]} is outside the size of the z-axis ({default_end})")
+            if v.z_range[0] < default_start:
+                raise ValueError(f"The z-index start of {v.z_range[0]} is outside the size of the z-axis")
+
             return v
 
     @validator("time_range", pre=True, always=True)
