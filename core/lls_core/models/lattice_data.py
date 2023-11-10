@@ -409,8 +409,6 @@ class LatticeData(OutputParams, DeskewParams):
         from lls_core.models.results import ImageSlices
         ImageSlices.update_forward_refs(LatticeData=LatticeData)
 
-        # if self.workflow is not None:
-        #     return self._process_workflow()
         if self.cropping_enabled:
             return ImageSlices(
                 lattice_data=self,

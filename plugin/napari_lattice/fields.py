@@ -511,9 +511,6 @@ class OutputFields(NapariFieldGroup):
     )
     errors = field(Label).with_options(label="Errors")
 
-    def __post_init__(self):
-        pass
-
     def _make_model(self, validate: bool = True) -> OutputParams:
         return OutputParams.make(
             validate=validate,
