@@ -1,10 +1,10 @@
 # FieldGroups that the users interact with to input data
-
 import logging
 from pathlib import Path
-from typing import Any, Callable, List, Optional, Tuple, TypeVar, cast
-
+from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING
+from typing_extensions import TypeVar
 import pyclesperanto_prototype as cle
+from xarray import DataArray
 from lls_core import (
     DeconvolutionChoice,
     DeskewDirection,
@@ -32,8 +32,19 @@ from napari_workflows import Workflow, WorkflowManager
 from qtpy.QtWidgets import QTabWidget
 from strenum import StrEnum
 
+if TYPE_CHECKING:
+    from magicgui.widgets.bases import RangedWidget
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+def adjust_maximum(widget: "RangedWidget", max: int):
+    """
+    Updates the maximum value
+    """
+    widget.max = max
+    if widget.value > max:
+        widget.value = max
 
 def exception_to_html(e: BaseException) -> str:
     """
@@ -73,7 +84,6 @@ class BackgroundSource(StrEnum):
     SecondLast = "Second Last"
     Custom = "Custom"
 
-
 def enable_field(field: MagicField, enabled: bool = True) -> None:
     """
     Enable the widget associated with a field
@@ -90,7 +100,6 @@ def enable_field(field: MagicField, enabled: bool = True) -> None:
             real_field.enabled = enabled
         except RuntimeError:
             pass
-
 
 FieldValueType = TypeVar("FieldValueType")
 SelfType = TypeVar("SelfType")
@@ -140,7 +149,6 @@ class StackAlong(StrEnum):
 
 class NapariFieldGroup(MagicTemplate):
     def __post_init__(self):
-        self = cast(FieldGroup, self)
         self.changed.connect(self._validate, unique=False)
 
         # Style the error label. 
@@ -196,13 +204,15 @@ class NapariFieldGroup(MagicTemplate):
     def _make_model(self):
         raise NotImplementedError()
 
+    def _on_image_changed(self, img: DataArray):
+        pass
+
 class DeskewKwargs(NapariImageParams):
     angle: float
     skew: DeskewDirection
 
 @magicclass
 class DeskewFields(NapariFieldGroup):
-
     def _get_dimension_options(self, _) -> List[str]:
         """
         Returns the list of dimension order options that might be possible for the current image stack
@@ -334,9 +344,7 @@ class DeskewFields(NapariFieldGroup):
 
 @magicclass
 class DeconvolutionFields(NapariFieldGroup):
-    """
-    A counterpart to the DeconvolutionParams Pydantic class
-    """
+    # A counterpart to the DeconvolutionParams Pydantic class
     fields_enabled = field(False, label="Enabled")
     decon_processing = field(DeconvolutionChoice, label="Processing Algorithm")
     psf = field(List[Path], label = "PSFs")
@@ -387,9 +395,7 @@ class DeconvolutionFields(NapariFieldGroup):
 
 @magicclass
 class CroppingFields(NapariFieldGroup):
-    """
-    A counterpart to the CropParams Pydantic class
-    """
+    # A counterpart to the CropParams Pydantic class
     fields_enabled = field(False, label="Enabled")
     shapes= field(List[Shapes], widget_type="Select", label = "ROI Shape Layers").with_options(choices=lambda _x, _y: get_layers(Shapes))
     z_range = field(Tuple[int, int]).with_options(
@@ -424,6 +430,11 @@ class CroppingFields(NapariFieldGroup):
         shapes = get_viewer().add_shapes()
         shapes.mode = "ADD_RECTANGLE"
         shapes.name = "Napari Lattice Crop"
+
+    def _on_image_changed(self, img: DataArray):
+        # Update the maximum Z
+        for widget in self.z_range:
+            adjust_maximum(widget, img.sizes["Z"])
 
     @fields_enabled.connect
     @enable_if([shapes, z_range])
@@ -500,6 +511,9 @@ class OutputFields(NapariFieldGroup):
     )
     errors = field(Label).with_options(label="Errors")
 
+    def __post_init__(self):
+        pass
+
     def _make_model(self, validate: bool = True) -> OutputParams:
         return OutputParams.make(
             validate=validate,
@@ -512,3 +526,10 @@ class OutputFields(NapariFieldGroup):
             # This is just to avoid the validation error caused by the missing field
             save_name="PLACEHOLDER"
         )
+
+    def _on_image_changed(self, img: DataArray):
+        # Update the maximum T and C
+        for widget in self.time_range:
+            adjust_maximum(widget, img.sizes["T"])
+        for widget in self.channel_range:
+            adjust_maximum(widget, img.sizes["C"])

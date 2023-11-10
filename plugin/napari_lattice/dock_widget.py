@@ -1,7 +1,8 @@
-# Enable Logging
+from __future__ import annotations
+
 import logging
 from textwrap import dedent
-
+from typing import TYPE_CHECKING
 import numpy as np
 from lls_core.models.lattice_data import LatticeData
 from magicclass import MagicTemplate, field, magicclass, set_options, vfield
@@ -16,6 +17,11 @@ from napari_lattice.fields import (
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QTabWidget
 
+if TYPE_CHECKING:
+    from typing import Iterable
+    from napari_lattice.fields import NapariFieldGroup
+
+# Enable Logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -24,6 +30,7 @@ class LLSZWidget(MagicTemplate):
     def __post_init__(self):
         # aligning collapsible widgets at the top instead of having them centered vertically
         self._widget._layout.setAlignment(Qt.AlignTop)
+
 
     def _check_validity(self) -> bool:
         """
@@ -97,6 +104,7 @@ class LLSZWidget(MagicTemplate):
                 for field in [self.deskew_fields, self.deconv_fields, self.cropping_fields, self.workflow_fields, self.output_fields]:
                     field._validate()
 
+            # Using vfields here seems to prevent https://github.com/hanjinliu/magic-class/issues/110
             deskew_fields = vfield(DeskewFields)
             deconv_fields = vfield(DeconvolutionFields)
             cropping_fields = vfield(CroppingFields)
@@ -139,3 +147,16 @@ class LLSZWidget(MagicTemplate):
         lattice = self._make_model()
         lattice.save()
         show_info(f"Deskewing successfuly completed. Results are located in {lattice.save_dir}")
+
+    @LlszMenu.WidgetContainer.deskew_fields.connect
+    def _on_image_changed(self, deskew: DeskewFields):
+        img = deskew._get_kwargs()["data"]
+        # We have to manually trigger _on_image_changed because siblings
+        # classes can't listen to each other's events: https://github.com/hanjinliu/magic-class/issues/129
+        for field in self._get_fields():
+            field._on_image_changed(img)
+
+    def _get_fields(self) -> Iterable[NapariFieldGroup]:
+        """Yields all the child Field classes which inherit from NapariFieldGroup"""
+        container = self.LlszMenu.WidgetContainer
+        yield from set(container.__magicclass_children__)
