@@ -44,11 +44,15 @@ class CropParams(FieldAccessMixin):
             elif isinstance(item, Roi):
                 rois.append(item)
             else:
-                raise ValueError(f"{item} cannot be intepreted as an ROI")
+                # Try converting an iterable to ROI
+                try:
+                    rois.append(Roi(*item))
+                except:
+                    raise ValueError(f"{item} cannot be intepreted as an ROI")
 
         return rois
 
-    @validator("roi_subset", pre=True)
+    @validator("roi_subset", pre=True, always=True)
     def default_roi_range(cls, v: Any, values: dict):
         # If the roi range isn't provided, assume all rois should be processed
         if v is None:

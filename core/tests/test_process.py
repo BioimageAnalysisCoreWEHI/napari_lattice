@@ -69,7 +69,8 @@ def test_process_workflow(args: dict, request: FixtureRequest, workflow_name: st
     [[0, 1]],
 ])
 @parameterized
-def test_process_crop(args: dict, roi_subset: Optional[List[int]]):
+def test_process_crop_roi_file(args: dict, roi_subset: Optional[List[int]]):
+    # Test cropping with a roi zip file, selecting different subsets from that file
     with as_file(resources / "RBC_tiny.czi") as lattice_path:
         rois = root / "crop" / "two_rois.zip"
         for slice in LatticeData.parse_obj({
@@ -77,6 +78,33 @@ def test_process_crop(args: dict, roi_subset: Optional[List[int]]):
             "crop": {
                 "roi_list": [rois],
                 "roi_subset": roi_subset
+            },
+            **args
+        }).process().slices:
+            assert slice.data.ndim == 3
+
+@pytest.mark.parametrize(["roi"], [
+    [[[
+        (174.0, 24.0),
+        (174.0, 88.0),
+        (262.0, 88.0),
+        (262.0, 24.0)
+    ]]],
+    [[[
+        (174.13, 24.2),
+        (173.98, 87.87),
+        (262.21, 88.3),
+        (261.99, 23.79)
+    ]]],
+])
+@parameterized
+def test_process_crop_roi_manual(args: dict, roi: List):
+    # Test manually provided ROIs, both with integer and float values
+    with as_file(resources / "RBC_tiny.czi") as lattice_path:
+        for slice in LatticeData.parse_obj({
+            "input_image": lattice_path,
+            "crop": {
+                "roi_list": roi
             },
             **args
         }).process().slices:
