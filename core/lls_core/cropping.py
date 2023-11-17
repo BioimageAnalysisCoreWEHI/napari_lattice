@@ -6,11 +6,13 @@ if TYPE_CHECKING:
     from typing_extensions import Self
     from numpy.typing import NDArray
 
+RoiCoord = Tuple[float, float]
+
 class Roi(NamedTuple):
-    top_left: Tuple[int, int]
-    top_right: Tuple[int, int]
-    bottom_left: Tuple[int, int]
-    bottom_right: Tuple[int, int]
+    top_left: RoiCoord
+    top_right: RoiCoord
+    bottom_left: RoiCoord
+    bottom_right: RoiCoord
 
     @classmethod
     def from_array(cls, array: NDArray) -> Self:

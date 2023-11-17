@@ -337,8 +337,8 @@ class LatticeData(OutputParams, DeskewParams):
                         voxel_size_z=self.dy,
                         angle_in_degrees=self.angle,
                         deskewed_volume=self.deskewed_volume,
-                        z_start=self.crop.z_range[0],
-                        z_end=self.crop.z_range[1],
+                        # z_start=self.crop.z_range[0],
+                        # z_end=self.crop.z_range[1],
                         **deconv_args
                     )
                 )

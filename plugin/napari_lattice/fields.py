@@ -433,7 +433,7 @@ class CroppingFields(NapariFieldGroup):
         import numpy as np
         if self.fields_enabled.value:
             return CropParams(
-                roi_list=ShapesData([np.array(shape.data) / self._get_deskew().dy  for shape in self.shapes.value])
+                roi_list=ShapesData([np.array(shape.data) / self._get_deskew().dy for shape in self.shapes.value])
             )
         return None
 
