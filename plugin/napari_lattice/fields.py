@@ -398,6 +398,13 @@ class CroppingFields(NapariFieldGroup):
     # A counterpart to the CropParams Pydantic class
     fields_enabled = field(False, label="Enabled")
     shapes= field(List[Shapes], widget_type="Select", label = "ROI Shape Layers").with_options(choices=lambda _x, _y: get_layers(Shapes))
+    z_range = field(Tuple[int, int]).with_options(
+        label = "Z Range",
+        value = (0, 1),
+        options = dict(
+            min = 0,
+        ),
+    )
     errors = field(Label).with_options(label="Errors")
 
     def _get_deskew(self) -> DeskewParams:
@@ -424,8 +431,13 @@ class CroppingFields(NapariFieldGroup):
         shapes.mode = "ADD_RECTANGLE"
         shapes.name = "Napari Lattice Crop"
 
+    def _on_image_changed(self, img: DataArray):
+        # Update the maximum Z
+        for widget in self.z_range:
+            adjust_maximum(widget, img.sizes["Z"])
+
     @fields_enabled.connect
-    @enable_if([shapes])
+    @enable_if([shapes, z_range])
     def _enable_crop(self, enabled: bool) -> bool:
         return enabled
 
@@ -433,7 +445,8 @@ class CroppingFields(NapariFieldGroup):
         import numpy as np
         if self.fields_enabled.value:
             return CropParams(
-                roi_list=ShapesData([np.array(shape.data) / self._get_deskew().dy for shape in self.shapes.value])
+                roi_list=ShapesData([np.array(shape.data) / self._get_deskew().dy for shape in self.shapes.value]),
+                z_range=self.z_range.value,
             )
         return None
 
