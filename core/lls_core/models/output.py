@@ -4,7 +4,7 @@ from os import getcwd
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from lls_core.models.utils import FieldAccessMixin, enum_choices
+from lls_core.models.utils import FieldAccessModel, enum_choices
 
 if TYPE_CHECKING:
     pass
@@ -14,7 +14,7 @@ class SaveFileType(StrEnum):
     h5 = "h5"
     tiff = "tiff"
 
-class OutputParams(FieldAccessMixin):
+class OutputParams(FieldAccessModel):
     save_dir: DirectoryPath = Field(
         description="The directory where the output data will be saved"
     )

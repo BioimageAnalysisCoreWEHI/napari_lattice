@@ -1,6 +1,7 @@
 # FieldGroups that the users interact with to input data
 import logging
 from pathlib import Path
+from textwrap import dedent
 from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING
 from typing_extensions import TypeVar
 import pyclesperanto_prototype as cle
@@ -396,6 +397,10 @@ class DeconvolutionFields(NapariFieldGroup):
 @magicclass
 class CroppingFields(NapariFieldGroup):
     # A counterpart to the CropParams Pydantic class
+    header = field(dedent("""
+        Note that all cropping, including the regions of interest and Z range, is performed in the space of the deskewed shape.
+        This is to support the workflow of performing a preview deskew and using that to calculate the cropping coordinates.
+    """), widget_type="Label")
     fields_enabled = field(False, label="Enabled")
     shapes= field(List[Shapes], widget_type="Select", label = "ROI Shape Layers").with_options(choices=lambda _x, _y: get_layers(Shapes))
     z_range = field(Tuple[int, int]).with_options(
@@ -432,9 +437,15 @@ class CroppingFields(NapariFieldGroup):
         shapes.name = "Napari Lattice Crop"
 
     def _on_image_changed(self, img: DataArray):
-        # Update the maximum Z
+        deskew = self._get_deskew()
+        deskewed_zmax = deskew.derived.deskew_vol_shape[0]
+
+        # Update the allowed Z based the deskewed shape
         for widget in self.z_range:
-            adjust_maximum(widget, img.sizes["Z"])
+            adjust_maximum(widget, deskewed_zmax)
+
+        # Update the current max value to be the max of the shape
+        self.z_range[1].value = deskewed_zmax
 
     @fields_enabled.connect
     @enable_if([shapes, z_range])
@@ -445,8 +456,10 @@ class CroppingFields(NapariFieldGroup):
         import numpy as np
         if self.fields_enabled.value:
             return CropParams(
+                # Convert from the input image space to the deskewed image space
+                # We assume here that dx == dy which isn't ideal
                 roi_list=ShapesData([np.array(shape.data) / self._get_deskew().dy for shape in self.shapes.value]),
-                z_range=self.z_range.value,
+                z_range=tuple(np.array(self.z_range.value) / self._get_deskew().new_dz),
             )
         return None
 

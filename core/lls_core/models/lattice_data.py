@@ -88,13 +88,14 @@ class LatticeData(OutputParams, DeskewParams):
         return v
 
     @validator("crop")
-    def default_z_range(cls, v: CropParams, values: dict):
+    def default_z_range(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
         if v is None:
             return v
         with ignore_keyerror():
-            # Fill in missing parts of the z range with the min/max z values
+            # Fill in missing parts of the z range
+            # The max allowed value is the length of the deskew Z axis
             default_start = 0
-            default_end = values["input_image"].sizes["Z"]
+            default_end = values["derived"].deskew_vol_shape[0]
 
             # Set defaults
             if v.z_range is None:
@@ -110,7 +111,7 @@ class LatticeData(OutputParams, DeskewParams):
             if v.z_range[0] < default_start:
                 raise ValueError(f"The z-index start of {v.z_range[0]} is outside the size of the z-axis")
 
-            return v
+        return v
 
     @validator("time_range", pre=True, always=True)
     def parse_time_range(cls, v: Any, values: dict) -> Any:

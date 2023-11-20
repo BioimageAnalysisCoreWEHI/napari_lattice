@@ -23,7 +23,7 @@ def ignore_keyerror():
     except KeyError:
         pass
 
-class FieldAccessMixin(BaseModel):
+class FieldAccessModel(BaseModel):
     """
     Adds methods to a BaseModel for accessing useful field information
     """
@@ -54,7 +54,7 @@ class FieldAccessMixin(BaseModel):
         """
         ret = {}
         for key, value in cls.__fields__.items():
-            if isinstance(value.outer_type_, type) and issubclass(value.outer_type_, FieldAccessMixin):
+            if isinstance(value.outer_type_, type) and issubclass(value.outer_type_, FieldAccessModel):
                 value = value.outer_type_.to_definition_dict()
             else:
                 value = value.field_info.description

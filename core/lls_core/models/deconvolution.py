@@ -7,12 +7,12 @@ from typing_extensions import TypedDict
 from xarray import DataArray
 
 from lls_core import DeconvolutionChoice
-from lls_core.models.utils import enum_choices, FieldAccessMixin
+from lls_core.models.utils import enum_choices, FieldAccessModel
 
 from lls_core.types import image_like_to_image, ImageLike
 
 Background = Union[float, Literal["auto", "second_last"]]
-class DeconvolutionParams(FieldAccessMixin):
+class DeconvolutionParams(FieldAccessModel):
     """
     Parameters for the optional deconvolution step
     """

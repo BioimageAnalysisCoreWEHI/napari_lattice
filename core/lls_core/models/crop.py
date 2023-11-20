@@ -1,11 +1,14 @@
 from typing import Iterable, List, Tuple, Any
 from pydantic import Field, NonNegativeInt, validator
-from lls_core.models.utils import FieldAccessMixin
+from lls_core.models.utils import FieldAccessModel
 from lls_core.cropping import Roi
 
-class CropParams(FieldAccessMixin):
+class CropParams(FieldAccessModel):
     """
-    Parameters for the optional cropping step
+    Parameters for the optional cropping step.
+    Note that cropping is performed in the space of the deskewed shape.
+    This is to support the workflow of performing a preview deskew and using that
+    to calculate the cropping coordinates.
     """
     roi_list: List[Roi] = Field(
         description="List of regions of interest, each of which must be an NxD array, where N is the number of vertices and D the coordinates of each vertex.",

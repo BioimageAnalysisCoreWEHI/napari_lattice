@@ -17,6 +17,11 @@ from napari_workflows._io_yaml_v1 import save_workflow
 def runner() -> CliRunner:
     return CliRunner()
 
+@pytest.fixture
+def rbc_tiny():
+    with as_file(resources / "RBC_tiny.czi") as image_path:
+        yield image_path
+
 @pytest.fixture(params=[
     "RBC_tiny.czi",
     "RBC_lattice.tif",

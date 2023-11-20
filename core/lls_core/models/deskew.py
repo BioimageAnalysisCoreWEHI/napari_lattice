@@ -1,7 +1,7 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from pydantic import Field, NonNegativeFloat, validator, root_validator
+from pydantic import Field, NonNegativeFloat, validator
 
 from typing import Any, Tuple
 from typing_extensions import Self, TYPE_CHECKING
@@ -11,16 +11,14 @@ import pyclesperanto_prototype as cle
 from lls_core import DeskewDirection
 from xarray import DataArray
 
-from lls_core.models.utils import FieldAccessMixin, enum_choices
+from lls_core.models.utils import FieldAccessModel, enum_choices
 from lls_core.types import image_like_to_image
 from lls_core.utils import get_deskewed_shape
 
 if TYPE_CHECKING:
     from aicsimageio.types import PhysicalPixelSizes
 
-# DeskewDirection = Literal["X", "Y"]
-
-class DefinedPixelSizes(FieldAccessMixin):
+class DefinedPixelSizes(FieldAccessModel):
     """
     Like PhysicalPixelSizes, but it's a dataclass, and
     none of its fields are None
@@ -39,8 +37,21 @@ class DefinedPixelSizes(FieldAccessMixin):
             Z=raise_if_none(pixels.Z, "All pixels must be defined"),
         )
 
+class DerivedDeskewFields(FieldAccessModel):
+    """
+    Fields that are automatically calculated based on other fields in DeskewParams.
+    Grouping these together into one model makes validation simpler.
+    """
+    deskew_vol_shape: Tuple[int, ...] = Field(
+        init_var=False,
+        default=None,
+        description="Dimensions of the deskewed output. This is set automatically based on other input parameters, and doesn't need to be provided by the user."
+    )
 
-class DeskewParams(FieldAccessMixin):
+    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False, default=None, description="Deskewing transformation function. This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
+
+
+class DeskewParams(FieldAccessModel):
     input_image: DataArray = Field(
         description="A 3-5D array containing the image data."
     )
@@ -53,17 +64,14 @@ class DeskewParams(FieldAccessMixin):
         description="Angle of deskewing, in degrees."
     )
     physical_pixel_sizes: DefinedPixelSizes = Field(
-    default_factory=DefinedPixelSizes,
-    description="Pixel size of the microscope, in microns."
-)
-    deskew_vol_shape: Tuple[int, ...] = Field(
+        default_factory=DefinedPixelSizes,
+        description="Pixel size of the microscope, in microns."
+    )
+    derived: DerivedDeskewFields = Field(
         init_var=False,
         default=None,
-        description="Dimensions of the deskewed output. This is set automatically based on other input parameters, and doesn't need to be provided by the user."
+        description="Refer to the DerivedDeskewFields docstring"
     )
-
-    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False, default=None, description="Deskewing transformation function. This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
-
     # Hack to ensure that .skew_dir behaves identically to .skew
     @property
     def skew_dir(self) -> DeskewDirection:
@@ -170,19 +178,26 @@ class DeskewParams(FieldAccessMixin):
     def get_3d_slice(self) -> DataArray:
         return self.input_image.isel(C=0, T=0)
 
-    @root_validator(pre=False)
-    def set_deskew(cls, values: dict) -> dict:
+    @validator("derived", always=True)
+    def calculate_derived(cls, v: Any, values: dict) -> DerivedDeskewFields:
         """
         Sets the default deskew shape values if the user has not provided them
         """
-        # process the file to get shape of final deskewed image
-        if "input_image" not in values:
-            return values
-        data: DataArray = cls.reshaping(values["input_image"])
-        if values.get('deskew_vol_shape') is None:
-            if values.get('deskew_affine_transform') is None:
-                # If neither has been set, calculate them ourselves
-                values["deskew_vol_shape"], values["deskew_affine_transform"] = get_deskewed_shape(data.isel(C=0, T=0).to_numpy(), values["angle"], values["physical_pixel_sizes"].X, values["physical_pixel_sizes"].Y, values["physical_pixel_sizes"].Z, values["skew"])
-            else:
-                raise ValueError("deskew_vol_shape and deskew_affine_transform must be either both specified or neither specified")
-        return values
+        data: DataArray = values["input_image"]
+        if isinstance(v, DerivedDeskewFields):
+            return v
+        elif v is None:
+            deskew_vol_shape, deskew_affine_transform = get_deskewed_shape(
+                data.isel(C=0, T=0).to_numpy(),
+                values["angle"],
+                values["physical_pixel_sizes"].X,
+                values["physical_pixel_sizes"].Y,
+                values["physical_pixel_sizes"].Z,
+                values["skew"]
+            )
+            return DerivedDeskewFields(
+                deskew_affine_transform=deskew_affine_transform,
+                deskew_vol_shape=deskew_vol_shape
+            )
+        else:
+            raise ValueError("Invalid derived fields")

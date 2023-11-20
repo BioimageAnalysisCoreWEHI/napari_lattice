@@ -22,7 +22,7 @@ from lls_core.models.output import SaveFileType
 from pydantic import ValidationError
 
 if TYPE_CHECKING:
-    from lls_core.models.utils import FieldAccessMixin
+    from lls_core.models.utils import FieldAccessModel
     from typing import Type, Any
     from rich.table import Table
 
@@ -55,7 +55,7 @@ CLI_PARAM_MAP = {
 
 app = Typer(add_completion=False, rich_markup_mode="rich", no_args_is_help=True)
 
-def field_from_model(model: Type[FieldAccessMixin], field_name: str, extra_description: str = "", description: Optional[str] = None, default: Optional[Any] = None, **kwargs) -> Any:
+def field_from_model(model: Type[FieldAccessModel], field_name: str, extra_description: str = "", description: Optional[str] = None, default: Optional[Any] = None, **kwargs) -> Any:
     """
     Generates a type Field from a Pydantic model field
     """
