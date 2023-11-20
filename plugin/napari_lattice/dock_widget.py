@@ -150,11 +150,15 @@ class LLSZWidget(MagicTemplate):
 
     @LlszMenu.WidgetContainer.deskew_fields.connect
     def _on_image_changed(self, deskew: DeskewFields):
-        img = deskew._get_kwargs()["data"]
-        # We have to manually trigger _on_image_changed because siblings
-        # classes can't listen to each other's events: https://github.com/hanjinliu/magic-class/issues/129
-        for field in self._get_fields():
-            field._on_image_changed(img)
+        # An error at this point doesn't need to be communicated to the user
+        try:
+            img = deskew._get_kwargs()["data"]
+            # We have to manually trigger _on_image_changed because siblings
+            # classes can't listen to each other's events: https://github.com/hanjinliu/magic-class/issues/129
+            for field in self._get_fields():
+                field._on_image_changed(img)
+        except:
+            pass
 
     def _get_fields(self) -> Iterable[NapariFieldGroup]:
         """Yields all the child Field classes which inherit from NapariFieldGroup"""
