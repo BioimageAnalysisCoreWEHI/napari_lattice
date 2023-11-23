@@ -302,7 +302,7 @@ class LatticeData(OutputParams, DeskewParams):
     @property
     def deskewed_volume(self) -> DaskArray:
         from dask.array import zeros
-        return zeros(self.deskew_vol_shape)
+        return zeros(self.derived.deskew_vol_shape)
 
     def _process_crop(self) -> Iterable[ImageSlice]:
         """

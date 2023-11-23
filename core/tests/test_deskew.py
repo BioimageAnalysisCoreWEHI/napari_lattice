@@ -25,4 +25,4 @@ def test_lattice_data_deskew():
             save_name="test",
             save_dir=tmpdir
         )
-        assert lattice.deskew_vol_shape == [2, 9, 5]
+        assert lattice.derived.deskew_vol_shape == (2, 9, 5)
