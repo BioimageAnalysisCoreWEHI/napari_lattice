@@ -25,11 +25,10 @@ def test_process(minimal_image_path: str, args: dict):
     }).process().slices:
         assert slice.data.ndim == 3
 
-def test_process_all(image_path: str, args: dict):
+def test_process_all(image_path: str):
     # Processes all input images, but without parameter combinations
     for slice in LatticeData.parse_obj({
-        "input_image": image_path,
-        **args
+        "input_image": image_path
     }).process().slices:
         assert slice.data.ndim == 3
 

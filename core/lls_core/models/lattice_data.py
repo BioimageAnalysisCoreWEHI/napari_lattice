@@ -312,7 +312,7 @@ class LatticeData(OutputParams, DeskewParams):
             raise Exception("This function can only be called when crop is set")
             
         # We have an extra level of iteration for the crop path: iterating over each ROI
-        for roi_index, roi in enumerate(tqdm(self.crop.selected_rois, desc="ROI:", position=0)):
+        for roi_index, roi in enumerate(tqdm(self.crop.selected_rois, desc="ROI", position=0)):
             # pass arguments for save tiff, callable and function arguments
             logger.info(f"Processing ROI {roi_index}")
             
@@ -324,7 +324,7 @@ class LatticeData(OutputParams, DeskewParams):
                     decon_processing=self.deconvolution.decon_processing
                 )
 
-            for slice in self.iter_slices():
+            for slice in tqdm(self.iter_slices(), desc="2D Slice Number", position=1):
                 yield slice.copy_with_data(
                     crop_volume_deskew(
                         original_volume=slice.data,
@@ -348,7 +348,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices without cropping
         """
-        for slice in self.iter_slices():
+        for slice in tqdm(self.iter_slices(), desc="2d Slice Number"):
             data: ArrayLike = slice.data
             if isinstance(slice.data, DaskArray):
                 data = slice.data.compute()
@@ -389,7 +389,7 @@ class LatticeData(OutputParams, DeskewParams):
         from lls_core.models.results import WorkflowSlices
         WorkflowSlices.update_forward_refs(LatticeData=LatticeData)
         outputs = []
-        for workflow in self.generate_workflows():
+        for workflow in tqdm(self.generate_workflows(), desc="2D Slice Number"):
             for leaf in workflow.data.leafs():
                 outputs.append(
                     workflow.copy_with_data(

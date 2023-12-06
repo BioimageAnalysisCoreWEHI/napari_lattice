@@ -44,7 +44,7 @@ def minimal_image_path(request: pytest.FixtureRequest):
     "LLS7_t2_ch3.czi",
     "multich_multi_time.tif"
 ])
-def minimal_image_path(request: pytest.FixtureRequest):
+def image_path(request: pytest.FixtureRequest):
     """
     Fixture function that yields test images as file paths
     """
