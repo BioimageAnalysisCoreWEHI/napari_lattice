@@ -23,6 +23,19 @@ def rbc_tiny():
         yield image_path
 
 @pytest.fixture(params=[
+    "LLS7_t1_ch1.czi",
+    "LLS7_t1_ch3.czi",
+    "LLS7_t2_ch1.czi",
+    "LLS7_t2_ch3.czi",
+])
+def minimal_image_path(request: pytest.FixtureRequest):
+    """
+    Fixture function that yields a minimal set of test images as file paths
+    """
+    with as_file(resources / request.param) as image_path:
+        yield image_path
+
+@pytest.fixture(params=[
     "RBC_tiny.czi",
     "RBC_lattice.tif",
     "LLS7_t1_ch1.czi",
@@ -31,7 +44,7 @@ def rbc_tiny():
     "LLS7_t2_ch3.czi",
     "multich_multi_time.tif"
 ])
-def image_path(request: pytest.FixtureRequest):
+def minimal_image_path(request: pytest.FixtureRequest):
     """
     Fixture function that yields test images as file paths
     """

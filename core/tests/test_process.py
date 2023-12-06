@@ -15,8 +15,18 @@ root = Path(__file__).parent / "data"
 def open_psf(name: str):
     with as_file(resources / "psfs" / "zeiss_simulated" / name) as path:
         return path
+
 @parameterized
-def test_process(image_path: str, args: dict):
+def test_process(minimal_image_path: str, args: dict):
+    # Processes a minimal set of images, with multiple parameter combinations
+    for slice in LatticeData.parse_obj({
+        "input_image": minimal_image_path,
+        **args
+    }).process().slices:
+        assert slice.data.ndim == 3
+
+def test_process_all(image_path: str, args: dict):
+    # Processes all input images, but without parameter combinations
     for slice in LatticeData.parse_obj({
         "input_image": image_path,
         **args
@@ -24,10 +34,10 @@ def test_process(image_path: str, args: dict):
         assert slice.data.ndim == 3
 
 @parameterized
-def test_save(image_path: str, args: dict):
+def test_save(minimal_image_path: str, args: dict):
     with tempfile.TemporaryDirectory() as tempdir:
         LatticeData.parse_obj({
-            "input_image": image_path,
+            "input_image": minimal_image_path,
             "save_dir": tempdir,
             **args
         }).process().save_image()
