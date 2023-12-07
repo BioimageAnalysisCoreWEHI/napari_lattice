@@ -348,7 +348,9 @@ class DeconvolutionFields(NapariFieldGroup):
     # A counterpart to the DeconvolutionParams Pydantic class
     fields_enabled = field(False, label="Enabled")
     decon_processing = field(DeconvolutionChoice, label="Processing Algorithm")
-    psf = field(List[Path], label = "PSFs")
+    psf = field(List[Path], label = "PSFs").with_options(
+        tooltip="PSFs must be in the same order as the image channels"
+    )
     psf_num_iter = field(int, label = "Number of Iterations")
     background = field(ComboBox).with_choices(
         [it.value for it in BackgroundSource]
