@@ -16,6 +16,7 @@ from napari_lattice.fields import (
 )
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QTabWidget
+from napari_lattice.parent_connect import ParentConnect
 
 if TYPE_CHECKING:
     from typing import Iterable
@@ -102,6 +103,12 @@ class LLSZWidget(MagicTemplate):
                 for i, label in enumerate(["1. Deskew", "2. Deconvolution", "3. Crop", "4. Workflow", "5. Output"]):
                     tab_widget.setTabText(i, label)
                 for field in [self.deskew_fields, self.deconv_fields, self.cropping_fields, self.workflow_fields, self.output_fields]:
+                    # Connect event handlers
+                    for subfield_name in dir(field):
+                        subfield = getattr(field, subfield_name)
+                        if isinstance(subfield, ParentConnect):
+                            subfield.resolve(self, field, subfield_name)
+                    # Trigger validation of default data
                     field._validate()
 
             # Using vfields here seems to prevent https://github.com/hanjinliu/magic-class/issues/110

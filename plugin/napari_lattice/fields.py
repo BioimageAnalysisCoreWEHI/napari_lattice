@@ -32,6 +32,7 @@ from napari_lattice.utils import get_layers
 from napari_workflows import Workflow, WorkflowManager
 from qtpy.QtWidgets import QTabWidget
 from strenum import StrEnum
+from napari_lattice.parent_connect import connect_parent
 
 if TYPE_CHECKING:
     from magicgui.widgets.bases import RangedWidget
@@ -348,8 +349,9 @@ class DeconvolutionFields(NapariFieldGroup):
     # A counterpart to the DeconvolutionParams Pydantic class
     fields_enabled = field(False, label="Enabled")
     decon_processing = field(DeconvolutionChoice, label="Processing Algorithm")
-    psf = field(List[Path], label = "PSFs").with_options(
-        tooltip="PSFs must be in the same order as the image channels"
+    psf = field(List[Path], label = "PSFs", widget_type="ListEdit").with_options(
+        tooltip="PSFs must be in the same order as the image channels",
+        layout="vertical"
     )
     psf_num_iter = field(int, label = "Number of Iterations")
     background = field(ComboBox).with_choices(
@@ -539,7 +541,8 @@ class OutputFields(NapariFieldGroup):
             save_name="PLACEHOLDER"
         )
 
-    def _on_image_changed(self, img: DataArray):
+    @connect_parent("deskew_fields.img_layer")
+    def on_image_changed(self, img: DataArray):
         # Update the maximum T and C
         for widget in self.time_range:
             adjust_maximum(widget, img.sizes["T"])
