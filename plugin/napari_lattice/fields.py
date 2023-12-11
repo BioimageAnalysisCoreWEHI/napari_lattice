@@ -164,6 +164,12 @@ class NapariFieldGroup(MagicTemplate):
         from qtpy.QtCore import Qt
         self._widget._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
+    def _get_deskew(self) -> DeskewParams:
+        "Returns the DeskewParams from the other tab"
+        from napari_lattice.dock_widget import LLSZWidget
+        parent = self.find_ancestor(LLSZWidget)
+        return parent.LlszMenu.WidgetContainer.deskew_fields._make_model()
+
     def _get_parent_tab_widget(self) -> QTabWidget:
         qwidget = self.native
         # Walk up the widget tree until we find the tab widget
@@ -205,9 +211,6 @@ class NapariFieldGroup(MagicTemplate):
 
     def _make_model(self):
         raise NotImplementedError()
-
-    def _on_image_changed(self, img: DataArray):
-        pass
 
 class DeskewKwargs(NapariImageParams):
     angle: float
@@ -349,7 +352,7 @@ class DeconvolutionFields(NapariFieldGroup):
     # A counterpart to the DeconvolutionParams Pydantic class
     fields_enabled = field(False, label="Enabled")
     decon_processing = field(DeconvolutionChoice, label="Processing Algorithm")
-    psf = field(List[Path], label = "PSFs", widget_type="ListEdit").with_options(
+    psf = field(Tuple[Path, Path, Path, Path], label = "PSFs").with_options(
         tooltip="PSFs must be in the same order as the image channels",
         layout="vertical"
     )
@@ -394,7 +397,8 @@ class DeconvolutionFields(NapariFieldGroup):
         return DeconvolutionParams(
             decon_processing=self.decon_processing.value,
             background=background,
-            psf=self.psf.value,
+            # Filter out unset PSFs
+            psf=[psf for psf in self.psf.value if psf.is_file()],
             psf_num_iter=self.psf_num_iter.value
         )
 
@@ -416,12 +420,6 @@ class CroppingFields(NapariFieldGroup):
     )
     errors = field(Label).with_options(label="Errors")
 
-    def _get_deskew(self) -> DeskewParams:
-        "Returns the DeskewParams from the other tab"
-        from napari_lattice.dock_widget import LLSZWidget
-        parent = self.find_ancestor(LLSZWidget)
-        return parent.LlszMenu.WidgetContainer.deskew_fields._make_model()
-
     @set_design(text="Import ROI")
     def import_roi(self, path: Path):
         from lls_core.cropping import read_imagej_roi
@@ -440,8 +438,14 @@ class CroppingFields(NapariFieldGroup):
         shapes.mode = "ADD_RECTANGLE"
         shapes.name = "Napari Lattice Crop"
 
-    def _on_image_changed(self, img: DataArray):
-        deskew = self._get_deskew()
+    @connect_parent("deskew_fields.img_layer")
+    def _on_image_changed(self, field: MagicField):
+        try:
+            deskew = self._get_deskew()
+        except:
+            # Ignore if the deskew parameters are invalid
+            return
+
         deskewed_zmax = deskew.derived.deskew_vol_shape[0]
 
         # Update the allowed Z based the deskewed shape
@@ -542,7 +546,12 @@ class OutputFields(NapariFieldGroup):
         )
 
     @connect_parent("deskew_fields.img_layer")
-    def on_image_changed(self, img: DataArray):
+    def _on_image_changed(self, field: MagicField):
+        try:
+            img = self._get_deskew().input_image
+        except:
+            return
+
         # Update the maximum T and C
         for widget in self.time_range:
             adjust_maximum(widget, img.sizes["T"])

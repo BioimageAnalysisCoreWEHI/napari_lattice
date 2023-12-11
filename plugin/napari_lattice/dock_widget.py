@@ -74,10 +74,10 @@ class LLSZWidget(MagicTemplate):
         main_heading = field("<h3>Napari Lattice: Visualization & Analysis</h3>", widget_type="Label")
         heading1 = field(dedent("""
         <div>
-        Specify deskewing parameters and image layers in Tab 1.
-        Additional analysis parameters can be configured in the other tabs.
-        When you are ready to save, go to Tab 5.
-        Output to specify the output directory.
+        Specify deskewing parameters and image layers in Tab 1. 
+        Additional analysis parameters can be configured in the other tabs. 
+        When you are ready to save, go to Tab 5. 
+        Output to specify the output directory. 
         For more information, <a href="https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki">please refer to the documentation here</a>.
         </div>
         """.strip()), widget_type="Label")
@@ -154,18 +154,6 @@ class LLSZWidget(MagicTemplate):
         lattice = self._make_model()
         lattice.save()
         show_info(f"Deskewing successfuly completed. Results are located in {lattice.save_dir}")
-
-    @LlszMenu.WidgetContainer.deskew_fields.connect
-    def _on_image_changed(self, deskew: DeskewFields):
-        # An error at this point doesn't need to be communicated to the user
-        try:
-            img = deskew._get_kwargs()["data"]
-            # We have to manually trigger _on_image_changed because siblings
-            # classes can't listen to each other's events: https://github.com/hanjinliu/magic-class/issues/129
-            for field in self._get_fields():
-                field._on_image_changed(img)
-        except:
-            pass
 
     def _get_fields(self) -> Iterable[NapariFieldGroup]:
         """Yields all the child Field classes which inherit from NapariFieldGroup"""
