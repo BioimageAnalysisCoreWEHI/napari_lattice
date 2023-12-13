@@ -39,7 +39,7 @@ def check_subclass(obj: Any, pkg_name: str, cls_name: str) -> bool:
 def is_napari_shape(obj: Any) -> TypeGuard[Shapes]:
     return check_subclass(obj, "napari.shapes", "Shapes")
 
-def calculate_crop_bbox(shape: int, z_start: int, z_end: int) -> tuple[List[List[Any]], List[int]]:
+def calculate_crop_bbox(shape: list, z_start: int, z_end: int) -> tuple[List[List[Any]], List[int]]:
     """Get bounding box as vertices in 3D in the form xyz
 
     Args:

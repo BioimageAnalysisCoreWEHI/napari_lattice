@@ -272,9 +272,9 @@ def crop_volume_deskew(
         crop_height = crop_vol_shape[1]
 
         # Find "excess" volume on both sides due to deskewing
-        crop_excess = (
-            int(round((deskewed_height - crop_height) / 2))
-            + out_bounds_correction
+        crop_excess: int = max(
+            int(round((deskewed_height - crop_height) / 2)) + out_bounds_correction,
+            0
         )
         # Crop in Y
         deskewed_prelim = np.asarray(deskewed_prelim)
@@ -285,10 +285,11 @@ def crop_volume_deskew(
     elif skew_dir == DeskewDirection.X:
         deskewed_width = deskewed_prelim.shape[2]
         crop_width = crop_vol_shape[2]
+        
         # Find "excess" volume on both sides due to deskewing
-        crop_excess = (
-            int(round((deskewed_width - crop_width) / 2))
-            + out_bounds_correction
+        crop_excess = max(
+            int(round((deskewed_width - crop_width) / 2)) + out_bounds_correction,
+            0
         )
         # Crop in X
         deskewed_prelim = np.asarray(deskewed_prelim)
