@@ -58,6 +58,6 @@ class CropParams(FieldAccessModel):
     @validator("roi_subset", pre=True, always=True)
     def default_roi_range(cls, v: Any, values: dict):
         # If the roi range isn't provided, assume all rois should be processed
-        if v is None:
+        if v is None and "roi_list" in values:
             return list(range(len(values["roi_list"])))
         return v

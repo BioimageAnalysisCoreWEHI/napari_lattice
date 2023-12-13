@@ -434,9 +434,9 @@ class CroppingFields(NapariFieldGroup):
     @set_design(text="New Crop")
     def new_crop_layer(self):
         from napari_lattice.utils import get_viewer
-        shapes = get_viewer().add_shapes()
+        shapes = get_viewer().add_shapes(name="Napari Lattice Crop")
         shapes.mode = "ADD_RECTANGLE"
-        shapes.name = "Napari Lattice Crop"
+        self.shapes.value += [shapes]
 
     @connect_parent("deskew_fields.img_layer")
     def _on_image_changed(self, field: MagicField):
@@ -467,7 +467,7 @@ class CroppingFields(NapariFieldGroup):
             return CropParams(
                 # Convert from the input image space to the deskewed image space
                 # We assume here that dx == dy which isn't ideal
-                roi_list=ShapesData([np.array(shape.data) / deskew.dy for shape in self.shapes.value]),
+                roi_list=ShapesData([np.array(shape.data) / deskew.dy for shape in self.shapes.value if len(shape.data) > 0]),
                 z_range=tuple(self.z_range.value),
             )
         return None
@@ -542,8 +542,6 @@ class OutputFields(NapariFieldGroup):
             save_dir=self.save_path.value,
             save_suffix=self.save_suffix.value,
             save_type=self.save_type.value,
-            # This is just to avoid the validation error caused by the missing field
-            save_name="PLACEHOLDER"
         )
 
     @connect_parent("deskew_fields.img_layer")

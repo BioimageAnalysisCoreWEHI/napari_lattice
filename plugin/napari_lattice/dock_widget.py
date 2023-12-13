@@ -144,7 +144,7 @@ class LLSZWidget(MagicTemplate):
                 lattice.dy,
                 lattice.dx
             )
-            self.parent_viewer.add_image(slice.data, scale=scale)
+            self.parent_viewer.add_image(slice.data, scale=scale, name="Napari Lattice Preview")
             max_z = np.argmax(np.sum(slice.data, axis=(1, 2)))
             self.parent_viewer.dims.set_current_step(0, max_z)
 

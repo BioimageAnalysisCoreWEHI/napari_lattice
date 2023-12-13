@@ -23,7 +23,8 @@ class OutputParams(FieldAccessModel):
         description="The filename suffix that will be used for output files. This will be added as a suffix to the input file name if the input image was specified using a file name. If the input image was provided as an in-memory object, the `save_name` field should instead be specified."
     )
     save_name: str = Field(
-        description="The filename that will be used for output files. This should not contain a leading directory or file extension. The final output files will have additional elements added to the end of this prefix to indicate the region of interest, channel, timepoint, file extension etc."
+        description="The filename that will be used for output files. This should not contain a leading directory or file extension. The final output files will have additional elements added to the end of this prefix to indicate the region of interest, channel, timepoint, file extension etc.",
+        default=None
     )
     save_type: SaveFileType = Field(
         default=SaveFileType.h5,
