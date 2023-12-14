@@ -5,10 +5,6 @@ from pydantic import Field, root_validator, validator
 from dask.array.core import Array as DaskArray
 
 from typing import Any, Iterable, Optional, TYPE_CHECKING, Type
-
-import pyclesperanto_prototype as cle
-from tqdm import tqdm
-
 from lls_core import DeconvolutionChoice
 from lls_core.deconvolution import pycuda_decon, skimage_decon
 from lls_core.llsz_core import crop_volume_deskew
@@ -20,13 +16,11 @@ from lls_core.models.utils import ignore_keyerror
 from lls_core.types import ArrayLike
 from lls_core.models.deskew import DeskewParams
 from napari_workflows import Workflow
-from xarray import DataArray
-from pathlib import Path
 
 if TYPE_CHECKING:
-    import pyclesperanto_prototype as cle
     from lls_core.models.results import ImageSlice, ImageSlices, ProcessedSlice
     from lls_core.writers import Writer
+    from xarray import DataArray
 
 import logging
 
@@ -61,6 +55,7 @@ class LatticeData(OutputParams, DeskewParams):
         # TODO: separate the image file from the image file path as two separate fields,
         # so we don't have to put so much logic here
         from lls_core.types import is_pathlike
+        from pathlib import Path
         input_image = values.get("input_image")
         if is_pathlike(input_image):
             if values.get("save_name") is None:
@@ -120,12 +115,13 @@ class LatticeData(OutputParams, DeskewParams):
         """
         # This skips the conversion if no image was provided, to ensure a more 
         # user-friendly error is provided, namely "image was missing"
+        from collections.abc import Sequence
         with ignore_keyerror():
             default_start = 0
             default_end = values["input_image"].sizes["T"]
             if v is None:
                 return range(default_start, default_end)
-            elif isinstance(v, tuple) and len(v) == 2:
+            elif isinstance(v, Sequence) and len(v) == 2:
                 # Allow 2-tuples to be used as input for this field
                 return range(v[0] or default_start, v[1] or default_end)
         return v
@@ -135,12 +131,13 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Sets the default channel range if undefined
         """
+        from collections.abc import Sequence
         with ignore_keyerror():
             default_start = 0
             default_end = values["input_image"].sizes["C"]
             if v is None:
                 return range(default_start, default_end)
-            elif isinstance(v, tuple) and len(v) == 2:
+            elif isinstance(v, Sequence) and len(v) == 2:
                 # Allow 2-tuples to be used as input for this field
                 return range(v[0] or default_start, v[1] or default_end)
         return v
@@ -308,6 +305,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices with cropping enabled
         """
+        from tqdm import tqdm
         if self.crop is None:
             raise Exception("This function can only be called when crop is set")
             
@@ -348,6 +346,9 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices without cropping
         """
+        from tqdm import tqdm
+        import pyclesperanto_prototype as cle
+
         for slice in tqdm(self.iter_slices(), desc="2d Slice Number"):
             data: ArrayLike = slice.data
             if isinstance(slice.data, DaskArray):
@@ -387,6 +388,7 @@ class LatticeData(OutputParams, DeskewParams):
 
     def process_workflow(self) -> WorkflowSlices:
         from lls_core.models.results import WorkflowSlices
+        from tqdm import tqdm
         WorkflowSlices.update_forward_refs(LatticeData=LatticeData)
         outputs = []
         for workflow in tqdm(self.generate_workflows(), desc="2D Slice Number"):

@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from enum import auto
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 from strenum import StrEnum
 
 from lls_core.models.lattice_data import LatticeData
@@ -100,6 +100,30 @@ def rich_validation(e: ValidationError) -> Table:
 
     return table
 
+def update_nested_data(data: Union[dict, list], keys: list, new_value: Any):
+    from itertools import pairwise
+    current = data
+
+    for key, next_key in pairwise(keys):
+        next = {} if isinstance(next_key, str) else []
+        if isinstance(current, dict):
+            current = current.setdefault(key, next)
+        elif isinstance(current, list):
+            if key >= len(current):
+                current.insert(key, next)
+            current = current[key]
+        else:
+            raise ValueError(f"Unknown data type {type(current)}. Cannot traverse.")
+
+    last_key = keys[-1]
+    if isinstance(current, dict):
+        current[last_key] = new_value
+    elif isinstance(current, list):
+        current.insert(last_key, new_value)
+    else:
+        raise ValueError(f"Unknown data type {type(current)}. Cannot traverse.")
+
+# Example usage:
 @app.command()
 def process(
     ctx: Context,
@@ -145,12 +169,12 @@ def process(
         print(ctx.get_help())
         raise Exit()
 
-    from toolz.dicttoolz import merge_with, update_in
+    from toolz.dicttoolz import merge_with
     cli_args = {}
     for source, dest in CLI_PARAM_MAP.items():
         from click.core import ParameterSource
         if ctx.get_parameter_source(source) != ParameterSource.DEFAULT:
-            cli_args = update_in(cli_args, dest, lambda x: ctx.params[source])
+            update_nested_data(cli_args, dest, ctx.params[source])
 
     json_args = {}
     if json_config is not None:
