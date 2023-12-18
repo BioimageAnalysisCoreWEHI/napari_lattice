@@ -188,7 +188,7 @@ class DeskewParams(FieldAccessModel):
             return v
         elif v is None:
             deskew_vol_shape, deskew_affine_transform = get_deskewed_shape(
-                data.isel(C=0, T=0).to_numpy(),
+                data.isel(C=0, T=0),
                 values["angle"],
                 values["physical_pixel_sizes"].X,
                 values["physical_pixel_sizes"].Y,
