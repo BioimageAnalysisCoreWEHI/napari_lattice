@@ -309,6 +309,7 @@ class DeskewFields(NapariFieldGroup):
     def _rescale_image(self):
         # Whenever the pixel sizes are changed, this should be reflected in the viewer
         image: Image
+        from napari_lattice.utils import get_viewer
         try:
             pixels = self._get_kwargs()["physical_pixel_sizes"]
             for image in self.img_layer.value:
@@ -318,6 +319,8 @@ class DeskewFields(NapariFieldGroup):
                     pixels.Y,
                     pixels.X,
                 )
+            viewer = get_viewer()
+            viewer.reset_view()
         except:
             pass
 
