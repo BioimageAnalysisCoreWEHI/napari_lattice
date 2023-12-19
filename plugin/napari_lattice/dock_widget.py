@@ -49,22 +49,27 @@ class LLSZWidget(MagicTemplate):
 
         deskew_args = self.LlszMenu.WidgetContainer.deskew_fields._get_kwargs()
         output_args = self.LlszMenu.WidgetContainer.output_fields._make_model(validate=False)
-        args = dict(
+        params = LatticeData.make(
+            validate=validate, 
+
+            # Deskew
             input_image=deskew_args["data"],
             angle=deskew_args["angle"],
+            physical_pixel_sizes=deskew_args["physical_pixel_sizes"],
+            skew=deskew_args["skew"],
+
+            # Output
             channel_range=output_args.channel_range,
             time_range=output_args.time_range,
             save_dir=output_args.save_dir,
-            # We let the user specify a prefix, but if they don't, we can use the default
-            save_name=output_args.save_name or deskew_args["save_name"] ,
+            save_name=output_args.save_name or deskew_args["save_name"],
             save_type=output_args.save_type,
-            physical_pixel_sizes=deskew_args["physical_pixel_sizes"],
-            skew=deskew_args["skew"],
+            save_suffix=output_args.save_suffix,
+            
             workflow=self.LlszMenu.WidgetContainer.workflow_fields._make_model(),
             deconvolution=self.LlszMenu.WidgetContainer.deconv_fields._make_model(),
             crop=self.LlszMenu.WidgetContainer.cropping_fields._make_model()
         )
-        params = LatticeData.make(validate=validate, **args)
         # Log the lattice
         print(params, file=stdout)
         return params
