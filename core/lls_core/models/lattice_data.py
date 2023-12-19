@@ -314,15 +314,15 @@ class LatticeData(OutputParams, DeskewParams):
             # pass arguments for save tiff, callable and function arguments
             logger.info(f"Processing ROI {roi_index}")
             
-            deconv_args: dict[Any, Any] = {}
-            if self.deconvolution is not None:
-                deconv_args = dict(
-                    num_iter = self.deconvolution.psf_num_iter,
-                    psf = self.deconvolution.psf,
-                    decon_processing=self.deconvolution.decon_processing
-                )
-
             for slice in tqdm(self.iter_slices(), desc="2D Slice Number", position=1):
+                deconv_args: dict[Any, Any] = {}
+                if self.deconvolution is not None:
+                    deconv_args = dict(
+                        num_iter = self.deconvolution.psf_num_iter,
+                        psf = self.deconvolution.psf[slice.channel],
+                        decon_processing=self.deconvolution.decon_processing
+                    )
+
                 yield slice.copy_with_data(
                     crop_volume_deskew(
                         original_volume=slice.data,

@@ -1,6 +1,7 @@
 from typing import Any, List, Optional
 import pytest
 from lls_core.models import LatticeData
+from lls_core.models.crop import CropParams
 from lls_core.sample import resources
 from importlib_resources import as_file
 import tempfile
@@ -43,9 +44,19 @@ def test_save(minimal_image_path: str, args: dict):
         results = list(Path(tempdir).iterdir())
         assert len(results) > 0
 
+def test_process_deconv_crop():
+    for slice in LatticeData.parse_obj({
+        "input_image": root / "raw.tif",
+        "deconvolution": {
+            "psf": [root / "psf.tif"],
+        },
+        "crop": CropParams(roi_list = [[[0, 0], [0, 110], [95, 0], [95, 110]]])
+    }).process().slices:
+        assert slice.data.ndim == 3
+
 @pytest.mark.parametrize(["background"], [(1, ), ("auto",), ("second_last",)])
 @parameterized
-def test_process_deconvolution(args: dict, background: Any):
+def test_process_deconvolution(args: dict, background: Any, crop: Any):
     for slice in LatticeData.parse_obj({
         "input_image": root / "raw.tif",
         "deconvolution": {
