@@ -333,7 +333,7 @@ class LatticeData(OutputParams, DeskewParams):
                         linear_interpolation=True,
                         voxel_size_x=self.dx,
                         voxel_size_y=self.dy,
-                        voxel_size_z=self.dy,
+                        voxel_size_z=self.dz,
                         angle_in_degrees=self.angle,
                         deskewed_volume=self.deskewed_volume,
                         z_start=self.crop.z_range[0],
