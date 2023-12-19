@@ -305,6 +305,23 @@ class DeskewFields(NapariFieldGroup):
         self.dimension_order.reset_choices()
 
     @pixel_sizes_source.connect
+    @pixel_sizes.connect
+    def _rescale_image(self):
+        # Whenever the pixel sizes are changed, this should be reflected in the viewer
+        image: Image
+        try:
+            pixels = self._get_kwargs()["physical_pixel_sizes"]
+            for image in self.img_layer.value:
+                image.scale = (
+                    *image.scale[0:-3],
+                    pixels.Z,
+                    pixels.Y,
+                    pixels.X,
+                )
+        except:
+            pass
+
+    @pixel_sizes_source.connect
     @enable_if([pixel_sizes])
     def _hide_pixel_sizes(self, pixel_sizes_source: str):
         # Hide the "Pixel Sizes" option unless the user specifies manual pixel size source
