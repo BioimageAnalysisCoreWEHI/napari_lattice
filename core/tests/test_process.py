@@ -56,7 +56,7 @@ def test_process_deconv_crop():
 
 @pytest.mark.parametrize(["background"], [(1, ), ("auto",), ("second_last",)])
 @parameterized
-def test_process_deconvolution(args: dict, background: Any, crop: Any):
+def test_process_deconvolution(args: dict, background: Any):
     for slice in LatticeData.parse_obj({
         "input_image": root / "raw.tif",
         "deconvolution": {
