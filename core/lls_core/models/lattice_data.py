@@ -26,11 +26,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-workflow: Optional[Workflow] = Field(
-    default=None,
-    description="If defined, this is a workflow to add lightsheet processing onto"
-)
-
 class LatticeData(OutputParams, DeskewParams):
     """
     Holds data and metadata for a given image in a consistent format
@@ -45,7 +40,11 @@ class LatticeData(OutputParams, DeskewParams):
     #: If this is None, then cropping is disabled
     crop: Optional[CropParams] = None
  
-    workflow: Optional[Workflow] = workflow
+    workflow: Optional[Workflow] = Field(
+        default=None,
+        description="If defined, this is a workflow to add lightsheet processing onto",
+        cli_description="Path to a JSON file specifying a napari_workflow-compatible workflow to add lightsheet processing onto"
+    )
 
     @root_validator(pre=True)
     def use_image_path(cls, values: dict):

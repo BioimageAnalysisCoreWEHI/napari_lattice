@@ -23,9 +23,9 @@ class DefinedPixelSizes(FieldAccessModel):
     Like PhysicalPixelSizes, but it's a dataclass, and
     none of its fields are None
     """
-    X: NonNegativeFloat = 0.1499219272808386
-    Y: NonNegativeFloat = 0.1499219272808386
-    Z: NonNegativeFloat = 0.3
+    X: NonNegativeFloat = Field(default=0.1499219272808386, description="Size of the X dimension of the microscope pixels, in microns.")
+    Y: NonNegativeFloat = Field(default=0.1499219272808386, description="Size of the Y dimension of the microscope pixels, in microns.")
+    Z: NonNegativeFloat = Field(default=0.3, description="Size of the Z dimension of the microscope pixels, in microns.")
 
     @classmethod
     def from_physical(cls, pixels: PhysicalPixelSizes) -> Self:
@@ -53,7 +53,8 @@ class DerivedDeskewFields(FieldAccessModel):
 
 class DeskewParams(FieldAccessModel):
     input_image: DataArray = Field(
-        description="A 3-5D array containing the image data."
+        description="A 3-5D array containing the image data.",
+        cli_description="A path to any standard image file (TIFF, H5 etc) containing a 3-5D array to process."
     )
     skew: DeskewDirection = Field(
         default=DeskewDirection.Y,
@@ -61,7 +62,7 @@ class DeskewParams(FieldAccessModel):
     )
     angle: float = Field(
         default=30.0,
-        description="Angle of deskewing, in degrees."
+        description="Angle of deskewing, in degrees, as a float."
     )
     physical_pixel_sizes: DefinedPixelSizes = Field(
         default_factory=DefinedPixelSizes,
@@ -70,7 +71,8 @@ class DeskewParams(FieldAccessModel):
     derived: DerivedDeskewFields = Field(
         init_var=False,
         default=None,
-        description="Refer to the DerivedDeskewFields docstring"
+        description="Refer to the DerivedDeskewFields docstring",
+        cli_hide=True
     )
     # Hack to ensure that .skew_dir behaves identically to .skew
     @property

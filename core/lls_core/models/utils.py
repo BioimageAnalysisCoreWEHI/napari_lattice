@@ -54,11 +54,21 @@ class FieldAccessModel(BaseModel):
         """
         ret = {}
         for key, value in cls.__fields__.items():
+            if value.field_info.extra.get("cli_hide"):
+                # Hide any fields that have cli_hide = True
+                continue
+
             if isinstance(value.outer_type_, type) and issubclass(value.outer_type_, FieldAccessModel):
-                value = value.outer_type_.to_definition_dict()
+                rhs = value.outer_type_.to_definition_dict()
             else:
-                value = value.field_info.description
-            ret[key] = value
+                rhs: str
+                if "cli_description" in value.field_info.extra:
+                    # cli_description can be used to configure the help text that appears for fields for the CLI only
+                    rhs = value.field_info.extra["cli_description"]
+                else:
+                    rhs = value.field_info.description
+                rhs += f" Default: {value.get_default()}."
+            ret[key] = rhs
         return ret
 
     def copy_validate(self, **kwargs) -> Self:

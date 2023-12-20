@@ -12,15 +12,17 @@ class CropParams(FieldAccessModel):
     """
     roi_list: List[Roi] = Field(
         description="List of regions of interest, each of which must be an NxD array, where N is the number of vertices and D the coordinates of each vertex.",
+        cli_description="List of regions of interest, each of which must be the file path to ImageJ ROI file.",
         default = []
     )
     roi_subset: List[int] = Field(
-        description="A subset of all the ROIs to process",
+        description="A subset of all the ROIs to process. Each array item should be an index into the ROI list indicating an ROI to include.",
         default=None
     )
     z_range: Tuple[NonNegativeInt, NonNegativeInt] = Field(
         default=None,
-        description="The range of Z slices to take. All Z slices before the first index or after the last index will be cropped out."
+        description="The range of Z slices to take. All Z slices before the first index or after the last index will be cropped out.",
+        cli_description="An array with two items, indicating the index of the first and last Z slice to include."
     )
 
     @property

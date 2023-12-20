@@ -161,8 +161,19 @@ def process(
     workflow: Optional[Path] = Option(None, help="Path to a Napari Workflow file, in YAML format. If provided, the configured desekewing processing will be added to the chosen workflow.", show_default=False),
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
+
+    show_schema: bool = Option(default=False, help="If provided, image processing will not be performed, and instead a JSON document outlining the JSON/YAML options will be printed to stdout. This can be used to assist with writing a config file for use with the --json-config and --yaml-config options.")
 ) -> None:
     from click.core import ParameterSource
+    if show_schema:
+        import json
+        import sys
+        json.dump(
+            LatticeData.to_definition_dict(),
+            sys.stdout,
+            indent=4
+        )
+        return
 
     # Just print help if the user didn't provide any arguments
     if all(src != ParameterSource.COMMANDLINE for src in ctx._parameter_source.values()):
