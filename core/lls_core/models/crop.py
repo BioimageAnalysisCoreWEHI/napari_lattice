@@ -53,6 +53,9 @@ class CropParams(FieldAccessModel):
                 except:
                     raise ValueError(f"{item} cannot be intepreted as an ROI")
 
+        if len(rois) == 0:
+            raise ValueError("At least one region of interest must be specified if cropping is enabled")
+
         return rois
 
     @validator("roi_subset", pre=True, always=True)
