@@ -23,7 +23,7 @@ from pydantic import ValidationError
 
 if TYPE_CHECKING:
     from lls_core.models.utils import FieldAccessModel
-    from typing import Type, Any
+    from typing import Type, Any, Iterable
     from rich.table import Table
 
 class CliDeskewDirection(StrEnum):
@@ -100,8 +100,17 @@ def rich_validation(e: ValidationError) -> Table:
 
     return table
 
+def pairwise(iterable: Iterable) -> Iterable:
+    """
+    An implementation of the pairwise() function in Python 3.10+
+    See: https://docs.python.org/3.12/library/itertools.html#itertools.pairwise
+    """
+    from itertools import tee
+    a, b = tee(iterable)
+    next(b, None)
+    return zip(a, b)
+
 def update_nested_data(data: Union[dict, list], keys: list, new_value: Any):
-    from itertools import pairwise
     current = data
 
     for key, next_key in pairwise(keys):
