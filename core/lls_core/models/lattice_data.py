@@ -268,13 +268,13 @@ class LatticeData(OutputParams, DeskewParams):
                     LatticeData.process_into_image,
                     lattice_slice.data
                 )
-                for task_name, arg_index, arg_name in get_workflow_inputs(user_workflow):
-                    update_workflow(
-                        user_workflow,
-                        task_name,
-                        arg_index,
-                        "deskew_image"
-                    )
+                task_name, arg_index, _arg_name = get_workflow_inputs(user_workflow)
+                update_workflow(
+                    user_workflow,
+                    task_name,
+                    arg_index,
+                    "deskew_image"
+                )
                 yield lattice_slice.copy_with_data(user_workflow)
 
     def check_incomplete_acquisition(self, volume: ArrayLike, time_point: int, channel: int):

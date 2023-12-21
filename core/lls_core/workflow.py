@@ -21,7 +21,7 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-def get_workflow_inputs(workflow: Workflow):
+def get_workflow_inputs(workflow: Workflow) -> Tuple[str, int, str]:
     """
     Yields tuples of (task_name, argument_index, input_argument) corresponding to the workflow's inputs,
     namely the arguments that are unfilled.
@@ -30,7 +30,8 @@ def get_workflow_inputs(workflow: Workflow):
     for root_arg in workflow.roots():
         for taskname, (task_func, *args) in workflow._tasks.items():
             if root_arg in args:
-                yield taskname, args.index(root_arg) + 1, root_arg
+                return taskname, args.index(root_arg) + 1, root_arg
+    raise Exception("No inputs could be calculated")
 
 def update_workflow(workflow: Workflow, task_name: str, task_index: int, new_value: Any):
     task = list(workflow.get_task(task_name))

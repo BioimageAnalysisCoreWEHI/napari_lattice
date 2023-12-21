@@ -83,3 +83,14 @@ def test_table_workflow(minimal_image_path: Path, table_workflow: Workflow):
                 assert ncol > 0
             else:
                 assert valid_image_path(output)
+
+def test_argument_order(rbc_tiny: Path):
+    # Tests that only the first unfilled argument is passed an array
+    with tempfile.TemporaryDirectory() as tmpdir:
+        params = LatticeData(
+            input_image = rbc_tiny,
+            workflow = "core/tests/workflows/argument_order/test_workflow.yml",
+            save_dir = tmpdir
+        )
+        for roi, output in params.process_workflow().process():
+            print(output)
