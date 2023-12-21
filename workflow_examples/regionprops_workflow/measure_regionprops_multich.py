@@ -1,7 +1,6 @@
 
 #Channel specific  thresholding
 
-from napari_lattice import config
 from skimage.filters import threshold_triangle, threshold_otsu
 
 def segment_multich(img):
