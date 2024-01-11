@@ -3,15 +3,9 @@ Functions related to manipulating Napari Workflows
 """
 from __future__ import annotations
 
-from os import path
 from pathlib import Path
-from typing import Any, Optional, Tuple, Union
+from typing import Any, Optional, Tuple
 
-import dask.array as da
-import numpy as np
-import pandas as pd
-import pyclesperanto_prototype as cle
-from lls_core.types import ArrayLike
 from typing_extensions import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -90,37 +84,6 @@ def modify_workflow_task(old_arg: str, task_key: str, new_arg: str, workflow: Wo
     modified_task = tuple(task_list)
     return modified_task
 
-def replace_first_arg(workflow: Workflow, new_arg: str, old_arg: Optional[str] = None):
-    """
-    Replaces an argument in the first task of a workflow with some other value
-    Args:
-        old_arg: If provided, the name of an argument to replace, otherwise it defaults to the
-            first workflow arg
-    """
-    img_arg_first, _, first_task_name, _ = get_first_last_image_and_task(workflow)
-    if old_arg is None:
-        old_arg = img_arg_first
-    workflow.set(
-        first_task_name,
-        modify_workflow_task(
-            old_arg=old_arg,
-            task_key=first_task_name,
-            new_arg=new_arg,
-            workflow=workflow
-        )
-    )
-
-def load_custom_py_modules(custom_py_files):
-    import sys
-    from importlib import import_module, reload
-    test_first_module_import = import_module(custom_py_files[0])
-    if test_first_module_import not in sys.modules:
-        modules = map(import_module, custom_py_files)
-    else:
-        modules = map(reload, custom_py_files)
-    return modules
-    
-
 # TODO: CHANGE so user can select modules? Safer
 def get_all_py_files(directory: str) -> list[str]:
     """get all py files within directory and return as a list of filenames
@@ -183,45 +146,3 @@ def workflow_from_path(workflow: Path) -> Workflow:
     from napari_workflows._io_yaml_v1 import load_workflow
     _import_workflow_modules(workflow)
     return load_workflow(str(workflow))
-
-def process_custom_workflow_output(workflow_output: Union[dict, list, ArrayLike],
-                                   save_dir: Optional[str]=None,
-                                   idx: Optional[str]=None,
-                                   LLSZWidget=None,
-                                   widget_class=None,
-                                   channel=0,
-                                   time=0,
-                                   preview: bool = True):
-    """Check the output from a custom workflow; 
-    saves tables and images separately
-
-    Args:
-        workflow_output (_type_): _description_
-        save_dir (_type_): _description_
-        idx (_type_): _description_
-        LLSZWidget (_type_): _description_
-        widget_class (_type_): _description_
-        channel (_type_): _description_
-        time (_type_): _description_
-    """
-    if isinstance(workflow_output, (dict, list)):
-        # create function for tthis dataframe bit
-        df = pd.DataFrame(workflow_output)
-        if preview:
-            save_path = path.join(
-                save_dir, "lattice_measurement_"+str(idx)+".csv")
-            print(f"Detected a dictionary as output, saving preview at", save_path)
-            df.to_csv(save_path, index=False)
-            return df
-
-        else:
-            return df
-    elif isinstance(workflow_output, (np.ndarray, cle._tier0._pycl.OCLArray, da.core.Array)):
-        if preview:
-            suffix_name = str(idx)+"_c" + str(channel) + "_t" + str(time)
-            scale = (LLSZWidget.LlszMenu.lattice.new_dz,
-                     LLSZWidget.LlszMenu.lattice.dy, LLSZWidget.LlszMenu.lattice.dx)
-            widget_class.parent_viewer.add_image(
-                workflow_output, name="Workflow_preview_" + suffix_name, scale=scale)
-        else:
-            return workflow_output
