@@ -1,8 +1,8 @@
 from pydantic import Field, DirectoryPath, validator
 from strenum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING
-
+from typing import TYPE_CHECKING, Union
+from pandas import DataFrame
 from lls_core.models.utils import FieldAccessModel, enum_choices
 
 if TYPE_CHECKING:
@@ -65,3 +65,12 @@ class OutputParams(FieldAccessModel):
         Returns a filepath for the resulting data
         """
         return self.save_dir / Path(self.save_name + suffix).with_suffix("." + self.file_extension)
+    
+    def make_filepath_df(self, suffix: str,result:Union[DataFrame,list]) -> Path:
+        """
+        Returns a filepath for the non-image data
+        """
+        if isinstance(result, DataFrame):
+            return self.save_dir / Path(self.save_name + suffix).with_suffix(".csv")
+        
+        return 

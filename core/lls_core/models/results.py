@@ -135,7 +135,7 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
         """
         for roi, result in self.process():
             if isinstance(result, DataFrame):
-                path = self.lattice_data.make_filepath(make_filename_prefix(roi_index=roi))
+                path = self.lattice_data.make_filepath_df(make_filename_prefix(roi_index=roi),result)
                 result.to_csv(str(path))
                 yield path
             else:
