@@ -64,13 +64,23 @@ class OutputParams(FieldAccessModel):
         """
         Returns a filepath for the resulting data
         """
-        return self.save_dir / Path(self.save_name + suffix).with_suffix("." + self.file_extension)
+        return self.get_unique_filepath(self.save_dir / Path(self.save_name + suffix).with_suffix("." + self.file_extension))
     
     def make_filepath_df(self, suffix: str,result:Union[DataFrame,list]) -> Path:
         """
         Returns a filepath for the non-image data
         """
         if isinstance(result, DataFrame):
-            return self.save_dir / Path(self.save_name + suffix).with_suffix(".csv")
+            return self.get_unique_filepath(self.save_dir / Path(self.save_name + suffix).with_suffix(".csv"))
         
         return 
+    
+    def get_unique_filepath(self, path: Path) -> Path:
+        """
+        Returns a unique filepath by appending a number to the filename if the file already exists.
+        """
+        counter = 1
+        while path.exists():
+            path = path.with_name(f"{path.stem}_{counter}{path.suffix}")
+            counter += 1
+        return path

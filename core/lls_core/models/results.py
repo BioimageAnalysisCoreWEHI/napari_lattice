@@ -125,7 +125,7 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
                     for file in element.written_files:
                         yield roi, file
                 else:
-                    yield roi, pd.DataFrame(element)
+                    yield roi, pd.DataFrame(element[0])
 
     def save(self) -> Iterable[Path]:
         """
