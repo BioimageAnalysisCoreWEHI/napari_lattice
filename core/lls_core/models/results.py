@@ -8,7 +8,7 @@ from pydantic import BaseModel, NonNegativeInt
 from lls_core.types import ArrayLike, is_arraylike
 from lls_core.utils import make_filename_prefix
 from lls_core.writers import RoiIndex, Writer
-from pandas import DataFrame
+from pandas import DataFrame, Series
 
 if TYPE_CHECKING:
     from lls_core.models.lattice_data import LatticeData
@@ -125,7 +125,7 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
                     for file in element.written_files:
                         yield roi, file
                 else:
-                    yield roi, pd.DataFrame(element[0])
+                    yield roi, pd.DataFrame(element)
 
     def save(self) -> Iterable[Path]:
         """
@@ -136,6 +136,7 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
         for roi, result in self.process():
             if isinstance(result, DataFrame):
                 path = self.lattice_data.make_filepath_df(make_filename_prefix(roi_index=roi),result)
+                result = result.apply(Series.explode)
                 result.to_csv(str(path))
                 yield path
             else:
