@@ -66,7 +66,7 @@ class OutputParams(FieldAccessModel):
         """
         return self.get_unique_filepath(self.save_dir / Path(self.save_name + suffix).with_suffix("." + self.file_extension))
     
-    def make_filepath_df(self, suffix: str,result:Union[DataFrame,list]) -> Path:
+    def make_filepath_df(self, suffix: str, result: DataFrame) -> Path:
         """
         Returns a filepath for the non-image data
         """
