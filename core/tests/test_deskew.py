@@ -1,7 +1,9 @@
 #filename and function name should start with "test_" when using pytest
 import pyclesperanto_prototype as cle 
 import numpy as np 
-from lls_core.lattice_data import lattice_fom_array
+from lls_core.models.lattice_data import LatticeData
+from xarray import DataArray
+import tempfile
 
 def test_deskew():
 
@@ -15,6 +17,12 @@ def test_deskew():
     assert deskewed[2,2,0] == 0.5662433505058289
 
 def test_lattice_data_deskew():
-    raw = np.zeros((5, 5, 5))
-    lattice = lattice_fom_array(raw, physical_pixel_sizes = (1, 1, 1), save_name="test")
-    assert lattice.deskew_vol_shape == [2, 9, 5]
+    raw = DataArray(np.zeros((5, 5, 5)), dims=["X", "Y", "Z"])
+    with tempfile.TemporaryDirectory() as tmpdir:
+        lattice = LatticeData(
+            input_image=raw,
+            physical_pixel_sizes = (1, 1, 1),
+            save_name="test",
+            save_dir=tmpdir
+        )
+        assert lattice.derived.deskew_vol_shape == (2, 9, 5)

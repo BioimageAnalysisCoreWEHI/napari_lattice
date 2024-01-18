@@ -1,0 +1,30 @@
+input: "Z:\\LLS\\LLSZ\\Cindy\\20220907\\Control_1_15s-01.czi"
+output: "C:\\Users\\whitehead\\Desktop\\asdf"
+#skew_direction: Y
+#deskew_angle:
+processing: deskew
+#deconvolution:
+#deconvolution_num_iter:
+#deconvolution_psf:
+# - psf_ch1_path
+# - psf_ch2_path
+# - psf_ch3_path
+# - psf_ch4_path
+#roi_file: asdf.txt
+#voxel_sizes:
+#  - 0.3      #dz
+#  - 0.123    #dy
+#  - 0.256    #dx
+#file_extension:
+time_range:
+  - 3
+  - 5
+channel_range:
+  - 0
+  - 1
+#workflow_path:
+output_file_type: tif
+#channel:
+
+
+
