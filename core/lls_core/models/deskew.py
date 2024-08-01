@@ -1,7 +1,7 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from pydantic import Field, NonNegativeFloat, validator
+from pydantic import Field, NonNegativeFloat, validator, root_validator
 
 from typing import Any, Tuple
 from typing_extensions import Self, TYPE_CHECKING
@@ -12,7 +12,7 @@ from lls_core import DeskewDirection
 from xarray import DataArray
 
 from lls_core.models.utils import FieldAccessModel, enum_choices
-from lls_core.types import image_like_to_image
+from lls_core.types import image_like_to_image, is_arraylike, is_pathlike
 from lls_core.utils import get_deskewed_shape
 
 if TYPE_CHECKING:
@@ -164,11 +164,37 @@ class DeskewParams(FieldAccessModel):
             return DefinedPixelSizes(Z=v[0], Y=v[1], X=v[2])
         return v
 
+    @root_validator(pre=True)
+    def read_image(cls, values: dict):
+        from aicsimageio import AICSImage
+        from os import fspath
+
+        img = values["input_image"]
+
+        aics: AICSImage | None = None
+        if is_pathlike(img):
+            aics = AICSImage(fspath(img))
+        elif isinstance(img, AICSImage):
+            aics = img
+        elif is_arraylike(img):
+            values["input_image"] = DataArray(img)
+        else:
+            raise ValueError("Value of input_image was neither a path, an AICSImage, or array-like.")
+
+        # If the image was convertible to AICSImage, we should use the metadata from there
+        if aics:
+            values["input_image"] = aics.xarray_dask_data
+            values["physical_pixel_sizes"] = aics.physical_pixel_sizes
+
+        # In all cases, input_image will be a DataArray (XArray) at this point
+
+        return values
+
     @validator("input_image", pre=True)
-    def reshaping(cls, v: Any):
+    def reshaping(cls, v: DataArray):
         # This allows a user to pass in any array-like object and have it
         # converted and reshaped appropriately
-        array = image_like_to_image(v)
+        array = v
         if not set(array.dims).issuperset({"X", "Y", "Z"}):
             raise ValueError("The input array must at least have XYZ coordinates")
         if "T" not in array.dims:
