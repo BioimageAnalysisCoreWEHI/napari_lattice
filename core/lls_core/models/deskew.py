@@ -161,7 +161,7 @@ class DeskewParams(FieldAccessModel):
     def convert_pixels(cls, v: Any):
         # Allow the pixel sizes to be specified as a tuple
         if isinstance(v, tuple) and len(v) == 3:
-            return DefinedPixelSizes(X=v[0], Y=v[1], Z=v[2])
+            return DefinedPixelSizes(Z=v[0], Y=v[1], X=v[2])
         return v
 
     @validator("input_image", pre=True)

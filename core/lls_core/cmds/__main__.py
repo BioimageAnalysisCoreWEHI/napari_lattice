@@ -139,10 +139,10 @@ def process(
     input_image: Path = Argument(None, help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi", show_default=False),
     skew: CliDeskewDirection = field_from_model(DeskewParams, "skew"),# DeskewParams.make_typer_field("skew"),
     angle: float = field_from_model(DeskewParams, "angle") ,
-    pixel_sizes: Tuple[float, float, float] = field_from_model(DeskewParams, "physical_pixel_sizes", extra_description="This takes three arguments, corresponding to the X Y and Z pixel dimensions respectively", default=(
-        DeskewParams.get_default("physical_pixel_sizes").X,
+    pixel_sizes: Tuple[float, float, float] = field_from_model(DeskewParams, "physical_pixel_sizes", extra_description="This takes three arguments, corresponding to the Z, Y and X pixel dimensions respectively", default=(
+        DeskewParams.get_default("physical_pixel_sizes").Z,
         DeskewParams.get_default("physical_pixel_sizes").Y,
-        DeskewParams.get_default("physical_pixel_sizes").Z
+        DeskewParams.get_default("physical_pixel_sizes").X
     )),
 
     rois: List[Path] = field_from_model(CropParams, "roi_list", description="A list of paths pointing to regions of interest to crop to, in ImageJ format."), #Option([], help="A list of paths pointing to regions of interest to crop to, in ImageJ format."),

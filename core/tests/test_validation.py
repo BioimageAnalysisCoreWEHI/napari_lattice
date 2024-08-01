@@ -1,6 +1,7 @@
 from pathlib import Path
 from lls_core.models.crop import CropParams
 from lls_core.models.lattice_data import LatticeData
+from lls_core.models.deskew import DeskewParams
 import pytest
 from pydantic import ValidationError
 
@@ -23,3 +24,14 @@ def test_reject_crop():
         CropParams(
             roi_list=[]
         )
+
+def test_pixel_tuple_order(rbc_tiny: Path):
+    # Tests that a tuple of Z, Y, X is appropriately assigned in the right order
+    deskew = DeskewParams(
+        input_image=rbc_tiny,
+        physical_pixel_sizes=(1., 2., 3.)
+    )
+
+    assert deskew.physical_pixel_sizes.X == 3.
+    assert deskew.physical_pixel_sizes.Y == 2.
+    assert deskew.physical_pixel_sizes.Z == 1.
