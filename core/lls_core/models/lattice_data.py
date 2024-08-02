@@ -47,12 +47,7 @@ class LatticeData(OutputParams, DeskewParams):
     )
 
     @root_validator(pre=True)
-    def use_image_path(cls, values: dict):
-        # This needs to be a root validator to ensure it runs before the 
-        # reshaping validator. We can't override that either since it's 
-        # a field validator and can't modify save_name
-        # TODO: separate the image file from the image file path as two separate fields,
-        # so we don't have to put so much logic here
+    def read_image(cls, values: dict):
         from lls_core.types import is_pathlike
         from pathlib import Path
         input_image = values.get("input_image")
@@ -68,7 +63,8 @@ class LatticeData(OutputParams, DeskewParams):
                 # Convert a string path to a Path object
                 values["save_dir"] = Path(save_dir)
 
-        return values
+        # Use the Deskew version of this validator, to do the actual image loading
+        return super().read_image(values)
 
     @validator("workflow", pre=True)
     def parse_workflow(cls, v: Any):

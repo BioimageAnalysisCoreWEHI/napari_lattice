@@ -158,9 +158,12 @@ class DeskewParams(FieldAccessModel):
         return v
 
     @validator("physical_pixel_sizes", pre=True)
-    def convert_pixels(cls, v: Any):
-        # Allow the pixel sizes to be specified as a tuple
-        if isinstance(v, tuple) and len(v) == 3:
+    def convert_pixels(cls, v: Any, values: dict[Any, Any]):
+        from aicsimageio.types import PhysicalPixelSizes
+        if isinstance(v, PhysicalPixelSizes):
+            return DefinedPixelSizes.from_physical(v)
+        elif isinstance(v, tuple) and len(v) == 3:
+            # Allow the pixel sizes to be specified as a tuple
             return DefinedPixelSizes(Z=v[0], Y=v[1], X=v[2])
         return v
 
