@@ -161,10 +161,11 @@ class DeskewParams(FieldAccessModel):
     def convert_pixels(cls, v: Any, values: dict[Any, Any]):
         from aicsimageio.types import PhysicalPixelSizes
         if isinstance(v, PhysicalPixelSizes):
-            return DefinedPixelSizes.from_physical(v)
+            v = DefinedPixelSizes.from_physical(v)
         elif isinstance(v, tuple) and len(v) == 3:
             # Allow the pixel sizes to be specified as a tuple
-            return DefinedPixelSizes(Z=v[0], Y=v[1], X=v[2])
+            v = DefinedPixelSizes(Z=v[0], Y=v[1], X=v[2])
+        
         return v
 
     @root_validator(pre=True)
@@ -187,7 +188,8 @@ class DeskewParams(FieldAccessModel):
         # If the image was convertible to AICSImage, we should use the metadata from there
         if aics:
             values["input_image"] = aics.xarray_dask_data
-            values["physical_pixel_sizes"] = aics.physical_pixel_sizes
+            if all(size is not None for size in aics.physical_pixel_sizes):
+                values["physical_pixel_sizes"] = aics.physical_pixel_sizes
 
         # In all cases, input_image will be a DataArray (XArray) at this point
 
