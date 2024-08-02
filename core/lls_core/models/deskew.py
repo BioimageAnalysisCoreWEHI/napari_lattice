@@ -65,7 +65,7 @@ class DeskewParams(FieldAccessModel):
         description="Angle of deskewing, in degrees, as a float."
     )
     physical_pixel_sizes: DefinedPixelSizes = Field(
-        default_factory=DefinedPixelSizes,
+        # No default, because we need to distinguish between user provided arguments and defaults
         description="Pixel size of the microscope, in microns."
     )
     derived: DerivedDeskewFields = Field(
@@ -165,6 +165,10 @@ class DeskewParams(FieldAccessModel):
         elif isinstance(v, tuple) and len(v) == 3:
             # Allow the pixel sizes to be specified as a tuple
             v = DefinedPixelSizes(Z=v[0], Y=v[1], X=v[2])
+        elif v is None:
+            # At this point, we have exhausted all other methods of obtaining pixel sizes:
+            # User defined and image metadata. So we just use the defaults
+            return DefinedPixelSizes()
         
         return v
 
@@ -188,7 +192,9 @@ class DeskewParams(FieldAccessModel):
         # If the image was convertible to AICSImage, we should use the metadata from there
         if aics:
             values["input_image"] = aics.xarray_dask_data
-            if all(size is not None for size in aics.physical_pixel_sizes):
+            # Take pixel sizes from the image metadata, but only if they're defined
+            # and only if we don't already have them
+            if all(size is not None for size in aics.physical_pixel_sizes) and values.get("physical_pixel_sizes") is None:
                 values["physical_pixel_sizes"] = aics.physical_pixel_sizes
 
         # In all cases, input_image will be a DataArray (XArray) at this point
