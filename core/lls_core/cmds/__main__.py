@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, List, Optional, Tuple, Union
 from strenum import StrEnum
 
 from lls_core.models.lattice_data import LatticeData
-from lls_core.models.deskew import DeskewParams
+from lls_core.models.deskew import DeskewParams, DefinedPixelSizes
 from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.output import OutputParams
 from lls_core.models.crop import CropParams
@@ -140,9 +140,9 @@ def process(
     skew: CliDeskewDirection = field_from_model(DeskewParams, "skew"),# DeskewParams.make_typer_field("skew"),
     angle: float = field_from_model(DeskewParams, "angle") ,
     pixel_sizes: Tuple[float, float, float] = field_from_model(DeskewParams, "physical_pixel_sizes", extra_description="This takes three arguments, corresponding to the Z, Y and X pixel dimensions respectively", default=(
-        DeskewParams.get_default("physical_pixel_sizes").Z,
-        DeskewParams.get_default("physical_pixel_sizes").Y,
-        DeskewParams.get_default("physical_pixel_sizes").X
+        DefinedPixelSizes.get_default("Z"),
+        DefinedPixelSizes.get_default("Y"),
+        DefinedPixelSizes.get_default("X")
     )),
 
     rois: List[Path] = field_from_model(CropParams, "roi_list", description="A list of paths pointing to regions of interest to crop to, in ImageJ format."), #Option([], help="A list of paths pointing to regions of interest to crop to, in ImageJ format."),
