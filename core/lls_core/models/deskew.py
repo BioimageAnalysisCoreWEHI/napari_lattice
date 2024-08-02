@@ -66,7 +66,8 @@ class DeskewParams(FieldAccessModel):
     )
     physical_pixel_sizes: DefinedPixelSizes = Field(
         # No default, because we need to distinguish between user provided arguments and defaults
-        description="Pixel size of the microscope, in microns."
+        description="Pixel size of the microscope, in microns.",
+        default=None
     )
     derived: DerivedDeskewFields = Field(
         init_var=False,
@@ -157,7 +158,7 @@ class DeskewParams(FieldAccessModel):
             return DeskewDirection[v]
         return v
 
-    @validator("physical_pixel_sizes", pre=True)
+    @validator("physical_pixel_sizes", pre=True, always=True)
     def convert_pixels(cls, v: Any, values: dict[Any, Any]):
         from aicsimageio.types import PhysicalPixelSizes
         if isinstance(v, PhysicalPixelSizes):
