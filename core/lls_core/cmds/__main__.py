@@ -225,7 +225,7 @@ def process(
         raise Exit(code=1)
         
     lattice.save()
-    console.print(f"Processing successful. Results can be found in {save_dir.resolve()}")
+    console.print(f"Processing successful. Results can be found in {lattice.save_dir.resolve()}")
 
 
 def main():
