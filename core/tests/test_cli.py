@@ -70,10 +70,17 @@ def test_batch_deskew(flags: List[str], check_fn: Callable[[Path], None]):
     Write image to disk and then execute napari_lattice from terminal
     Checks if an deskewed output file is created for both tif and h5
     """
-    with tempfile.TemporaryDirectory() as out_dir:
-        out_dir = Path(out_dir)
-        input_file = out_dir / 'raw.tiff'
+    with tempfile.TemporaryDirectory() as _test_dir:
+        test_dir = Path(_test_dir)
+        
+        # Inputs
+        input_file = test_dir / "raw.tiff"
         create_image(input_file)
+
+        # Outputs
+        out_dir = test_dir / "output"
+        out_dir.mkdir()
+
         # Batch deskew and save as h5
         invoke([
             str(input_file),
