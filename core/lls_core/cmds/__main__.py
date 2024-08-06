@@ -174,6 +174,10 @@ def process(
     show_schema: bool = Option(default=False, help="If provided, image processing will not be performed, and instead a JSON document outlining the JSON/YAML options will be printed to stdout. This can be used to assist with writing a config file for use with the --json-config and --yaml-config options.")
 ) -> None:
     from click.core import ParameterSource
+    from rich.console import Console
+
+    console = Console(stderr=True)
+
     if show_schema:
         import json
         import sys
@@ -217,12 +221,12 @@ def process(
             )
         )
     except ValidationError as e:
-        from rich.console import Console
-        Console().print(rich_validation(e))
-        # Console().print(ctx.get_help())
+        console.print(rich_validation(e))
         raise Exit(code=1)
         
     lattice.save()
+    console.print(f"Processing successful. Results can be found in {save_dir.resolve()}")
+
 
 def main():
     app()

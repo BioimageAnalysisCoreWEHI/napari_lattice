@@ -228,6 +228,13 @@ class LatticeData(OutputParams, DeskewParams):
                     channel=ch,
                 ) 
 
+    @property
+    def n_slices(self) -> int:
+        """
+        Returns the number of slices that will be returned by the `iter_*` methods.
+        """
+        return len(self.time_range) * len(self.channel_range)
+
     def iter_sublattices(self, update_with: dict = {}) -> Iterable[ProcessedSlice[LatticeData]]:
         """
         Yields copies of the current LatticeData, one for each slice.
@@ -311,7 +318,7 @@ class LatticeData(OutputParams, DeskewParams):
             # pass arguments for save tiff, callable and function arguments
             logger.info(f"Processing ROI {roi_index}")
             
-            for slice in tqdm(self.iter_slices(), desc="2D Slice Number", position=1):
+            for slice in tqdm(self.iter_slices(), desc="2D Slice Number", position=1, total=self.n_slices):
                 deconv_args: dict[Any, Any] = {}
                 if self.deconvolution is not None:
                     deconv_args = dict(
@@ -346,7 +353,7 @@ class LatticeData(OutputParams, DeskewParams):
         from tqdm import tqdm
         import pyclesperanto_prototype as cle
 
-        for slice in tqdm(self.iter_slices(), desc="2d Slice Number"):
+        for slice in tqdm(self.iter_slices(), desc="2d Slice Number", total=self.n_slices):
             data: ArrayLike = slice.data
             if isinstance(slice.data, DaskArray):
                 data = slice.data.compute()
@@ -388,7 +395,7 @@ class LatticeData(OutputParams, DeskewParams):
         from tqdm import tqdm
         WorkflowSlices.update_forward_refs(LatticeData=LatticeData)
         outputs = []
-        for workflow in tqdm(self.generate_workflows(), desc="2D Slice Number"):
+        for workflow in tqdm(self.generate_workflows(), desc="2D Slice Number", total=self.n_slices):
             for leaf in workflow.data.leafs():
                 outputs.append(
                     workflow.copy_with_data(
