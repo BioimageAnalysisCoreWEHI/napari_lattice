@@ -224,7 +224,7 @@ class LatticeData(OutputParams, DeskewParams):
         from tqdm import tqdm
 
         for time_idx, time in tqdm(enumerate(self.time_range), desc="Timepoints", total=len(self.time_range)):
-            for ch_idx, ch in tqdm(enumerate(self.channel_range), desc="Channels", total=len(self.channel_range)):
+            for ch_idx, ch in tqdm(enumerate(self.channel_range), desc="Channels", total=len(self.channel_range), leave=False):
                 yield ProcessedSlice(
                     data=self.slice_data(time=time, channel=ch),
                     time_index=time_idx,
