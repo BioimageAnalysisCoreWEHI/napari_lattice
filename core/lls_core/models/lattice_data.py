@@ -23,7 +23,6 @@ if TYPE_CHECKING:
     from xarray import DataArray
 
 import logging
-
 logger = logging.getLogger(__name__)
 
 class LatticeData(OutputParams, DeskewParams):
@@ -65,6 +64,15 @@ class LatticeData(OutputParams, DeskewParams):
 
         # Use the Deskew version of this validator, to do the actual image loading
         return super().read_image(values)
+
+    @root_validator(pre=False)
+    def log_params(cls, values: dict):
+        """
+        Prints out the final parameter state
+        """
+        from rich.pretty import pretty_repr
+        logger.info(pretty_repr(values), extra={"markup": True})
+        return values
 
     @validator("workflow", pre=True)
     def parse_workflow(cls, v: Any):

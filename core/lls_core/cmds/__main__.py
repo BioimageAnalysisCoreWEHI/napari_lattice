@@ -17,6 +17,8 @@ from lls_core.models.output import OutputParams
 from lls_core.models.crop import CropParams
 from lls_core import DeconvolutionChoice
 from typer import Typer, Argument, Option, Context, Exit
+import logging
+from rich.logging import RichHandler
 
 from lls_core.models.output import SaveFileType
 from pydantic import ValidationError
@@ -171,12 +173,14 @@ def process(
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 
-    show_schema: bool = Option(default=False, help="If provided, image processing will not be performed, and instead a JSON document outlining the JSON/YAML options will be printed to stdout. This can be used to assist with writing a config file for use with the --json-config and --yaml-config options.")
+    show_schema: bool = Option(default=False, help="If provided, image processing will not be performed, and instead a JSON document outlining the JSON/YAML options will be printed to stdout. This can be used to assist with writing a config file for use with the --json-config and --yaml-config options."),
+    quiet: bool = Option(default=False, help="Silence all output.")
 ) -> None:
     from click.core import ParameterSource
-    from rich.console import Console
 
-    console = Console(stderr=True)
+    # The quiet flag informs the logging config
+    # RichHandler lets us do "pretty" logging
+    logging.basicConfig(level=logging.WARNING if quiet else logging.INFO, handlers=[RichHandler()])
 
     if show_schema:
         import json
@@ -221,11 +225,11 @@ def process(
             )
         )
     except ValidationError as e:
-        console.print(rich_validation(e))
+        logging.error(rich_validation(e), extra={"markup": True})
         raise Exit(code=1)
         
     lattice.save()
-    console.print(f"Processing successful. Results can be found in {lattice.save_dir.resolve()}")
+    logging.info(f"Processing successful. Results can be found in [bold]{lattice.save_dir.resolve()}[/]", extra={"markup": True})
 
 
 def main():
