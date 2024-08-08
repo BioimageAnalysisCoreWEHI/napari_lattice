@@ -79,11 +79,11 @@ class LLSZWidget(MagicTemplate):
         main_heading = field("<h3>Napari Lattice: Visualization & Analysis</h3>", widget_type="Label")
         heading1 = field(dedent("""
         <div>
-        Specify deskewing parameters and image layers in Tab 1. 
-        Additional analysis parameters can be configured in the other tabs. 
-        When you are ready to save, go to Tab 5. 
-        Output to specify the output directory. 
-        For more information, <a href="https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki">please refer to the documentation here</a>.
+        Specify deskewing parameters and image layers in Tab 1.&nbsp; 
+        Additional analysis parameters can be configured in the other tabs.&nbsp;
+        When you are ready to save,&nbsp;go to Tab 5.&nbsp;
+        Output to specify the output directory.&nbsp;
+        For more information,&nbsp;<a href="https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki">please refer to the documentation here</a>.
         </div>
         """.strip()), widget_type="Label")
 
@@ -136,7 +136,7 @@ class LLSZWidget(MagicTemplate):
         # so we made a copy using a subset of the times
         lattice = self._make_model(validate=False).copy_validate(update=dict(
             time_range = range(time, time+1),
-            channel_range = range(time, time+1),
+            channel_range = range(channel, channel+1),
             # Patch in a placeholder for the save dir because previewing doesn't use it
             # TODO: use a more elegant solution such as making the "saveable" lattice
             # a child class which more validations
