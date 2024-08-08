@@ -214,12 +214,17 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields array slices for each time and channel of interest.
 
+        Params:
+            progress: If the progress bar is enabled
+
         Returns:
             An iterable of tuples. Each tuple contains (time_index, time, channel_index, channel, slice)
         """
         from lls_core.models.results import ProcessedSlice
-        for time_idx, time in enumerate(self.time_range):
-            for ch_idx, ch in enumerate(self.channel_range):
+        from tqdm import tqdm
+
+        for time_idx, time in tqdm(enumerate(self.time_range), desc="Timepoints", total=len(self.time_range)):
+            for ch_idx, ch in tqdm(enumerate(self.channel_range), desc="Channels", total=len(self.channel_range)):
                 yield ProcessedSlice(
                     data=self.slice_data(time=time, channel=ch),
                     time_index=time_idx,
@@ -318,7 +323,7 @@ class LatticeData(OutputParams, DeskewParams):
             # pass arguments for save tiff, callable and function arguments
             logger.info(f"Processing ROI {roi_index}")
             
-            for slice in tqdm(self.iter_slices(), desc="2D Slice Number", position=1, total=self.n_slices):
+            for slice in self.iter_slices():
                 deconv_args: dict[Any, Any] = {}
                 if self.deconvolution is not None:
                     deconv_args = dict(
@@ -350,10 +355,9 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices without cropping
         """
-        from tqdm import tqdm
         import pyclesperanto_prototype as cle
 
-        for slice in tqdm(self.iter_slices(), desc="2d Slice Number", total=self.n_slices):
+        for slice in self.iter_slices():
             data: ArrayLike = slice.data
             if isinstance(slice.data, DaskArray):
                 data = slice.data.compute()
@@ -392,10 +396,9 @@ class LatticeData(OutputParams, DeskewParams):
 
     def process_workflow(self) -> WorkflowSlices:
         from lls_core.models.results import WorkflowSlices
-        from tqdm import tqdm
         WorkflowSlices.update_forward_refs(LatticeData=LatticeData)
         outputs = []
-        for workflow in tqdm(self.generate_workflows(), desc="2D Slice Number", total=self.n_slices):
+        for workflow in self.generate_workflows():
             for leaf in workflow.data.leafs():
                 outputs.append(
                     workflow.copy_with_data(
