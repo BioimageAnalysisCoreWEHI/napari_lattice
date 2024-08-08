@@ -1,0 +1,7 @@
+!!python/object:napari_workflows._workflow.Workflow
+_tasks:
+  test: !!python/tuple
+  - !!python/name:custom_function.test ''
+  - input_img
+  - "abc"
+  - 3

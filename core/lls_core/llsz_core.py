@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from aicsimageio.types import ArrayLike
 import numpy as np
 import pyclesperanto_prototype as cle
 from dask.array.core import Array as DaskArray
 import dask.array as da
 from resource_backed_dask_array import ResourceBackedDaskArray
-from typing import Optional, Union, TYPE_CHECKING
+from typing import Any, Optional, Union, TYPE_CHECKING, overload, Literal, Tuple
+from typing_extensions import Unpack, TypedDict, Required
 from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
     affine_transform_deskew_3d,
 )
@@ -14,6 +14,7 @@ from numpy.typing import NDArray
  
 from lls_core.utils import calculate_crop_bbox, check_subclass, is_napari_shape, pad_image_nearest_multiple
 from lls_core import config, DeskewDirection, DeconvolutionChoice
+from lls_core.types import ArrayLike
 from lls_core.deconvolution import pycuda_decon, skimage_decon
 
 # Enable Logging
@@ -33,10 +34,36 @@ Psf = Union[
         cle._tier0._pycl.OCLArray,
 ]
 
+class CommonArgs(TypedDict, total=False):
+    original_volume: Required[ArrayLike]
+    deskewed_volume: Union[ ArrayLike, None ]
+    roi_shape: Union[list, NDArray, None]
+    angle_in_degrees: float
+    voxel_size_x: float
+    voxel_size_y: float
+    voxel_size_z: float
+    z_start: int
+    z_end: int
+    deconvolution: bool
+    decon_processing: Optional[DeconvolutionChoice]
+    psf: Union[Psf, None]
+    num_iter: int
+    linear_interpolation: bool
+    skew_dir: DeskewDirection
+
+@overload
+def crop_volume_deskew(*, debug: Literal[True], get_deskew_and_decon: bool = False, **kwargs: Unpack[CommonArgs]) -> Tuple[NDArray, NDArray]:
+    ...
+@overload
+def crop_volume_deskew(*, debug: Literal[False] = False, get_deskew_and_decon: Literal[True], **kwargs: Unpack[CommonArgs]) -> Tuple[NDArray, NDArray]:
+    ...
+@overload
+def crop_volume_deskew(*, debug: Literal[False] = False, get_deskew_and_decon: Literal[False] = False, **kwargs: Unpack[CommonArgs]) -> NDArray:
+    ...
 def crop_volume_deskew(
     original_volume: ArrayLike,
     deskewed_volume: Union[ ArrayLike, None ] = None,
-    roi_shape: Union[Shapes, list, NDArray, None] = None,
+    roi_shape: Union[list, NDArray, None] = None,
     angle_in_degrees: float = 30,
     voxel_size_x: float = 1,
     voxel_size_y: float = 1,
@@ -45,7 +72,7 @@ def crop_volume_deskew(
     z_end: int = 1,
     debug: bool = False,
     deconvolution: bool = False,
-    decon_processing: Optional[str]=None,
+    decon_processing: Optional[DeconvolutionChoice]=None,
     psf: Union[Psf, None]=None,
     num_iter: int = 10,
     linear_interpolation: bool=True,
@@ -85,15 +112,15 @@ def crop_volume_deskew(
 
     # if shapes layer, get first one
     # TODO: test this
-    if is_napari_shape(roi_shape):
-        shape = roi_shape.data[0]
+    # if is_napari_shape(roi_shape):
+    #     shape = roi_shape.data[0]
     # if its a list and each element has a shape of 4, its a list of rois
-    elif type(roi_shape) is list and len(roi_shape[0]) == 4:
+    if isinstance(roi_shape, list) and len(roi_shape[0]) == 4:
         # TODO:change to accept any roi by passing index
         shape = roi_shape[0]
         # len(roi_shape) >= 1:
         # if its a array or list with shape of 4, its a single ROI
-    elif len(roi_shape) == 4 and type(roi_shape) in (np.ndarray, list):
+    elif len(roi_shape) == 4 and isinstance(roi_shape, (np.ndarray, list)):
         shape = roi_shape
 
     assert len(shape) == 4, print("Shape must be an array of shape 4")
@@ -245,9 +272,9 @@ def crop_volume_deskew(
         crop_height = crop_vol_shape[1]
 
         # Find "excess" volume on both sides due to deskewing
-        crop_excess = (
-            int(round((deskewed_height - crop_height) / 2))
-            + out_bounds_correction
+        crop_excess: int = max(
+            int(round((deskewed_height - crop_height) / 2)) + out_bounds_correction,
+            0
         )
         # Crop in Y
         deskewed_prelim = np.asarray(deskewed_prelim)
@@ -258,10 +285,11 @@ def crop_volume_deskew(
     elif skew_dir == DeskewDirection.X:
         deskewed_width = deskewed_prelim.shape[2]
         crop_width = crop_vol_shape[2]
+        
         # Find "excess" volume on both sides due to deskewing
-        crop_excess = (
-            int(round((deskewed_width - crop_width) / 2))
-            + out_bounds_correction
+        crop_excess = max(
+            int(round((deskewed_width - crop_width) / 2)) + out_bounds_correction,
+            0
         )
         # Crop in X
         deskewed_prelim = np.asarray(deskewed_prelim)

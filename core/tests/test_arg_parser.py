@@ -1,13 +1,18 @@
-from lls_core.cmds.__main__ import make_parser
+from typer.main import get_command
+from click import Context
+from lls_core.cmds.__main__ import app
+
 
 def test_voxel_parsing():
     # Tests that we can parse voxel lists correctly
-    parser = make_parser()
-    args = parser.parse_args([
-            "--input", "input",
-            "--output", "output",
-            "--processing", "deskew",
-            "--output_file_type", "tiff",
-            "--voxel_sizes", "1", "1", "1"
+    command = get_command(app)
+    ctx = Context(command)
+    parser = command.make_parser(ctx)
+    args, _, _ = parser.parse_args(args=[
+            "process",
+            "input",
+            "--save-name", "output",
+            "--save-type", "tiff",
+            "--pixel-sizes", "1", "1", "1"
     ])
-    assert args.voxel_sizes == [1.0, 1.0, 1.0]
+    assert args["pixel_sizes"] == ("1", "1", "1")
