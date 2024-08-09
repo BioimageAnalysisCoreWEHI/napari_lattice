@@ -1,0 +1,4 @@
+Simulated PSFs for Zeiss Lattice Lightsheet microscope generated using Zen Blue software
+The names correspond to the excitation wavelength of the simulated fluorescence bead
+
+Courtesy: Niall Geoghegan, Walter and Eliza Hall Institute of Medical Research, Melbourne, Australia 
