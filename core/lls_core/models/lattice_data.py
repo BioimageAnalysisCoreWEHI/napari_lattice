@@ -271,6 +271,7 @@ class LatticeData(OutputParams, DeskewParams):
             # We make a copy of the lattice for each slice, each of which has no associated workflow
             for lattice_slice in self.iter_sublattices(update_with={"workflow": None}):
                 user_workflow = copy(self.workflow)   
+                # We add a step whose result is called "deskew_image" that outputs a 2D image slice
                 user_workflow.set(
                     "deskew_image",
                     LatticeData.process_into_image,
@@ -395,19 +396,23 @@ class LatticeData(OutputParams, DeskewParams):
             )
 
     def process_workflow(self) -> WorkflowSlices:
+        """
+        Runs the workflow on each slice and returns the workflow results
+        """
         from lls_core.models.results import WorkflowSlices
         WorkflowSlices.update_forward_refs(LatticeData=LatticeData)
-        outputs = []
+        outputs: list[ProcessedSlice[Any]] = []
         for workflow in self.generate_workflows():
             for leaf in workflow.data.leafs():
                 outputs.append(
                     workflow.copy_with_data(
+                        # Evaluates the workflow here
                         workflow.data.get(leaf)
                     )
                 )
 
         return WorkflowSlices(
-            slices = outputs,
+            slices=outputs,
             lattice_data=self
         )
 

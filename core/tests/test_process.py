@@ -54,6 +54,19 @@ def test_process_deconv_crop():
     }).process().slices:
         assert slice.data.ndim == 3
 
+def test_process_time_range(multi_channel_time: Path):
+    from lls_core.models.output import SaveFileType
+    with tempfile.TemporaryDirectory() as outdir:
+        LatticeData.parse_obj({
+            "input_image": multi_channel_time,
+            # Channels 2 & 3
+            "channel_range": range(1, 3),
+            # Time point 2
+            "time_range": range(1, 2),
+            "save_dir": outdir,
+            "save_type": SaveFileType.h5
+        }).save()
+
 @pytest.mark.parametrize(["background"], [(1, ), ("auto",), ("second_last",)])
 @parameterized
 def test_process_deconvolution(args: dict, background: Any):
