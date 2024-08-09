@@ -22,6 +22,11 @@ def rbc_tiny():
     with as_file(resources / "RBC_tiny.czi") as image_path:
         yield image_path
 
+@pytest.fixture
+def multi_channel_time():
+    with as_file(resources / "multich_multi_time.tif") as image_path:
+        yield image_path
+
 @pytest.fixture(params=[
     "LLS7_t1_ch1.czi",
     "LLS7_t1_ch3.czi",

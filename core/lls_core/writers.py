@@ -65,8 +65,10 @@ class BdvWriter(Writer):
         import numpy as np
         self.bdv_writer.append_view(
             np.array(slice.data),
-            time=slice.time,
-            channel=slice.channel,
+            # We need to use the indices here to ensure they start from 0 and 
+            # are contiguous
+            time=slice.time_index,
+            channel=slice.channel_index,
             voxel_size_xyz=(self.lattice.dx, self.lattice.dy, self.lattice.new_dz),
             voxel_units='um'
         )
