@@ -333,8 +333,8 @@ class LatticeData(OutputParams, DeskewParams):
                         decon_processing=self.deconvolution.decon_processing
                     )
 
-                yield slice.copy_with_data(
-                    crop_volume_deskew(
+                yield slice.copy(update={
+                    "data": crop_volume_deskew(
                         original_volume=slice.data,
                         deconvolution=self.deconv_enabled,
                         get_deskew_and_decon=False,
@@ -349,8 +349,9 @@ class LatticeData(OutputParams, DeskewParams):
                         z_start=self.crop.z_range[0],
                         z_end=self.crop.z_range[1],
                         **deconv_args
-                    )
-                )
+                    ),
+                    "roi_index": roi_index
+                })
                 
     def _process_non_crop(self) -> Iterable[ImageSlice]:
         """

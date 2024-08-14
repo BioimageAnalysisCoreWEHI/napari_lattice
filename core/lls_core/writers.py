@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Iterable, Iterator, List, Optional
+from typing import TYPE_CHECKING, List, Optional
 
 from lls_core.types import ArrayLike
 
 from pydantic import NonNegativeInt
 
-from lls_core.utils import make_filename_prefix
+from lls_core.utils import make_filename_suffix
 RoiIndex = Optional[NonNegativeInt]
 
 if TYPE_CHECKING:
@@ -51,7 +51,7 @@ class BdvWriter(Writer):
 
     def __post_init__(self):
         import npy2bdv
-        path = self.lattice.make_filepath(make_filename_prefix(roi_index=self.roi_index))
+        path = self.lattice.make_filepath("_" + make_filename_suffix(roi_index=self.roi_index))
         self.bdv_writer = npy2bdv.BdvWriter(
             filename=str(path),
             compression='gzip',
@@ -100,7 +100,7 @@ class TiffWriter(Writer):
             ).astype("uint16")
             # ImageJ TIFF can only handle 16-bit uints, not 32
             path = self.lattice.make_filepath(
-                make_filename_prefix(
+                make_filename_suffix(
                     channel=first_result.channel,
                     time=first_result.time,
                     roi_index=first_result.roi_index

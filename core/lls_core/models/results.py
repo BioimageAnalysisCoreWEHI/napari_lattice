@@ -6,7 +6,7 @@ from typing import Iterable, Optional, Tuple, Union, cast, TYPE_CHECKING
 from typing_extensions import Generic, TypeVar
 from pydantic import BaseModel, NonNegativeInt
 from lls_core.types import ArrayLike, is_arraylike
-from lls_core.utils import make_filename_prefix
+from lls_core.utils import make_filename_suffix
 from lls_core.writers import RoiIndex, Writer
 from pandas import DataFrame, Series
 
@@ -95,8 +95,9 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
         """
         import pandas as pd
 
+        # Handle each ROI separately
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
-            values = []
+            values: list[Writer, dict, tuple, list] = []
             for result in roi_results:
                 # Ensure the data is in a tuple
                 data = (result.data,) if is_arraylike(result.data) else result.data
@@ -135,7 +136,7 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
         """
         for roi, result in self.process():
             if isinstance(result, DataFrame):
-                path = self.lattice_data.make_filepath_df(make_filename_prefix(roi_index=roi),result)
+                path = self.lattice_data.make_filepath_df(make_filename_suffix(roi_index=roi),result)
                 result = result.apply(Series.explode)
                 result.to_csv(str(path))
                 yield path
