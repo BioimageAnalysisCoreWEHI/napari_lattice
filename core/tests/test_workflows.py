@@ -75,12 +75,15 @@ def test_table_workflow(minimal_image_path: Path, table_workflow: Workflow):
             workflow = table_workflow,
             save_dir = tmpdir
         )
-        for roi, output in params.process_workflow().process():
+        for _roi, output in params.process_workflow().process():
             assert isinstance(output, (DataFrame, Path))
             if isinstance(output, DataFrame):
                 nrow, ncol = output.shape
                 assert nrow == params.nslices
                 assert ncol > 0
+                # Check that time and channel are included
+                assert output.iloc[0, 0] == "T0"
+                assert output.iloc[0, 1] == "C0"
             else:
                 assert valid_image_path(output)
 

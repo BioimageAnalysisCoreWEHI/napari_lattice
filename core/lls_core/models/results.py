@@ -97,11 +97,12 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
 
         # Handle each ROI separately
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
-            values: list[Writer, dict, tuple, list] = []
+            values: list[Writer | list] = []
             for result in roi_results:
                 # Ensure the data is in a tuple
                 data = (result.data,) if is_arraylike(result.data) else result.data
                 for i, element in enumerate(data):
+                    # If the element is array like, we assume it's an image to write to disk
                     if is_arraylike(element):
                         # Make the writer the first time only
                         if len(values) <= i:
@@ -114,10 +115,20 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
                             )
                         )
                     else:
+                        # Otherwise, we assume it's one row to be added to a data frame
                         if len(values) <= i:
                             values.append([])
 
                         rows = cast(list, values[i])
+
+                        if isinstance(element, list):
+                            # If the row is a list, it has no column names
+                            # We add the channel and time 
+                            element = [f"T{result.time_index}", f"C{result.channel_index}"] + element
+                        elif isinstance(element, dict):
+                            # If the row is a dict, it has column names
+                            element = {"time": f"T{result.time_index}", "channel": f"C{result.channel_index}", **element}
+
                         rows.append(element)
 
             for element in values:
