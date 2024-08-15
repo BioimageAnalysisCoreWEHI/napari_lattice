@@ -10,7 +10,6 @@ from lls_core.utils import make_filename_suffix
 from lls_core.writers import RoiIndex, Writer
 from lls_core.workflow import RawWorkflowOutput
 from pandas import DataFrame, Series
-from collections.abc import Iterable
 
 if TYPE_CHECKING:
     from lls_core.models.lattice_data import LatticeData
@@ -79,7 +78,7 @@ ProcessedWorkflowOutput = Union[
     DataFrame
 ]
 
-class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput] | RawWorkflowOutput]):
+class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]):
     """
     The counterpart of `ImageSlices`, but for workflow outputs.
     This is needed because workflows have vastly different outputs that may include regular
@@ -94,7 +93,7 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput] | RawWorkflowOutpu
 
         # Handle each ROI separately
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
-            values: list[Writer | list] = []
+            values: list[Union[Writer, list]] = []
             for result in roi_results:
                 # If the user didn't return a tuple, put it into one
                 data = result.data if isinstance(result.data, (tuple, list)) else (result.data,)
