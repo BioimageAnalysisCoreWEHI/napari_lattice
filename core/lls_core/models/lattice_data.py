@@ -17,6 +17,8 @@ from lls_core.types import ArrayLike
 from lls_core.models.deskew import DeskewParams
 from napari_workflows import Workflow
 
+from lls_core.workflow import get_workflow_output_name, workflow_set
+
 if TYPE_CHECKING:
     from lls_core.models.results import ImageSlice, ImageSlices, ProcessedSlice
     from lls_core.writers import Writer
@@ -75,6 +77,17 @@ class LatticeData(OutputParams, DeskewParams):
 
         if is_pathlike(v):
             return workflow_from_path(Path(v))
+        return v
+
+    @validator("workflow", pre=False)
+    def validate_workflow(cls, v: Optional[Workflow]):
+        if v is not None:
+            if not "deskewed_image" in v.roots():
+                raise ValueError("The workflow has no deskewed_image parameter, so is not compatible with the lls processing.")
+            try:
+                get_workflow_output_name(v)
+            except:
+                raise ValueError("The workflow has multiple output tasks. Only one is currently supported.")
         return v
 
     @validator("crop")
@@ -267,25 +280,23 @@ class LatticeData(OutputParams, DeskewParams):
                 return
 
             from copy import copy
-            from lls_core.workflow import get_workflow_inputs, update_workflow
             # We make a copy of the lattice for each slice, each of which has no associated workflow
             for lattice_slice in self.iter_sublattices(update_with={"workflow": None}):
                 user_workflow = copy(self.workflow)   
-                # We add a step whose result is called "deskew_image" that outputs a 2D image slice
+                # We add a step whose result is called "input_img" that outputs a 2D image slice
                 user_workflow.set(
-                    "deskew_image",
+                    "deskewed_image",
                     LatticeData.process_into_image,
                     lattice_slice.data
                 )
-                inputs = get_workflow_inputs(user_workflow)
-                if inputs is not None:
-                    task_name, arg_index, _arg_name = inputs
-                    update_workflow(
+                # Also add channel metadata to the workflow
+                for key in {"channel", "channel_index", "time", "time_index", "roi_index"}:
+                    workflow_set(
                         user_workflow,
-                        task_name,
-                        arg_index,
-                        "deskew_image"
+                        key,
+                        getattr(lattice_slice, key)
                     )
+                # The user can use any of these arguments as inputs to their tasks
                 yield lattice_slice.copy_with_data(user_workflow)
 
     def check_incomplete_acquisition(self, volume: ArrayLike, time_point: int, channel: int):
@@ -404,13 +415,12 @@ class LatticeData(OutputParams, DeskewParams):
         WorkflowSlices.update_forward_refs(LatticeData=LatticeData)
         outputs: list[ProcessedSlice[Any]] = []
         for workflow in self.generate_workflows():
-            for leaf in workflow.data.leafs():
-                outputs.append(
-                    workflow.copy_with_data(
-                        # Evaluates the workflow here
-                        workflow.data.get(leaf)
-                    )
+            outputs.append(
+                workflow.copy_with_data(
+                    # Evaluates the workflow here.
+                    workflow.data.get(get_workflow_output_name(workflow.data))
                 )
+            )
 
         return WorkflowSlices(
             slices=outputs,

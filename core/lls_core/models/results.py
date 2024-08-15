@@ -8,7 +8,9 @@ from pydantic import BaseModel, NonNegativeInt
 from lls_core.types import ArrayLike, is_arraylike
 from lls_core.utils import make_filename_suffix
 from lls_core.writers import RoiIndex, Writer
+from lls_core.workflow import RawWorkflowOutput
 from pandas import DataFrame, Series
+from collections.abc import Iterable
 
 if TYPE_CHECKING:
     from lls_core.models.lattice_data import LatticeData
@@ -71,18 +73,13 @@ class ImageSlices(ProcessedSlices[ArrayLike]):
             writer.close()
 
 
-RawWorkflowOutput = Union[
-    ArrayLike,
-    dict,
-    list
-]
 ProcessedWorkflowOutput = Union[
     # A path indicates a saved file
     Path,
     DataFrame
 ]
 
-class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
+class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput] | RawWorkflowOutput]):
     """
     The counterpart of `ImageSlices`, but for workflow outputs.
     This is needed because workflows have vastly different outputs that may include regular
@@ -99,8 +96,8 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
             values: list[Writer | list] = []
             for result in roi_results:
-                # Ensure the data is in a tuple
-                data = (result.data,) if is_arraylike(result.data) else result.data
+                # If the user didn't return a tuple, put it into one
+                data = result.data if isinstance(result.data, (tuple, list)) else (result.data,)
                 for i, element in enumerate(data):
                     # If the element is array like, we assume it's an image to write to disk
                     if is_arraylike(element):
@@ -121,13 +118,16 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
 
                         rows = cast(list, values[i])
 
-                        if isinstance(element, list):
-                            # If the row is a list, it has no column names
-                            # We add the channel and time 
-                            element = [f"T{result.time_index}", f"C{result.channel_index}"] + element
-                        elif isinstance(element, dict):
+                        if isinstance(element, dict):
                             # If the row is a dict, it has column names
                             element = {"time": f"T{result.time_index}", "channel": f"C{result.channel_index}", **element}
+                        elif isinstance(element, Iterable):
+                            # If the row is a list, it has no column names
+                            # We add the channel and time 
+                            element = [f"T{result.time_index}", f"C{result.channel_index}", *element]
+                        else:
+                            # If the row is just a value, we turn that value into a single column of the data frame
+                            element = [f"T{result.time_index}", f"C{result.channel_index}", element]
 
                         rows.append(element)
 
@@ -145,9 +145,9 @@ class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput]]):
         Images are saved in the format specified in the `LatticeData`, while
         other data types are saved as a data frame.
         """
-        for roi, result in self.process():
+        for i, (roi, result) in enumerate(self.process()):
             if isinstance(result, DataFrame):
-                path = self.lattice_data.make_filepath_df(make_filename_suffix(roi_index=roi),result)
+                path = self.lattice_data.make_filepath_df(make_filename_suffix(roi_index=roi, prefix=f"_output_{i}"), result)
                 result = result.apply(Series.explode)
                 result.to_csv(str(path))
                 yield path

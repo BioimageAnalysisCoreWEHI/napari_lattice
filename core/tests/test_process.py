@@ -131,6 +131,20 @@ def test_process_workflow(
             assert roi is None or isinstance(roi, int)
             assert isinstance(output, (Path, DataFrame))
 
+def test_table_workflow(
+    rbc_tiny: Path, table_workflow: Workflow
+):
+    with tempfile.TemporaryDirectory() as _tmpdir:
+        tmpdir = Path(_tmpdir)
+        results = set(LatticeData.parse_obj(
+            {
+                "input_image": rbc_tiny,
+                "workflow": table_workflow,
+                "save_dir": tmpdir
+            }
+        ).process_workflow().save())
+        # There should be one output for each element of the tuple
+        assert {result.name for result in results} == {'RBC_tiny_deskewed_output_3.csv', 'RBC_tiny_deskewed.h5', 'RBC_tiny_deskewed_output_1.csv', 'RBC_tiny_deskewed_output_2.csv'}
 
 @pytest.mark.parametrize(
     ["roi_subset"],

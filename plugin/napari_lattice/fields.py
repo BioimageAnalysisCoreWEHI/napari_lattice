@@ -61,7 +61,7 @@ def exception_to_html(e: BaseException) -> str:
         joined = '\n'.join(message)
         return f"<ul>{joined}</ul>"
     else:
-        return str(e)
+        return f"{type(e).__name__}: {e}"
 
 def get_friendly_validations(model: FieldGroup) -> str:
     """

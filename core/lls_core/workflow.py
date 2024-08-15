@@ -4,9 +4,11 @@ Functions related to manipulating Napari Workflows
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Optional, Tuple
+from typing import Any, Generator, Iterable, Iterator, Tuple, TypeVar, Union
 
 from typing_extensions import TYPE_CHECKING
+
+from lls_core.types import ArrayLike
 
 if TYPE_CHECKING:
     from napari_workflows import Workflow
@@ -15,7 +17,32 @@ import logging
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-def get_workflow_inputs(workflow: Workflow) -> Optional[Tuple[str, int, str]]:
+RawWorkflowOutput = Union[
+    ArrayLike,
+    dict,
+    list
+]
+
+def get_workflow_output_name(workflow: Workflow) -> str:
+    """
+    Returns the name of the singular workflow output
+    """
+    results = [
+        leaf
+        for leaf in workflow.leafs()
+        if leaf not in {"deskewed_image", "channel", "channel_index", "time", "time_index", "roi_index"}
+    ]
+    if len(results) > 1:
+        raise Exception("Only workflows with one output are supported.")
+    return results[0]
+
+def workflow_set(workflow: Workflow, name: str, func_or_data: Any, args: list = []):
+    """
+    The same as Workflow.set, but less buggy
+    """
+    workflow._tasks[name] = tuple([func_or_data] + args)
+
+def get_workflow_inputs(workflow: Workflow) -> Generator[Tuple[str, int, str]]:
     """
     Yields tuples of (task_name, argument_index, input_argument) corresponding to the workflow's inputs,
     namely the arguments that are unfilled.
@@ -24,10 +51,13 @@ def get_workflow_inputs(workflow: Workflow) -> Optional[Tuple[str, int, str]]:
     for root_arg in workflow.roots():
         for taskname, (task_func, *args) in workflow._tasks.items():
             if root_arg in args:
-                return taskname, args.index(root_arg) + 1, root_arg
-    return None
+                yield taskname, args.index(root_arg) + 1, root_arg
 
-def update_workflow(workflow: Workflow, task_name: str, task_index: int, new_value: Any):
+def update_workflow(workflow: Workflow, task_name: str, task_index: int, new_value: Any) -> None:
+    """
+    Mutates `workflow` by finding the task with name `task_name`, and setting the argument with index
+    `task_index` to `new_value`.
+    """
     task = list(workflow.get_task(task_name))
     task[task_index] = new_value
     workflow.set_task(task_name, tuple(task))

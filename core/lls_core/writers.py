@@ -51,7 +51,8 @@ class BdvWriter(Writer):
 
     def __post_init__(self):
         import npy2bdv
-        path = self.lattice.make_filepath("_" + make_filename_suffix(roi_index=self.roi_index))
+        suffix = f"_{make_filename_suffix(roi_index=str(self.roi_index))}" if self.roi_index is not None else ""
+        path = self.lattice.make_filepath(suffix)
         self.bdv_writer = npy2bdv.BdvWriter(
             filename=str(path),
             compression='gzip',
