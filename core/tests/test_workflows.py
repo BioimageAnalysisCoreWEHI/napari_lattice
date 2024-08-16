@@ -1,6 +1,5 @@
 from typing import Callable
 from copy import copy
-from importlib_resources import as_file
 from numpy.typing import NDArray
 
 from napari_workflows import Workflow
@@ -8,8 +7,6 @@ import tempfile
 
 from pandas import DataFrame
 from lls_core.models.lattice_data import LatticeData
-from lls_core.sample import resources
-from aicsimageio.aics_image import AICSImage
 
 from tests.utils import invoke
 from pathlib import Path
@@ -24,7 +21,7 @@ def test_napari_workflow(image_workflow: Workflow, test_image: NDArray):
     """
     workflow = copy(image_workflow)
     # Set input image to be the "raw" image
-    workflow.set("input", test_image)
+    workflow.set("deskewed_image", test_image)
     labeling = workflow.get("labeling")
     assert labeling[2, 2, 2] == 1
 

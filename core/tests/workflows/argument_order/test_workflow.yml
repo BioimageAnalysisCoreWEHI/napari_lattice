@@ -2,6 +2,6 @@
 _tasks:
   test: !!python/tuple
   - !!python/name:custom_function.test ''
-  - input_img
+  - deskewed_image
   - "abc"
   - 3
