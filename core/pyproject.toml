@@ -83,7 +83,7 @@ testing = [
     "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
     "napari" # We use napari for type checking only, and not at runtime
 ]
-psf = [
+deconvolution = [
     "pycudadecon"
 ]
 
