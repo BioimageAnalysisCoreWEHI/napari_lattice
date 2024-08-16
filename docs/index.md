@@ -1,3 +1,3 @@
-# Welcome to llsz_napari
+# Napari Lattice
 
 LLSZ

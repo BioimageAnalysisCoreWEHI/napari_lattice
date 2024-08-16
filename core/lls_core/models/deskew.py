@@ -3,8 +3,7 @@ from __future__ import annotations
 # TODO: handle scenes
 from pydantic import Field, NonNegativeFloat, validator, root_validator
 
-from typing import Any, Tuple
-from typing_extensions import Self, TYPE_CHECKING
+from typing_extensions import Self, TYPE_CHECKING, Any, Tuple
 
 import pyclesperanto_prototype as cle
 

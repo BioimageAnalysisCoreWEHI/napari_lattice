@@ -1,15 +1,14 @@
 
 from pydantic import Field, NonNegativeInt, validator
 
-from typing import Any, List, Literal, Union
-from typing_extensions import TypedDict
+from typing_extensions import Any, List, Literal, Union
 
 from xarray import DataArray
 
 from lls_core import DeconvolutionChoice
 from lls_core.models.utils import enum_choices, FieldAccessModel
 
-from lls_core.types import image_like_to_image, ImageLike
+from lls_core.types import image_like_to_image
 
 Background = Union[float, Literal["auto", "second_last"]]
 class DeconvolutionParams(FieldAccessModel):

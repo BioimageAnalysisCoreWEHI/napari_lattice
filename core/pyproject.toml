@@ -86,6 +86,13 @@ testing = [
 deconvolution = [
     "pycudadecon"
 ]
+docs = [
+    "mkdocstrings[python]",
+    "mkdocs-click",
+    "mkdocs-material",
+    "git+https://github.com/multimeric/fieldz@pydantic-v1",
+    "griffe-fieldz"
+]
 
 [project.scripts]
 lls-pipeline = "lls_core.cmds.__main__:main"

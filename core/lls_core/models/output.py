@@ -1,7 +1,7 @@
 from pydantic import Field, DirectoryPath, validator
 from strenum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING
 from pandas import DataFrame
 from lls_core.models.utils import FieldAccessModel, enum_choices
 

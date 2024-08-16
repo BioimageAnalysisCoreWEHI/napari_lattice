@@ -1,4 +1,4 @@
-from typing import Iterable, List, Tuple, Any
+from typing_extensions import Any, Iterable, List, Tuple
 from pydantic import Field, NonNegativeInt, validator
 from lls_core.models.utils import FieldAccessModel
 from lls_core.cropping import Roi

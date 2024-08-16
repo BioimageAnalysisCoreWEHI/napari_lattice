@@ -4,7 +4,7 @@ from __future__ import annotations
 from pydantic import Field, root_validator, validator
 from dask.array.core import Array as DaskArray
 
-from typing import Any, Iterable, Optional, TYPE_CHECKING, Type
+from typing_extensions import Any, Iterable, Optional, TYPE_CHECKING, Type
 from lls_core import DeconvolutionChoice
 from lls_core.deconvolution import pycuda_decon, skimage_decon
 from lls_core.llsz_core import crop_volume_deskew
@@ -36,11 +36,15 @@ class LatticeData(OutputParams, DeskewParams):
     # Note: originally the save-related fields were included via composition and not inheritance
     # (similar to how `crop` and `workflow` are handled), but this was impractical for implementing validations
 
-    #: If this is None, then deconvolution is disabled
-    deconvolution: Optional[DeconvolutionParams] = None
+    deconvolution: Optional[DeconvolutionParams] = Field(
+        default=None,
+        description="Parameters associated with the deconvolution. If this is None, then deconvolution is disabled"
+    )
 
-    #: If this is None, then cropping is disabled
-    crop: Optional[CropParams] = None
+    crop: Optional[CropParams] = Field(
+        default=None,
+        description="Cropping parameters. If this is None, then cropping is disabled"
+    )
  
     workflow: Optional[Workflow] = Field(
         default=None,
