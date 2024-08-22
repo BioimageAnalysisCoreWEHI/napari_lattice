@@ -94,3 +94,15 @@ def test_argument_order(rbc_tiny: Path):
         )
         for roi, output in params.process_workflow().process():
             print(output)
+
+def test_sum_preview(rbc_tiny: Path):
+    import numpy as np
+    # Tests that we can sum the preview result. This is required for the plugin
+    with tempfile.TemporaryDirectory() as tmpdir:
+        params = LatticeData(
+            input_image = rbc_tiny,
+            workflow = "core/tests/workflows/binarisation/workflow.yml",
+            save_dir = tmpdir
+        )
+        preview = params.process_workflow().extract_preview()
+        np.sum(preview, axis=(1, 2))

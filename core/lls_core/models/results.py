@@ -13,6 +13,7 @@ from lls_core.workflow import RawWorkflowOutput
 
 if TYPE_CHECKING:
     from lls_core.models.lattice_data import LatticeData
+    from numpy.typing import NDArray
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -150,13 +151,13 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
                 else:
                     yield roi, pd.DataFrame(element)
 
-    def extract_preview(self) -> ArrayLike:
+    def extract_preview(self) -> NDArray:
+        import numpy as np
         for slice in self.slices:
             for value in slice.as_tuple():
                 if is_arraylike(value):
-                    return value
+                    return np.asarray(value)
         raise Exception("No image was returned from this workflow")
-
 
     def save(self) -> Iterable[Path]:
         """
