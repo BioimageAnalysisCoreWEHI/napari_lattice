@@ -1,0 +1,28 @@
+site_name: Napari Lattice
+
+markdown_extensions:
+- mkdocs-click
+
+plugins:
+- search
+- mkdocstrings:
+    default_handler: python
+    handlers:
+      python:
+        options:
+          show_root_heading: true
+          # Inheritance and source are useful for advanced users,
+          # but possibly confusing for others
+          show_bases: false
+          show_source: false
+          show_signature_annotations: true
+          separate_signature: true
+          signature_crossrefs: true
+          extensions:
+          - griffe_fieldz:
+              include_inherited: true
+
+theme:
+  name: material
+  features:
+    - content.code.copy

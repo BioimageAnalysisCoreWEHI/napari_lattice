@@ -1,3 +1,1 @@
-# Napari Lattice
-
-LLSZ
+../README.md

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from typing import Iterable, Optional, Tuple, Union, cast, TYPE_CHECKING, overload
 from typing_extensions import Generic, TypeVar
-from pydantic import BaseModel, NonNegativeInt
+from pydantic import BaseModel, NonNegativeInt, Field
 from lls_core.types import ArrayLike, is_arraylike
 from lls_core.utils import make_filename_suffix
 from lls_core.writers import RoiIndex, Writer
@@ -59,12 +59,9 @@ class ProcessedSlices(BaseModel, Generic[T], arbitrary_types_allowed=True):
     This will never be instantiated directly.
     Refer to the concrete child classes for more detail.
     """
-    #: Iterable of result slices.
-    #: Note that this is a finite iterator that can only be iterated once
-    slices: Iterable[ProcessedSlice[T]]
+    slices: Iterable[ProcessedSlice[T]] = Field(description="Iterable of result slices. Note that this is a finite iterator that can only be iterated once")
+    lattice_data: LatticeData = Field(description='The "parent" LatticeData that was used to create this result')
 
-    #: The "parent" LatticeData that was used to create this result
-    lattice_data: LatticeData
 
 ImageSlice = ProcessedSlice[ArrayLike]
 class ImageSlices(ProcessedSlices[ArrayLike]):
@@ -84,12 +81,15 @@ class ImageSlices(ProcessedSlices[ArrayLike]):
                 writer.write_slice(slice)
             writer.close()
 
-
 ProcessedWorkflowOutput = Union[
     # A path indicates a saved file
     Path,
     DataFrame
 ]
+"""
+The result of a workflow. If this is a `Path`, then it is the path to an image saved to disk.
+If a `DataFrame`, then it contains non-image data returned by your workflow.
+"""
 
 class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]):
     """
@@ -151,6 +151,9 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
                     yield roi, pd.DataFrame(element)
 
     def extract_preview(self) -> ArrayLike:
+        """
+        Extracts a single 3D image for previewing purposes
+        """
         for slice in self.slices:
             for value in slice.as_tuple():
                 if is_arraylike(value):

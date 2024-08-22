@@ -4,14 +4,11 @@ __version__ = "0.2.6"
 from strenum import StrEnum
 from enum import Enum
 from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import DeskewDirection
+from lls_core.models.lattice_data import LatticeData
+from lls_core.models.deconvolution import DeconvolutionParams
+from lls_core.models.lattice_data import CropParams
 
 # Initialize configuration options
-
-#Choice of Deconvolution
-class DeconvolutionChoice(StrEnum):
-    cuda_gpu = "cuda_gpu"
-    opencl_gpu = "opencl_gpu"
-    cpu = "cpu"
 
 #CONFIGURE LOGGING using a dictionary (can also be done with yaml file)
 import logging.config

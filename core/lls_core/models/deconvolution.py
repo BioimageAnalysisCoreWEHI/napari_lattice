@@ -1,14 +1,22 @@
 
 from pydantic import Field, NonNegativeInt, validator
 
+from strenum import StrEnum
 from typing_extensions import Any, List, Literal, Union
 
 from xarray import DataArray
 
-from lls_core import DeconvolutionChoice
 from lls_core.models.utils import enum_choices, FieldAccessModel
 
 from lls_core.types import image_like_to_image
+
+class DeconvolutionChoice(StrEnum):
+    """
+    Deconvolution algorithm
+    """
+    cuda_gpu = "cuda_gpu"
+    opencl_gpu = "opencl_gpu"
+    cpu = "cpu"
 
 Background = Union[float, Literal["auto", "second_last"]]
 class DeconvolutionParams(FieldAccessModel):

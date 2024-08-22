@@ -8,8 +8,10 @@ from lls_core.models.utils import FieldAccessModel, enum_choices
 if TYPE_CHECKING:
     pass
 
-#Choice of File extension to save
 class SaveFileType(StrEnum):
+    """
+    Choice of File extension to save
+    """
     h5 = "h5"
     tiff = "tiff"
 
@@ -28,7 +30,7 @@ class OutputParams(FieldAccessModel):
     )
     save_type: SaveFileType = Field(
         default=SaveFileType.h5,
-        description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: {enum_choices(SaveFileType)}."
+        description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: {enum_choices(SaveFileType)}. Choices can alternatively be specifed as `str`, for example `'tiff'`."
     )
     time_range: range = Field(
         default=None,
