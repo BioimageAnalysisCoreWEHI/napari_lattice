@@ -21,6 +21,7 @@ from napari_lattice.parent_connect import ParentConnect
 if TYPE_CHECKING:
     from typing import Iterable
     from napari_lattice.fields import NapariFieldGroup
+    from lls_core.types import ArrayLike
 
 # Enable Logging
 logger = logging.getLogger(__name__)
@@ -143,15 +144,26 @@ class LLSZWidget(MagicTemplate):
             save_dir = Path.home()
         ))
 
-        for slice in lattice.process().slices:
-            scale = (
-                lattice.new_dz,
-                lattice.dy,
-                lattice.dx
-            )
-            self.parent_viewer.add_image(slice.data, scale=scale, name="Napari Lattice Preview")
-            max_z = np.argmax(np.sum(slice.data, axis=(1, 2)))
-            self.parent_viewer.dims.set_current_step(0, max_z)
+        scale = (
+            lattice.new_dz,
+            lattice.dy,
+            lattice.dx
+        )
+        preview: ArrayLike
+
+        # We extract the first available image to use as a preview
+        # This works differently for workflows and non-workflows
+        if lattice.workflow is None:
+            for slice in lattice.process().slices:
+                preview = slice.data
+                break
+        else:
+            preview = lattice.process_workflow().extract_preview()
+
+        self.parent_viewer.add_image(preview, scale=scale, name="Napari Lattice Preview")
+        max_z = np.argmax(np.sum(preview, axis=(1, 2)))
+        self.parent_viewer.dims.set_current_step(0, max_z)
+
 
     @set_design(text="Save")
     def save(self):
