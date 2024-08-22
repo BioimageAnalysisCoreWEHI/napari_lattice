@@ -91,7 +91,8 @@ docs = [
     "mkdocstrings[python]",
     "mkdocs-click",
     "mkdocs-material",
-    "git+https://github.com/multimeric/fieldz@pydantic-v1",
+    # Includes fixes for Pydantic 1.X
+    "fieldz>0.1.0",
     "griffe-fieldz"
 ]
 
