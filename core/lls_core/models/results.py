@@ -70,6 +70,10 @@ class ImageSlices(ProcessedSlices[ArrayLike]):
     This holds an iterable of output image slices before they are saved to disk,
     and provides a `save_image()` method for this purpose.
     """
+
+    # This re-definition of the type is helpful for `mkdocs`
+    slices: Iterable[ProcessedSlice[ArrayLike]] = Field(description="Iterable of result slices. For a given slice, you can access the image data through the `slice.data` property, which is a numpy-like array.")
+
     def save_image(self):
         """
         Saves result slices to disk
@@ -97,6 +101,10 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
     This is needed because workflows have vastly different outputs that may include regular
     Python types rather than only image slices.
     """
+
+    # This re-definition of the type is helpful for `mkdocs`
+    slices: Iterable[ProcessedSlice[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]] = Field(description="Iterable of raw workflow results, the exact nature of which is determined by the author of the workflow. Not typically useful directly, and using he result of `.process()` is recommended instead.")
+
     def process(self) -> Iterable[Tuple[RoiIndex, ProcessedWorkflowOutput]]:
         """
         Incrementally processes the workflow outputs, and returns both image paths and data frames of the outputs,
@@ -165,7 +173,7 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
         """
         Processes all workflow outputs and saves them to disk.
         Images are saved in the format specified in the `LatticeData`, while
-        other data types are saved as a data frame.
+        other data types are saved as a CSV.
         """
         from pandas import DataFrame, Series
         for i, (roi, result) in enumerate(self.process()):

@@ -10,6 +10,8 @@
 ::: lls_core.DeconvolutionParams
 
 ::: lls_core.CropParams
+    options:
+      members: false
 
 ::: lls_core.models.results.ImageSlices
 

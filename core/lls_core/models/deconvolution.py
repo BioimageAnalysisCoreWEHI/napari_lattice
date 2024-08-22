@@ -1,22 +1,13 @@
 
 from pydantic import Field, NonNegativeInt, validator
 
-from strenum import StrEnum
 from typing_extensions import Any, List, Literal, Union
 
 from xarray import DataArray
 
 from lls_core.models.utils import enum_choices, FieldAccessModel
-
+from lls_core.deconvolution import DeconvolutionChoice
 from lls_core.types import image_like_to_image
-
-class DeconvolutionChoice(StrEnum):
-    """
-    Deconvolution algorithm
-    """
-    cuda_gpu = "cuda_gpu"
-    opencl_gpu = "opencl_gpu"
-    cpu = "cpu"
 
 Background = Union[float, Literal["auto", "second_last"]]
 class DeconvolutionParams(FieldAccessModel):
@@ -25,11 +16,11 @@ class DeconvolutionParams(FieldAccessModel):
     """
     decon_processing: DeconvolutionChoice = Field(
         default=DeconvolutionChoice.cpu,
-        description=f"Hardware to use to perform the deconvolution. Choices: {enum_choices(DeconvolutionChoice)}"
+        description=f"Hardware to use to perform the deconvolution. Choices: `{enum_choices(DeconvolutionChoice)}`. Can be provided as `str`."
     )
     psf: List[DataArray] = Field(
         default=[],
-        description="List of Point Spread Functions to use for deconvolution. Each of which should be a 3D array."
+        description="List of Point Spread Functions to use for deconvolution. Each of which should be a 3D array. Each PSF can also be provided as a `str` path, in which case they will be loaded from disk as images."
     )
     psf_num_iter: NonNegativeInt = Field(
         default=10,
@@ -37,7 +28,7 @@ class DeconvolutionParams(FieldAccessModel):
     )
     background: Background = Field(
         default=0,
-        description='Background value to subtract for deconvolution. Only used when decon_processing is set to GPU. This can either be a literal number, "auto" which uses the median of the last slice, or "second_last" which uses the median of the last slice.'
+        description='Background value to subtract for deconvolution. Only used when `decon_processing` is set to `GPU`. This can either be a literal number, "auto" which uses the median of the last slice, or "second_last" which uses the median of the last slice.'
     )
 
     @validator("decon_processing", pre=True)

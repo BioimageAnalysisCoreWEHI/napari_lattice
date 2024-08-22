@@ -11,12 +11,12 @@ class CropParams(FieldAccessModel):
     to calculate the cropping coordinates.
     """
     roi_list: List[Roi] = Field(
-        description="List of regions of interest, each of which must be an NxD array, where N is the number of vertices and D the coordinates of each vertex.",
+        description="List of regions of interest, each of which must be an `N × D` array, where N is the number of vertices and D the coordinates of each vertex. This can alternatively be provided as a `str` or `Path`, or a list of those, in which case each they are interpreted as paths to ImageJ ROI zip files that are read from disk.",
         cli_description="List of regions of interest, each of which must be the file path to ImageJ ROI file.",
         default = []
     )
     roi_subset: List[int] = Field(
-        description="A subset of all the ROIs to process. Each array item should be an index into the ROI list indicating an ROI to include.",
+        description="A subset of all the ROIs to process. Each array item should be an index into the ROI list indicating an ROI to include. This allows you to process only a subset of the regions from a ROI file specified using the `roi_list` parameter. If `None`, it is assumed that you want to process all ROIs.",
         default=None
     )
     z_range: Tuple[NonNegativeInt, NonNegativeInt] = Field(
