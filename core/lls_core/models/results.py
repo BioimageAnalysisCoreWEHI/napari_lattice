@@ -2,19 +2,21 @@ from __future__ import annotations
 from itertools import groupby
 from pathlib import Path
 
-from typing_extensions import Generic, TypeVar, Any, Iterable, Optional, Tuple, Union, cast, TYPE_CHECKING
+from typing import Iterable, Optional, Tuple, Union, cast, TYPE_CHECKING, overload
+from typing_extensions import Generic, TypeVar
 from pydantic import BaseModel, NonNegativeInt
 from lls_core.types import ArrayLike, is_arraylike
 from lls_core.utils import make_filename_suffix
 from lls_core.writers import RoiIndex, Writer
+from pandas import DataFrame
 from lls_core.workflow import RawWorkflowOutput
-from pandas import DataFrame, Series
 
 if TYPE_CHECKING:
     from lls_core.models.lattice_data import LatticeData
 
 T = TypeVar("T")
 S = TypeVar("S")
+R = TypeVar("R")
 class ProcessedSlice(BaseModel, Generic[T], arbitrary_types_allowed=True):
     """
     A single slice of some data that is split across multiple slices along time or channel axes
@@ -37,7 +39,19 @@ class ProcessedSlice(BaseModel, Generic[T], arbitrary_types_allowed=True):
             self.copy(update={
                 "data": data
             })
-        ) 
+        )
+    
+    @overload
+    def as_tuple(self: ProcessedSlice[Tuple[R]]) -> Tuple[R]:
+        ...
+    @overload
+    def as_tuple(self: ProcessedSlice[T]) -> Tuple[T]:
+        ...
+    def as_tuple(self):
+        """
+        Converts the results to a tuple if they weren't already
+        """
+        return self.data if isinstance(self.data, (tuple, list)) else (self.data,)
 
 class ProcessedSlices(BaseModel, Generic[T], arbitrary_types_allowed=True):
     """
@@ -95,8 +109,7 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
             values: list[Union[Writer, list]] = []
             for result in roi_results:
                 # If the user didn't return a tuple, put it into one
-                data = result.data if isinstance(result.data, (tuple, list)) else (result.data,)
-                for i, element in enumerate(data):
+                for i, element in enumerate(result.as_tuple()):
                     # If the element is array like, we assume it's an image to write to disk
                     if is_arraylike(element):
                         # Make the writer the first time only
@@ -137,12 +150,21 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
                 else:
                     yield roi, pd.DataFrame(element)
 
+    def extract_preview(self) -> ArrayLike:
+        for slice in self.slices:
+            for value in slice.as_tuple():
+                if is_arraylike(value):
+                    return value
+        raise Exception("No image was returned from this workflow")
+
+
     def save(self) -> Iterable[Path]:
         """
         Processes all workflow outputs and saves them to disk.
         Images are saved in the format specified in the `LatticeData`, while
         other data types are saved as a data frame.
         """
+        from pandas import DataFrame, Series
         for i, (roi, result) in enumerate(self.process()):
             if isinstance(result, DataFrame):
                 path = self.lattice_data.make_filepath_df(make_filename_suffix(roi_index=roi, prefix=f"_output_{i}"), result)

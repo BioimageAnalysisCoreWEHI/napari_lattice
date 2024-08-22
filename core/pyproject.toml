@@ -84,7 +84,8 @@ testing = [
     "napari" # We use napari for type checking only, and not at runtime
 ]
 deconvolution = [
-    "pycudadecon"
+    "pycudadecon~=0.5",
+    "numpy<2"
 ]
 docs = [
     "mkdocstrings[python]",
