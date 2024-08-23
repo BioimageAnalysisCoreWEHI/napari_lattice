@@ -21,9 +21,9 @@ if TYPE_CHECKING:
 @dataclass
 class Writer(ABC):
     """
-    A writer is an abstraction over the logic used to write image slices to disk
-    Writers need to work incrementally, in order that we don't need the entire multidimensional
-    image in memory at the same time
+    A writer is an abstraction over the logic used to write image slices to disk.
+    `Writer`s need to work incrementally, in order that we don't need the entire multidimensional
+    image in memory at the same time.
     """
     lattice: LatticeData
     roi_index: RoiIndex

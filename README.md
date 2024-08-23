@@ -7,7 +7,7 @@
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/napari-lattice)](https://pypistats.org/packages/napari-lattice)
 [![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-lattice)](https://napari-hub.org/plugins/napari-lattice)
 
-This napari plugin allows deskewing, cropping, visualisation and designing custom analysis pipelines for lattice lightsheet data, particularly from the Zeiss Lattice Lightsheet. The plugin has also been otpimixed to run in headless mode.
+This napari plugin allows deskewing, cropping, visualisation and designing custom analysis pipelines for lattice lightsheet data, particularly from the Zeiss Lattice Lightsheet. The plugin has also been optimized to run in headless mode.
 
 
 ## **Documentation**
@@ -17,10 +17,7 @@ Check the [Wiki page](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice
 
 *************
 
-
-<p align="left">
-<img src="https://raw.githubusercontent.com/BioimageAnalysisCoreWEHI/napari_lattice/master/resources/LLSZ_window.png" alt="LLSZ_overview" width="500" >
-</p>
+![](deskew.png)
 
 **Functions**
 
@@ -44,25 +41,15 @@ Apply custom image processing workflows using `napari-workflows`.
 
 Support will be added for more file formats in the future.
 
-Sample lattice lightsheet data download: https://doi.org/10.5281/zenodo.7117784
+Sample lattice lightsheet data download: <https://doi.org/10.5281/zenodo.7117784>
 
 ----------------------------------
 
 This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
 
-<!--
-Don't miss the full getting started guide to set up your new package:
-https://github.com/napari/cookiecutter-napari-plugin#getting-started
-
-and review the napari docs for plugin developers:
-https://napari.org/plugins/index.html
--->
-
-
 ## Contributing
 
-Contributions are very welcome. Tests can be run with [tox], please ensure
-the coverage at least stays the same before you submit a pull request.
+Contributions are very welcome. Please refer to the [Development](./development) docs to get started.
 
 ## License
 
