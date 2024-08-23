@@ -3,8 +3,7 @@ from __future__ import annotations
 # TODO: handle scenes
 from pydantic import Field, NonNegativeFloat, validator, root_validator
 
-from typing import Any, Tuple
-from typing_extensions import Self, TYPE_CHECKING
+from typing_extensions import Self, TYPE_CHECKING, Any, Tuple
 
 import pyclesperanto_prototype as cle
 
@@ -12,7 +11,7 @@ from lls_core import DeskewDirection
 from xarray import DataArray
 
 from lls_core.models.utils import FieldAccessModel, enum_choices
-from lls_core.types import image_like_to_image, is_arraylike, is_pathlike
+from lls_core.types import is_arraylike, is_pathlike
 from lls_core.utils import get_deskewed_shape
 
 if TYPE_CHECKING:
@@ -53,12 +52,12 @@ class DerivedDeskewFields(FieldAccessModel):
 
 class DeskewParams(FieldAccessModel):
     input_image: DataArray = Field(
-        description="A 3-5D array containing the image data.",
+        description="A 3-5D array containing the image data. Can be anything convertible to an Xarray, including a `dask.array` or `numpy.ndarray`. Can also be provided as a `str`, in which case it must indicate the path to an image to load from disk.",
         cli_description="A path to any standard image file (TIFF, H5 etc) containing a 3-5D array to process."
     )
     skew: DeskewDirection = Field(
         default=DeskewDirection.Y,
-        description=f"Axis along which to deskew the image. Choices: {enum_choices(DeskewDirection)}."
+        description=f"Axis along which to deskew the image. Choices: `{enum_choices(DeskewDirection)}`. These can be provided as `str`."
     )
     angle: float = Field(
         default=30.0,
@@ -66,13 +65,13 @@ class DeskewParams(FieldAccessModel):
     )
     physical_pixel_sizes: DefinedPixelSizes = Field(
         # No default, because we need to distinguish between user provided arguments and defaults
-        description="Pixel size of the microscope, in microns.",
+        description="Pixel size of the microscope, in microns. This can alternatively be provided as a `tuple[float]` of `(Z, Y, X)`",
         default=None
     )
     derived: DerivedDeskewFields = Field(
         init_var=False,
         default=None,
-        description="Refer to the DerivedDeskewFields docstring",
+        description="Refer to the `DerivedDeskewFields` docstring",
         cli_hide=True
     )
     # Hack to ensure that .skew_dir behaves identically to .skew

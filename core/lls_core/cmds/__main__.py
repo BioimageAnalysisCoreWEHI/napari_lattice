@@ -15,8 +15,9 @@ from lls_core.models.deskew import DeskewParams, DefinedPixelSizes
 from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.output import OutputParams
 from lls_core.models.crop import CropParams
-from lls_core import DeconvolutionChoice
+from lls_core.deconvolution import DeconvolutionChoice
 from typer import Typer, Argument, Option, Context, Exit
+from typer.main import get_command
 
 from lls_core.models.output import SaveFileType
 from pydantic import ValidationError
@@ -227,6 +228,8 @@ def process(
     lattice.save()
     console.print(f"Processing successful. Results can be found in {lattice.save_dir.resolve()}")
 
+# Used by the docs
+click_app = get_command(app)
 
 def main():
     app()

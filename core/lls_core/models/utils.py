@@ -9,7 +9,7 @@ def enum_choices(enum: Type[Enum]) -> str:
     """
     Returns a human readable list of enum choices
     """
-    return "{" +  ", ".join([it.name for it in enum]) + "}"
+    return "{" +  ", ".join([f'"{it.name}"' for it in enum]) + "}"
 
 @contextmanager
 def ignore_keyerror():

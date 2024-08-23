@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from resource_backed_dask_array import ResourceBackedDaskArray
-from lls_core import DeconvolutionChoice
-import pyclesperanto_prototype as cle
+from strenum import StrEnum
+
 import logging
 import importlib.util
 from typing import Collection, Iterable,Union,Literal, Optional, TYPE_CHECKING
@@ -14,7 +13,6 @@ from aicspylibczi import CziFile
 from numpy.typing import NDArray
 import os
 import numpy as np
-import dask.array as da
 from dask.array.core import Array as DaskArray
 
 from lls_core.utils import array_to_dask, pad_image_nearest_multiple
@@ -22,6 +20,14 @@ from lls_core.types import ArrayLike, is_arraylike
 
 if TYPE_CHECKING:
     from lls_core.models.lattice_data import LatticeData
+
+class DeconvolutionChoice(StrEnum):
+    """
+    Deconvolution algorithm
+    """
+    cuda_gpu = "cuda_gpu"
+    opencl_gpu = "opencl_gpu"
+    cpu = "cpu"
 
 logger = logging.getLogger(__name__)
 

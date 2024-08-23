@@ -4,9 +4,8 @@ from __future__ import annotations
 from pydantic import Field, root_validator, validator
 from dask.array.core import Array as DaskArray
 
-from typing import Any, Iterable, Optional, TYPE_CHECKING, Type
-from lls_core import DeconvolutionChoice
-from lls_core.deconvolution import pycuda_decon, skimage_decon
+from typing_extensions import Any, Iterable, Optional, TYPE_CHECKING, Type
+from lls_core.deconvolution import pycuda_decon, skimage_decon, DeconvolutionChoice
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core.models.crop import CropParams
 from lls_core.models.deconvolution import DeconvolutionParams
@@ -30,17 +29,24 @@ logger = logging.getLogger(__name__)
 
 class LatticeData(OutputParams, DeskewParams):
     """
-    Holds data and metadata for a given image in a consistent format
+    Parameters for the entire deskewing process, including outputs and optional steps such as deconvolution.
+    This is the recommended entry point for Python users: construct an instance of this class, and then perform the processing using methods.
+
+    Note that none of this class's methods have any parameters: all parameters are class fields for validation purposes.
     """
 
     # Note: originally the save-related fields were included via composition and not inheritance
     # (similar to how `crop` and `workflow` are handled), but this was impractical for implementing validations
 
-    #: If this is None, then deconvolution is disabled
-    deconvolution: Optional[DeconvolutionParams] = None
+    deconvolution: Optional[DeconvolutionParams] = Field(
+        default=None,
+        description="Parameters associated with the deconvolution. If this is None, then deconvolution is disabled"
+    )
 
-    #: If this is None, then cropping is disabled
-    crop: Optional[CropParams] = None
+    crop: Optional[CropParams] = Field(
+        default=None,
+        description="Cropping parameters. If this is None, then cropping is disabled"
+    )
  
     workflow: Optional[Workflow] = Field(
         default=None,
@@ -446,10 +452,10 @@ class LatticeData(OutputParams, DeskewParams):
                 slices=self._process_non_crop()
             )
 
-    def save(self):
+    def save(self) -> None:
         """
-
-        This is the main public API for processing
+        Apply the processing, and saves the results to disk.
+        Results can be found in `save_dir`.
         """
         if self.workflow:
             list(self.process_workflow().save())

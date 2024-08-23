@@ -87,6 +87,14 @@ deconvolution = [
     "pycudadecon~=0.5",
     "numpy<2"
 ]
+docs = [
+    "mkdocstrings[python]",
+    "mkdocs-click",
+    "mkdocs-material",
+    # Includes fixes for Pydantic 1.X
+    "fieldz>0.1.0",
+    "griffe-fieldz"
+]
 
 [project.scripts]
 lls-pipeline = "lls_core.cmds.__main__:main"
@@ -126,6 +134,13 @@ ignore_unused = [
     # These napari plugins are needed to use the plugin, but aren't imported directly
     "napari-aicsimageio",
     "napari-workflow-inspector",
+
+    # These are used for docs
+    "mkdocstrings",
+    "mkdocs-click",
+    "mkdocs-material",
+    "fieldz",
+    "griffe-fieldz",
 
     # This is pinned but unused
     "fsspec"
