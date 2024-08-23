@@ -5,7 +5,7 @@ The advantage of this is that you can design a multi-step automated workflow tha
 
 ## Building a Workflow
 
-You can design your workflow via GUI using [`napari-assistant](https://github.com/haesleinhuepf/napari-assistant), or in the YAML format.
+You can design your workflow via GUI using [`napari-assistant`](https://github.com/haesleinhuepf/napari-assistant), or directly in the YAML format.
 
 When building your workflow with Napari Assistant, you are actually building a *template* that will be applied to future images.
 For this reason, you need to rename your input layer to `deskewed_image`, since this is the exact value that the `lls_core` step produces.
