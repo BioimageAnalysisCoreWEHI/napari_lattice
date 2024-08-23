@@ -54,3 +54,23 @@ The tests are run using [pytest](https://docs.pytest.org/en/7.4.x/).
 To install the testing dependencies, use `pip install -e 'core[testing]' -e 'plugin[testing]'`
 Since there are two separate packages, you will have to specify the location of each test directory.
 To run all the tests, use `pytest core/tests/ plugin/tests` from the root directory.
+
+## Documentation
+
+Docs are built with [mkdocs](https://www.mkdocs.org/).
+
+To modify the docs, you need the docs dependencies, so clone the repo and then:
+
+```bash
+pip install -e 'core[docs]'
+```
+
+The key files are:
+    
+    * `mkdocs.yml`, which is the main config file for mkdocs, and
+    * `docs/` which is a directory containing markdown files. Each new file that gets added there will create a new page in the website.
+
+Some useful `mkdocs` commands:
+
+* `mkdocs serve` runs the development server which hosts the docs on a local web server. Any changes to your markdown files will be reflected in this server, although you sometimes have to restart the server if you make a change to configuration
+* `mkdocs gh-deploy` builds the docs, and pushes them to GitHub Pages. This updates the docs at <https://bioimageanalysiscorewehi.github.io/napari_lattice/>.
