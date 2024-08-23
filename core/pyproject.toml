@@ -39,21 +39,31 @@ dependencies = [
     # Earlier versions don't have Python 3.11 binaries, and the sdist
     # is misconfigured: https://github.com/AllenCellModeling/aicspylibczi/issues/90
     "aicspylibczi>=3.1.1",
+    "click",
     "dask",
     "dask[distributed]",
     "fsspec>=2022.8.2",
-    "pyclesperanto_prototype>=0.20.0",
+    "importlib_resources",
+    # Older tifffile are not compatible with aicsimageio, see: https://github.com/AllenCellModeling/aicsimageio/issues/518
     "napari-workflows>=0.2.8",
     "npy2bdv",
     "numpy",
     "pandas",
+    "pyclesperanto_prototype>=0.20.0",
+    "pyopencl",
+    "pydantic~=1.0",
     "pyyaml",
     "read-roi",
+    "rich",
     "resource-backed-dask-array>=0.1.0",
     "scikit-image",
-    "tifffile",
+    "StrEnum",
+    "tifffile>=2023.3.15", #>=2022.8.12
+    "toolz",
     "tqdm",
-    "typing_extensions"
+    "typer",
+    "typing_extensions>=4.7.0",
+    "xarray[parallel]",
 ]
 
 [project.urls]
@@ -73,17 +83,37 @@ testing = [
     "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
     "napari" # We use napari for type checking only, and not at runtime
 ]
-psf = [
-    "pycudadecon"
+deconvolution = [
+    "pycudadecon~=0.5",
+    "numpy<2"
 ]
 
 [project.scripts]
 lls-pipeline = "lls_core.cmds.__main__:main"
 
+[tool.mypy]
+plugins = [
+  "pydantic.mypy"
+]
+
+[tool.pydantic-mypy]
+init_typed = false
+
 [tool.pyright]
 typeCheckingMode = "off"
 reportUndefinedVariable = "error"
 reportMissingImports = "none"
+reportMissingTypeStubs = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportUnknownLambdaType = false
+reportUnknownMemberType = false
+reportUnknownParameterType = false
+reportUntypedFunctionDecorator = false
+reportMissingTypeArgument = false
+reportPrivateUsage = false
+reportPrivateImportUsage = false
+reportUnnecessaryComparison = false
 
 [tool.fawltydeps]
 ignore_unused = [

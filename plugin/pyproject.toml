@@ -35,29 +35,33 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.11.0",
-    "dask",
+    "aicsimageio>=4.6.3",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version
     "fsspec>=2022.8.2",
-    # We need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
-    "magic-class>=0.7.4",
-    "magicgui",
+    "importlib_resources",
     "lls_core",
-    "napari-aicsimageio>=0.7.2",
+    # The lower bound is because we need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
+    # The upper bound is because we are waiting on https://github.com/hanjinliu/magic-class/issues/128
+    "magic-class>=0.7.5,<0.8.0",
+    "magicgui<0.8.0",
+    # Currently commented out to avoid installation issues, although
+    # This can be reinstated once https://github.com/pypa/pip/pull/12095 is merged
+    # "napari-aicsimageio>=0.7.2",
     "napari-spreadsheet",
     "napari-workflow-inspector",
     "napari-workflows>=0.2.8",
-    "napari>=0.4.11",
+    "napari>=0.4.11,<0.5",
     "npy2bdv",
     "numpy",
-    "pandas",
     "psutil",
     "pyclesperanto_prototype>=0.20.0",
+    "pydantic",
     "qtpy",
-    "tqdm",
-    "typing_extensions",
-    "pyyaml",
+    "typing_extensions>=4.7.0",
+    "rich",
+    "StrEnum",
+    "xarray"
 ]
 
 [project.urls]
@@ -68,7 +72,7 @@ SourceCode = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 UserSupport = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
 
 [tool.setuptools.package-data]
-napari_lattice = ["*.yaml"]
+napari_lattice = ["*.yaml", "*.svg", "*.png"]
 
 [project.optional-dependencies]
 testing = [
@@ -92,6 +96,7 @@ ignore_unused = [
     # These napari plugins are needed to use the plugin, but aren't imported directly
     "napari-aicsimageio",
     "napari-workflow-inspector",
+    "napari-spreadsheet",
 
     # This is pinned but unused
     "fsspec",
@@ -103,3 +108,14 @@ output_format = "human_detailed"
 typeCheckingMode = "off"
 reportUndefinedVariable = "error"
 reportMissingImports = "none"
+reportMissingTypeStubs = false
+reportUnknownVariableType = false
+reportUnknownArgumentType = false
+reportUnknownLambdaType = false
+reportUnknownMemberType = false
+reportUnknownParameterType = false
+reportUntypedFunctionDecorator = false
+reportMissingTypeArgument = false
+reportPrivateUsage = false
+reportPrivateImportUsage = false
+reportUnnecessaryComparison = false
