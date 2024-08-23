@@ -53,7 +53,7 @@ dependencies = [
     "pyopencl",
     # This is the first pydantic version that supports the "compatibility mode"
     # https://docs.pydantic.dev/latest/migration/#using-pydantic-v1-features-in-a-v1v2-environment
-    "pydantic>=1.10.17",
+    "pydantic>=1.10.17,<3",
     "pyyaml",
     "read-roi",
     "rich",
