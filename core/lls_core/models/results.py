@@ -4,7 +4,7 @@ from pathlib import Path
 
 from typing import Iterable, Optional, Tuple, Union, cast, TYPE_CHECKING, overload
 from typing_extensions import Generic, TypeVar
-from pydantic import BaseModel, NonNegativeInt, Field
+from pydantic.v1 import BaseModel, NonNegativeInt, Field
 from lls_core.types import ArrayLike, is_arraylike
 from lls_core.utils import make_filename_suffix
 from lls_core.writers import RoiIndex, Writer

@@ -1,7 +1,7 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from pydantic import Field, root_validator, validator
+from pydantic.v1 import Field, root_validator, validator
 from dask.array.core import Array as DaskArray
 
 from typing_extensions import Any, Iterable, Optional, TYPE_CHECKING, Type

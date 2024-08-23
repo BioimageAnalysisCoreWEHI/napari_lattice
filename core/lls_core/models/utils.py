@@ -2,7 +2,7 @@
 from typing import Any, Type
 from typing_extensions import Self
 from enum import Enum
-from pydantic import BaseModel, Extra
+from pydantic.v1 import BaseModel, Extra
 from contextlib import contextmanager
 
 def enum_choices(enum: Type[Enum]) -> str:

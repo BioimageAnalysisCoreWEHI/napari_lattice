@@ -1,5 +1,5 @@
 
-from pydantic import Field, NonNegativeInt, validator
+from pydantic.v1 import Field, NonNegativeInt, validator
 
 from typing_extensions import Any, List, Literal, Union
 
