@@ -1,0 +1,14 @@
+!!python/object:napari_workflows._workflow.Workflow
+_tasks:
+  binarisation: !!python/tuple
+  - !!python/name:pyclesperanto_prototype.greater_constant ''
+  - median
+  - null
+  - 100
+  median: !!python/tuple
+  - !!python/name:pyclesperanto_prototype.median_sphere ''
+  - deskewed_image
+  - null
+  - 2
+  - 2
+  - 2
