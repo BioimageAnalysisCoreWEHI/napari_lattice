@@ -5,9 +5,8 @@ from textwrap import dedent
 from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING
 from typing_extensions import TypeVar
 import pyclesperanto_prototype as cle
-from xarray import DataArray
+from lls_core.deconvolution import DeconvolutionChoice
 from lls_core import (
-    DeconvolutionChoice,
     DeskewDirection,
     Log_Levels,
 )
