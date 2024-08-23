@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 from lls_core.types import ArrayLike
 
-from pydantic import NonNegativeInt
+from pydantic.v1 import NonNegativeInt
 
 from lls_core.utils import make_filename_suffix
 RoiIndex = Optional[NonNegativeInt]

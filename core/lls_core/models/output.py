@@ -1,4 +1,4 @@
-from pydantic import Field, DirectoryPath, validator
+from pydantic.v1 import Field, DirectoryPath, validator
 from strenum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING

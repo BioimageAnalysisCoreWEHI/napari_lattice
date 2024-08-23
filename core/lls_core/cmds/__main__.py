@@ -20,7 +20,7 @@ from typer import Typer, Argument, Option, Context, Exit
 from typer.main import get_command
 
 from lls_core.models.output import SaveFileType
-from pydantic import ValidationError
+from pydantic.v1 import ValidationError
 
 if TYPE_CHECKING:
     from lls_core.models.utils import FieldAccessModel

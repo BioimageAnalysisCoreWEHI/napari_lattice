@@ -51,7 +51,9 @@ dependencies = [
     "pandas",
     "pyclesperanto_prototype>=0.20.0",
     "pyopencl",
-    "pydantic~=1.0",
+    # This is the first pydantic version that supports the "compatibility mode"
+    # https://docs.pydantic.dev/latest/migration/#using-pydantic-v1-features-in-a-v1v2-environment
+    "pydantic>=1.10.17",
     "pyyaml",
     "read-roi",
     "rich",

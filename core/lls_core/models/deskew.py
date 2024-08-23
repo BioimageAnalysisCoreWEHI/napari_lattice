@@ -1,7 +1,7 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from pydantic import Field, NonNegativeFloat, validator, root_validator
+from pydantic.v1 import Field, NonNegativeFloat, validator, root_validator
 
 from typing_extensions import Self, TYPE_CHECKING, Any, Tuple
 
