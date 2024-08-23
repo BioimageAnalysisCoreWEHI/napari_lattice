@@ -135,6 +135,13 @@ ignore_unused = [
     "napari-aicsimageio",
     "napari-workflow-inspector",
 
+    # These are used for docs
+    "mkdocstrings",
+    "mkdocs-click",
+    "mkdocs-material",
+    "fieldz",
+    "griffe-fieldz",
+
     # This is pinned but unused
     "fsspec"
 ]
