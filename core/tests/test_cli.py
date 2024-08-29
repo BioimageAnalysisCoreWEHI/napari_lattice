@@ -62,7 +62,7 @@ def assert_h5(output_dir: Path):
         [
             [["--save-type", "h5"], assert_h5],
             [["--save-type", "tiff"], assert_tiff],
-            [["--save-type", "tiff", "--time-start", "0", "--time-end", "1"], assert_tiff],
+            [["--save-type", "tiff", "--time-range", "0", "1"], assert_tiff],
         ]
 )
 def test_batch_deskew(flags: List[str], check_fn: Callable[[Path], None]):
