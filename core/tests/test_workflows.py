@@ -56,13 +56,13 @@ def test_workflow_cli(workflow_config_cli: dict, save_func: Callable, cli_param:
 def test_image_workflow(minimal_image_path: Path, image_workflow: Workflow):
     # Test that a regular workflow that returns an image directly works
     with tempfile.TemporaryDirectory() as tmpdir:
-        for roi, output in LatticeData(
+        for output in LatticeData(
             input_image = minimal_image_path,
             workflow = image_workflow,
             save_dir = tmpdir
         ).process_workflow().process():
-            assert isinstance(output, Path)
-            assert valid_image_path(output)
+            assert isinstance(output.data, Path)
+            assert valid_image_path(output.data)
 
 def test_table_workflow(minimal_image_path: Path, table_workflow: Workflow):
     # Test a complex workflow that returns a tuple of images and data
@@ -72,17 +72,18 @@ def test_table_workflow(minimal_image_path: Path, table_workflow: Workflow):
             workflow = table_workflow,
             save_dir = tmpdir
         )
-        for _roi, output in params.process_workflow().process():
-            assert isinstance(output, (DataFrame, Path))
-            if isinstance(output, DataFrame):
-                nrow, ncol = output.shape
+        for output in params.process_workflow().process():
+            data = output.data
+            assert isinstance(data, (DataFrame, Path))
+            if isinstance(data, DataFrame):
+                nrow, ncol = data.shape
                 assert nrow == params.nslices
                 assert ncol > 0
                 # Check that time and channel are included
-                assert output.iloc[0, 0] == "T0"
-                assert output.iloc[0, 1] == "C0"
+                assert data.iloc[0, 0] == "T0"
+                assert data.iloc[0, 1] == "C0"
             else:
-                assert valid_image_path(output)
+                assert valid_image_path(data)
 
 def test_argument_order(rbc_tiny: Path):
     # Tests that only the first unfilled argument is passed an array
@@ -92,8 +93,8 @@ def test_argument_order(rbc_tiny: Path):
             workflow = "core/tests/workflows/argument_order/test_workflow.yml",
             save_dir = tmpdir
         )
-        for roi, output in params.process_workflow().process():
-            print(output)
+        for output in params.process_workflow().process():
+            pass
 
 def test_sum_preview(rbc_tiny: Path):
     import numpy as np
