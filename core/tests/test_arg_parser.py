@@ -10,9 +10,9 @@ def test_voxel_parsing():
     parser = command.make_parser(ctx)
     args, _, _ = parser.parse_args(args=[
             "process",
-            "input",
+            "input-image",
             "--save-name", "output",
             "--save-type", "tiff",
-            "--pixel-sizes", "1", "1", "1"
+            "--physical_pixel_sizes", "1", "1", "1"
     ])
-    assert args["pixel_sizes"] == ("1", "1", "1")
+    assert args["physical_pixel_sizes"] == ("1", "1", "1")
