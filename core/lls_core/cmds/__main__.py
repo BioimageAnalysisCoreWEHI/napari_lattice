@@ -78,8 +78,7 @@ def field_from_model(model: Type[FieldAccessModel], field_name: str, extra_descr
 def handle_merge(values: list):
     if len(values) > 1:
         if all(isinstance(param, dict) for param in values):
-            merged = merge_with(handle_merge,values)
-            values = [merged]
+            return merge_with(handle_merge, values)
         else:
             raise ValueError(f"A parameter has been passed multiple times! Got: {', '.join(values)}")
     return values[0]
