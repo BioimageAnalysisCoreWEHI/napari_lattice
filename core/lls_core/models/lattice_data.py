@@ -350,11 +350,13 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices with cropping enabled
         """
+        from tqdm import tqdm
+
         if self.crop is None:
             raise Exception("This function can only be called when crop is set")
             
         # We have an extra level of iteration for the crop path: iterating over each ROI
-        for roi_index, roi in enumerate(tqdm(self.crop.selected_rois, desc="ROI", position=0)):
+        for roi_index, roi in enumerate(tqdm(self.crop.selected_rois, total=len(self.crop.roi_subset), desc="ROI", position=0)):
             # pass arguments for save tiff, callable and function arguments
             logger.info(f"Processing ROI {self.crop.roi_subset[roi_index]}")
             
