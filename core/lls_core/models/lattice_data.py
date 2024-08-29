@@ -345,7 +345,7 @@ class LatticeData(OutputParams, DeskewParams):
                 deconv_args: dict[Any, Any] = {}
                 if self.deconvolution is not None:
                     deconv_args = dict(
-                        num_iter = self.deconvolution.psf_num_iter,
+                        num_iter = self.deconvolution.decon_num_iter,
                         psf = self.deconvolution.psf[slice.channel].to_numpy(),
                         decon_processing=self.deconvolution.decon_processing
                     )
@@ -390,13 +390,13 @@ class LatticeData(OutputParams, DeskewParams):
                         dxdata=self.dx,
                         dzpsf=self.dz,
                         dxpsf=self.dx,
-                        num_iter=self.deconvolution.psf_num_iter
+                        num_iter=self.deconvolution.decon_num_iter
                     )
                 else:
                     data = skimage_decon(
                         vol_zyx=data,
                         psf=self.deconvolution.psf[slice.channel].to_numpy(),
-                        num_iter=self.deconvolution.psf_num_iter,
+                        num_iter=self.deconvolution.decon_num_iter,
                         clip=False,
                         filter_epsilon=0,
                         boundary='nearest'
