@@ -1,5 +1,5 @@
 from typing_extensions import Any, Iterable, List, Tuple
-from pydantic import Field, NonNegativeInt, validator
+from pydantic.v1 import Field, NonNegativeInt, validator
 from lls_core.models.utils import FieldAccessModel
 from lls_core.cropping import Roi
 
@@ -16,12 +16,12 @@ class CropParams(FieldAccessModel):
         default = []
     )
     roi_subset: List[int] = Field(
-        description="A subset of all the ROIs to process. Each array item should be an index into the ROI list indicating an ROI to include. This allows you to process only a subset of the regions from a ROI file specified using the `roi_list` parameter. If `None`, it is assumed that you want to process all ROIs.",
+        description="A subset of all the ROIs to process. Each list item should be an index into the ROI list indicating an ROI to include. This allows you to process only a subset of the regions from a ROI file specified using the `roi_list` parameter. If `None`, it is assumed that you want to process all ROIs.",
         default=None
     )
     z_range: Tuple[NonNegativeInt, NonNegativeInt] = Field(
         default=None,
-        description="The range of Z slices to take. All Z slices before the first index or after the last index will be cropped out.",
+        description="The range of Z slices to take as a tuple of the form `(first, last)`. All Z slices before the first index or after the last index will be cropped out.",
         cli_description="An array with two items, indicating the index of the first and last Z slice to include."
     )
 

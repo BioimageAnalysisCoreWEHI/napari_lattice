@@ -37,7 +37,9 @@ The CLI is defined using Typer: <https://typer.tiangolo.com/.>
 These packages are used to define the GUI, which you can find in `plugin/napari_lattice`.
 [`magicclass`](https://hanjinliu.github.io/magic-class/) builds on [`magicgui`](https://pyapp-kit.github.io/magicgui/) by providing the `@magicclass` decorator which turns a Python class into a GUI.
 
-## Adding a new parameter
+### Dev Workflows
+
+### Adding a new parameter
 
 Whenever a new parameter is added, the following components need to be updated:
 
@@ -47,6 +49,20 @@ Whenever a new parameter is added, the following components need to be updated:
 * Define the new processing logic in `core/lls_core/models/lattice_data.py`
 
 An example of this can be found in this commit: <https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/pull/47/commits/16b28fec307f19e73b8d55e677621082037b2710>.
+
+### Adding a new image reader
+
+Currently there aren't image reader classes. Instead, we currently have a pydantic validator that converts the image from a path to an array, or from an array into an xarray. A new format could be implemented in this validator: <https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/blob/b33cc4ca5fe0fb89d730cefdbe3169f984f1fe89/core/lls_core/models/deskew.py#L176-L202>
+
+### Adding a new image writer
+
+1. Create a new writer which inherits from the `lls_core.writers.Writer` class, and implements its `write_slice` method:
+
+    ::: lls_core.writers.Writer.write_slice
+
+2. [Add a new option to the `SaveFileType` enum](https://github.com/multimeric/napari_lattice/blob/b33cc4ca5fe0fb89d730cefdbe3169f984f1fe89/core/lls_core/models/output.py#L11-L16)
+
+3. [Then, return the correct writer class based on the enum value](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/blob/b33cc4ca5fe0fb89d730cefdbe3169f984f1fe89/core/lls_core/models/lattice_data.py#L474-L480).
 
 ## Testing
 

@@ -51,7 +51,7 @@ dependencies = [
     "napari-spreadsheet",
     "napari-workflow-inspector",
     "napari-workflows>=0.2.8",
-    "napari>=0.4.11,<0.5",
+    "napari>=0.4.11",
     "npy2bdv",
     "numpy",
     "psutil",

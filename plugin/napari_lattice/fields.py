@@ -51,7 +51,7 @@ def exception_to_html(e: BaseException) -> str:
     """
     Converts an exception to HTML for reporting back to the user
     """
-    from pydantic import ValidationError
+    from pydantic.v1 import ValidationError
     if isinstance(e, ValidationError):
         message = []
         for error in e.errors():

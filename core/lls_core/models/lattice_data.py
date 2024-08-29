@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import Tuple
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
-from pydantic import Field, root_validator, validator
+from pydantic.v1 import Field, root_validator, validator
 from dask.array.core import Array as DaskArray
 
 from typing_extensions import Any, Iterable, Optional, TYPE_CHECKING, Type
@@ -353,36 +353,40 @@ class LatticeData(OutputParams, DeskewParams):
         if self.crop is None:
             raise Exception("This function can only be called when crop is set")
             
-        for slice in self.iter_slices():
-            deconv_args: dict[Any, Any] = {}
-            if self.deconvolution is not None:
-                deconv_args = dict(
-                    num_iter = self.deconvolution.psf_num_iter,
-                    psf = self.deconvolution.psf[slice.channel].to_numpy(),
-                    decon_processing=self.deconvolution.decon_processing
-                )
-
-            yield slice.copy(update={
-                "data": crop_volume_deskew(
-                    original_volume=slice.data,
-                    deconvolution=self.deconv_enabled,
-                    get_deskew_and_decon=False,
-                    debug=False,
-                    # There is guaranteed to be exactly one ROI at this stage, due to `iter_slices()`
-                    roi_shape=list(next(iter(self.crop.selected_rois))) if self.crop else None,
-                    linear_interpolation=True,
-                    voxel_size_x=self.dx,
-                    voxel_size_y=self.dy,
-                    voxel_size_z=self.dz,
-                    angle_in_degrees=self.angle,
-                    deskewed_volume=self.deskewed_volume,
-                    z_start=self.crop.z_range[0],
-                    z_end=self.crop.z_range[1],
-                    **deconv_args
-                ),
-                "roi_index": slice.roi_index
-            })
+        # We have an extra level of iteration for the crop path: iterating over each ROI
+        for roi_index, roi in enumerate(tqdm(self.crop.selected_rois, desc="ROI", position=0)):
+            # pass arguments for save tiff, callable and function arguments
+            logger.info(f"Processing ROI {self.crop.roi_subset[roi_index]}")
             
+            for slice in self.iter_slices():
+                deconv_args: dict[Any, Any] = {}
+                if self.deconvolution is not None:
+                    deconv_args = dict(
+                        num_iter = self.deconvolution.psf_num_iter,
+                        psf = self.deconvolution.psf[slice.channel].to_numpy(),
+                        decon_processing=self.deconvolution.decon_processing
+                    )
+
+                yield slice.copy(update={
+                    "data": crop_volume_deskew(
+                        original_volume=slice.data,
+                        deconvolution=self.deconv_enabled,
+                        get_deskew_and_decon=False,
+                        debug=False,
+                        roi_shape=list(roi),
+                        linear_interpolation=True,
+                        voxel_size_x=self.dx,
+                        voxel_size_y=self.dy,
+                        voxel_size_z=self.dz,
+                        angle_in_degrees=self.angle,
+                        deskewed_volume=self.deskewed_volume,
+                        z_start=self.crop.z_range[0],
+                        z_end=self.crop.z_range[1],
+                        **deconv_args
+                    ),
+                    "roi_index": self.crop.roi_subset[roi_index]
+                })
+                
     def _process_non_crop(self) -> Iterable[ImageSlice]:
         """
         Yields processed image slices without cropping
