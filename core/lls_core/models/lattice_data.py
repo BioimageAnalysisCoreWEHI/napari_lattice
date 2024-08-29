@@ -339,7 +339,7 @@ class LatticeData(OutputParams, DeskewParams):
         # We have an extra level of iteration for the crop path: iterating over each ROI
         for roi_index, roi in enumerate(tqdm(self.crop.selected_rois, desc="ROI", position=0)):
             # pass arguments for save tiff, callable and function arguments
-            logger.info(f"Processing ROI {roi_index}")
+            logger.info(f"Processing ROI {self.crop.roi_subset[roi_index]}")
             
             for slice in self.iter_slices():
                 deconv_args: dict[Any, Any] = {}
@@ -367,7 +367,7 @@ class LatticeData(OutputParams, DeskewParams):
                         z_end=self.crop.z_range[1],
                         **deconv_args
                     ),
-                    "roi_index": roi_index
+                    "roi_index": self.crop.roi_subset[roi_index]
                 })
                 
     def _process_non_crop(self) -> Iterable[ImageSlice]:

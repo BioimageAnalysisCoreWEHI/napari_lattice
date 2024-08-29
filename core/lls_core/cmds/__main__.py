@@ -21,6 +21,7 @@ from typer.main import get_command
 
 from lls_core.models.output import SaveFileType
 from pydantic.v1 import ValidationError
+from toolz.dicttoolz import merge_with
 
 if TYPE_CHECKING:
     from lls_core.models.utils import FieldAccessModel
@@ -79,7 +80,10 @@ def field_from_model(model: Type[FieldAccessModel], field_name: str, extra_descr
 
 def handle_merge(values: list):
     if len(values) > 1:
-        raise ValueError(f"A parameter has been passed multiple times! Got: {', '.join(values)}")
+        if all(isinstance(param, dict) for param in values):
+            return merge_with(handle_merge, values)
+        else:
+            raise ValueError(f"A parameter has been passed multiple times! Got: {', '.join(values)}")
     return values[0]
 
 def rich_validation(e: ValidationError) -> Table:
@@ -224,7 +228,7 @@ def process(
     except ValidationError as e:
         console.print(rich_validation(e))
         raise Exit(code=1)
-        
+    
     lattice.save()
     console.print(f"Processing successful. Results can be found in {lattice.save_dir.resolve()}")
 
