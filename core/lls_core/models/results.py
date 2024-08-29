@@ -7,13 +7,13 @@ from typing_extensions import Generic, TypeVar
 from pydantic.v1 import BaseModel, NonNegativeInt, Field
 from lls_core.types import ArrayLike, is_arraylike
 from lls_core.utils import make_filename_suffix
-from lls_core.writers import RoiIndex, Writer
+from lls_core.writers import Writer
 from pandas import DataFrame
 from lls_core.workflow import RawWorkflowOutput
 
 if TYPE_CHECKING:
-    from lls_core.models.lattice_data import LatticeData
     from numpy.typing import NDArray
+    from lls_core.models.lattice_data import LatticeData
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -86,15 +86,37 @@ class ImageSlices(ProcessedSlices[ArrayLike]):
                 writer.write_slice(slice)
             writer.close()
 
-ProcessedWorkflowOutput = Union[
-    # A path indicates a saved file
-    Path,
-    DataFrame
-]
-"""
-The result of a workflow. If this is a `Path`, then it is the path to an image saved to disk.
-If a `DataFrame`, then it contains non-image data returned by your workflow.
-"""
+class ProcessedWorkflowOutput(BaseModel, arbitrary_types_allowed=True):
+    """
+    Result class for one single workflow output, after it has been processed.
+    """
+
+    #: Index of this output from the workflow function. For example, if you `return a, b, c` in your final workflow step,
+    #: there will be 3 `ProcessedWorkflowOutput` instances created, one with `index=0`, `index=1` and `index=2`
+    index: int
+
+    #: Index of region of interest that produced this
+    roi_index: Optional[int]
+
+    #: A processed output from the workflow. Either the path to a saved image, or a `DataFrame` capturing some other metadata.
+    data: Union[Path, DataFrame]
+
+    #: Reference to the original settings that created this
+    lattice_data: LatticeData
+
+    def save(self) -> Path:
+        """
+        Puts this artifact on disk by saving any `DataFrame` to CSV, and returning the path to the image or CSV
+        """
+        from pandas import Series
+
+        if isinstance(self.data, DataFrame):
+            path: Path = self.lattice_data.make_filepath_df(make_filename_suffix(roi_index=str(self.roi_index), prefix=f"_output_{self.index}"), self.data)
+            result = self.data.apply(Series.explode)
+            result.to_csv(str(path))
+            return path
+        else:
+            return self.data
 
 class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]):
     """
@@ -106,12 +128,14 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
     # This re-definition of the type is helpful for `mkdocs`
     slices: Iterable[ProcessedSlice[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]] = Field(description="Iterable of raw workflow results, the exact nature of which is determined by the author of the workflow. Not typically useful directly, and using he result of `.process()` is recommended instead.")
 
-    def process(self) -> Iterable[Tuple[RoiIndex, ProcessedWorkflowOutput]]:
+    def process(self) -> Iterable[ProcessedWorkflowOutput]:
         """
         Incrementally processes the workflow outputs, and returns both image paths and data frames of the outputs,
         for image slices and dict/list outputs respectively
         """
         import pandas as pd
+        from lls_core.models.lattice_data import LatticeData
+        ProcessedWorkflowOutput.update_forward_refs(LatticeData=LatticeData)
 
         # Handle each ROI separately
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
@@ -151,13 +175,13 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
 
                         rows.append(element)
 
-            for element in values:
+            for i, element in enumerate(values):
                 if isinstance(element, Writer):
                     element.close()
                     for file in element.written_files:
-                        yield roi, file
+                        yield ProcessedWorkflowOutput(index=i, roi_index=roi, data=file, lattice_data=self.lattice_data)
                 else:
-                    yield roi, pd.DataFrame(element)
+                    yield ProcessedWorkflowOutput(index=i, roi_index=roi, data=pd.DataFrame(element), lattice_data=self.lattice_data)
 
     def extract_preview(self) -> NDArray:
         """
@@ -175,13 +199,7 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
         Processes all workflow outputs and saves them to disk.
         Images are saved in the format specified in the `LatticeData`, while
         other data types are saved as a CSV.
+        **Remember to call `list()` on this to exhaust the generator and run the computation**.
         """
-        from pandas import DataFrame, Series
-        for i, (roi, result) in enumerate(self.process()):
-            if isinstance(result, DataFrame):
-                path = self.lattice_data.make_filepath_df(make_filename_suffix(roi_index=roi, prefix=f"_output_{i}"), result)
-                result = result.apply(Series.explode)
-                result.to_csv(str(path))
-                yield path
-            else:
-                yield result
+        for result in self.process():
+            yield result.save()

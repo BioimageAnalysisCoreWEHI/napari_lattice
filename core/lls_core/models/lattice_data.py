@@ -1,5 +1,5 @@
 from __future__ import annotations
-from typing import Tuple
+from typing import Tuple, cast
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
 from pydantic.v1 import Field, root_validator, validator
@@ -54,6 +54,11 @@ class LatticeData(OutputParams, DeskewParams):
         default=None,
         description="If defined, this is a workflow to add lightsheet processing onto",
         cli_description="Path to a JSON file specifying a napari_workflow-compatible workflow to add lightsheet processing onto"
+    )
+
+    progress_bar: bool = Field(
+        default = True,
+        description = "If true, show progress bars"
     )
 
     @root_validator(pre=True)
@@ -237,9 +242,9 @@ class LatticeData(OutputParams, DeskewParams):
         This yields `None` exactly once if cropping is disabled, for compatibility.
         """
         from tqdm import tqdm
-        if self.cropping_enabled:
-            for i, _roi in tqdm(enumerate(self.crop.selected_rois), desc="ROI", position=0):
-                yield i
+        if self.cropping_enabled and self.crop is not None:
+            for index in tqdm(self.crop.roi_subset, desc="ROI", position=0, disable=not self.progress_bar):
+                yield index
         else:
             yield None
 
@@ -251,8 +256,8 @@ class LatticeData(OutputParams, DeskewParams):
         from tqdm import tqdm
 
         for roi_index in self.iter_roi_indices():
-            for time_idx, time in tqdm(enumerate(self.time_range), desc="Timepoints", total=len(self.time_range)):
-                for ch_idx, ch in tqdm(enumerate(self.channel_range), desc="Channels", total=len(self.channel_range), leave=False):
+            for time_idx, time in tqdm(enumerate(self.time_range), desc="Timepoints", total=len(self.time_range), disable=not self.progress_bar, leave=not self.cropping_enabled, position=1 if self.cropping_enabled else 0):
+                for ch_idx, ch in tqdm(enumerate(self.channel_range), desc="Channels", total=len(self.channel_range), leave=False, disable=not self.progress_bar, position=2 if self.cropping_enabled else 1):
                     yield ProcessedSlice(
                         data=self.slice_data(time=time, channel=ch),
                         roi_index=roi_index,
@@ -305,7 +310,8 @@ class LatticeData(OutputParams, DeskewParams):
 
             from copy import copy
             # We make a copy of the lattice for each slice, each of which has no associated workflow
-            for lattice_slice in self.iter_sublattices(update_with={"workflow": None}):
+            # Also hide the progress bar for each sublattice, because we already have a global progress bar at this point
+            for lattice_slice in self.iter_sublattices(update_with={"workflow": None, "progress_bar": False}):
                 user_workflow = copy(self.workflow)   
                 # We add a step whose result is called "input_img" that outputs a 2D image slice
                 user_workflow.set(
@@ -350,45 +356,40 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices with cropping enabled
         """
-        from tqdm import tqdm
-
         if self.crop is None:
             raise Exception("This function can only be called when crop is set")
-            
-        # We have an extra level of iteration for the crop path: iterating over each ROI
-        for roi_index, roi in enumerate(tqdm(self.crop.selected_rois, total=len(self.crop.roi_subset), desc="ROI", position=0)):
-            # pass arguments for save tiff, callable and function arguments
-            logger.info(f"Processing ROI {self.crop.roi_subset[roi_index]}")
-            
-            for slice in self.iter_slices():
-                deconv_args: dict[Any, Any] = {}
-                if self.deconvolution is not None:
-                    deconv_args = dict(
-                        num_iter = self.deconvolution.psf_num_iter,
-                        psf = self.deconvolution.psf[slice.channel].to_numpy(),
-                        decon_processing=self.deconvolution.decon_processing
-                    )
+        
+        for slice in self.iter_slices():
+            roi_index = cast(int, slice.roi_index)
+            roi = self.crop.roi_list[roi_index]
+            deconv_args: dict[Any, Any] = {}
+            if self.deconvolution is not None:
+                deconv_args = dict(
+                    num_iter = self.deconvolution.psf_num_iter,
+                    psf = self.deconvolution.psf[slice.channel].to_numpy(),
+                    decon_processing=self.deconvolution.decon_processing
+                )
 
-                yield slice.copy(update={
-                    "data": crop_volume_deskew(
-                        original_volume=slice.data,
-                        deconvolution=self.deconv_enabled,
-                        get_deskew_and_decon=False,
-                        debug=False,
-                        roi_shape=list(roi),
-                        linear_interpolation=True,
-                        voxel_size_x=self.dx,
-                        voxel_size_y=self.dy,
-                        voxel_size_z=self.dz,
-                        angle_in_degrees=self.angle,
-                        deskewed_volume=self.deskewed_volume,
-                        z_start=self.crop.z_range[0],
-                        z_end=self.crop.z_range[1],
-                        **deconv_args
-                    ),
-                    "roi_index": self.crop.roi_subset[roi_index]
-                })
-                
+            yield slice.copy(update={
+                "data": crop_volume_deskew(
+                    original_volume=slice.data,
+                    deconvolution=self.deconv_enabled,
+                    get_deskew_and_decon=False,
+                    debug=False,
+                    roi_shape=list(roi),
+                    linear_interpolation=True,
+                    voxel_size_x=self.dx,
+                    voxel_size_y=self.dy,
+                    voxel_size_z=self.dz,
+                    angle_in_degrees=self.angle,
+                    deskewed_volume=self.deskewed_volume,
+                    z_start=self.crop.z_range[0],
+                    z_end=self.crop.z_range[1],
+                    **deconv_args
+                ),
+                "roi_index": roi_index
+            })
+            
     def _process_non_crop(self) -> Iterable[ImageSlice]:
         """
         Yields processed image slices without cropping
