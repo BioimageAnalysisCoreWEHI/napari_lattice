@@ -13,6 +13,6 @@ def test_voxel_parsing():
             "input-image",
             "--save-name", "output",
             "--save-type", "tiff",
-            "--physical_pixel_sizes", "1", "1", "1"
+            "--physical-pixel-sizes", "1", "1", "1"
     ])
     assert args["physical_pixel_sizes"] == ("1", "1", "1")
