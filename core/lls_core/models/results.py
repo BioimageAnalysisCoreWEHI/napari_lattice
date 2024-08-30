@@ -111,7 +111,13 @@ class ProcessedWorkflowOutput(BaseModel, arbitrary_types_allowed=True):
         from pandas import Series
 
         if isinstance(self.data, DataFrame):
-            path: Path = self.lattice_data.make_filepath_df(make_filename_suffix(roi_index=str(self.roi_index), prefix=f"_output_{self.index}"), self.data)
+            path: Path = self.lattice_data.make_filepath_df(
+                make_filename_suffix(
+                    roi_index=self.roi_index,
+                    prefix=f"_output_{self.index}"
+                ),
+                self.data
+            )
             result = self.data.apply(Series.explode)
             result.to_csv(str(path))
             return path

@@ -116,7 +116,7 @@ def test_process_workflow(
 
     workflow: Workflow = request.getfixturevalue(workflow_name)
     with tempfile.TemporaryDirectory() as tmpdir:
-        for roi, output in (
+        for output in (
             LatticeData.parse_obj(
                 {
                     "input_image": root / "raw.tif",
@@ -128,8 +128,8 @@ def test_process_workflow(
             .process_workflow()
             .process()
         ):
-            assert roi is None or isinstance(roi, int)
-            assert isinstance(output, (Path, DataFrame))
+            assert output.roi_index is None or isinstance(output.roi_index, int)
+            assert isinstance(output.data, (Path, DataFrame))
 
 def test_table_workflow(
     rbc_tiny: Path, table_workflow: Workflow
