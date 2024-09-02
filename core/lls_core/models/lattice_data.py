@@ -59,6 +59,7 @@ class LatticeData(OutputParams, DeskewParams):
         from lls_core.types import is_pathlike
         from pathlib import Path
         input_image = values.get("input_image")
+        logger.info(f"Processing File {input_image}") # this is handy for debugging
         if is_pathlike(input_image):
             if values.get("save_name") is None:
                 values["save_name"] = Path(values["input_image"]).stem
