@@ -443,7 +443,7 @@
 <p><code>lls_core</code> supports integration with <a href="https://github.com/haesleinhuepf/napari-workflows"><code>napari-workflows</code></a>.
 The advantage of this is that you can design a multi-step automated workflow that uses <code>lls_core</code> as the pre-processing step.</p>
 <h2 id="building-a-workflow">Building a Workflow</h2>
-<p>You can design your workflow via GUI using <a href="https://github.com/haesleinhuepf/napari-assistant">`napari-assistant</a>, or in the YAML format.</p>
+<p>You can design your workflow via GUI using <a href="https://github.com/haesleinhuepf/napari-assistant"><code>napari-assistant</code></a>, or directly in the YAML format.</p>
 <p>When building your workflow with Napari Assistant, you are actually building a <em>template</em> that will be applied to future images.
 For this reason, you need to rename your input layer to <code>deskewed_image</code>, since this is the exact value that the <code>lls_core</code> step produces.</p>
 <p>If you want to use YAML, you also have to make sure that the first workflow step to run takes <code>deskewed_image</code> as an input.
