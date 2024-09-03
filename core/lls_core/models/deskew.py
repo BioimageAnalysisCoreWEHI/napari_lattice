@@ -192,6 +192,15 @@ class DeskewParams(FieldAccessModel):
         # If the image was convertible to AICSImage, we should use the metadata from there
         if aics:
             values["input_image"] = aics.xarray_dask_data
+            
+            #check if final frame is complte. If not, get rid of it
+            final_frame = values["input_image"][-1]
+            try:
+                final_frame.compute()
+            except ValueError as e:
+                print("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
+                values["input_image"] = values["input_image"][0:-1]
+ 
             # Take pixel sizes from the image metadata, but only if they're defined
             # and only if we don't already have them
             if all(size is not None for size in aics.physical_pixel_sizes) and values.get("physical_pixel_sizes") is None:
