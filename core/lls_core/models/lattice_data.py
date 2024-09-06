@@ -75,6 +75,21 @@ class LatticeData(OutputParams, DeskewParams):
         # Use the Deskew version of this validator, to do the actual image loading
         return super().read_image(values)
 
+    @validator("input_image", pre=True, always=True)
+    def incomplete_final_frame(cls, v: DataArray) -> Any:
+        """
+        Check final frame, if acquisition is stopped halfway through it causes failures
+        This validator will remove a bad final frame
+        """
+        final_frame = v[-1]
+        try:
+            final_frame.compute()
+        except ValueError as e:
+            logger.warn("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
+            v = v[0:-1]       
+        return v
+        
+
     @validator("workflow", pre=True)
     def parse_workflow(cls, v: Any):
         # Load the workflow from disk if it was provided as a path

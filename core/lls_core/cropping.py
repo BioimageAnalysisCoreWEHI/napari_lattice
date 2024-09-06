@@ -43,7 +43,7 @@ def read_imagej_roi(roi_path: PathLike) -> List[Roi]:
     if roi_path.suffix == ".zip":
         ij_roi = read_roi_zip(roi_path)
     elif roi_path.suffix == ".roi":
-        ij_roi = read_roi_file(roi_path)
+        ij_roi = read_roi_file(str(roi_path))
     else:
         raise Exception("ImageJ ROI file needs to be a zip/roi file")
 
