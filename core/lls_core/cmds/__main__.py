@@ -147,24 +147,24 @@ def process(
         DefinedPixelSizes.get_default("X")
     )),
 
-    roi_list: List[Path] = field_from_model(CropParams, "roi_list", description="Path pointing to regions of interest to crop to, in ImageJ ROI Manager format."), #Option([], help="A list of paths pointing to regions of interest to crop to, in ImageJ format."),
-    roi_subset: List[int] = field_from_model(CropParams, "roi_subset", description="List of integers describing a subset of ROIs to process. Defaults to processing all ROIs"),
-    z_range: Optional[Tuple[int,int]] = Option(None, help="The index of the first Z slice (inclusive) and the last z slice (exclusive) to use. All other Z slices will be discarded. Defaults to all slices.", show_default=False),
+    roi_list: List[Path] = field_from_model(CropParams, "roi_list"), 
+    roi_subset: List[int] = field_from_model(CropParams, "roi_subset"),
+    z_range: Optional[Tuple[int,int]] = field_from_model(CropParams, "z_range", show_default=False),
     
     enable_deconvolution: bool = Option(False, "--deconvolution/--disable-deconvolution", rich_help_panel="Deconvolution"),
     decon_processing: DeconvolutionChoice = field_from_model(DeconvolutionParams, "decon_processing", rich_help_panel="Deconvolution"),
-    psf: List[Path] = field_from_model(DeconvolutionParams, "psf", description="One or more paths pointing to point spread functions to use for deconvolution. Each file should in a standard image format (.czi, .tiff etc), containing a 3D image array. This option can be used multiple times to provide multiple PSF files.", rich_help_panel="Deconvolution"),
-    decon_num_iter: int = field_from_model(DeconvolutionParams, "decon_num_iter", description="Number of iterations of deconvolution to perform", rich_help_panel="Deconvolution"),
-    background: str = field_from_model(DeconvolutionParams, "background", description="Mean background value for deconvolution background subtraction, can also be 'auto' for automatic bg detection. Defaults to 0.", rich_help_panel="Deconvolution"),
+    psf: List[Path] = field_from_model(DeconvolutionParams, "psf", rich_help_panel="Deconvolution"),
+    decon_num_iter: int = field_from_model(DeconvolutionParams, "decon_num_iter", rich_help_panel="Deconvolution"),
+    background: str = field_from_model(DeconvolutionParams, "background", rich_help_panel="Deconvolution"),
 
-    time_range: Optional[Tuple[int,int]] = Option(None, help="Start frame (inclusive) and stop frame (exclusive) for time cropping - Defaults to full range.", rich_help_panel="Output"),
-    channel_range: Optional[Tuple[int,int]] = Option(None,help="Index of the first channel (inclusive) and last slice (exclusive) to use. Defaults to full range.", rich_help_panel="Output"),
+    time_range: Optional[Tuple[int,int]] = field_from_model(OutputParams, "time_range", rich_help_panel="Output"),
+    channel_range: Optional[Tuple[int,int]] = field_from_model(OutputParams,"channel_range", rich_help_panel="Output"),
         
     save_dir: Path = field_from_model(OutputParams, "save_dir", rich_help_panel="Output"),
     save_name: Optional[str] = field_from_model(OutputParams, "save_name", rich_help_panel="Output"),
     save_type: SaveFileType = field_from_model(OutputParams, "save_type", rich_help_panel="Output"),
 
-    workflow: Optional[Path] = Option(None, help="Path to a Napari Workflow file, in YAML format. If provided, the configured desekewing processing will be added to the chosen workflow.", show_default=False),
+    workflow: Optional[Path] = field_from_model(LatticeData, "workflow", show_default=False),
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 

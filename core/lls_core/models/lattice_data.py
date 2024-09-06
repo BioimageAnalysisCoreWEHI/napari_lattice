@@ -81,7 +81,7 @@ class LatticeData(OutputParams, DeskewParams):
         Check final frame, if acquisition is stopped halfway through it causes failures
         This validator will remove a bad final frame
         """
-        final_frame = v[-1]
+        final_frame = v.isel(T=-1,C=-1)
         try:
             final_frame.compute()
         except ValueError as e:
