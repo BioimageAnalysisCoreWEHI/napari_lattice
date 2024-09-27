@@ -81,12 +81,12 @@ class LatticeData(OutputParams, DeskewParams):
         Check final frame, if acquisition is stopped halfway through it causes failures
         This validator will remove a bad final frame
         """
-        final_frame = v.isel(T=-1,C=-1)
+        final_frame = v.isel(T=-1,C=-1, drop=True)
         try:
             final_frame.compute()
-        except ValueError as e:
-            logger.warn("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
-            v = v[0:-1]       
+        except ValueError:
+            logger.warning("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
+            v = v.drop_isel(T=-1, C=-1)
         return v
         
 
