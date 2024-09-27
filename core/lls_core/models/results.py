@@ -134,7 +134,7 @@ class WorkflowSlices(ProcessedSlices[UnevaluatedWorkflowOutput]):
     """
 
     # This re-definition of the type is helpful for `mkdocs`
-    slices: Iterable[ProcessedSlice[UnevaluatedWorkflowOutput]] = Field(description="Iterable of raw workflow results, the exact nature of which is determined by the author of the workflow. Not typically useful directly, and using the result of `.process()` is recommended instead.")
+    slices: Iterable[ProcessedSlice[UnevaluatedWorkflowOutput]] = Field(description="Iterable of functions. Each of these functions evaluates to a tuple of raw workflow results, the exact nature of which is determined by the author of the workflow. Not typically useful directly, and using the result of `.process()` is recommended instead.")
 
     def process(self) -> Iterable[ProcessedWorkflowOutput]:
         """
