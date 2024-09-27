@@ -321,24 +321,6 @@ class LatticeData(OutputParams, DeskewParams):
                 # The user can use any of these arguments as inputs to their tasks
                 yield lattice_slice.copy_with_data(user_workflow)
 
-    def check_incomplete_acquisition(self, volume: ArrayLike, time_point: int, channel: int):
-        """
-        Checks for a slice with incomplete data, caused by incomplete acquisition
-        """
-        import numpy as np
-        if not isinstance(volume, DaskArray):
-            return volume
-        orig_shape = volume.shape
-        raw_vol = volume.compute()
-        if raw_vol.shape != orig_shape:
-            logger.warn(f"Time {time_point}, channel {channel} is incomplete. Actual shape {orig_shape}, got {raw_vol.shape}")
-            z_diff, y_diff, x_diff = np.subtract(orig_shape, raw_vol.shape)
-            logger.info(f"Padding with{z_diff,y_diff,x_diff}")
-            raw_vol = np.pad(raw_vol, ((0, z_diff), (0, y_diff), (0, x_diff)))
-            if raw_vol.shape != orig_shape:
-                raise Exception(f"Shape of last timepoint still doesn't match. Got {raw_vol.shape}")
-            return raw_vol
-
     @property
     def deskewed_volume(self) -> DaskArray:
         from dask.array import zeros
