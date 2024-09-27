@@ -93,13 +93,27 @@ jobs:
           python-version: "3.x"
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -U setuptools setuptools_scm wheel twine
-      - name: Build and publish
+          python -m pip install .[docs,deploy]
+
+      - name: Build distributions
+        run: |
+          python -m build core
+          python -m build plugin
+
+      - uses: ncipollo/release-action@v1.14.0
+        name: Create GitHub release 
+        with:
+          artifacts: "core/dist/*,plugin/dist/*"
+
+      - name: Publish docs
+        uses: mhausenblas/mkdocs-deploy-gh-pages@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Release on PyPI
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_TOKEN }}
-        run: |
-          git tag
-          python setup.py sdist bdist_wheel
-          twine upload dist/*
+        run: 
+          twine upload core/dist/*
+          twine upload plugin/dist/*
