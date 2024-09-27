@@ -2,7 +2,7 @@ from __future__ import annotations
 from itertools import groupby
 from pathlib import Path
 
-from typing import Iterable, Optional, Tuple, Union, cast, TYPE_CHECKING, overload
+from typing import Callable, Iterable, Optional, Tuple, TypeAlias, Union, cast, TYPE_CHECKING, overload
 from typing_extensions import Generic, TypeVar
 from pydantic.v1 import BaseModel, NonNegativeInt, Field
 from lls_core.types import ArrayLike, is_arraylike
@@ -124,7 +124,9 @@ class ProcessedWorkflowOutput(BaseModel, arbitrary_types_allowed=True):
         else:
             return self.data
 
-class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]):
+
+UnevaluatedWorkflowOutput: TypeAlias = Callable[[], Tuple[RawWorkflowOutput, ...]]
+class WorkflowSlices(ProcessedSlices[UnevaluatedWorkflowOutput]):
     """
     The counterpart of `ImageSlices`, but for workflow outputs.
     This is needed because workflows have vastly different outputs that may include regular
@@ -132,7 +134,7 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
     """
 
     # This re-definition of the type is helpful for `mkdocs`
-    slices: Iterable[ProcessedSlice[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]] = Field(description="Iterable of raw workflow results, the exact nature of which is determined by the author of the workflow. Not typically useful directly, and using he result of `.process()` is recommended instead.")
+    slices: Iterable[ProcessedSlice[UnevaluatedWorkflowOutput]] = Field(description="Iterable of raw workflow results, the exact nature of which is determined by the author of the workflow. Not typically useful directly, and using the result of `.process()` is recommended instead.")
 
     def process(self) -> Iterable[ProcessedWorkflowOutput]:
         """
@@ -148,7 +150,7 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
             values: list[Union[Writer, list]] = []
             for result in roi_results:
                 # If the user didn't return a tuple, put it into one
-                for i, element in enumerate(result.as_tuple()):
+                for i, element in enumerate(result.data()):
                     # If the element is array like, we assume it's an image to write to disk
                     if is_arraylike(element):
                         # Make the writer the first time only
@@ -195,7 +197,7 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
         """
         import numpy as np
         for slice in self.slices:
-            for value in slice.as_tuple():
+            for value in slice.data():
                 if is_arraylike(value):
                     return np.asarray(value)
         raise Exception("No image was returned from this workflow")

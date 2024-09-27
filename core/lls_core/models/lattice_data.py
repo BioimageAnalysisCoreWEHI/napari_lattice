@@ -12,7 +12,7 @@ from lls_core.models.crop import CropParams
 from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.output import OutputParams, SaveFileType
 from lls_core.models.results import WorkflowSlices
-from lls_core.models.utils import ignore_keyerror
+from lls_core.models.utils import as_tuple, ignore_keyerror
 from lls_core.types import ArrayLike
 from lls_core.models.deskew import DeskewParams
 from napari_workflows import Workflow
@@ -28,6 +28,7 @@ if TYPE_CHECKING:
 import logging
 
 logger = logging.getLogger(__name__)
+
 
 class LatticeData(OutputParams, DeskewParams):
     """
@@ -443,8 +444,7 @@ class LatticeData(OutputParams, DeskewParams):
         for workflow in self.generate_workflows():
             outputs.append(
                 workflow.copy_with_data(
-                    # Evaluates the workflow here.
-                    workflow.data.get(get_workflow_output_name(workflow.data))
+                    lambda: as_tuple(workflow.data.get(get_workflow_output_name(workflow.data)))
                 )
             )
 
