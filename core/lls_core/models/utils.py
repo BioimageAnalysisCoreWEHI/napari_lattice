@@ -1,12 +1,12 @@
 
-from typing import Any, Tuple, Type, TypeVar
+from typing import Any, Tuple, Type, TypeVar, Union
 from typing_extensions import Self
 from enum import Enum
 from pydantic.v1 import BaseModel, Extra
 from contextlib import contextmanager
 
 T = TypeVar("T")
-def as_tuple(x: Tuple[T] | T) -> Tuple[T]:
+def as_tuple(x: Union[Tuple[T], T]) -> Tuple[T]:
     """
     Converts the results to a tuple if they weren't already
     """
