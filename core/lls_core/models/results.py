@@ -41,18 +41,6 @@ class ProcessedSlice(BaseModel, Generic[T], arbitrary_types_allowed=True):
                 "data": data
             })
         )
-    
-    @overload
-    def as_tuple(self: ProcessedSlice[Tuple[R]]) -> Tuple[R]:
-        ...
-    @overload
-    def as_tuple(self: ProcessedSlice[T]) -> Tuple[T]:
-        ...
-    def as_tuple(self):
-        """
-        Converts the results to a tuple if they weren't already
-        """
-        return self.data if isinstance(self.data, (tuple, list)) else (self.data,)
 
 class ProcessedSlices(BaseModel, Generic[T], arbitrary_types_allowed=True):
     """
