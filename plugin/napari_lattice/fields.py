@@ -484,10 +484,11 @@ class CroppingFields(NapariFieldGroup):
         from lls_core.models.crop import Roi
 
         if self.fields_enabled.value:
+            deskew = self._get_deskew()
             rois = []
             for shape_layer in self.shapes.value:
                 for x in shape_layer.data:
-                    rois.append(Roi.from_array(x))
+                    rois.append(Roi.from_array(x / deskew.dy))
 
             return CropParams(
                 # Convert from the input image space to the deskewed image space
