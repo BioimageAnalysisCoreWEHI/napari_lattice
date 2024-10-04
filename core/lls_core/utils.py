@@ -320,7 +320,7 @@ def array_to_dask(arr: ArrayLike) -> DaskArray:
     else:
         return from_array(arr)
 
-def make_filename_suffix(prefix: Optional[str] = None, roi_index: Optional[str] = None, channel: Optional[str] = None, time: Optional[str] = None) -> str:
+def make_filename_suffix(prefix: Optional[str] = None, roi_index: Optional[int] = None, channel: Optional[str] = None, time: Optional[str] = None) -> str:
     """
     Generates a filename for this result
     """
