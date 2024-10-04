@@ -10,13 +10,13 @@ from lls_core.models.crop import CropParams
 from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.deskew import DeskewParams
 from lls_core.models.output import OutputParams, SaveFileType
+from napari_workflows import Workflow
 
 if TYPE_CHECKING:
     from lls_core.models.results import ImageSlice, ImageSlices, ProcessedSlice
     from lls_core.writers import Writer
     from xarray import DataArray
     from lls_core.workflow import RawWorkflowOutput
-    from napari_workflows import Workflow
     from lls_core.types import ArrayLike
     from lls_core.models.results import WorkflowSlices
 
@@ -34,8 +34,6 @@ class LatticeData(OutputParams, DeskewParams):
 
     # Note: originally the save-related fields were included via composition and not inheritance
     # (similar to how `crop` and `workflow` are handled), but this was impractical for implementing validations
-
-    def __init__(*args, **kwargs):
 
     deconvolution: Optional[DeconvolutionParams] = Field(
         default=None,
