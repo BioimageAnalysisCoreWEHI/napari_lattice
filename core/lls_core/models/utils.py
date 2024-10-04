@@ -1,9 +1,16 @@
 
-from typing import Any, Type
+from typing import Any, Tuple, Type, TypeVar
 from typing_extensions import Self
 from enum import Enum
 from pydantic.v1 import BaseModel, Extra
 from contextlib import contextmanager
+
+T = TypeVar("T")
+def as_tuple(x: Tuple[T] | T) -> Tuple[T]:
+    """
+    Converts the results to a tuple if they weren't already
+    """
+    return x if isinstance(x, tuple) else (x,)
 
 def enum_choices(enum: Type[Enum]) -> str:
     """

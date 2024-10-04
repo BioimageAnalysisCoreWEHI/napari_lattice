@@ -124,7 +124,7 @@ class ProcessedWorkflowOutput(BaseModel, arbitrary_types_allowed=True):
         else:
             return self.data
 
-class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]):
+class WorkflowSlices(ProcessedSlices[Tuple[RawWorkflowOutput, ...]]):
     """
     The counterpart of `ImageSlices`, but for workflow outputs.
     This is needed because workflows have vastly different outputs that may include regular
@@ -132,7 +132,7 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
     """
 
     # This re-definition of the type is helpful for `mkdocs`
-    slices: Iterable[ProcessedSlice[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]] = Field(description="Iterable of raw workflow results, the exact nature of which is determined by the author of the workflow. Not typically useful directly, and using he result of `.process()` is recommended instead.")
+    slices: Iterable[ProcessedSlice[Tuple[RawWorkflowOutput, ...]]] = Field(description="Iterable of raw workflow results, the exact nature of which is determined by the author of the workflow. Not typically useful directly, and using he result of `.process()` is recommended instead.")
 
     def process(self) -> Iterable[ProcessedWorkflowOutput]:
         """

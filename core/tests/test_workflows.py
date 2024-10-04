@@ -6,6 +6,8 @@ from napari_workflows import Workflow
 import tempfile
 
 from pandas import DataFrame
+from lls_core.cropping import Roi
+from lls_core.models.crop import CropParams
 from lls_core.models.lattice_data import LatticeData
 
 from tests.utils import invoke
@@ -107,3 +109,23 @@ def test_sum_preview(rbc_tiny: Path):
         )
         preview = params.process_workflow().extract_preview()
         np.sum(preview, axis=(1, 2))
+
+def test_crop_workflow(rbc_tiny: Path):
+    # Tests that crop workflows only process each ROI lazily
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        params = LatticeData(
+            input_image = rbc_tiny,
+            workflow = "core/tests/workflows/binarisation/workflow.yml",
+            save_dir = tmpdir,
+            crop=CropParams(
+                roi_list=[
+                    Roi((174.0, 24.0), (174.0, 88.0), (262.0, 88.0), (262.0, 24.0)),
+                    Roi((174.0, 24.0), (174.0, 88.0), (262.0, 88.0), (262.0, 24.0)),
+                ]
+            )
+        )
+        next(iter(params.process_workflow().save()))
+        for file in Path(tmpdir).iterdir():
+            # Only the first ROI should have been processed
+            assert "ROI_0" in file.name
