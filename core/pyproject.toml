@@ -97,6 +97,10 @@ docs = [
     "fieldz>0.1.0",
     "griffe-fieldz"
 ]
+deploy = [
+    "build",
+    "twine"
+]
 
 [project.scripts]
 lls-pipeline = "lls_core.cmds.__main__:main"
