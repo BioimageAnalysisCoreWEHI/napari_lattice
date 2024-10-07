@@ -1,7 +1,23 @@
 # Installation
 
+## Conda
+
 It is advisable but not required that you install Napari Lattice packages inside a conda environment.
 This is because conda makes it much easier to install system complex dependencies.
+
+First, you should work out which version of OpenCL you need:
+* Macs with GPUs should use `ocl_icd_wrapper_apple`
+* Linux systems with GPUs should use `ocl-icd-system`
+* All other systems should use `pocl`
+
+Then you can create a suitable environment, *replacing `pocl` with the appropriate package as necessary*:
+```bash
+conda install -c conda-forge 'python==3.11.*' pocl
+```
+
+Finally, you can proceed with the next step.
+
+## Pip
 
 To install the core package, which includes the Python library and command line interface:
 
