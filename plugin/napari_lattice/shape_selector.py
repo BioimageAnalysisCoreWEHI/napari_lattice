@@ -8,7 +8,7 @@ from napari.components.layerlist import LayerList
 from collections import defaultdict
 from contextlib import contextmanager
 
-from plugin.napari_lattice.utils import get_viewer
+from napari_lattice.utils import get_viewer
 
 if TYPE_CHECKING:
     from napari.utils.events.event import Event
