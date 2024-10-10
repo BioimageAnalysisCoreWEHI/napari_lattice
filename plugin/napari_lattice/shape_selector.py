@@ -33,10 +33,10 @@ class ShapeSelector:
 
     _blocked: bool
 
-    def __init__(self, *args, **kwargs) -> None:
-        # Needed to handle extra kwargs
+    def __init__(self, enabled: bool, *args, **kwargs) -> None:
         self._blocked = False
-
+        self.enabled = enabled
+    
     @contextmanager
     def _block(self):
         """
@@ -119,7 +119,7 @@ class ShapeSelector:
             if isinstance(layer, Shapes):
                 self._connect_shapes(layer)
 
-    shapes = field(Select, options={"choices": _get_shape_choices})
+    shapes = field(Select, options={"choices": _get_shape_choices, "label": "ROIs"})
 
     # values is a list[Shape], but if we use the correct annotation it breaks magicclass
     @shapes.connect
@@ -144,4 +144,4 @@ class ShapeSelector:
 
             # Re-calculate the selections for all Shapes layers (since some have been deselected)
             for layer in layers.keys():
-                    layer.refresh()
+                layer.refresh()
