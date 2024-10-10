@@ -41,7 +41,7 @@ class ShapeSelector:
     def _block(self):
         """
         Context manager that prevents event handlers recursively calling each other.
-        Yields a boolean, which means functions should proceed if `True`, or return immediately if `False`
+        Yields a boolean which means functions should proceed if `True`, or return immediately if `False`
         """
         if self._blocked:
             yield False
@@ -83,8 +83,9 @@ class ShapeSelector:
         Listens to events on that layer that we are interested in.
         """
         shapes.events.data.connect(self._on_shape_change)
+        # There is no shape selection event. This is the closest thing.
+        # See: https://github.com/napari/napari/issues/6886
         shapes.events.highlight.connect(self._on_selection_change)
-        # shapes.events.current_properties.connect(self._on_selection_change)
 
     def _on_shape_change(self, event: Event) -> None:
         """
