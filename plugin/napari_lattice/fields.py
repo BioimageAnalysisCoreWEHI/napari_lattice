@@ -20,7 +20,7 @@ from lls_core.models import (
 from lls_core.models.deskew import DefinedPixelSizes
 from lls_core.models.output import SaveFileType
 from lls_core.workflow import workflow_from_path
-from magicclass import FieldGroup, MagicTemplate, field, magicclass, set_design
+from magicclass import FieldGroup, MagicTemplate, field, magicclass, set_design, vfield
 from magicclass.fields import MagicField
 from magicclass.widgets import ComboBox, Label, Widget
 from napari.layers import Image, Shapes
@@ -32,6 +32,7 @@ from napari_workflows import Workflow, WorkflowManager
 from qtpy.QtWidgets import QTabWidget
 from strenum import StrEnum
 from napari_lattice.parent_connect import connect_parent
+from plugin.napari_lattice.shape_selector import ShapeSelector
 
 if TYPE_CHECKING:
     from magicgui.widgets.bases import RangedWidget
@@ -429,7 +430,8 @@ class CroppingFields(NapariFieldGroup):
         This is to support the workflow of performing a preview deskew and using that to calculate the cropping coordinates.
     """), widget_type="Label")
     fields_enabled = field(False, label="Enabled")
-    shapes= field(List[Shapes], widget_type="Select", label = "ROI Shape Layers").with_options(choices=lambda _x, _y: get_layers(Shapes))
+
+    shapes= vfield(ShapeSelector)
     z_range = field(Tuple[int, int]).with_options(
         label = "Z Range",
         value = (0, 1),
