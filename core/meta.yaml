@@ -62,7 +62,7 @@ test:
 about:
   home: https://github.com/BioimageAnalysisCoreWEHI/napari_lattice
   license: GPL-3.0
-  license_file: LICENSE
+  license_file: ../LICENSE
 
 extra:
   recipe-maintainers:

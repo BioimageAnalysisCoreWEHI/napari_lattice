@@ -78,6 +78,16 @@ jobs:
       - name: Coverage
         uses: codecov/codecov-action@v3
 
+  build_conda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: cascode-labs/build-conda-action/action.yml@v0
+        with:
+          recipe_path: core
+          package_artifact_name: lls_core_conda
+
+
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
     # and requires that you have put your twine API key in your
