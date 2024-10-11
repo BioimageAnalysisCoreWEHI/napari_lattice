@@ -82,11 +82,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: cascode-labs/build-conda-action/action.yml@v0.1.4
+      - uses: mamba-org/setup-micromamba@v1
         with:
-          recipe_path: core
-          package_artifact_name: lls_core_conda
-
+          environment-name: conda-build-env
+          create-args: >-
+            conda-build
+          init-shell: bash
+      - run: |
+          mkdir output/
+          conda-build build core --output-folder output
+        name: Build conda package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lls-core-conda
+          path: output/
 
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
