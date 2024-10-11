@@ -52,10 +52,10 @@ requirements:
 
 test:
   imports:
-    - napari_lattice
+    - lls_core
   commands:
     - pip check
-    - napari_lattice --help
+    - lls-pipeline --help
   requires:
     - pip
 
