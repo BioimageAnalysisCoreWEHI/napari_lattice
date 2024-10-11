@@ -82,7 +82,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
-      - uses: cascode-labs/build-conda-action/action.yml@v0
+      - uses: cascode-labs/build-conda-action/action.yml@v0.1.4
         with:
           recipe_path: core
           package_artifact_name: lls_core_conda
