@@ -91,6 +91,7 @@ jobs:
       - run: |
           mkdir output/
           conda-build build core --output-folder output
+        shell: bash -leo pipefail {0}
         name: Build conda package
       - uses: actions/upload-artifact@v4
         with:
