@@ -432,14 +432,6 @@ class CroppingFields(NapariFieldGroup):
     fields_enabled = field(False, label="Enabled")
 
     shapes= vfield(ShapeSelector)
-    z_range = field(Tuple[int, int]).with_options(
-        label = "Z Range",
-        value = (0, 1),
-        options = dict(
-            min = 0,
-        ),
-    )
-    errors = field(Label).with_options(label="Errors")
 
     @set_design(text="Import ROI")
     def import_roi(self, path: Path):
@@ -457,7 +449,16 @@ class CroppingFields(NapariFieldGroup):
         from napari_lattice.utils import get_viewer
         shapes = get_viewer().add_shapes(name="Napari Lattice Crop")
         shapes.mode = "ADD_RECTANGLE"
-        self.shapes.value += [shapes]
+        # self.shapes.value += [shapes]
+
+    z_range = field(Tuple[int, int]).with_options(
+        label = "Z Range",
+        value = (0, 1),
+        options = dict(
+            min = 0,
+        ),
+    )
+    errors = field(Label).with_options(label="Errors")
 
     @connect_parent("deskew_fields.img_layer")
     def _on_image_changed(self, field: MagicField):
@@ -488,9 +489,8 @@ class CroppingFields(NapariFieldGroup):
         if self.fields_enabled.value:
             deskew = self._get_deskew()
             rois = []
-            for shape_layer in self.shapes.value:
-                for x in shape_layer.data:
-                    rois.append(Roi.from_array(x / deskew.dy))
+            for shape in self.shapes.shapes.value:
+                rois.append(Roi.from_array(shape.get_array() / deskew.dy))
 
             return CropParams(
                 # Convert from the input image space to the deskewed image space

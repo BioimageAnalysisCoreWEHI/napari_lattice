@@ -1,8 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterator, Tuple, TYPE_CHECKING
-from magicclass import field, magicclass
-from magicgui.widgets import Select
+from magicclass import field, magicclass, set_design
+from magicgui.widgets import Select, Button
 from napari.layers import Shapes
 from napari.components.layerlist import LayerList
 from collections import defaultdict
@@ -31,7 +31,27 @@ class Shape:
 @magicclass
 class ShapeSelector:
 
+    def _get_shape_choices(self, widget: Select | None = None) -> Iterator[Tuple[str, Shape]]:
+        """
+        Returns the choices to use for the Select box
+        """
+        viewer = get_viewer()
+        for layer in viewer.layers:
+            if isinstance(layer, Shapes):
+                for index in layer.features.index:
+                    result = Shape(layer=layer, index=index)
+                    yield str(result), result
+
     _blocked: bool
+    shapes = field(Select, options={"choices": _get_shape_choices, "label": "ROIs"})
+
+    @set_design(text="Select All")
+    def select_all(self) -> None:
+        self.shapes.value = self.shapes.choices
+
+    @set_design(text="Deselect All")
+    def deselect_all(self) -> None:
+        self.shapes.value = []
 
     def __init__(self, enabled: bool, *args, **kwargs) -> None:
         self._blocked = False
@@ -49,17 +69,6 @@ class ShapeSelector:
             self._blocked = True
             yield True
             self._blocked = False
-
-    def _get_shape_choices(self, widget: Select | None = None) -> Iterator[Tuple[str, Shape]]:
-        """
-        Returns the choices to use for the Select box
-        """
-        viewer = get_viewer()
-        for layer in viewer.layers:
-            if isinstance(layer, Shapes):
-                for index in layer.features.index:
-                    result = Shape(layer=layer, index=index)
-                    yield str(result), result
 
     def _on_selection_change(self, event: Event) -> None:
         """
@@ -118,8 +127,6 @@ class ShapeSelector:
         for layer in viewer.layers:
             if isinstance(layer, Shapes):
                 self._connect_shapes(layer)
-
-    shapes = field(Select, options={"choices": _get_shape_choices, "label": "ROIs"})
 
     # values is a list[Shape], but if we use the correct annotation it breaks magicclass
     @shapes.connect

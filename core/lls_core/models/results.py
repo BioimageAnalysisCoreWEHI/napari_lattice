@@ -2,7 +2,7 @@ from __future__ import annotations
 from itertools import groupby
 from pathlib import Path
 
-from typing import Iterable, Optional, Tuple, Union, cast, TYPE_CHECKING, overload
+from typing import Iterable, Iterator, Optional, Tuple, TypeAlias, Union, cast, TYPE_CHECKING, overload
 from typing_extensions import Generic, TypeVar
 from pydantic.v1 import BaseModel, NonNegativeInt, Field
 from lls_core.types import ArrayLike, is_arraylike
@@ -75,6 +75,19 @@ class ImageSlices(ProcessedSlices[ArrayLike]):
     # This re-definition of the type is helpful for `mkdocs`
     slices: Iterable[ProcessedSlice[ArrayLike]] = Field(description="Iterable of result slices. For a given slice, you can access the image data through the `slice.data` property, which is a numpy-like array.")
 
+    def roi_previews(self) -> Iterable[ArrayLike]:
+        """
+        Extracts a single 3D image for each ROI
+        """
+        import numpy as np
+        def _preview(slices: Iterable[ProcessedSlice[ArrayLike]]) -> ArrayLike:
+            for slice in slices:
+                return slice.data
+            raise Exception("This ROI has no images. This shouldn't be possible")
+
+        for roi_index, slices in groupby(self.slices, key=lambda slice: slice.roi_index):
+            yield _preview(slices)
+
     def save_image(self):
         """
         Saves result slices to disk
@@ -96,7 +109,8 @@ The result of a workflow. If this is a `Path`, then it is the path to an image s
 If a `DataFrame`, then it contains non-image data returned by your workflow.
 """
 
-class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]):
+MaybeTupleRawWorkflowOutput: TypeAlias = Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]
+class WorkflowSlices(ProcessedSlices[MaybeTupleRawWorkflowOutput]):
     """
     The counterpart of `ImageSlices`, but for workflow outputs.
     This is needed because workflows have vastly different outputs that may include regular
@@ -159,16 +173,20 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
                 else:
                     yield roi, pd.DataFrame(element)
 
-    def extract_preview(self) -> NDArray:
+    def roi_previews(self) -> Iterable[NDArray]:
         """
-        Extracts a single 3D image for previewing purposes
+        Extracts a single 3D image for each ROI
         """
         import numpy as np
-        for slice in self.slices:
-            for value in slice.as_tuple():
-                if is_arraylike(value):
-                    return np.asarray(value)
-        raise Exception("No image was returned from this workflow")
+        def _preview(slices: Iterable[ProcessedSlice[MaybeTupleRawWorkflowOutput]]) -> NDArray:
+            for slice in slices:
+                for value in slice.as_tuple():
+                    if is_arraylike(value):
+                        return np.asarray(value)
+            raise Exception("This ROI has no images. This shouldn't be possible")
+
+        for roi_index, slices in groupby(self.slices, key=lambda slice: slice.roi_index):
+            yield _preview(slices)
 
     def save(self) -> Iterable[Path]:
         """
