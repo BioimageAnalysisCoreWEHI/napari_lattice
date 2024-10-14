@@ -78,6 +78,27 @@ jobs:
       - name: Coverage
         uses: codecov/codecov-action@v3
 
+  build_conda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-name: conda-build-env
+          create-args: >-
+            conda-build
+            conda-verify
+          init-shell: bash
+      - run: |
+          mkdir output/
+          conda-build core --output-folder output
+        shell: bash -leo pipefail {0}
+        name: Build conda package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lls-core-conda
+          path: output/
+
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
     # and requires that you have put your twine API key in your
