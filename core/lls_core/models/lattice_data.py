@@ -86,7 +86,7 @@ class LatticeData(OutputParams, DeskewParams):
             final_frame.compute()
         except ValueError:
             logger.warning("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
-            v = v.drop_isel(T=-1, C=-1)
+            v = v.drop_isel(T=-1)
         return v
         
 
