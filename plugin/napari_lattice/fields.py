@@ -32,7 +32,7 @@ from napari_workflows import Workflow, WorkflowManager
 from qtpy.QtWidgets import QTabWidget
 from strenum import StrEnum
 from napari_lattice.parent_connect import connect_parent
-from plugin.napari_lattice.shape_selector import ShapeSelector
+from napari_lattice.shape_selector import ShapeSelector
 
 if TYPE_CHECKING:
     from magicgui.widgets.bases import RangedWidget
