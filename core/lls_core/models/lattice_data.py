@@ -370,7 +370,7 @@ class LatticeData(OutputParams, DeskewParams):
             deconv_args: dict[Any, Any] = {}
             if self.deconvolution is not None:
                 deconv_args = dict(
-                    num_iter = self.deconvolution.psf_num_iter,
+                    num_iter = self.deconvolution.decon_num_iter,
                     psf = self.deconvolution.psf[slice.channel].to_numpy(),
                     decon_processing=self.deconvolution.decon_processing
                 )
