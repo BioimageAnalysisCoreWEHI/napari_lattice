@@ -375,7 +375,7 @@ class DeconvolutionFields(NapariFieldGroup):
         tooltip="PSFs must be in the same order as the image channels",
         layout="vertical"
     )
-    psf_num_iter = field(int, label = "Number of Iterations")
+    decon_num_iter = field(int, label = "Number of Iterations")
     background = field(ComboBox).with_choices(
         [it.value for it in BackgroundSource]
     ).with_options(label="Background")
@@ -397,7 +397,7 @@ class DeconvolutionFields(NapariFieldGroup):
         fields = [
             decon_processing,
             psf,
-            psf_num_iter,
+            decon_num_iter,
             background
         ]
     )
@@ -418,7 +418,7 @@ class DeconvolutionFields(NapariFieldGroup):
             background=background,
             # Filter out unset PSFs
             psf=[psf for psf in self.psf.value if psf.is_file()],
-            psf_num_iter=self.psf_num_iter.value
+            decon_num_iter=self.decon_num_iter.value
         )
 
 @magicclass

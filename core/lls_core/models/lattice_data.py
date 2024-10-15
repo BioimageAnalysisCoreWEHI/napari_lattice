@@ -61,6 +61,7 @@ class LatticeData(OutputParams, DeskewParams):
         from lls_core.types import is_pathlike
         from pathlib import Path
         input_image = values.get("input_image")
+        logger.info(f"Processing File {input_image}") # this is handy for debugging
         if is_pathlike(input_image):
             if values.get("save_name") is None:
                 values["save_name"] = Path(values["input_image"]).stem
@@ -75,6 +76,21 @@ class LatticeData(OutputParams, DeskewParams):
 
         # Use the Deskew version of this validator, to do the actual image loading
         return super().read_image(values)
+
+    @validator("input_image", pre=True, always=True)
+    def incomplete_final_frame(cls, v: DataArray) -> Any:
+        """
+        Check final frame, if acquisition is stopped halfway through it causes failures
+        This validator will remove a bad final frame
+        """
+        final_frame = v.isel(T=-1,C=-1, drop=True)
+        try:
+            final_frame.compute()
+        except ValueError:
+            logger.warning("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
+            v = v.drop_isel(T=-1)
+        return v
+        
 
     @validator("workflow", pre=True)
     def parse_workflow(cls, v: Any):
@@ -336,24 +352,6 @@ class LatticeData(OutputParams, DeskewParams):
             # The user can use any of these arguments as inputs to their tasks
             yield lattice_slice.copy_with_data(user_workflow)
 
-    def check_incomplete_acquisition(self, volume: ArrayLike, time_point: int, channel: int):
-        """
-        Checks for a slice with incomplete data, caused by incomplete acquisition
-        """
-        import numpy as np
-        if not isinstance(volume, DaskArray):
-            return volume
-        orig_shape = volume.shape
-        raw_vol = volume.compute()
-        if raw_vol.shape != orig_shape:
-            logger.warn(f"Time {time_point}, channel {channel} is incomplete. Actual shape {orig_shape}, got {raw_vol.shape}")
-            z_diff, y_diff, x_diff = np.subtract(orig_shape, raw_vol.shape)
-            logger.info(f"Padding with{z_diff,y_diff,x_diff}")
-            raw_vol = np.pad(raw_vol, ((0, z_diff), (0, y_diff), (0, x_diff)))
-            if raw_vol.shape != orig_shape:
-                raise Exception(f"Shape of last timepoint still doesn't match. Got {raw_vol.shape}")
-            return raw_vol
-
     @property
     def deskewed_volume(self) -> DaskArray:
         from dask.array import zeros
@@ -372,7 +370,7 @@ class LatticeData(OutputParams, DeskewParams):
             deconv_args: dict[Any, Any] = {}
             if self.deconvolution is not None:
                 deconv_args = dict(
-                    num_iter = self.deconvolution.psf_num_iter,
+                    num_iter = self.deconvolution.decon_num_iter,
                     psf = self.deconvolution.psf[slice.channel].to_numpy(),
                     decon_processing=self.deconvolution.decon_processing
                 )
@@ -417,13 +415,13 @@ class LatticeData(OutputParams, DeskewParams):
                         dxdata=self.dx,
                         dzpsf=self.dz,
                         dxpsf=self.dx,
-                        num_iter=self.deconvolution.psf_num_iter
+                        num_iter=self.deconvolution.decon_num_iter
                     )
                 else:
                     data = skimage_decon(
                         vol_zyx=data,
                         psf=self.deconvolution.psf[slice.channel].to_numpy(),
-                        num_iter=self.deconvolution.psf_num_iter,
+                        num_iter=self.deconvolution.decon_num_iter,
                         clip=False,
                         filter_epsilon=0,
                         boundary='nearest'

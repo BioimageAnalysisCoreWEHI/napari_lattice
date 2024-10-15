@@ -22,7 +22,7 @@ class DeconvolutionParams(FieldAccessModel):
         default=[],
         description="List of Point Spread Functions to use for deconvolution. Each of which should be a 3D array. Each PSF can also be provided as a `str` path, in which case they will be loaded from disk as images."
     )
-    psf_num_iter: NonNegativeInt = Field(
+    decon_num_iter: NonNegativeInt = Field(
         default=10,
         description="Number of iterations to perform in deconvolution"
     )
