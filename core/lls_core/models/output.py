@@ -72,10 +72,7 @@ class OutputParams(FieldAccessModel):
         """
         Returns a filepath for the non-image data
         """
-        if isinstance(result, DataFrame):
-            return self.get_unique_filepath(self.save_dir / Path(self.save_name + suffix).with_suffix(".csv"))
-        
-        return 
+        return self.get_unique_filepath(self.save_dir / Path(self.save_name + suffix).with_suffix(".csv"))
     
     def get_unique_filepath(self, path: Path) -> Path:
         """
