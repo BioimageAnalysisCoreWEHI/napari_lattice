@@ -107,8 +107,9 @@ def test_sum_preview(rbc_tiny: Path):
             workflow = "core/tests/workflows/binarisation/workflow.yml",
             save_dir = tmpdir
         )
-        preview = params.process_workflow().extract_preview()
-        np.sum(preview, axis=(1, 2))
+        previews = list(params.process_workflow().roi_previews())
+        assert len(previews) == 1, "There should be 1 preview when cropping is disabled"
+        assert previews[0].ndim == 3, "A preview should be a 3D image"
 
 def test_crop_workflow(rbc_tiny: Path):
     # Tests that crop workflows only process each ROI lazily
