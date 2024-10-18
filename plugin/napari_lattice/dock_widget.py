@@ -149,20 +149,19 @@ class LLSZWidget(MagicTemplate):
             lattice.dy,
             lattice.dx
         )
-        preview: ArrayLike
+        previews: Iterable[ArrayLike]
 
         # We extract the first available image to use as a preview
         # This works differently for workflows and non-workflows
         if lattice.workflow is None:
-            for slice in lattice.process().slices:
-                preview = slice.data
-                break
+            previews = lattice.process().roi_previews()
         else:
-            preview = lattice.process_workflow().extract_preview()
+            previews = lattice.process_workflow().roi_previews()
 
-        self.parent_viewer.add_image(preview, scale=scale, name="Napari Lattice Preview")
-        max_z = np.argmax(np.sum(preview, axis=(1, 2)))
-        self.parent_viewer.dims.set_current_step(0, max_z)
+        for preview in previews:
+            self.parent_viewer.add_image(preview, scale=scale, name="Napari Lattice Preview")
+            max_z = np.argmax(np.sum(preview, axis=(1, 2)))
+            self.parent_viewer.dims.set_current_step(0, max_z)
 
 
     @set_design(text="Save")

@@ -20,7 +20,7 @@ from lls_core.models import (
 from lls_core.models.deskew import DefinedPixelSizes
 from lls_core.models.output import SaveFileType
 from lls_core.workflow import workflow_from_path
-from magicclass import FieldGroup, MagicTemplate, field, magicclass, set_design
+from magicclass import FieldGroup, MagicTemplate, field, magicclass, set_design, vfield
 from magicclass.fields import MagicField
 from magicclass.widgets import ComboBox, Label, Widget
 from napari.layers import Image, Shapes
@@ -32,9 +32,11 @@ from napari_workflows import Workflow, WorkflowManager
 from qtpy.QtWidgets import QTabWidget
 from strenum import StrEnum
 from napari_lattice.parent_connect import connect_parent
+from napari_lattice.shape_selector import ShapeSelector
 
 if TYPE_CHECKING:
     from magicgui.widgets.bases import RangedWidget
+    from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -429,15 +431,8 @@ class CroppingFields(NapariFieldGroup):
         This is to support the workflow of performing a preview deskew and using that to calculate the cropping coordinates.
     """), widget_type="Label")
     fields_enabled = field(False, label="Enabled")
-    shapes= field(List[Shapes], widget_type="Select", label = "ROI Shape Layers").with_options(choices=lambda _x, _y: get_layers(Shapes))
-    z_range = field(Tuple[int, int]).with_options(
-        label = "Z Range",
-        value = (0, 1),
-        options = dict(
-            min = 0,
-        ),
-    )
-    errors = field(Label).with_options(label="Errors")
+
+    shapes= vfield(ShapeSelector)
 
     @set_design(text="Import ROI")
     def import_roi(self, path: Path):
@@ -455,7 +450,16 @@ class CroppingFields(NapariFieldGroup):
         from napari_lattice.utils import get_viewer
         shapes = get_viewer().add_shapes(name="Napari Lattice Crop")
         shapes.mode = "ADD_RECTANGLE"
-        self.shapes.value += [shapes]
+        # self.shapes.value += [shapes]
+
+    z_range = field(Tuple[int, int]).with_options(
+        label = "Z Range",
+        value = (0, 1),
+        options = dict(
+            min = 0,
+        ),
+    )
+    errors = field(Label).with_options(label="Errors")
 
     @connect_parent("deskew_fields.img_layer")
     def _on_image_changed(self, field: MagicField):
@@ -486,9 +490,12 @@ class CroppingFields(NapariFieldGroup):
         if self.fields_enabled.value:
             deskew = self._get_deskew()
             rois = []
-            for shape_layer in self.shapes.value:
-                for x in shape_layer.data:
-                    rois.append(Roi.from_array(x / deskew.dy))
+            for shape in self.shapes.shapes.value:
+                # The Napari shape is an array with 2 dimensions.
+                # Each column is an axis and each row is a point defining the shape
+                # We drop all but the last two axes, giving us a 2D shape with XY coordinates
+                array: NDArray = shape.get_array()[..., -2:] / deskew.dy
+                rois.append(Roi.from_array(array))
 
             return CropParams(
                 # Convert from the input image space to the deskewed image space
