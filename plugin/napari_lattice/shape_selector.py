@@ -2,6 +2,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Iterator, Tuple, TYPE_CHECKING
 from magicclass import field, magicclass, set_design
+from magicclass.fields._fields import MagicField
 from magicgui.widgets import Select, Button
 from napari.layers import Shapes
 from napari.components.layerlist import LayerList
@@ -43,7 +44,7 @@ class ShapeSelector:
                     yield str(result), result
 
     _blocked: bool
-    shapes = field(Select, options={"choices": _get_shape_choices, "label": "ROIs"})
+    shapes: MagicField[Select] = field(Select, options={"choices": _get_shape_choices, "label": "ROIs"})
 
     @set_design(text="Select All")
     def select_all(self) -> None:

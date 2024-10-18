@@ -36,6 +36,7 @@ from napari_lattice.shape_selector import ShapeSelector
 
 if TYPE_CHECKING:
     from magicgui.widgets.bases import RangedWidget
+    from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -490,7 +491,11 @@ class CroppingFields(NapariFieldGroup):
             deskew = self._get_deskew()
             rois = []
             for shape in self.shapes.shapes.value:
-                rois.append(Roi.from_array(shape.get_array() / deskew.dy))
+                # The Napari shape is an array with 2 dimensions.
+                # Each column is an axis and each row is a point defining the shape
+                # We drop all but the last two axes, giving us a 2D shape with XY coordinates
+                array: NDArray = shape.get_array()[..., -2:] / deskew.dy
+                rois.append(Roi.from_array(array))
 
             return CropParams(
                 # Convert from the input image space to the deskewed image space
