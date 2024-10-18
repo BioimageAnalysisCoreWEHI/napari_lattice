@@ -145,7 +145,7 @@ class ShapeSelector:
         with self._block() as execute:
             if not execute:
                 return
-            layers: dict[Shapes, list[int]] = {layer: [] for layer in get_viewer().layers if isinstance(layer, Shapes)}
+            layers: dict[Shapes, list[int]] = {layer: [] for layer in viewer.layers if isinstance(layer, Shapes)}
             value: Shape
 
             # Find the current selection for each layer
