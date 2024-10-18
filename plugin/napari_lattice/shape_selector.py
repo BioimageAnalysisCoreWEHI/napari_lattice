@@ -8,8 +8,7 @@ from napari.layers import Shapes
 from napari.components.layerlist import LayerList
 from collections import defaultdict
 from contextlib import contextmanager
-
-from napari_lattice.utils import get_viewer
+from napari.viewer import current_viewer
 
 if TYPE_CHECKING:
     from napari.utils.events.event import Event
@@ -36,12 +35,13 @@ class ShapeSelector:
         """
         Returns the choices to use for the Select box
         """
-        viewer = get_viewer()
-        for layer in viewer.layers:
-            if isinstance(layer, Shapes):
-                for index in layer.features.index:
-                    result = Shape(layer=layer, index=index)
-                    yield str(result), result
+        viewer = current_viewer()
+        if viewer is not None:
+            for layer in viewer.layers:
+                if isinstance(layer, Shapes):
+                    for index in layer.features.index:
+                        result = Shape(layer=layer, index=index)
+                        yield str(result), result
 
     _blocked: bool
     shapes: MagicField[Select] = field(Select, options={"choices": _get_shape_choices, "label": "ROIs"})
@@ -119,15 +119,17 @@ class ShapeSelector:
         """
         Whenever a new layer is inserted
         """
-        viewer = get_viewer()
+        viewer = current_viewer()
 
-        # Listen for new layers
-        viewer.layers.events.inserted.connect(self._on_layer_add)
+        if viewer is not None:
 
-        # Watch current layers
-        for layer in viewer.layers:
-            if isinstance(layer, Shapes):
-                self._connect_shapes(layer)
+            # Listen for new layers
+            viewer.layers.events.inserted.connect(self._on_layer_add)
+
+            # Watch current layers
+            for layer in viewer.layers:
+                if isinstance(layer, Shapes):
+                    self._connect_shapes(layer)
 
     # values is a list[Shape], but if we use the correct annotation it breaks magicclass
     @shapes.connect
@@ -136,6 +138,10 @@ class ShapeSelector:
         Triggered when the plugin widget is changed.
         We then synchronise the Napari shape selection with it.
         """
+        viewer = current_viewer()
+        if viewer is None:
+            return
+
         with self._block() as execute:
             if not execute:
                 return
