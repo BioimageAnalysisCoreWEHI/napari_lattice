@@ -50,6 +50,9 @@ requirements:
     - typing_extensions >=4.7.0
     - xarray
 
+  run_constrained:
+    - ome-types >=0.3.4
+
 test:
   imports:
     - lls_core
