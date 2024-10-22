@@ -89,15 +89,18 @@ jobs:
             conda-build
             conda-verify
           init-shell: bash
+
+        # We don't want the whole repo (recipe), since that includes some test data
       - run: |
           mkdir output/
-          conda-build core --output-folder output
+          conda-build core --output-folder output --no-include-recipe
         shell: bash -leo pipefail {0}
         name: Build conda package
       - uses: actions/upload-artifact@v4
         with:
           name: lls-core-conda
-          path: output/
+          # Upload the actual conda package
+          path: output/**/lls-core*.tar.bz2
 
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
