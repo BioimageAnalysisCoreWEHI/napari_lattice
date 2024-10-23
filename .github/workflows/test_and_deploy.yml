@@ -100,7 +100,7 @@ jobs:
         with:
           name: lls-core-conda
           # Upload the actual conda package
-          path: output/**/lls-core*.tar.bz2
+          path: output/**/lls_core*.tar.bz2
 
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
