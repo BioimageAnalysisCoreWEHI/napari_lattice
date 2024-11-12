@@ -86,7 +86,12 @@ class ShapeSelector:
             source: Shapes = event.source
             selection: list[Shape] = []
             for index in source.selected_data:
-                selection.append(Shape(layer=source, index=index))
+                shape = Shape(layer=source, index=index)
+                if shape not in self.shapes.choices:
+                    # If we ever encounter a shape that isn't a legal choice, we have to terminate to avoid an error
+                    # This seems to happen on Windows only due to the order of events firing
+                    return
+                selection.append(shape)
             self.shapes.value = selection
 
     def _connect_shapes(self, shapes: Shapes) -> None:
