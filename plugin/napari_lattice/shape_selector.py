@@ -9,6 +9,7 @@ from napari.components.layerlist import LayerList
 from collections import defaultdict
 from contextlib import contextmanager
 from napari.viewer import current_viewer
+from napari_lattice.shape_selection import ShapeSelectionListener
 
 if TYPE_CHECKING:
     from napari.utils.events.event import Event
@@ -93,8 +94,7 @@ class ShapeSelector:
         Listens to events on that layer that we are interested in.
         """
         shapes.events.data.connect(self._on_shape_change)
-        # There is no shape selection event. This is the closest thing.
-        # See: https://github.com/napari/napari/issues/6886
+        ShapeSelectionListener(shapes).connect(self._on_selection_change)
         shapes.events.highlight.connect(self._on_selection_change)
 
     def _on_shape_change(self, event: Event) -> None:
