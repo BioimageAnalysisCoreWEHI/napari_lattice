@@ -45,6 +45,7 @@ class ShapeSelector:
                         yield str(result), result
 
     _blocked: bool
+    _listeners: list[ShapeSelectionListener] = []
     shapes: MagicField[Select] = field(Select, options={"choices": _get_shape_choices, "label": "ROIs"})
 
     @set_design(text="Select All")
@@ -94,8 +95,9 @@ class ShapeSelector:
         Listens to events on that layer that we are interested in.
         """
         shapes.events.data.connect(self._on_shape_change)
-        ShapeSelectionListener(shapes).connect(self._on_selection_change)
-        shapes.events.highlight.connect(self._on_selection_change)
+        listener = ShapeSelectionListener(shapes)
+        self._listeners.append(listener)
+        listener.connect(self._on_selection_change)
 
     def _on_shape_change(self, event: Event) -> None:
         """
