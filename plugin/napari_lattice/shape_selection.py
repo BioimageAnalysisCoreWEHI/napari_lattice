@@ -1,3 +1,4 @@
+from __future__ import annotations
 from napari.utils.events import EventEmitter, Event
 from napari.layers import Shapes
 
