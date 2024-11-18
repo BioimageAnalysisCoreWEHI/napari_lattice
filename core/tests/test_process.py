@@ -118,7 +118,7 @@ def test_process_workflow(
 
     workflow: Workflow = request.getfixturevalue(workflow_name)
     with tempfile.TemporaryDirectory() as tmpdir:
-        for roi, output in (
+        for output in (
             LatticeData.parse_obj(
                 {
                     "input_image": rbc_tiny,
@@ -129,8 +129,8 @@ def test_process_workflow(
             .process_workflow()
             .process()
         ):
-            assert roi is None or isinstance(roi, int)
-            assert isinstance(output, (Path, DataFrame))
+            assert output.roi_index is None or isinstance(output.roi_index, int)
+            assert isinstance(output.data, (Path, DataFrame))
 
 def test_table_workflow(
     rbc_tiny: Path, table_workflow: Workflow
@@ -179,11 +179,12 @@ def test_process_crop_roi_file(args: dict, roi_subset: Optional[List[int]]):
 
 
 def test_process_crop_workflow(table_workflow: Workflow):
+    import pandas as pd
     # Test cropping with a roi zip file, selecting different subsets from that file
     with as_file(
         resources / "RBC_tiny.czi"
     ) as lattice_path, tempfile.TemporaryDirectory() as outdir:
-        LatticeData.parse_obj(
+        results = list(LatticeData.parse_obj(
             {
                 "input_image": lattice_path,
                 "workflow": table_workflow,
@@ -193,10 +194,17 @@ def test_process_crop_workflow(table_workflow: Workflow):
                     "roi_list": [root / "crop" / "two_rois.zip"],
                 },
             }
-        ).process().save_image()
+        ).process_workflow().save())
         # Two separate H5 files should be created in this scenario: one for each ROI
-        results = list(Path(outdir).glob("*.h5"))
-        assert len(results) == 2
+        # There should be one H5 for each ROI
+        image_results = [path for path in results if path.suffix == ".h5"]
+        assert len(image_results) == 2
+        # There should be three CSVs for each ROI, one for each workflow result
+        csv_results = [path for path in results if path.suffix == ".csv"]
+        assert len(csv_results) == 2 * 3
+        for csv in csv_results:
+            # Test for CSV validity
+            pd.read_csv(csv)
 
 
 @pytest.mark.parametrize(

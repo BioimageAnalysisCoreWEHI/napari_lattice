@@ -6,6 +6,8 @@ from napari_workflows import Workflow
 import tempfile
 
 from pandas import DataFrame
+from lls_core.cropping import Roi
+from lls_core.models.crop import CropParams
 from lls_core.models.lattice_data import LatticeData
 
 from tests.utils import invoke
@@ -61,8 +63,8 @@ def test_image_workflow(rbc_tiny: Path, image_workflow: Workflow):
             workflow = image_workflow,
             save_dir = tmpdir
         ).process_workflow().process():
-            assert isinstance(output, Path)
-            assert valid_image_path(output)
+            assert isinstance(output.data, Path)
+            assert valid_image_path(output.data)
 
 def test_table_workflow(rbc_tiny: Path, table_workflow: Workflow):
     # Test a complex workflow that returns a tuple of images and data
@@ -72,17 +74,18 @@ def test_table_workflow(rbc_tiny: Path, table_workflow: Workflow):
             workflow = table_workflow,
             save_dir = tmpdir
         )
-        for _roi, output in params.process_workflow().process():
-            assert isinstance(output, (DataFrame, Path))
-            if isinstance(output, DataFrame):
-                nrow, ncol = output.shape
+        for output in params.process_workflow().process():
+            data = output.data
+            assert isinstance(data, (DataFrame, Path))
+            if isinstance(data, DataFrame):
+                nrow, ncol = data.shape
                 assert nrow == params.nslices
                 assert ncol > 0
                 # Check that time and channel are included
-                assert output.iloc[0, 0] == "T0"
-                assert output.iloc[0, 1] == "C0"
+                assert data.iloc[0, 0] == "T0"
+                assert data.iloc[0, 1] == "C0"
             else:
-                assert valid_image_path(output)
+                assert valid_image_path(data)
 
 def test_argument_order(rbc_tiny: Path):
     # Tests that only the first unfilled argument is passed an array
@@ -92,8 +95,8 @@ def test_argument_order(rbc_tiny: Path):
             workflow = "core/tests/workflows/argument_order/test_workflow.yml",
             save_dir = tmpdir
         )
-        for roi, output in params.process_workflow().process():
-            print(output)
+        for output in params.process_workflow().process():
+            pass
 
 def test_sum_preview(rbc_tiny: Path):
     import numpy as np
@@ -104,5 +107,26 @@ def test_sum_preview(rbc_tiny: Path):
             workflow = "core/tests/workflows/binarisation/workflow.yml",
             save_dir = tmpdir
         )
-        preview = params.process_workflow().extract_preview()
-        np.sum(preview, axis=(1, 2))
+        previews = list(params.process_workflow().roi_previews())
+        assert len(previews) == 1, "There should be 1 preview when cropping is disabled"
+        assert previews[0].ndim == 3, "A preview should be a 3D image"
+
+def test_crop_workflow(rbc_tiny: Path):
+    # Tests that crop workflows only process each ROI lazily
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        params = LatticeData(
+            input_image = rbc_tiny,
+            workflow = "core/tests/workflows/binarisation/workflow.yml",
+            save_dir = tmpdir,
+            crop=CropParams(
+                roi_list=[
+                    Roi((174.0, 24.0), (174.0, 88.0), (262.0, 88.0), (262.0, 24.0)),
+                    Roi((174.0, 24.0), (174.0, 88.0), (262.0, 88.0), (262.0, 24.0)),
+                ]
+            )
+        )
+        next(iter(params.process_workflow().save()))
+        for file in Path(tmpdir).iterdir():
+            # Only the first ROI should have been processed
+            assert "ROI_0" in file.name
