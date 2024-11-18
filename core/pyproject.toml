@@ -83,7 +83,8 @@ testing = [
     "tox",
     "pytest",  # https://docs.pytest.org/en/latest/contents.html
     "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
-    "napari" # We use napari for type checking only, and not at runtime
+    "napari", # We use napari for type checking only, and not at runtime
+    "pytest-xdist[psutil]"
 ]
 deconvolution = [
     "pycudadecon~=0.5",
