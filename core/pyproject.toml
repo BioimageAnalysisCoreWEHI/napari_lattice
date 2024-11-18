@@ -149,6 +149,10 @@ ignore_unused = [
     "griffe-fieldz",
 
     # This is pinned but unused
-    "fsspec"
+    "fsspec",
+
+    # Used for the deployment, but never imported
+    "build",
+    "twine"
 ]
 output_format = "human_detailed"  
