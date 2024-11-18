@@ -86,23 +86,24 @@ def test_process_time_range(multi_channel_time: Path):
 
 
 @pytest.mark.parametrize(["background"], [(1,), ("auto",), ("second_last",)])
-@parameterized
-def test_process_deconvolution(args: dict, background: Any):
-    for slice in (
-        LatticeData.parse_obj(
-            {
-                "input_image": root / "raw.tif",
-                "deconvolution": {
-                    "psf": [root / "psf.tif"],
-                    "background": background,
-                },
-                **args,
-            }
-        )
-        .process()
-        .slices
-    ):
-        assert slice.data.ndim == 3
+def test_process_deconvolution(background: Any):
+    import numpy as np
+    with tempfile.TemporaryDirectory() as outdir:
+        for slice in (
+            LatticeData.parse_obj(
+                {
+                    "input_image": np.random.random_sample((128, 128, 64)),
+                    "deconvolution": {
+                        "psf": [np.random.random_sample((28, 28, 28))],
+                        "background": background,
+                    },
+                    "save_dir": outdir
+                }
+            )
+            .process()
+            .slices
+        ):
+            assert slice.data.ndim == 3
 
 
 @parameterized
