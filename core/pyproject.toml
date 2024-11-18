@@ -15,11 +15,12 @@ version = "0.2.7"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
-    {name = "Robert Haase"}
+    {name = "Robert Haase"},
+    {name = "Michael Milton"}
 ]
 license = {text = "GPL-3.0-only"}
 description = "Core functionality for analysing and visualizing lattice lightsheet and Oblique Plane Microscopy data."
-# readme = { file = "README.md", content-type = "text/markdown" }
+readme = { file = "README.md", content-type = "text/markdown" }
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
@@ -74,9 +75,6 @@ BugTracker = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
 Documentation = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki"
 SourceCode = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 UserSupport = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
-
-[tool.setuptools.package-data]
-mypkg = ["*.yaml"]
 
 [project.optional-dependencies]
 testing = [
