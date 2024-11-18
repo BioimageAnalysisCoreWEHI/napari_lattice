@@ -55,7 +55,7 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test core
-        run: pytest -n auto -v --cov=core --cov-report=xml core/
+        run: pytest -v --cov=core --cov-report=xml core/
 
       - uses: tlambert03/setup-qt-libs@v1
 
