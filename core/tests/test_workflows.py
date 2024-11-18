@@ -53,22 +53,22 @@ def test_workflow_cli(workflow_config_cli: dict, save_func: Callable, cli_param:
         assert label_img.shape == (3, 14, 5)
         assert label_img[1, 6, 2] == 1
 
-def test_image_workflow(minimal_image_path: Path, image_workflow: Workflow):
+def test_image_workflow(rbc_tiny: Path, image_workflow: Workflow):
     # Test that a regular workflow that returns an image directly works
     with tempfile.TemporaryDirectory() as tmpdir:
         for roi, output in LatticeData(
-            input_image = minimal_image_path,
+            input_image = rbc_tiny,
             workflow = image_workflow,
             save_dir = tmpdir
         ).process_workflow().process():
             assert isinstance(output, Path)
             assert valid_image_path(output)
 
-def test_table_workflow(minimal_image_path: Path, table_workflow: Workflow):
+def test_table_workflow(rbc_tiny: Path, table_workflow: Workflow):
     # Test a complex workflow that returns a tuple of images and data
     with tempfile.TemporaryDirectory() as tmpdir:
         params = LatticeData(
-            input_image = minimal_image_path,
+            input_image = rbc_tiny,
             workflow = table_workflow,
             save_dir = tmpdir
         )
