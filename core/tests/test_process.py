@@ -10,6 +10,8 @@ from pathlib import Path
 from napari_workflows import Workflow
 from pytest import FixtureRequest
 
+from tests.utils import skip_on_github_ci
+
 from .params import parameterized
 
 root = Path(__file__).parent / "data"
@@ -108,6 +110,7 @@ def test_process_deconvolution(background: Any):
             assert slice.data.ndim == 3
 
 
+@skip_on_github_ci()
 @pytest.mark.parametrize(
     ["workflow_name"], [("image_workflow",), ("table_workflow",)]
 )
