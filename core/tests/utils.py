@@ -4,7 +4,7 @@ from typer.testing import CliRunner
 from lls_core.cmds.__main__ import app
 import npy2bdv
 from aicsimageio import AICSImage
-from pytest.mark import skipif
+import pytest
 import os
 
 def invoke(args: Sequence[str]):
@@ -19,5 +19,5 @@ def valid_image_path(path: Path) -> bool:
         return True
 
 
-def skip_on_github_ci():
-    return skipif('GITHUB_ACTIONS' in os.environ)
+def skip_on_github_ci() -> pytest.MarkDecorator:
+    return pytest.mark.skipif('GITHUB_ACTIONS' in os.environ)
