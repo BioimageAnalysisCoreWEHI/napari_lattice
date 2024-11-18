@@ -92,6 +92,8 @@ def test_process_deconvolution(background: Any):
         for slice in (
             LatticeData.parse_obj(
                 {
+                    # Use random sample data here, since we're not testing the correctness of the deconvolution
+                    # but rather that all the code paths are functional
                     "input_image": np.random.random_sample((128, 128, 64)),
                     "deconvolution": {
                         "psf": [np.random.random_sample((28, 28, 28))],
