@@ -133,6 +133,7 @@ ignore_unused = [
     "pytest",
     "pytest-cov",
     "pytest-qt",
+    "pytest-xdist",
 
     # These napari plugins are needed to use the plugin, but aren't imported directly
     "napari-aicsimageio",
