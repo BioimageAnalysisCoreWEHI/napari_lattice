@@ -19,5 +19,4 @@ def valid_image_path(path: Path) -> bool:
         return True
 
 
-def skip_on_github_ci() -> pytest.MarkDecorator:
-    return pytest.mark.skipif('GITHUB_ACTIONS' in os.environ)
+skip_on_github_ci: pytest.MarkDecorator = pytest.mark.skipif('GITHUB_ACTIONS' in os.environ)

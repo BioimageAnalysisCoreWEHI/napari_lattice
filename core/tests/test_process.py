@@ -110,7 +110,7 @@ def test_process_deconvolution(background: Any):
             assert slice.data.ndim == 3
 
 
-@skip_on_github_ci()
+@skip_on_github_ci
 @pytest.mark.parametrize(
     ["workflow_name"], [("image_workflow",), ("table_workflow",)]
 )
