@@ -1,18 +1,17 @@
 # Installation
 
-It is advisable but not required that you install Napari Lattice packages inside a conda environment.
-This is because conda makes it much easier to install system complex dependencies.
+## Recommended Installation
 
-To install the core package, which includes the Python library and command line interface:
+First, create a new conda environment:
 
 ```bash
-pip install lls-core
+conda create -n napari-lattice -c conda-forge 'python==3.11.*' uv pycudadecon
 ```
 
-To install the Napari plugin:
+Then use `uv` to quickly install the Napari Lattice suite:
 
 ```bash
-pip install napari-lattice
+uv pip install lls-core napari-lattice napari-aicsimageio pyqt5
 ```
 
 ## Faster Installation using `uv`
