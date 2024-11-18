@@ -108,12 +108,11 @@ def test_process_deconvolution(background: Any):
             assert slice.data.ndim == 3
 
 
-@parameterized
 @pytest.mark.parametrize(
     ["workflow_name"], [("image_workflow",), ("table_workflow",)]
 )
 def test_process_workflow(
-    args: dict, request: FixtureRequest, workflow_name: str
+    request: FixtureRequest, rbc_tiny: Path, workflow_name: str
 ):
     from pandas import DataFrame
 
@@ -122,10 +121,9 @@ def test_process_workflow(
         for roi, output in (
             LatticeData.parse_obj(
                 {
-                    "input_image": root / "raw.tif",
+                    "input_image": rbc_tiny,
                     "workflow": workflow,
-                    "save_dir": tmpdir,
-                    **args,
+                    "save_dir": tmpdir
                 }
             )
             .process_workflow()
