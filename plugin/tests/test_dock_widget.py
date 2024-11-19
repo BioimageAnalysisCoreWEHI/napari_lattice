@@ -35,7 +35,7 @@ def image_data(request: pytest.FixtureRequest):
     Fixture function that yields test images as file paths
     """
     with as_file(resources / request.param) as image_path:
-        yield AICSImage(image_path)
+        yield AICSImage(image_path, )
 
 def set_debug(cls: MagicTemplate):
     """

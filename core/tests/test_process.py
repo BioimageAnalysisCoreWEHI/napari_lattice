@@ -10,6 +10,7 @@ from pathlib import Path
 from napari_workflows import Workflow
 from pytest import FixtureRequest
 
+
 from .params import parameterized
 
 root = Path(__file__).parent / "data"
@@ -86,31 +87,33 @@ def test_process_time_range(multi_channel_time: Path):
 
 
 @pytest.mark.parametrize(["background"], [(1,), ("auto",), ("second_last",)])
-@parameterized
-def test_process_deconvolution(args: dict, background: Any):
-    for slice in (
-        LatticeData.parse_obj(
-            {
-                "input_image": root / "raw.tif",
-                "deconvolution": {
-                    "psf": [root / "psf.tif"],
-                    "background": background,
-                },
-                **args,
-            }
-        )
-        .process()
-        .slices
-    ):
-        assert slice.data.ndim == 3
+def test_process_deconvolution(background: Any):
+    import numpy as np
+    with tempfile.TemporaryDirectory() as outdir:
+        for slice in (
+            LatticeData.parse_obj(
+                {
+                    # Use random sample data here, since we're not testing the correctness of the deconvolution
+                    # but rather that all the code paths are functional
+                    "input_image": np.random.random_sample((128, 128, 64)),
+                    "deconvolution": {
+                        "psf": [np.random.random_sample((28, 28, 28))],
+                        "background": background,
+                    },
+                    "save_dir": outdir
+                }
+            )
+            .process()
+            .slices
+        ):
+            assert slice.data.ndim == 3
 
 
-@parameterized
 @pytest.mark.parametrize(
     ["workflow_name"], [("image_workflow",), ("table_workflow",)]
 )
 def test_process_workflow(
-    args: dict, request: FixtureRequest, workflow_name: str
+    request: FixtureRequest, lls7_t1_ch1: Path, workflow_name: str
 ):
     from pandas import DataFrame
 
@@ -119,10 +122,9 @@ def test_process_workflow(
         for output in (
             LatticeData.parse_obj(
                 {
-                    "input_image": root / "raw.tif",
+                    "input_image": lls7_t1_ch1,
                     "workflow": workflow,
-                    "save_dir": tmpdir,
-                    **args,
+                    "save_dir": tmpdir
                 }
             )
             .process_workflow()
@@ -132,19 +134,19 @@ def test_process_workflow(
             assert isinstance(output.data, (Path, DataFrame))
 
 def test_table_workflow(
-    rbc_tiny: Path, table_workflow: Workflow
+    lls7_t1_ch1: Path, table_workflow: Workflow
 ):
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = Path(_tmpdir)
         results = set(LatticeData.parse_obj(
             {
-                "input_image": rbc_tiny,
+                "input_image": lls7_t1_ch1,
                 "workflow": table_workflow,
                 "save_dir": tmpdir
             }
         ).process_workflow().save())
         # There should be one output for each element of the tuple
-        assert {result.name for result in results} == {'RBC_tiny_deskewed_output_3.csv', 'RBC_tiny_deskewed.h5', 'RBC_tiny_deskewed_output_1.csv', 'RBC_tiny_deskewed_output_2.csv'}
+        assert {result.name for result in results} == {'LLS7_t1_ch1_deskewed_output_3.csv', 'LLS7_t1_ch1_deskewed.h5', 'LLS7_t1_ch1_deskewed_output_1.csv', 'LLS7_t1_ch1_deskewed_output_2.csv'}
 
 @pytest.mark.parametrize(
     ["roi_subset"],
