@@ -114,6 +114,8 @@ jobs:
           path: site
 
       - name: Deploy to GitHub Pages
+        # Only a non-pr push has permissions to deploy pages
+        if: github.event_name == 'push'
         uses: actions/deploy-pages@v4
 
       - uses: ncipollo/release-action@v1.14.0
