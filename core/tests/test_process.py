@@ -110,12 +110,12 @@ def test_process_deconvolution(background: Any):
             assert slice.data.ndim == 3
 
 
-@skip_on_github_ci
+# @skip_on_github_ci
 @pytest.mark.parametrize(
     ["workflow_name"], [("image_workflow",), ("table_workflow",)]
 )
 def test_process_workflow(
-    request: FixtureRequest, rbc_tiny: Path, workflow_name: str
+    request: FixtureRequest, lls7_t1_ch1: Path, workflow_name: str
 ):
     from pandas import DataFrame
 
@@ -124,7 +124,7 @@ def test_process_workflow(
         for output in (
             LatticeData.parse_obj(
                 {
-                    "input_image": rbc_tiny,
+                    "input_image": lls7_t1_ch1,
                     "workflow": workflow,
                     "save_dir": tmpdir
                 }
@@ -135,14 +135,15 @@ def test_process_workflow(
             assert output.roi_index is None or isinstance(output.roi_index, int)
             assert isinstance(output.data, (Path, DataFrame))
 
+# @skip_on_github_ci
 def test_table_workflow(
-    rbc_tiny: Path, table_workflow: Workflow
+    lls7_t1_ch1: Path, table_workflow: Workflow
 ):
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = Path(_tmpdir)
         results = set(LatticeData.parse_obj(
             {
-                "input_image": rbc_tiny,
+                "input_image": lls7_t1_ch1,
                 "workflow": table_workflow,
                 "save_dir": tmpdir
             }
