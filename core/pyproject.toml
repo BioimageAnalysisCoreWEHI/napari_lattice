@@ -11,7 +11,7 @@ line_length = 79
 
 [project]
 name = "lls_core"
-version = "0.2.7"
+version = "1.0.0"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},

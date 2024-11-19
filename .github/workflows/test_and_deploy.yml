@@ -119,5 +119,5 @@ jobs:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_TOKEN }}
         run: 
-          twine upload core/dist/*
-          twine upload plugin/dist/*
+          twine upload --skip-existing --non-interactive core/dist/*
+          twine upload --skip-existing --non-interactive plugin/dist/*
