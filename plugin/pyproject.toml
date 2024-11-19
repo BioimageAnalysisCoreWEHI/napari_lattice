@@ -11,11 +11,12 @@ line_length = 79
 
 [project]
 name = "napari-lattice"
-version = "0.2.7"
+version = "1.0.0"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
-    {name = "Robert Haase"}
+    {name = "Robert Haase"},
+    {name = "Michael Milton"},
 ]
 license = {text = "GPL-3.0-only"}
 description = "Napari plugin for analysing and visualizing lattice lightsheet and Oblique Plane Microscopy data."
