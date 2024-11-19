@@ -103,10 +103,16 @@ jobs:
           python -m build core
           python -m build plugin
 
-      - name: Publish docs
-        run: |
-          mkdocs build
-          mkdocs gh-deploy
+      - name: Build docs
+        run: mkdocs build
+
+      - name: Upload docs artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v4
 
       - uses: ncipollo/release-action@v1.14.0
         name: Create GitHub release 
