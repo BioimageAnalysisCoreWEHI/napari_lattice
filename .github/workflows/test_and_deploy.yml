@@ -124,6 +124,7 @@ jobs:
         name: Create GitHub release 
         if: contains(github.ref, 'tags')
         with:
+          skipIfReleaseExists: true
           artifacts: "core/dist/*,plugin/dist/*"
 
       - name: Release on PyPI
