@@ -36,20 +36,17 @@ CLI_PARAM_MAP = {
     "input_image": ["input_image"],
     "angle": ["angle"],
     "skew": ["skew"],
-    "pixel_sizes": ["physical_pixel_sizes"],
-    "rois": ["crop", "roi_list"],
-    "roi_indices": ["crop", "roi_subset"],
-    "z_start": ["crop", "z_range", 0],
-    "z_end": ["crop", "z_range", 1],
+    "physical_pixel_sizes": ["physical_pixel_sizes"],
+    "roi_list": ["crop", "roi_list"],
+    "roi_subset": ["crop", "roi_subset"],
+    "z_range": ["crop", "z_range"],
     "decon_processing": ["deconvolution", "decon_processing"],
     "psf": ["deconvolution", "psf"],
-    "psf_num_iter": ["deconvolution", "psf_num_iter"],
+    "decon_num_iter": ["deconvolution", "decon_num_iter"],
     "background": ["deconvolution", "background"],
     "workflow": ["workflow"],
-    "time_start": ["time_range", 0],
-    "time_end": ["time_range", 1],
-    "channel_start": ["channel_range", 0],
-    "channel_end": ["channel_range", 1],
+    "time_range": ["time_range"],
+    "channel_range": ["channel_range"],
     "save_dir": ["save_dir"],
     "save_name": ["save_name"],
     "save_type": ["save_type"],
@@ -144,35 +141,30 @@ def process(
     input_image: Path = Argument(None, help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi", show_default=False),
     skew: CliDeskewDirection = field_from_model(DeskewParams, "skew"),# DeskewParams.make_typer_field("skew"),
     angle: float = field_from_model(DeskewParams, "angle") ,
-    pixel_sizes: Tuple[float, float, float] = field_from_model(DeskewParams, "physical_pixel_sizes", extra_description="This takes three arguments, corresponding to the Z, Y and X pixel dimensions respectively", default=(
+    physical_pixel_sizes: Tuple[float, float, float] = field_from_model(DeskewParams, "physical_pixel_sizes", extra_description="This takes three arguments, corresponding to the Z, Y and X pixel dimensions respectively", default=(
         DefinedPixelSizes.get_default("Z"),
         DefinedPixelSizes.get_default("Y"),
         DefinedPixelSizes.get_default("X")
     )),
 
-    rois: List[Path] = field_from_model(CropParams, "roi_list", description="A list of paths pointing to regions of interest to crop to, in ImageJ format."), #Option([], help="A list of paths pointing to regions of interest to crop to, in ImageJ format."),
-    roi_indices: List[int] = field_from_model(CropParams, "roi_subset"),
-    # Ideally this and other range values would be defined as Tuples, but these seem to be broken: https://github.com/tiangolo/typer/discussions/667
-    z_start: Optional[int] = Option(0, help="The index of the first Z slice to use. All prior Z slices will be discarded.", show_default=False),
-    z_end: Optional[int] = Option(None, help="The index of the last Z slice to use. The selected index and all subsequent Z slices will be discarded. Defaults to the last z index of the image.", show_default=False),
-
+    roi_list: List[Path] = field_from_model(CropParams, "roi_list"), 
+    roi_subset: List[int] = field_from_model(CropParams, "roi_subset"),
+    z_range: Optional[Tuple[int,int]] = field_from_model(CropParams, "z_range", show_default=False),
+    
     enable_deconvolution: bool = Option(False, "--deconvolution/--disable-deconvolution", rich_help_panel="Deconvolution"),
     decon_processing: DeconvolutionChoice = field_from_model(DeconvolutionParams, "decon_processing", rich_help_panel="Deconvolution"),
-    psf: List[Path] = field_from_model(DeconvolutionParams, "psf", description="One or more paths pointing to point spread functions to use for deconvolution. Each file should in a standard image format (.czi, .tiff etc), containing a 3D image array. This option can be used multiple times to provide multiple PSF files.", rich_help_panel="Deconvolution"),
-    psf_num_iter: int = field_from_model(DeconvolutionParams, "psf_num_iter", rich_help_panel="Deconvolution"),
+    psf: List[Path] = field_from_model(DeconvolutionParams, "psf", rich_help_panel="Deconvolution"),
+    decon_num_iter: int = field_from_model(DeconvolutionParams, "decon_num_iter", rich_help_panel="Deconvolution"),
     background: str = field_from_model(DeconvolutionParams, "background", rich_help_panel="Deconvolution"),
 
-    time_start: Optional[int] = Option(0, help="Index of the first time slice to use (inclusive). Defaults to the first time index of the image.", rich_help_panel="Output"),
-    time_end: Optional[int] = Option(None, help="Index of the first time slice to use (exclusive). Defaults to the last time index of the image.", show_default=False, rich_help_panel="Output"),
-
-    channel_start: Optional[int] = Option(0, help="Index of the first channel slice to use (inclusive). Defaults to the first channel index of the image.", rich_help_panel="Output"),
-    channel_end: Optional[int] = Option(None, help="Index of the first channel slice to use (exclusive). Defaults to the last channel index of the image.", show_default=False, rich_help_panel="Output"),
-    
+    time_range: Optional[Tuple[int,int]] = field_from_model(OutputParams, "time_range", rich_help_panel="Output"),
+    channel_range: Optional[Tuple[int,int]] = field_from_model(OutputParams,"channel_range", rich_help_panel="Output"),
+        
     save_dir: Path = field_from_model(OutputParams, "save_dir", rich_help_panel="Output"),
     save_name: Optional[str] = field_from_model(OutputParams, "save_name", rich_help_panel="Output"),
     save_type: SaveFileType = field_from_model(OutputParams, "save_type", rich_help_panel="Output"),
 
-    workflow: Optional[Path] = Option(None, help="Path to a Napari Workflow file, in YAML format. If provided, the configured desekewing processing will be added to the chosen workflow.", show_default=False),
+    workflow: Optional[Path] = field_from_model(LatticeData, "workflow", show_default=False),
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 

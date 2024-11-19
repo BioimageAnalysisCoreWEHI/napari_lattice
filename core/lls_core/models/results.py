@@ -3,17 +3,17 @@ from itertools import groupby
 from pathlib import Path
 
 from typing import Iterable, Optional, Tuple, Union, cast, TYPE_CHECKING, overload
-from typing_extensions import Generic, TypeVar
+from typing_extensions import Generic, TypeVar, TypeAlias
 from pydantic.v1 import BaseModel, NonNegativeInt, Field
 from lls_core.types import ArrayLike, is_arraylike
 from lls_core.utils import make_filename_suffix
-from lls_core.writers import RoiIndex, Writer
+from lls_core.writers import Writer
 from pandas import DataFrame
 from lls_core.workflow import RawWorkflowOutput
 
 if TYPE_CHECKING:
-    from lls_core.models.lattice_data import LatticeData
     from numpy.typing import NDArray
+    from lls_core.models.lattice_data import LatticeData
 
 T = TypeVar("T")
 S = TypeVar("S")
@@ -75,6 +75,19 @@ class ImageSlices(ProcessedSlices[ArrayLike]):
     # This re-definition of the type is helpful for `mkdocs`
     slices: Iterable[ProcessedSlice[ArrayLike]] = Field(description="Iterable of result slices. For a given slice, you can access the image data through the `slice.data` property, which is a numpy-like array.")
 
+    def roi_previews(self) -> Iterable[ArrayLike]:
+        """
+        Extracts a single 3D image for each ROI
+        """
+        import numpy as np
+        def _preview(slices: Iterable[ProcessedSlice[ArrayLike]]) -> ArrayLike:
+            for slice in slices:
+                return slice.data
+            raise Exception("This ROI has no images. This shouldn't be possible")
+
+        for roi_index, slices in groupby(self.slices, key=lambda slice: slice.roi_index):
+            yield _preview(slices)
+
     def save_image(self):
         """
         Saves result slices to disk
@@ -86,17 +99,46 @@ class ImageSlices(ProcessedSlices[ArrayLike]):
                 writer.write_slice(slice)
             writer.close()
 
-ProcessedWorkflowOutput = Union[
-    # A path indicates a saved file
-    Path,
-    DataFrame
-]
-"""
-The result of a workflow. If this is a `Path`, then it is the path to an image saved to disk.
-If a `DataFrame`, then it contains non-image data returned by your workflow.
-"""
+class ProcessedWorkflowOutput(BaseModel, arbitrary_types_allowed=True):
+    """
+    Result class for one single workflow output, after it has been processed.
+    """
 
-class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]):
+    #: Index of this output from the workflow function. For example, if you `return a, b, c` in your final workflow step,
+    #: there will be 3 `ProcessedWorkflowOutput` instances created, one with `index=0`, `index=1` and `index=2`
+    index: int
+
+    #: Index of region of interest that produced this
+    roi_index: Optional[int]
+
+    #: A processed output from the workflow. Either the path to a saved image, or a `DataFrame` capturing some other metadata.
+    data: Union[Path, DataFrame]
+
+    #: Reference to the original settings that created this
+    lattice_data: LatticeData
+
+    def save(self) -> Path:
+        """
+        Puts this artifact on disk by saving any `DataFrame` to CSV, and returning the path to the image or CSV
+        """
+        from pandas import Series
+
+        if isinstance(self.data, DataFrame):
+            path: Path = self.lattice_data.make_filepath_df(
+                make_filename_suffix(
+                    roi_index=self.roi_index,
+                    prefix=f"_output_{self.index}"
+                ),
+                self.data
+            )
+            result = self.data.apply(Series.explode)
+            result.to_csv(str(path))
+            return path
+        else:
+            return self.data
+
+MaybeTupleRawWorkflowOutput: TypeAlias = Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]
+class WorkflowSlices(ProcessedSlices[MaybeTupleRawWorkflowOutput]):
     """
     The counterpart of `ImageSlices`, but for workflow outputs.
     This is needed because workflows have vastly different outputs that may include regular
@@ -104,14 +146,16 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
     """
 
     # This re-definition of the type is helpful for `mkdocs`
-    slices: Iterable[ProcessedSlice[Union[Tuple[RawWorkflowOutput], RawWorkflowOutput]]] = Field(description="Iterable of raw workflow results, the exact nature of which is determined by the author of the workflow. Not typically useful directly, and using he result of `.process()` is recommended instead.")
+    slices: Iterable[ProcessedSlice[MaybeTupleRawWorkflowOutput]] = Field(description="Iterable of raw workflow results, the exact nature of which is determined by the author of the workflow. Not typically useful directly, and using he result of `.process()` is recommended instead.")
 
-    def process(self) -> Iterable[Tuple[RoiIndex, ProcessedWorkflowOutput]]:
+    def process(self) -> Iterable[ProcessedWorkflowOutput]:
         """
         Incrementally processes the workflow outputs, and returns both image paths and data frames of the outputs,
         for image slices and dict/list outputs respectively
         """
         import pandas as pd
+        from lls_core.models.lattice_data import LatticeData
+        ProcessedWorkflowOutput.update_forward_refs(LatticeData=LatticeData)
 
         # Handle each ROI separately
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
@@ -151,37 +195,35 @@ class WorkflowSlices(ProcessedSlices[Union[Tuple[RawWorkflowOutput], RawWorkflow
 
                         rows.append(element)
 
-            for element in values:
+            for i, element in enumerate(values):
                 if isinstance(element, Writer):
                     element.close()
                     for file in element.written_files:
-                        yield roi, file
+                        yield ProcessedWorkflowOutput(index=i, roi_index=roi, data=file, lattice_data=self.lattice_data)
                 else:
-                    yield roi, pd.DataFrame(element)
+                    yield ProcessedWorkflowOutput(index=i, roi_index=roi, data=pd.DataFrame(element), lattice_data=self.lattice_data)
 
-    def extract_preview(self) -> NDArray:
+    def roi_previews(self) -> Iterable[NDArray]:
         """
-        Extracts a single 3D image for previewing purposes
+        Extracts a single 3D image for each ROI
         """
         import numpy as np
-        for slice in self.slices:
-            for value in slice.as_tuple():
-                if is_arraylike(value):
-                    return np.asarray(value)
-        raise Exception("No image was returned from this workflow")
+        def _preview(slices: Iterable[ProcessedSlice[MaybeTupleRawWorkflowOutput]]) -> NDArray:
+            for slice in slices:
+                for value in slice.as_tuple():
+                    if is_arraylike(value):
+                        return np.asarray(value)
+            raise Exception("This ROI has no images. This shouldn't be possible")
+
+        for roi_index, slices in groupby(self.slices, key=lambda slice: slice.roi_index):
+            yield _preview(slices)
 
     def save(self) -> Iterable[Path]:
         """
         Processes all workflow outputs and saves them to disk.
         Images are saved in the format specified in the `LatticeData`, while
         other data types are saved as a CSV.
+        **Remember to call `list()` on this to exhaust the generator and run the computation**.
         """
-        from pandas import DataFrame, Series
-        for i, (roi, result) in enumerate(self.process()):
-            if isinstance(result, DataFrame):
-                path = self.lattice_data.make_filepath_df(make_filename_suffix(roi_index=roi, prefix=f"_output_{i}"), result)
-                result = result.apply(Series.explode)
-                result.to_csv(str(path))
-                yield path
-            else:
-                yield result
+        for result in self.process():
+            yield result.save()

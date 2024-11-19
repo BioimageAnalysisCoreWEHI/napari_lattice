@@ -1,6 +1,5 @@
 from __future__ import annotations
-# class for initializing lattice data and setting metadata
-# TODO: handle scenes
+from typing import Tuple, cast
 from pydantic.v1 import Field, root_validator, validator
 from dask.array.core import Array as DaskArray
 
@@ -9,19 +8,17 @@ from lls_core.deconvolution import pycuda_decon, skimage_decon, DeconvolutionCho
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core.models.crop import CropParams
 from lls_core.models.deconvolution import DeconvolutionParams
-from lls_core.models.output import OutputParams, SaveFileType
-from lls_core.models.results import WorkflowSlices
-from lls_core.models.utils import ignore_keyerror
-from lls_core.types import ArrayLike
 from lls_core.models.deskew import DeskewParams
+from lls_core.models.output import OutputParams, SaveFileType
 from napari_workflows import Workflow
-
-from lls_core.workflow import get_workflow_output_name, workflow_set
 
 if TYPE_CHECKING:
     from lls_core.models.results import ImageSlice, ImageSlices, ProcessedSlice
     from lls_core.writers import Writer
     from xarray import DataArray
+    from lls_core.workflow import RawWorkflowOutput
+    from lls_core.types import ArrayLike
+    from lls_core.models.results import WorkflowSlices
 
 import logging
 
@@ -54,11 +51,17 @@ class LatticeData(OutputParams, DeskewParams):
         cli_description="Path to a JSON file specifying a napari_workflow-compatible workflow to add lightsheet processing onto"
     )
 
+    progress_bar: bool = Field(
+        default = True,
+        description = "If true, show progress bars"
+    )
+
     @root_validator(pre=True)
     def read_image(cls, values: dict):
         from lls_core.types import is_pathlike
         from pathlib import Path
         input_image = values.get("input_image")
+        logger.info(f"Processing File {input_image}") # this is handy for debugging
         if is_pathlike(input_image):
             if values.get("save_name") is None:
                 values["save_name"] = Path(values["input_image"]).stem
@@ -74,6 +77,21 @@ class LatticeData(OutputParams, DeskewParams):
         # Use the Deskew version of this validator, to do the actual image loading
         return super().read_image(values)
 
+    @validator("input_image", pre=True, always=True)
+    def incomplete_final_frame(cls, v: DataArray) -> Any:
+        """
+        Check final frame, if acquisition is stopped halfway through it causes failures
+        This validator will remove a bad final frame
+        """
+        final_frame = v.isel(T=-1,C=-1, drop=True)
+        try:
+            final_frame.compute()
+        except ValueError:
+            logger.warning("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
+            v = v.drop_isel(T=-1)
+        return v
+        
+
     @validator("workflow", pre=True)
     def parse_workflow(cls, v: Any):
         # Load the workflow from disk if it was provided as a path
@@ -87,6 +105,7 @@ class LatticeData(OutputParams, DeskewParams):
 
     @validator("workflow", pre=False)
     def validate_workflow(cls, v: Optional[Workflow]):
+        from lls_core.workflow import get_workflow_output_name
         if v is not None:
             if not "deskewed_image" in v.roots():
                 raise ValueError("The workflow has no deskewed_image parameter, so is not compatible with the lls processing.")
@@ -98,6 +117,7 @@ class LatticeData(OutputParams, DeskewParams):
 
     @validator("crop")
     def default_z_range(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
+        from lls_core.models.utils import ignore_keyerror
         if v is None:
             return v
         with ignore_keyerror():
@@ -127,6 +147,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Sets the default time range if undefined
         """
+        from lls_core.models.utils import ignore_keyerror
         # This skips the conversion if no image was provided, to ensure a more 
         # user-friendly error is provided, namely "image was missing"
         from collections.abc import Sequence
@@ -145,7 +166,9 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Sets the default channel range if undefined
         """
+        from lls_core.models.utils import ignore_keyerror
         from collections.abc import Sequence
+
         with ignore_keyerror():
             default_start = 0
             default_end = values["input_image"].sizes["C"]
@@ -161,6 +184,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Validates that the time range is within the range of channels in our array
         """
+        from lls_core.models.utils import ignore_keyerror
         with ignore_keyerror():
             max_time = values["input_image"].sizes["T"]
             if v.start < 0:
@@ -175,6 +199,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Validates that the channel range is within the range of channels in our array
         """
+        from lls_core.models.utils import ignore_keyerror
         with ignore_keyerror():
             max_channel = values["input_image"].sizes["C"]
             if v.start < 0:
@@ -185,6 +210,7 @@ class LatticeData(OutputParams, DeskewParams):
 
     @validator("channel_range")
     def channel_range_subset(cls, v: Optional[range], values: dict):
+        from lls_core.models.utils import ignore_keyerror
         with ignore_keyerror():
             if v is not None and (min(v) < 0 or max(v) > values["input_image"].sizes["C"]):
                 raise ValueError("The output channel range must be a subset of the total available channels")
@@ -198,6 +224,7 @@ class LatticeData(OutputParams, DeskewParams):
 
     @validator("deconvolution")
     def check_psfs(cls, v: Optional[DeconvolutionParams], values: dict):
+        from lls_core.models.utils import ignore_keyerror
         if v is None:
             return v
         with ignore_keyerror():
@@ -229,28 +256,37 @@ class LatticeData(OutputParams, DeskewParams):
 
         return self.input_image.isel(T=time, C=channel)
 
+    def iter_roi_indices(self) -> Iterable[Optional[int]]:
+        """
+        Yields region of interest indices, with a progress bar.
+        This yields `None` exactly once if cropping is disabled, for compatibility.
+        """
+        from tqdm import tqdm
+        if self.cropping_enabled and self.crop is not None:
+            for index in tqdm(self.crop.roi_subset, desc="ROI", position=0, disable=not self.progress_bar):
+                yield index
+        else:
+            yield None
+
     def iter_slices(self) -> Iterable[ProcessedSlice[ArrayLike]]:
         """
-        Yields array slices for each time and channel of interest.
-
-        Params:
-            progress: If the progress bar is enabled
-
-        Returns:
-            An iterable of tuples. Each tuple contains (time_index, time, channel_index, channel, slice)
+        Yields 3D array slices for each time, channel and region of interest.
+        These are guaranteed to iterate in the following order: ROI (slowest), timepoint, channel (fastest)
         """
         from lls_core.models.results import ProcessedSlice
         from tqdm import tqdm
 
-        for time_idx, time in tqdm(enumerate(self.time_range), desc="Timepoints", total=len(self.time_range)):
-            for ch_idx, ch in tqdm(enumerate(self.channel_range), desc="Channels", total=len(self.channel_range), leave=False):
-                yield ProcessedSlice(
-                    data=self.slice_data(time=time, channel=ch),
-                    time_index=time_idx,
-                    time= time,
-                    channel_index=ch_idx,
-                    channel=ch,
-                ) 
+        for roi_index in self.iter_roi_indices():
+            for time_idx, time in tqdm(enumerate(self.time_range), desc="Timepoints", total=len(self.time_range), disable=not self.progress_bar, leave=not self.cropping_enabled, position=1 if self.cropping_enabled else 0):
+                for ch_idx, ch in tqdm(enumerate(self.channel_range), desc="Channels", total=len(self.channel_range), leave=False, disable=not self.progress_bar, position=2 if self.cropping_enabled else 1):
+                    yield ProcessedSlice(
+                        data=self.slice_data(time=time, channel=ch),
+                        roi_index=roi_index,
+                        time_index=time_idx,
+                        time=time,
+                        channel_index=ch_idx,
+                        channel=ch,
+                    ) 
 
     @property
     def n_slices(self) -> int:
@@ -267,61 +303,54 @@ class LatticeData(OutputParams, DeskewParams):
             update_with: dictionary of arguments to update the generated lattices with
         """
         for subarray in self.iter_slices():
+
+            if subarray.roi_index is not None and self.crop is not None:
+                crop = self.crop.copy_validate(update = {
+                    "roi_subset": [subarray.roi_index]
+                })
+            else:
+                crop = None
             new_lattice = self.copy_validate(update={
                 "input_image": subarray.data,
                 "time_range": range(1),
                 "channel_range": range(1),
+                "crop": crop,
                 **update_with
             })
-            yield subarray.copy_with_data( new_lattice)
+            yield subarray.copy_with_data(new_lattice)
 
     def generate_workflows(
         self,
     ) -> Iterable[ProcessedSlice[Workflow]]:
-            """
-            Yields copies of the input workflow, modified with the addition of deskewing and optionally,
-            cropping and deconvolution
-            """
-            if self.workflow is None:
-                return
+        """
+        Yields copies of the input workflow, modified with the addition of deskewing and optionally,
+        cropping and deconvolution
+        """
+        from lls_core.workflow import workflow_set
+        
+        if self.workflow is None:
+            return
 
-            from copy import copy
-            # We make a copy of the lattice for each slice, each of which has no associated workflow
-            for lattice_slice in self.iter_sublattices(update_with={"workflow": None}):
-                user_workflow = copy(self.workflow)   
-                # We add a step whose result is called "input_img" that outputs a 2D image slice
-                user_workflow.set(
-                    "deskewed_image",
-                    LatticeData.process_into_image,
-                    lattice_slice.data
+        from copy import copy
+        # We make a copy of the lattice for each slice, each of which has no associated workflow
+        # Also hide the progress bar for each sublattice, because we already have a global progress bar at this point
+        for lattice_slice in self.iter_sublattices(update_with={"workflow": None, "progress_bar": False}):
+            user_workflow = copy(self.workflow)   
+            # We add a step whose result is called "input_img" that outputs a 2D image slice
+            user_workflow.set(
+                "deskewed_image",
+                LatticeData.process_into_image,
+                lattice_slice.data
+            )
+            # Also add channel metadata to the workflow
+            for key in {"channel", "channel_index", "time", "time_index", "roi_index"}:
+                workflow_set(
+                    user_workflow,
+                    key,
+                    getattr(lattice_slice, key)
                 )
-                # Also add channel metadata to the workflow
-                for key in {"channel", "channel_index", "time", "time_index", "roi_index"}:
-                    workflow_set(
-                        user_workflow,
-                        key,
-                        getattr(lattice_slice, key)
-                    )
-                # The user can use any of these arguments as inputs to their tasks
-                yield lattice_slice.copy_with_data(user_workflow)
-
-    def check_incomplete_acquisition(self, volume: ArrayLike, time_point: int, channel: int):
-        """
-        Checks for a slice with incomplete data, caused by incomplete acquisition
-        """
-        import numpy as np
-        if not isinstance(volume, DaskArray):
-            return volume
-        orig_shape = volume.shape
-        raw_vol = volume.compute()
-        if raw_vol.shape != orig_shape:
-            logger.warn(f"Time {time_point}, channel {channel} is incomplete. Actual shape {orig_shape}, got {raw_vol.shape}")
-            z_diff, y_diff, x_diff = np.subtract(orig_shape, raw_vol.shape)
-            logger.info(f"Padding with{z_diff,y_diff,x_diff}")
-            raw_vol = np.pad(raw_vol, ((0, z_diff), (0, y_diff), (0, x_diff)))
-            if raw_vol.shape != orig_shape:
-                raise Exception(f"Shape of last timepoint still doesn't match. Got {raw_vol.shape}")
-            return raw_vol
+            # The user can use any of these arguments as inputs to their tasks
+            yield lattice_slice.copy_with_data(user_workflow)
 
     @property
     def deskewed_volume(self) -> DaskArray:
@@ -332,44 +361,40 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices with cropping enabled
         """
-        from tqdm import tqdm
         if self.crop is None:
             raise Exception("This function can only be called when crop is set")
-            
-        # We have an extra level of iteration for the crop path: iterating over each ROI
-        for roi_index, roi in enumerate(tqdm(self.crop.selected_rois, desc="ROI", position=0)):
-            # pass arguments for save tiff, callable and function arguments
-            logger.info(f"Processing ROI {self.crop.roi_subset[roi_index]}")
-            
-            for slice in self.iter_slices():
-                deconv_args: dict[Any, Any] = {}
-                if self.deconvolution is not None:
-                    deconv_args = dict(
-                        num_iter = self.deconvolution.psf_num_iter,
-                        psf = self.deconvolution.psf[slice.channel].to_numpy(),
-                        decon_processing=self.deconvolution.decon_processing
-                    )
+        
+        for slice in self.iter_slices():
+            roi_index = cast(int, slice.roi_index)
+            roi = self.crop.roi_list[roi_index]
+            deconv_args: dict[Any, Any] = {}
+            if self.deconvolution is not None:
+                deconv_args = dict(
+                    num_iter = self.deconvolution.decon_num_iter,
+                    psf = self.deconvolution.psf[slice.channel].to_numpy(),
+                    decon_processing=self.deconvolution.decon_processing
+                )
 
-                yield slice.copy(update={
-                    "data": crop_volume_deskew(
-                        original_volume=slice.data,
-                        deconvolution=self.deconv_enabled,
-                        get_deskew_and_decon=False,
-                        debug=False,
-                        roi_shape=list(roi),
-                        linear_interpolation=True,
-                        voxel_size_x=self.dx,
-                        voxel_size_y=self.dy,
-                        voxel_size_z=self.dz,
-                        angle_in_degrees=self.angle,
-                        deskewed_volume=self.deskewed_volume,
-                        z_start=self.crop.z_range[0],
-                        z_end=self.crop.z_range[1],
-                        **deconv_args
-                    ),
-                    "roi_index": self.crop.roi_subset[roi_index]
-                })
-                
+            yield slice.copy(update={
+                "data": crop_volume_deskew(
+                    original_volume=slice.data,
+                    deconvolution=self.deconv_enabled,
+                    get_deskew_and_decon=False,
+                    debug=False,
+                    roi_shape=list(roi),
+                    linear_interpolation=True,
+                    voxel_size_x=self.dx,
+                    voxel_size_y=self.dy,
+                    voxel_size_z=self.dz,
+                    angle_in_degrees=self.angle,
+                    deskewed_volume=self.deskewed_volume,
+                    z_start=self.crop.z_range[0],
+                    z_end=self.crop.z_range[1],
+                    **deconv_args
+                ),
+                "roi_index": roi_index
+            })
+            
     def _process_non_crop(self) -> Iterable[ImageSlice]:
         """
         Yields processed image slices without cropping
@@ -390,13 +415,13 @@ class LatticeData(OutputParams, DeskewParams):
                         dxdata=self.dx,
                         dzpsf=self.dz,
                         dxpsf=self.dx,
-                        num_iter=self.deconvolution.psf_num_iter
+                        num_iter=self.deconvolution.decon_num_iter
                     )
                 else:
                     data = skimage_decon(
                         vol_zyx=data,
                         psf=self.deconvolution.psf[slice.channel].to_numpy(),
-                        num_iter=self.deconvolution.psf_num_iter,
+                        num_iter=self.deconvolution.decon_num_iter,
                         clip=False,
                         filter_epsilon=0,
                         boundary='nearest'
@@ -417,19 +442,20 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Runs the workflow on each slice and returns the workflow results
         """
+        from lls_core.workflow import get_workflow_output_name
         from lls_core.models.results import WorkflowSlices
+        from lls_core.models.utils import as_tuple
+
         WorkflowSlices.update_forward_refs(LatticeData=LatticeData)
-        outputs: list[ProcessedSlice[Any]] = []
-        for workflow in self.generate_workflows():
-            outputs.append(
-                workflow.copy_with_data(
-                    # Evaluates the workflow here.
-                    workflow.data.get(get_workflow_output_name(workflow.data))
-                )
-            )
+
+        def _generator() -> Iterable[ProcessedSlice[Tuple[RawWorkflowOutput, ...]]]:
+            for workflow in self.generate_workflows():
+                # Evaluates the workflow here.
+                result = workflow.data.get(get_workflow_output_name(workflow.data))
+                yield workflow.copy_with_data(as_tuple(result))
 
         return WorkflowSlices(
-            slices=outputs,
+            slices=_generator(),
             lattice_data=self
         )
 

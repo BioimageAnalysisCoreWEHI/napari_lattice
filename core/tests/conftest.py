@@ -18,6 +18,11 @@ def runner() -> CliRunner:
     return CliRunner()
 
 @pytest.fixture
+def lls7_t1_ch1():
+    with as_file(resources / "LLS7_t1_ch1.czi") as image_path:
+        yield image_path
+
+@pytest.fixture
 def rbc_tiny():
     with as_file(resources / "RBC_tiny.czi") as image_path:
         yield image_path
