@@ -55,7 +55,7 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test core
-        run: pytest -v --cov=core --cov-report=xml core/
+        run: pytest --verbose --verbose core/
 
       - uses: tlambert03/setup-qt-libs@v1
 
@@ -84,22 +84,51 @@ jobs:
     # github secrets (see readme for details)
     needs: [test]
     runs-on: ubuntu-latest
-    if: contains(github.ref, 'tags')
+    permissions: 
+      id-token: write
+      pages: write
+      contents: read
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.x"
+          python-version: "3.11"
       - name: Install dependencies
         run: |
-          python -m pip install --upgrade pip
-          pip install -U setuptools setuptools_scm wheel twine
-      - name: Build and publish
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install ./core[docs,deploy]
+          python -m pip install ./plugin
+
+      - name: Build distributions
+        run: |
+          python -m build core
+          python -m build plugin
+
+      - name: Build docs
+        run: mkdocs build
+
+      - name: Upload docs artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        # Only a non-pr push has permissions to deploy pages
+        if: github.event_name == 'push'
+        uses: actions/deploy-pages@v4
+
+      - uses: ncipollo/release-action@v1.14.0
+        name: Create GitHub release 
+        if: contains(github.ref, 'tags')
+        with:
+          artifacts: "core/dist/*,plugin/dist/*"
+
+      - name: Release on PyPI
+        if: contains(github.ref, 'tags')
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_TOKEN }}
-        run: |
-          git tag
-          python setup.py sdist bdist_wheel
-          twine upload dist/*
+        run: 
+          twine upload --skip-existing --non-interactive core/dist/*
+          twine upload --skip-existing --non-interactive plugin/dist/*
