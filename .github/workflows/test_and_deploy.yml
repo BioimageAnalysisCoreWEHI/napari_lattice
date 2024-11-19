@@ -84,6 +84,8 @@ jobs:
     # github secrets (see readme for details)
     needs: [test]
     runs-on: ubuntu-latest
+    environment: 
+      name: github-pages
     permissions: 
       id-token: write
       pages: write
