@@ -4,8 +4,6 @@ from typer.testing import CliRunner
 from lls_core.cmds.__main__ import app
 import npy2bdv
 from aicsimageio import AICSImage
-import pytest
-import os
 
 def invoke(args: Sequence[str]):
     CliRunner().invoke(app, args, catch_exceptions=False)
@@ -17,6 +15,3 @@ def valid_image_path(path: Path) -> bool:
     else:
         AICSImage(path).get_image_data()
         return True
-
-
-skip_on_github_ci: pytest.MarkDecorator = pytest.mark.skipif('GITHUB_ACTIONS' in os.environ, reason="Skipping as this doesn't work properly on Github Actions")

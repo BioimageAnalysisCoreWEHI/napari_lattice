@@ -10,7 +10,6 @@ from pathlib import Path
 from napari_workflows import Workflow
 from pytest import FixtureRequest
 
-from tests.utils import skip_on_github_ci
 
 from .params import parameterized
 
@@ -110,7 +109,6 @@ def test_process_deconvolution(background: Any):
             assert slice.data.ndim == 3
 
 
-# @skip_on_github_ci
 @pytest.mark.parametrize(
     ["workflow_name"], [("image_workflow",), ("table_workflow",)]
 )
@@ -135,7 +133,6 @@ def test_process_workflow(
             assert output.roi_index is None or isinstance(output.roi_index, int)
             assert isinstance(output.data, (Path, DataFrame))
 
-# @skip_on_github_ci
 def test_table_workflow(
     lls7_t1_ch1: Path, table_workflow: Workflow
 ):
