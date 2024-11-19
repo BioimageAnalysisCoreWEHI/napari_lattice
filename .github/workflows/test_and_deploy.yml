@@ -101,17 +101,16 @@ jobs:
           python -m build core
           python -m build plugin
 
+      - name: Publish docs
+        uses: mhausenblas/mkdocs-deploy-gh-pages@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - uses: ncipollo/release-action@v1.14.0
         name: Create GitHub release 
         if: contains(github.ref, 'tags')
         with:
           artifacts: "core/dist/*,plugin/dist/*"
-
-      - name: Publish docs
-        if: contains(github.ref, 'tags')
-        uses: mhausenblas/mkdocs-deploy-gh-pages@master
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Release on PyPI
         if: contains(github.ref, 'tags')
