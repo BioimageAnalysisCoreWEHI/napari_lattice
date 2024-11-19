@@ -58,7 +58,7 @@ def test_workflow_cli(workflow_config_cli: dict, save_func: Callable, cli_param:
 def test_image_workflow(lls7_t1_ch1: Path, image_workflow: Workflow):
     # Test that a regular workflow that returns an image directly works
     with tempfile.TemporaryDirectory() as tmpdir:
-        for roi, output in LatticeData(
+        for output in LatticeData(
             input_image = lls7_t1_ch1,
             workflow = image_workflow,
             save_dir = tmpdir

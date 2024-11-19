@@ -149,7 +149,7 @@ def test_table_workflow(
             }
         ).process_workflow().save())
         # There should be one output for each element of the tuple
-        assert {result.name for result in results} == {'RBC_tiny_deskewed_output_3.csv', 'RBC_tiny_deskewed.h5', 'RBC_tiny_deskewed_output_1.csv', 'RBC_tiny_deskewed_output_2.csv'}
+        assert {result.name for result in results} == {'LLS7_t1_ch1_deskewed_output_3.csv', 'LLS7_t1_ch1_deskewed.h5', 'LLS7_t1_ch1_deskewed_output_1.csv', 'LLS7_t1_ch1_deskewed_output_2.csv'}
 
 @pytest.mark.parametrize(
     ["roi_subset"],
