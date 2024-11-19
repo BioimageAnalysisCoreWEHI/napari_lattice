@@ -83,8 +83,7 @@ testing = [
     "tox",
     "pytest",  # https://docs.pytest.org/en/latest/contents.html
     "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
-    "napari", # We use napari for type checking only, and not at runtime
-    "pytest-xdist[psutil]"
+    "napari" # We use napari for type checking only, and not at runtime
 ]
 deconvolution = [
     "pycudadecon~=0.5",
@@ -95,7 +94,7 @@ docs = [
     "mkdocs-click",
     "mkdocs-material",
     # Includes fixes for Pydantic 1.X
-    "fieldz>=0.1.0",
+    "fieldz>0.1.0",
     "griffe-fieldz"
 ]
 
@@ -133,7 +132,6 @@ ignore_unused = [
     "pytest",
     "pytest-cov",
     "pytest-qt",
-    "pytest-xdist",
 
     # These napari plugins are needed to use the plugin, but aren't imported directly
     "napari-aicsimageio",
