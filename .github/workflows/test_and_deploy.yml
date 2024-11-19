@@ -105,8 +105,6 @@ jobs:
         run: |
           mkdocs build
           mkdocs gh-deploy
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: ncipollo/release-action@v1.14.0
         name: Create GitHub release 
