@@ -55,22 +55,22 @@ def test_workflow_cli(workflow_config_cli: dict, save_func: Callable, cli_param:
         assert label_img.shape == (3, 14, 5)
         assert label_img[1, 6, 2] == 1
 
-def test_image_workflow(minimal_image_path: Path, image_workflow: Workflow):
+def test_image_workflow(lls7_t1_ch1: Path, image_workflow: Workflow):
     # Test that a regular workflow that returns an image directly works
     with tempfile.TemporaryDirectory() as tmpdir:
         for output in LatticeData(
-            input_image = minimal_image_path,
+            input_image = lls7_t1_ch1,
             workflow = image_workflow,
             save_dir = tmpdir
         ).process_workflow().process():
             assert isinstance(output.data, Path)
             assert valid_image_path(output.data)
 
-def test_table_workflow(minimal_image_path: Path, table_workflow: Workflow):
+def test_table_workflow(lls7_t1_ch1: Path, table_workflow: Workflow):
     # Test a complex workflow that returns a tuple of images and data
     with tempfile.TemporaryDirectory() as tmpdir:
         params = LatticeData(
-            input_image = minimal_image_path,
+            input_image = lls7_t1_ch1,
             workflow = table_workflow,
             save_dir = tmpdir
         )
@@ -107,15 +107,16 @@ def test_sum_preview(rbc_tiny: Path):
             workflow = "core/tests/workflows/binarisation/workflow.yml",
             save_dir = tmpdir
         )
-        preview = params.process_workflow().extract_preview()
-        np.sum(preview, axis=(1, 2))
+        previews = list(params.process_workflow().roi_previews())
+        assert len(previews) == 1, "There should be 1 preview when cropping is disabled"
+        assert previews[0].ndim == 3, "A preview should be a 3D image"
 
-def test_crop_workflow(rbc_tiny: Path):
+def test_crop_workflow(lls7_t1_ch1: Path):
     # Tests that crop workflows only process each ROI lazily
 
     with tempfile.TemporaryDirectory() as tmpdir:
         params = LatticeData(
-            input_image = rbc_tiny,
+            input_image = lls7_t1_ch1,
             workflow = "core/tests/workflows/binarisation/workflow.yml",
             save_dir = tmpdir,
             crop=CropParams(

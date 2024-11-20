@@ -35,7 +35,7 @@ These will be imported before the workflow is executed.
 
 The `--workflow` command-line flag, the `LatticeData(workflow=)` Python parameter, and the Workflow tab of the plugin can be used to specify the path to a workflow `.yml` file .
 
-If you're using the Python interface, you need to use [`LatticeData.process_workflow()`](api/#lls_core.LatticeData.process_workflow) rather than `.process()`. 
+If you're using the Python interface, you need to use [`LatticeData.process_workflow()`](api.md#lls_core.LatticeData.process_workflow) rather than `.process()`. 
 
 ## Outputs
 

@@ -11,15 +11,16 @@ line_length = 79
 
 [project]
 name = "lls_core"
-version = "0.2.7"
+version = "1.0.0"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
-    {name = "Robert Haase"}
+    {name = "Robert Haase"},
+    {name = "Michael Milton"}
 ]
 license = {text = "GPL-3.0-only"}
 description = "Core functionality for analysing and visualizing lattice lightsheet and Oblique Plane Microscopy data."
-# readme = { file = "README.md", content-type = "text/markdown" }
+readme = { file = "README.md", content-type = "text/markdown" }
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",
@@ -75,9 +76,6 @@ Documentation = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki
 SourceCode = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 UserSupport = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
 
-[tool.setuptools.package-data]
-mypkg = ["*.yaml"]
-
 [project.optional-dependencies]
 testing = [
     "tox",
@@ -94,8 +92,12 @@ docs = [
     "mkdocs-click",
     "mkdocs-material",
     # Includes fixes for Pydantic 1.X
-    "fieldz>0.1.0",
+    "fieldz>=0.1.0",
     "griffe-fieldz"
+]
+deploy = [
+    "build",
+    "twine"
 ]
 
 [project.scripts]
@@ -145,6 +147,10 @@ ignore_unused = [
     "griffe-fieldz",
 
     # This is pinned but unused
-    "fsspec"
+    "fsspec",
+
+    # Used for the deployment, but never imported
+    "build",
+    "twine"
 ]
 output_format = "human_detailed"  

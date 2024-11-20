@@ -49,7 +49,7 @@ This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookie
 
 ## Contributing
 
-Contributions are very welcome. Please refer to the [Development](./development) docs to get started.
+Contributions are very welcome. Please refer to the [Development](./development.md) docs to get started.
 
 ## License
 

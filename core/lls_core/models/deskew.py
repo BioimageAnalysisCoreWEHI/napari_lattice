@@ -184,8 +184,17 @@ class DeskewParams(FieldAccessModel):
             aics = AICSImage(fspath(img))
         elif isinstance(img, AICSImage):
             aics = img
+        elif isinstance(img, DataArray):
+            if set(img.dims) >= {"Z", "Y", "X"}:
+                # If it's already a DataArray with the right dimensions, we're done
+                return values
+            else:
+                raise ValueError("If passing a DataArray, it should at least have Z Y and X dimensions, appropriately labelled.")
         elif is_arraylike(img):
-            values["input_image"] = DataArray(img)
+            if len(img.shape) == 3:
+                values["input_image"] = DataArray(img, dims=["Z", "Y", "X"])
+            else:
+                raise ValueError("Only 3D numpy arrays are currently supported. If you have a different shape, please use a DataArray and name your dimensions C, T, Z, Y and/or Z.")
         else:
             raise ValueError("Value of input_image was neither a path, an AICSImage, or array-like.")
 
