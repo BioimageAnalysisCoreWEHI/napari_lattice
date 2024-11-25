@@ -12,7 +12,7 @@ This napari plugin allows deskewing, cropping, visualisation and designing custo
 
 ## **Documentation**
 
-Check the [Wiki page](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki) for documentation on how to get started.
+Check the [Docs website](https://bioimageanalysiscorewehi.github.io/napari_lattice/) for documentation on how to get started.
 
 
 *************
