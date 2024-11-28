@@ -5,6 +5,16 @@ markdown_extensions:
 - pymdownx.highlight:
     anchor_linenums: true
 - pymdownx.superfences 
+- admonition
+- pymdownx.details
+
+nav:
+- index.md
+- installation.md
+- cli.md
+- api.md
+- workflow.md
+- development.md
 
 plugins:
 - search
