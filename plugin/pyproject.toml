@@ -48,7 +48,7 @@ dependencies = [
     "magicgui<0.8.0",
     # Currently commented out to avoid installation issues, although
     # This can be reinstated once https://github.com/pypa/pip/pull/12095 is merged
-    # "napari-aicsimageio>=0.7.2",
+    "napari-aicsimageio>=0.7.2",
     "napari-spreadsheet",
     "napari-workflow-inspector",
     "napari-workflows>=0.2.8",
