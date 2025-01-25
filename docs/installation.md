@@ -25,7 +25,7 @@ uv pip install lls-core napari-lattice
 ```
 
 ```bash
-uv pip install napari --upgrade "numpy<2"
+uv pip install "napari==0.5.5" --upgrade "numpy<2"
 ```
 
 ## CLI only
