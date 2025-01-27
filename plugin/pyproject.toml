@@ -36,6 +36,7 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
+    "aicsimageio>=4.6.3",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version
     "fsspec>=2022.8.2",
@@ -52,10 +53,12 @@ dependencies = [
     "numpy<2",
     "psutil",
     "pyclesperanto_prototype>=0.20.0",
+    "pydantic",
     "qtpy",
     "typing_extensions>=4.7.0",
     "rich",
     "StrEnum",
+    "xarray"
 ]
 
 [project.urls]
