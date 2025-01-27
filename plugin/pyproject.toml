@@ -36,18 +36,15 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.6.3",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version
     "fsspec>=2022.8.2",
     "importlib_resources",
     "lls_core",
     # The lower bound is because we need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
-    # The upper bound is because we are waiting on https://github.com/hanjinliu/magic-class/issues/128
-    "magic-class>=0.7.5,<0.8.0",
+    "magic-class>=0.7.5",
     "magicgui<0.8.0",
     "napari-aicsimageio>=0.7.2",
-    "napari-spreadsheet",
     "napari-workflow-inspector",
     "napari-workflows>=0.2.8",
     "napari[all]>=0.4.11",
@@ -55,12 +52,10 @@ dependencies = [
     "numpy<2",
     "psutil",
     "pyclesperanto_prototype>=0.20.0",
-    "pydantic",
     "qtpy",
     "typing_extensions>=4.7.0",
     "rich",
     "StrEnum",
-    "xarray"
 ]
 
 [project.urls]
