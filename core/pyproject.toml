@@ -45,10 +45,9 @@ dependencies = [
     "dask[distributed]",
     "fsspec>=2022.8.2",
     "importlib_resources",
-    # Older tifffile are not compatible with aicsimageio, see: https://github.com/AllenCellModeling/aicsimageio/issues/518
     "napari-workflows>=0.2.8",
     "npy2bdv",
-    "numpy",
+    "numpy<2",
     "pandas",
     "pyclesperanto_prototype>=0.20.0",
     "pyopencl",
