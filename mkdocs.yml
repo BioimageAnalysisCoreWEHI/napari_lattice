@@ -1,4 +1,4 @@
-site_name: Napari Lattice
+site_name: napari_lattice
 
 markdown_extensions:
 - mkdocs-click
@@ -7,10 +7,14 @@ markdown_extensions:
 - pymdownx.superfences 
 - admonition
 - pymdownx.details
+- attr_list
+- md_in_html
+- pymdownx.blocks.caption
 
 nav:
 - index.md
 - installation.md
+- napari_plugin.md
 - cli.md
 - api.md
 - workflow.md
