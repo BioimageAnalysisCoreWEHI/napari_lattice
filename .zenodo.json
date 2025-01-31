@@ -1,0 +1,50 @@
+{
+    "creators": [
+        {
+            "affiliation": "Walter and Eliza Hall Institute of Medical Research",
+            "name": "Rajasekhar, Pradeep",
+            "orcid": "0000-0002-1983-7244"
+        },
+        {
+            "affiliation": "Walter and Eliza Hall Institute of Medical Research",
+            "name": "Milton, Michael",
+            "orcid": "0000-0002-8965-2595"
+        },
+        {
+            "affiliation": "Walter and Eliza Hall Institute of Medical Research",
+            "name": "Geoghegan, Niall",
+            "orcid": "0000-0001-9884-0769"
+        },
+        {
+            "affiliation": "Data Science Center ScaDS.AI, Uni Leipzig",
+            "name": "Haase, Robert",
+            "orcid": "0000-0001-5949-2327"
+        },
+        {
+            "affiliation": "Walter and Eliza Hall Institute of Medical Research",
+            "name": "Rogers, Kelly L.",
+            "orcid": "0000-0002-6755-0221"
+        },
+        {
+            "affiliation": "Walter and Eliza Hall Institute of Medical Research",
+            "name": "Whitehead, Lachlan",
+            "orcid": "0000-0002-7064-4069"
+        }
+    ],
+    "description": "Software for analyzing Lattice Lightsheet data with the ability to create end to end image analysis by integrating custom workflows. napari-lattice has a fully featured CLI (lls-core) and a napari plugin. Documentation can be found at: https://bioimageanalysiscorewehi.github.io/napari_lattice/",
+    "keywords": [
+        "Microscopy",
+        "Lattice Lightsheet",
+        "Image Analysis",
+        "napari",
+        "oblique plane microscopy",
+        "deskewing",
+        "microscopy",
+        "python",
+        "workflow",
+        "opencl"
+    ],
+    "license": {
+        "id": "GPL-3.0" },
+    "title": "napari-lattice"
+}
