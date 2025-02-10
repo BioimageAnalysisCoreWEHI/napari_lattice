@@ -278,6 +278,7 @@ class DeskewFields(NapariFieldGroup):
         tooltip="The axis along which to deskew",
         orientation="horizontal"
     )
+    quick_deskew = field(False, label="Quick Deskew")
     errors = field(Label).with_options(label="Errors")
 
     def __init__(self, *args: Any, **kwargs: Any):
@@ -336,7 +337,51 @@ class DeskewFields(NapariFieldGroup):
     def _hide_stack_along(self, img_layer: List[Image]):
         # Hide the "Stack Along" option if we only have one image
         return len(img_layer) > 1
-
+  
+    @quick_deskew.connect
+    def _quick_deskew(self, quick_deskew: bool):
+        #if True
+        from napari_lattice.utils import get_viewer
+        if quick_deskew:
+            #print(self._get_deskew().)
+            try:
+                deskew = self._get_deskew()
+            except:
+                # Ignore if the deskew parameters are invalid
+                return
+            import numpy as np
+            #CONVERT TRANSFORM INTO A COMPATIBLE ONE FOR NAPARI
+            deskew_affine_transform = deskew.derived.deskew_affine_transform._matrix
+            #Get values from deskew transform to make it tompatible with napari
+            #Convert from ZYX to XYZ
+            deskew_affine_transform_converted = np.array([[deskew_affine_transform[2,2], deskew_affine_transform[2,1], deskew_affine_transform[2,0], deskew_affine_transform[2,3]],
+                                                        [deskew_affine_transform[1,2], deskew_affine_transform[1,1], deskew_affine_transform[1,0], deskew_affine_transform[1,3]],
+                                                        [deskew_affine_transform[0,2], deskew_affine_transform[0,1], deskew_affine_transform[0,0], deskew_affine_transform[0,3]],
+                                                        [0, 0, 0, 1]])
+           
+            logger.info(f"Using affine transform: {deskew_affine_transform_converted}") 
+            #use view_image to
+            viewer = get_viewer()
+            
+            #get new pixel values of deskewed image
+            lattice = self._make_model()
+            scale = (
+                    lattice.new_dz,
+                    lattice.dy,
+                    lattice.dx
+                )
+            #transform each image layer selected
+            for image in self.img_layer.value:
+                image.affine = deskew_affine_transform_converted#deskew_affine_transform_converted 
+                image.scale = scale
+            viewer.reset_view()
+        else:
+            #reset the image to original
+            viewer = get_viewer()
+            for image in self.img_layer.value:
+                image.affine = None
+            viewer.reset_view()
+    
     def _get_kwargs(self) -> DeskewKwargs:
         """
         Returns the LatticeData fields that the Deskew tab can provide
