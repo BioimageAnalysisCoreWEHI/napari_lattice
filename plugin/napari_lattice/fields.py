@@ -352,7 +352,7 @@ class DeskewFields(NapariFieldGroup):
             import numpy as np
             #CONVERT TRANSFORM INTO A COMPATIBLE ONE FOR NAPARI
             deskew_affine_transform = deskew.derived.deskew_affine_transform._matrix
-            #Get values from deskew transform to make it tompatible with napari
+            #Get values from deskew transform to make it compatible with napari
             #Convert from ZYX to XYZ
             deskew_affine_transform_converted = np.array([[deskew_affine_transform[2,2], deskew_affine_transform[2,1], deskew_affine_transform[2,0], deskew_affine_transform[2,3]],
                                                         [deskew_affine_transform[1,2], deskew_affine_transform[1,1], deskew_affine_transform[1,0], deskew_affine_transform[1,3]],
@@ -374,13 +374,18 @@ class DeskewFields(NapariFieldGroup):
             for image in self.img_layer.value:
                 image.affine = deskew_affine_transform_converted#deskew_affine_transform_converted 
                 image.scale = scale
+            #change to 3D view
+            viewer.dims.ndisplay = 3
             viewer.reset_view()
         else:
             #reset the image to original
             viewer = get_viewer()
             for image in self.img_layer.value:
                 image.affine = None
+            #change back to 2D view
+            viewer.dims.ndisplay = 2
             viewer.reset_view()
+            
     
     def _get_kwargs(self) -> DeskewKwargs:
         """
