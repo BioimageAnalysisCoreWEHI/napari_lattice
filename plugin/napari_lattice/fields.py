@@ -278,7 +278,9 @@ class DeskewFields(NapariFieldGroup):
         tooltip="The axis along which to deskew",
         orientation="horizontal"
     )
-    quick_deskew = field(False, label="Quick Deskew")
+    quick_deskew = field(False).with_options(
+        label="Quick Deskew",
+        tooltip = "View the deskewed image. This does NOT generate a new image, but instead transforms\nthe current image in the viewer. Use `Preview` to generate a new image.")
     errors = field(Label).with_options(label="Errors")
 
     def __init__(self, *args: Any, **kwargs: Any):
