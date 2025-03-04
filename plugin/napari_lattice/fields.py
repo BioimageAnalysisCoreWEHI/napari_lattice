@@ -34,6 +34,7 @@ from strenum import StrEnum
 from napari_lattice.parent_connect import connect_parent
 from napari_lattice.shape_selector import ShapeSelector
 
+
 if TYPE_CHECKING:
     from magicgui.widgets.bases import RangedWidget
     from numpy.typing import NDArray
@@ -316,15 +317,16 @@ class DeskewFields(NapariFieldGroup):
         from napari_lattice.utils import get_viewer
         try:
             pixels = self._get_kwargs()["physical_pixel_sizes"]
-            for image in self.img_layer.value:
-                image.scale = (
-                    *image.scale[0:-3],
-                    pixels.Z,
-                    pixels.Y,
-                    pixels.X,
-                )
-            viewer = get_viewer()
-            viewer.reset_view()
+            if not self.quick_deskew.value: # Only rescale if we're not in quick deskew mode 
+                for image in self.img_layer.value:
+                    image.scale = (
+                        *image.scale[0:-3],
+                        pixels.Z,
+                        pixels.Y,
+                        pixels.X,
+                    )
+                viewer = get_viewer()
+                viewer.reset_view()
         except:
             pass
 
@@ -339,34 +341,34 @@ class DeskewFields(NapariFieldGroup):
     def _hide_stack_along(self, img_layer: List[Image]):
         # Hide the "Stack Along" option if we only have one image
         return len(img_layer) > 1
-  
+    
     @quick_deskew.connect
-    def _quick_deskew(self, quick_deskew: bool):
-        #if True
+    @skew_dir.connect #when deskewing parameters change
+    @angle.connect
+    @pixel_sizes_source.connect
+    @pixel_sizes.connect
+    def _quick_deskew(self):
+        #Apply quick deskew where image is displayed in canvas as deskewed. 
+        #get value of quick deskew
+        quick_deskew = self.quick_deskew.value
         from napari_lattice.utils import get_viewer
+        
+        #If quick deskew is True
+        from pydantic.v1 import ValidationError
         if quick_deskew:
-            #print(self._get_deskew().)
             try:
-                deskew = self._get_deskew()
-            except:
+                #initialize lattice model
+                lattice = self._make_model() 
+            except ValidationError as e:
+                logger.info(f"Validation Error: {e}")
                 # Ignore if the deskew parameters are invalid
                 return
-            import numpy as np
-            #CONVERT TRANSFORM INTO A COMPATIBLE ONE FOR NAPARI
-            deskew_affine_transform = deskew.derived.deskew_affine_transform._matrix
-            #Get values from deskew transform to make it compatible with napari
-            #Convert from ZYX to XYZ
-            deskew_affine_transform_converted = np.array([[deskew_affine_transform[2,2], deskew_affine_transform[2,1], deskew_affine_transform[2,0], deskew_affine_transform[2,3]],
-                                                        [deskew_affine_transform[1,2], deskew_affine_transform[1,1], deskew_affine_transform[1,0], deskew_affine_transform[1,3]],
-                                                        [deskew_affine_transform[0,2], deskew_affine_transform[0,1], deskew_affine_transform[0,0], deskew_affine_transform[0,3]],
-                                                        [0, 0, 0, 1]])
-           
-            logger.info(f"Using affine transform: {deskew_affine_transform_converted}") 
-            #use view_image to
-            viewer = get_viewer()
-            
-            #get new pixel values of deskewed image
-            lattice = self._make_model()
+
+            #use zyx deskew affine transform
+            deskew_affine_transform_zyx = lattice.derived.deskew_affine_transform_zyx
+            #get new pixel sizes and update scale
+
+            #get new pixel sizes
             scale = (
                     lattice.new_dz,
                     lattice.dy,
@@ -374,8 +376,12 @@ class DeskewFields(NapariFieldGroup):
                 )
             #transform each image layer selected
             for image in self.img_layer.value:
-                image.affine = deskew_affine_transform_converted#deskew_affine_transform_converted 
+                #we do not inverse transform as napari goes from input to output space
+                image.affine = deskew_affine_transform_zyx
                 image.scale = scale
+            
+            #get current viewer
+            viewer = get_viewer()
             #change to 3D view
             viewer.dims.ndisplay = 3
             viewer.reset_view()
@@ -387,8 +393,7 @@ class DeskewFields(NapariFieldGroup):
             #change back to 2D view
             viewer.dims.ndisplay = 2
             viewer.reset_view()
-            
-    
+
     def _get_kwargs(self) -> DeskewKwargs:
         """
         Returns the LatticeData fields that the Deskew tab can provide
@@ -417,7 +422,7 @@ class DeskewFields(NapariFieldGroup):
             input_image=kwargs["data"],
             physical_pixel_sizes=kwargs["physical_pixel_sizes"],
             angle=kwargs["angle"],
-            skew = kwargs["skew"]
+            skew = kwargs["skew"],
         )
 
 @magicclass
