@@ -50,6 +50,7 @@ dependencies = [
     "napari-workflows>=0.2.8",
     "napari[all]>=0.4.11",
     "npy2bdv",
+    "ome-types<0.6.0",#pydantic v1 support removed from 0.6 onwards
     "numpy<2",
     "psutil",
     "pyclesperanto_prototype>=0.20.0",

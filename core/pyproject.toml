@@ -55,6 +55,7 @@ dependencies = [
     # https://docs.pydantic.dev/latest/migration/#using-pydantic-v1-features-in-a-v1v2-environment
     "pydantic>=1.10.17,<3",
     "pyyaml",
+    "ome-types<0.6.0",#pydantic v1 support removed from 0.6 onwards
     "read-roi",
     "rich",
     "resource-backed-dask-array>=0.1.0",
