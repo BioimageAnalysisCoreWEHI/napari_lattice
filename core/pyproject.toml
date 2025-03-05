@@ -11,7 +11,7 @@ line_length = 79
 
 [project]
 name = "lls_core"
-version = "1.0.2"
+version = "1.0.3"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
@@ -72,7 +72,7 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 BugTracker = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
-Documentation = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki"
+Documentation = "https://bioimageanalysiscorewehi.github.io/napari_lattice/"
 SourceCode = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 UserSupport = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
 
@@ -91,6 +91,7 @@ docs = [
     "mkdocstrings[python]",
     "mkdocs-click",
     "mkdocs-material",
+    "mkdocs-video",
     # Includes fixes for Pydantic 1.X
     "fieldz>=0.1.0",
     "griffe-fieldz"
@@ -142,6 +143,7 @@ ignore_unused = [
     # These are used for docs
     "mkdocstrings",
     "mkdocs-click",
+    "mkdocs-video",
     "mkdocs-material",
     "fieldz",
     "griffe-fieldz",

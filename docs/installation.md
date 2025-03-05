@@ -2,7 +2,13 @@
 
 ## Recommended Installation
 
+We recommend the installation of [Miniconda](https://docs.anaconda.com/miniconda/install/) as is a minimal version of Anaconda Distribution. 
+
+??? Tip
+    If you can [install `mamba` in your environment](https://stackoverflow.com/a/76765625), the conda installation commands will be much faster. Once configured correctly, just replace `conda` with `mamba` in the commands below.
+
 First, create a new conda environment:
+
 
 ```bash
 conda create -n napari-lattice -c conda-forge "python==3.10" uv pycudadecon "numpy<2"

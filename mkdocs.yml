@@ -22,6 +22,12 @@ nav:
 
 plugins:
 - search
+- mkdocs-video:
+    is_video: True
+    video_muted: True
+    video_controls: True
+    css_style:
+      width: "75%"
 - mkdocstrings:
     default_handler: python
     handlers:

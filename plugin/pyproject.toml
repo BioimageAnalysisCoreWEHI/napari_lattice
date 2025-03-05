@@ -11,7 +11,7 @@ line_length = 79
 
 [project]
 name = "napari-lattice"
-version = "1.0.2"
+version = "1.0.3"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
@@ -65,7 +65,7 @@ dependencies = [
 [project.urls]
 Repository = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 BugTracker = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
-Documentation = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki"
+Documentation = "https://bioimageanalysiscorewehi.github.io/napari_lattice/"
 SourceCode = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 UserSupport = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
 
