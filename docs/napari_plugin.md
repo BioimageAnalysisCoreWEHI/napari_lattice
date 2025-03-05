@@ -66,7 +66,7 @@ This is absolutely fine. It just means the image won't be displayed as deskewed 
 
 Here is an example of browsing through a timeseries
 
-<video controls src="./images/video/quick_deskew_timeseries.mp4" title="Quick Deskew (timepoints)"></video>
+![type:video](./images/video/quick_deskew_timeseries.mp4)
 
 The smoothness of this interactivity will depend on the storage read/write speeds and/or network speeds. For example, if the data is stored on the network, it will be slow to browse timepoints. However, if your data is on your SSD locally, the experience will be much better.
 
