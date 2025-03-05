@@ -351,8 +351,6 @@ class DeskewFields(NapariFieldGroup):
         #Apply quick deskew where image is displayed in canvas as deskewed. 
         #get value of quick deskew
         quick_deskew = self.quick_deskew.value
-        from napari_lattice.utils import get_viewer
-        
         #If quick deskew is True
         from pydantic.v1 import ValidationError
         if quick_deskew:
@@ -363,36 +361,38 @@ class DeskewFields(NapariFieldGroup):
                 logger.info(f"Validation Error: {e}")
                 # Ignore if the deskew parameters are invalid
                 return
-
-            #use zyx deskew affine transform
-            deskew_affine_transform_zyx = lattice.derived.deskew_affine_transform_zyx
             #get new pixel sizes and update scale
-
-            #get new pixel sizes
             scale = (
                     lattice.new_dz,
                     lattice.dy,
                     lattice.dx
                 )
-            #transform each image layer selected
-            for image in self.img_layer.value:
-                #we do not inverse transform as napari goes from input to output space
-                image.affine = deskew_affine_transform_zyx
-                image.scale = scale
-            
-            #get current viewer
-            viewer = get_viewer()
-            #change to 3D view
-            viewer.dims.ndisplay = 3
-            viewer.reset_view()
+            #use zyx deskew affine transform
+            affine_transform = lattice.derived.deskew_affine_transform_zyx
+            ndim_display = 3
         else:
-            #reset the image to original
+            pixels = self._get_kwargs()["physical_pixel_sizes"]
+            scale = (
+                        pixels.Z,
+                        pixels.Y,
+                        pixels.X,
+                    )
+            affine_transform = None
+            ndim_display = 2
+
+        #transform each image layer selected
+        for image in self.img_layer.value:
+            #we do not inverse transform as napari goes from input to output space
+            image.affine = affine_transform
+            image.scale = scale
+        
+        try:
+            from napari_lattice.utils import get_viewer
             viewer = get_viewer()
-            for image in self.img_layer.value:
-                image.affine = None
-            #change back to 2D view
-            viewer.dims.ndisplay = 2
+            viewer.dims.ndisplay = ndim_display
             viewer.reset_view()
+        except: 
+            pass
 
     def _get_kwargs(self) -> DeskewKwargs:
         """
