@@ -34,9 +34,11 @@ Check the [Docs website](https://bioimageanalysiscorewehi.github.io/napari_latti
 
 Apply custom image processing workflows using `napari-workflows`. 
 
-* [Interactive workflow generation (no coding experience needed)](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki/5.-Workflows-(Interactive:-no-coding)#workflow)
-* [Use custom python functions/modules within workflows](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki/5.1-Workflows-(Custom-workflow))
-* [How to use Cellpose for cell segmentation](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki/5.1-Workflows-(Custom-workflow)#cellpose)
+Examples to be added.
+
+* [Interactive workflow generation (no coding experience needed)]()
+* [Use custom python functions/modules within workflows]()
+* [How to use Cellpose for cell segmentation]()
 
 
 Support will be added for more file formats in the future.
