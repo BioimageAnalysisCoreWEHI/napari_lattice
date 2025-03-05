@@ -12,7 +12,8 @@ from xarray import DataArray
 
 from lls_core.models.utils import FieldAccessModel, enum_choices
 from lls_core.types import is_arraylike, is_pathlike
-from lls_core.utils import get_deskewed_shape
+from lls_core.utils import get_deskewed_shape,convert_xyz_to_zyx_order
+import numpy as np
 
 if TYPE_CHECKING:
     from aicsimageio.types import PhysicalPixelSizes
@@ -47,7 +48,8 @@ class DerivedDeskewFields(FieldAccessModel):
         description="Dimensions of the deskewed output. This is set automatically based on other input parameters, and doesn't need to be provided by the user."
     )
 
-    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False, default=None, description="Deskewing transformation function. This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
+    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False, default=None, description="Deskewing affine transformation matrix (in xyz order for OpenCL). This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
+    deskew_affine_transform_zyx: np.ndarray = Field(init_var=False, default=None, description="Deskewing affine transformation matrix (zyx order). This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
 
 
 class DeskewParams(FieldAccessModel):
@@ -243,9 +245,11 @@ class DeskewParams(FieldAccessModel):
                 values["physical_pixel_sizes"].Z,
                 values["skew"]
             )
+            deskew_affine_transform_zyx = convert_xyz_to_zyx_order(deskew_affine_transform)
             return DerivedDeskewFields(
                 deskew_affine_transform=deskew_affine_transform,
-                deskew_vol_shape=deskew_vol_shape
+                deskew_vol_shape=deskew_vol_shape,
+                deskew_affine_transform_zyx=deskew_affine_transform_zyx
             )
         else:
             raise ValueError("Invalid derived fields")

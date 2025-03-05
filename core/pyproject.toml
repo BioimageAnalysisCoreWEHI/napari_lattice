@@ -55,12 +55,13 @@ dependencies = [
     # https://docs.pydantic.dev/latest/migration/#using-pydantic-v1-features-in-a-v1v2-environment
     "pydantic>=1.10.17,<3",
     "pyyaml",
+    "ome-types<0.6.0",  #pydantic v1 support removed from 0.6 onwards
     "read-roi",
     "rich",
     "resource-backed-dask-array>=0.1.0",
     "scikit-image",
     "StrEnum",
-    "tifffile>=2023.3.15", #>=2022.8.12
+    "tifffile>=2023.3.15,<2025.2.18", #>=2022.8.12
     "toolz",
     "tqdm",
     "typer",
@@ -147,6 +148,7 @@ ignore_unused = [
 
     # This is pinned but unused
     "fsspec",
+    "ome-types",
 
     # Used for the deployment, but never imported
     "build",
