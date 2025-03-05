@@ -348,6 +348,7 @@ class DeskewFields(NapariFieldGroup):
     @pixel_sizes_source.connect
     @pixel_sizes.connect
     def _quick_deskew(self):
+        image: Image
         #Apply quick deskew where image is displayed in canvas as deskewed. 
         #get value of quick deskew
         quick_deskew = self.quick_deskew.value
@@ -371,12 +372,15 @@ class DeskewFields(NapariFieldGroup):
             affine_transform = lattice.derived.deskew_affine_transform_zyx
             ndim_display = 3
         else:
-            pixels = self._get_kwargs()["physical_pixel_sizes"]
-            scale = (
-                        pixels.Z,
-                        pixels.Y,
-                        pixels.X,
-                    )
+            try: 
+                pixels = self._get_kwargs()["physical_pixel_sizes"]
+                scale = (
+                            pixels.Z,
+                            pixels.Y,
+                            pixels.X,
+                        )
+            except:
+                scale = None
             affine_transform = None
             ndim_display = 2
 
