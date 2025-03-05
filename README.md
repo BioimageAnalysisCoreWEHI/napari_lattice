@@ -5,9 +5,9 @@
 [![Python Version](https://img.shields.io/pypi/pyversions/napari-lattice.svg?color=green)](https://python.org)
 [![tests](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/actions/workflows/test_and_deploy.yml/badge.svg)](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/actions/workflows/test_and_deploy.yml)
 [![PyPI - Downloads](https://img.shields.io/pypi/dm/napari-lattice)](https://pypistats.org/packages/napari-lattice)
-[![napari hub](https://img.shields.io/endpoint?url=https://api.napari-hub.org/shields/napari-lattice)](https://napari-hub.org/plugins/napari-lattice)
 
-This napari plugin allows deskewing, cropping, visualisation and designing custom analysis pipelines for lattice lightsheet data, particularly from the Zeiss Lattice Lightsheet. The plugin has also been optimized to run in headless mode.
+
+This napari plugin allows deskewing, cropping, visualisation and designing custom analysis pipelines for lattice lightsheet data, particularly from the Zeiss Lattice Lightsheet. It also has a command line mode (CLI), lls-core, so you can run it without the GUI.
 
 
 ## **Documentation**
