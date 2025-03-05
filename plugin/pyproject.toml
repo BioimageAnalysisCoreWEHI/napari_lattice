@@ -20,7 +20,7 @@ authors = [
 ]
 license = {text = "GPL-3.0-only"}
 description = "Napari plugin for analysing and visualizing lattice lightsheet and Oblique Plane Microscopy data."
-readme = { file = "../README.md", content-type = "text/markdown" }
+readme = { file = "README.md", content-type = "text/markdown" }
 classifiers = [
     "Development Status :: 2 - Pre-Alpha",
     "Intended Audience :: Developers",

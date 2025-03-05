@@ -47,6 +47,30 @@ You should see the deskewed image appear as an extra layer with the `Preview` su
 ??? Extra_info
     If you look at the terminal after deskew, you should see the settings used and any other metadata associated with the dataset. It is handy for troubleshooting.
 
+## Quick Deskew
+
+From version 1.0.3 onwards, we have an option to show the Deskewed image without actually deskewing it. 
+It does not create a new image, but simply transforms the image in the canvas to a deskewed image. 
+This can be useful for quick preview of the data.
+
+To do this, once the plugin is initialized, click on `Quick Deskew`.
+
+![quick_deskew_checkbox](./images/006_quick_deskew_checkbox.png)
+
+Once you click it, you can view the deskewed image in the napari image canvas.
+
+![quick_deskew_active](./images/007_quick_deskew_active.png)
+
+You may get the following warning: `Non-orthogonal slicing is being requested, but is not fully supported. Data is displayed without applying an out-of-slice rotation or shear component.!`
+This is absolutely fine. It just means the image won't be displayed as deskewed in 2D mode. Hence, why we enable 3D mode.
+
+Here is an example of browsing through a timeseries
+
+<video controls src="./images/video/quick_deskew_timeseries.mp4" title="Quick Deskew (timepoints)"></video>
+
+The smoothness of this interactivity will depend on the storage read/write speeds and/or network speeds. For example, if the data is stored on the network, it will be slow to browse timepoints. However, if your data is on your SSD locally, the experience will be much better.
+
+
 More instructions to be added...
 
 ## Deconvolution
