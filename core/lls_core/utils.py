@@ -76,7 +76,6 @@ def calculate_crop_bbox(shape: list, z_start: int, z_end: int) -> tuple[List[Lis
                          for x in product((x0, x1), (y0, y1), (z0, z1))]
     return crop_bounding_box, crop_shape
 
-
 def get_deskewed_shape(volume: ArrayLike,
                        angle: float,
                        voxel_size_x_in_microns: float,
@@ -161,8 +160,6 @@ def etree_to_dict(t: Element) -> dict:
     return d
 
 # block printing to console
-
-
 @contextmanager
 def suppress_stdout_stderr():
     """A context manager that redirects stdout and stderr to devnull"""
@@ -334,3 +331,14 @@ def make_filename_suffix(prefix: Optional[str] = None, roi_index: Optional[int] 
     if time is not None:
         components.append(f"T{time}")
     return "_".join(components)
+
+def convert_xyz_to_zyx_order(deskew_affine_transform:cle.AffineTransform3D):
+    """
+    Swap X and Z axes in affine transform matrix from pyclesperanto
+    swap from xyz to zyx order
+    """
+    deskew_affine_transform = deskew_affine_transform._matrix
+    # Swap X and Z axes using numpy indexing
+    xyz_to_zyx = [2, 1, 0, 3]  
+    zyx_tranform = deskew_affine_transform[xyz_to_zyx][:, xyz_to_zyx]
+    return zyx_tranform

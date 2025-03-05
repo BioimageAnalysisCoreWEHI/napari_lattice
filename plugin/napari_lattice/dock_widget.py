@@ -84,7 +84,7 @@ class LLSZWidget(MagicTemplate):
         Additional analysis parameters can be configured in the other tabs.&nbsp;
         When you are ready to save,&nbsp;go to Tab 5.&nbsp;
         Output to specify the output directory.&nbsp;
-        For more information,&nbsp;<a href="https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/wiki">please refer to the documentation here</a>.
+        For more information,&nbsp;<a href="https://bioimageanalysiscorewehi.github.io/napari_lattice/">please refer to the documentation here</a>.
         </div>
         """.strip()), widget_type="Label")
 

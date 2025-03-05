@@ -34,6 +34,7 @@ from strenum import StrEnum
 from napari_lattice.parent_connect import connect_parent
 from napari_lattice.shape_selector import ShapeSelector
 
+
 if TYPE_CHECKING:
     from magicgui.widgets.bases import RangedWidget
     from numpy.typing import NDArray
@@ -278,6 +279,9 @@ class DeskewFields(NapariFieldGroup):
         tooltip="The axis along which to deskew",
         orientation="horizontal"
     )
+    quick_deskew = field(False).with_options(
+        label="Quick Deskew",
+        tooltip = "View the deskewed image. This does NOT generate a new image, but instead transforms\nthe current image in the viewer. Use `Preview` to generate a new image.")
     errors = field(Label).with_options(label="Errors")
 
     def __init__(self, *args: Any, **kwargs: Any):
@@ -313,15 +317,16 @@ class DeskewFields(NapariFieldGroup):
         from napari_lattice.utils import get_viewer
         try:
             pixels = self._get_kwargs()["physical_pixel_sizes"]
-            for image in self.img_layer.value:
-                image.scale = (
-                    *image.scale[0:-3],
-                    pixels.Z,
-                    pixels.Y,
-                    pixels.X,
-                )
-            viewer = get_viewer()
-            viewer.reset_view()
+            if not self.quick_deskew.value: # Only rescale if we're not in quick deskew mode 
+                for image in self.img_layer.value:
+                    image.scale = (
+                        *image.scale[0:-3],
+                        pixels.Z,
+                        pixels.Y,
+                        pixels.X,
+                    )
+                viewer = get_viewer()
+                viewer.reset_view()
         except:
             pass
 
@@ -336,6 +341,62 @@ class DeskewFields(NapariFieldGroup):
     def _hide_stack_along(self, img_layer: List[Image]):
         # Hide the "Stack Along" option if we only have one image
         return len(img_layer) > 1
+    
+    @quick_deskew.connect
+    @skew_dir.connect #when deskewing parameters change
+    @angle.connect
+    @pixel_sizes_source.connect
+    @pixel_sizes.connect
+    def _quick_deskew(self):
+        image: Image
+        #Apply quick deskew where image is displayed in canvas as deskewed. 
+        #get value of quick deskew
+        quick_deskew = self.quick_deskew.value
+        #If quick deskew is True
+        from pydantic.v1 import ValidationError
+        if quick_deskew:
+            try:
+                #initialize lattice model
+                lattice = self._make_model() 
+            except ValidationError as e:
+                logger.info(f"Validation Error: {e}")
+                # Ignore if the deskew parameters are invalid
+                return
+            #get new pixel sizes and update scale
+            scale = (
+                    lattice.new_dz,
+                    lattice.dy,
+                    lattice.dx
+                )
+            #use zyx deskew affine transform
+            affine_transform = lattice.derived.deskew_affine_transform_zyx
+            ndim_display = 3
+        else:
+            try: 
+                pixels = self._get_kwargs()["physical_pixel_sizes"]
+                scale = (
+                            pixels.Z,
+                            pixels.Y,
+                            pixels.X,
+                        )
+            except:
+                scale = None
+            affine_transform = None
+            ndim_display = 2
+
+        #transform each image layer selected
+        for image in self.img_layer.value:
+            #we do not inverse transform as napari goes from input to output space
+            image.affine = affine_transform
+            image.scale = scale
+        
+        try:
+            from napari_lattice.utils import get_viewer
+            viewer = get_viewer()
+            viewer.dims.ndisplay = ndim_display
+            viewer.reset_view()
+        except: 
+            pass
 
     def _get_kwargs(self) -> DeskewKwargs:
         """
@@ -365,7 +426,7 @@ class DeskewFields(NapariFieldGroup):
             input_image=kwargs["data"],
             physical_pixel_sizes=kwargs["physical_pixel_sizes"],
             angle=kwargs["angle"],
-            skew = kwargs["skew"]
+            skew = kwargs["skew"],
         )
 
 @magicclass
