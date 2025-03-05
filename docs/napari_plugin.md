@@ -24,6 +24,11 @@ To load an image, drag and drop it into napari. You can get some sample data [he
 
 ![open_image](./images/003_open_image.png){ width="600" }
 
+!!! info
+
+    When opening a file, if you get a pop-up asking for preferred reader with `czi` files, select napari-aicsimageio
+
+
 ## Configuration
 
 To configure any parameters, you can change the settings here:
