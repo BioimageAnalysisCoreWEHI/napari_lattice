@@ -148,6 +148,7 @@ ignore_unused = [
 
     # This is pinned but unused
     "fsspec",
+    "ome-types"
 
     # Used for the deployment, but never imported
     "build",

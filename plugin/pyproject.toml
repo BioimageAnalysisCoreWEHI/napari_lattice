@@ -98,7 +98,8 @@ ignore_unused = [
 
     # This is pinned but unused
     "fsspec",
-    "imageio"
+    "imageio",
+    "ome-types"
 ]
 output_format = "human_detailed"  
 
