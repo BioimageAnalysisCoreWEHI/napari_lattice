@@ -75,10 +75,36 @@ Here is an example of browsing through a timeseries
 
 The smoothness of this interactivity will depend on the storage read/write speeds and/or network speeds. For example, if the data is stored on the network, it will be slow to browse timepoints. However, if your data is on your SSD locally, the experience will be much better.
 
-
-More instructions to be added...
-
 ## Deconvolution
+
+Deconvolution is primarily enabled by `pycudadecon`. For this functionality, you will need the point spread function (PSF) for the corresponding channel, either simulated or experimentally derived. You can find examples [here](https://doi.org/10.5281/zenodo.7117783).
+
+!!! Important
+
+    Ensure you are using the right PSF file for each channel. The number and order of the PSF files should match the channels in the image.
+
+After loading the image and configuring it in the `Deskew` tab, select the `Deconvolution` tab. When you click `Enable`, you should see a green tick appear next to the name.
+
+![decon_tab](./images/008_deconvolution_tab.png)
+
+Under processing algorithms only `cuda_gpu` and `cpu` are supported. `opencl_gpu` has not been implemented yet.
+The next step is to select the PSF files. In this example, we will use the `RBC_tiny.czi` file
+
+![decon_options](./images/009_deconvolution_options.png)
+
+- **PSFs**: Use the `Select files` to select multiple PSF files. As the dataset was acquired in the 48 channel, we use the 488.czi PSF file here.
+- **Number of iterations**: Try 10 if not sure and increase if needed.
+- **Background**: Background to subtract. 
+    - **Automatic**: median value of last Z slice will be used
+    - **Second Last**: median value of second last Z slice will be used. This is used in case the last Z slice is incomplete if acquisition is prematurely stopped.
+    - **Custom**: Enter a custom value
+
+Once you are done, click `Preview` at the bottom, and select timepoint or channel. You should see output from `pycudadecon` printed to the terminal. 
+When complete, a deconvolved image will appear as an extra image layer. Below is an example of the deskewed image without (left) and with (right) deconvolution.
+
+![decon_compare](./images/010_deconvolution_executed.png)
+
+More instructions to be added..
 
 ## Cropping
 
