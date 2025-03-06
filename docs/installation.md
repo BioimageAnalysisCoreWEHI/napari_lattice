@@ -1,5 +1,8 @@
 # Installation
 
+This section will guide you through the installation of napari-lattice using conda.
+The commands can be copied by clicking the `copy` button at the right side of the respective code blocks below.
+
 ## Recommended Installation
 
 We recommend the installation of [Miniconda](https://docs.anaconda.com/miniconda/install/) as is a minimal version of Anaconda Distribution. 
@@ -31,7 +34,7 @@ uv pip install lls-core napari-lattice
 ```
 
 ```bash
-uv pip install "napari==0.5.5" --upgrade "numpy<2"
+uv pip install --upgrade aicsimageio "napari==0.5.5" "numpy<2"
 ```
 
 ## CLI only
