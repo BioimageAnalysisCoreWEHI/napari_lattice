@@ -10,6 +10,8 @@ markdown_extensions:
 - attr_list
 - md_in_html
 - pymdownx.blocks.caption
+- pymdownx.tabbed:
+    alternate_style: true
 
 nav:
 - index.md
@@ -50,3 +52,4 @@ theme:
   name: material
   features:
     - content.code.copy
+    - content.tabs.link

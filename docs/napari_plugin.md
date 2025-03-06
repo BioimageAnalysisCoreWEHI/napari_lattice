@@ -35,82 +35,85 @@ To configure any parameters, you can change the settings here:
 
 ![settings](./images/004_configure.png)
 
-## Deskewing
+## Plugin Usage
 
-To use the specific image for processing, you will have to select it under the `Image Layer(s) to Deskew` box on the right. Here, we will click on `RBC_tiny`. As its a czi file it should read the `metadata` accordingly and you will see a green tick.
+=== "Deskewing"
 
-![deskew_active](./images/deskew_active.png)
+    To use the specific image for processing, you will have to select it under the `Image Layer(s) to Deskew` box on the right. Here, we will click on `RBC_tiny`. As its a czi file it should read the `metadata` accordingly and you will see a green tick.
 
-If you are loading a czi, the metadata fields should be populated automatically.
+    ![deskew_active](./images/deskew_active.png)
 
-To `Preview` the deskewed image, click `Preview` and choose the appropriate `channel` and `time`.
+    If you are loading a czi, the metadata fields should be populated automatically.
 
-You should see the deskewed image appear as an extra layer with the `Preview` suffix attached to it.
+    To `Preview` the deskewed image, click `Preview` and choose the appropriate `channel` and `time`.
 
-![deskewed](./images/005_deskewed.png){ width="600" }
+    You should see the deskewed image appear as an extra layer with the `Preview` suffix attached to it.
 
-??? Extra_info
-    If you look at the terminal after deskew, you should see the settings used and any other metadata associated with the dataset. It is handy for troubleshooting.
+    ![deskewed](./images/005_deskewed.png){ width="600" }
 
-## Quick Deskew
+    ??? Extra_info
+        If you look at the terminal after deskew, you should see the settings used and any other metadata associated with the dataset. It is handy for troubleshooting.
 
-From version 1.0.3 onwards, we have an option to show the Deskewed image without actually deskewing it. 
-It does not create a new image, but simply transforms the image in the canvas to a deskewed image. 
-This can be useful for quick preview of the data.
+=== "Quick Deskew"
+    
+    From version 1.0.3 onwards, we have an option to show the Deskewed image without actually deskewing it. 
+    It does not create a new image, but simply transforms the image in the canvas to a deskewed image. 
+    This can be useful for quick preview of the data.
 
-To do this, once the plugin is initialized, click on `Quick Deskew`.
+    To do this, once the plugin is initialized, click on `Quick Deskew`.
 
-![quick_deskew_checkbox](./images/006_quick_deskew_checkbox.png)
+    ![quick_deskew_checkbox](./images/006_quick_deskew_checkbox.png)
 
-Once you click it, you can view the deskewed image in the napari image canvas.
+    Once you click it, you can view the deskewed image in the napari image canvas.
 
-![quick_deskew_active](./images/007_quick_deskew_active.png)
+    ![quick_deskew_active](./images/007_quick_deskew_active.png)
 
-You may get the following warning: `Non-orthogonal slicing is being requested, but is not fully supported. Data is displayed without applying an out-of-slice rotation or shear component.!`
-This is absolutely fine. It just means the image won't be displayed as deskewed in 2D mode. Hence, why we enable 3D mode.
+    You may get the following warning: `Non-orthogonal slicing is being requested, but is not fully supported. Data is displayed without applying an out-of-slice rotation or shear component.!`
+    This is absolutely fine. It just means the image won't be displayed as deskewed in 2D mode. Hence, why we enable 3D mode.
 
-Here is an example of browsing through a timeseries
+    Here is an example of browsing through a timeseries
 
-![type:video](./images/video/quick_deskew_timeseries.mp4)
+    ![type:video](./images/video/quick_deskew_timeseries.mp4)
 
-The smoothness of this interactivity will depend on the storage read/write speeds and/or network speeds. For example, if the data is stored on the network, it will be slow to browse timepoints. However, if your data is on your SSD locally, the experience will be much better.
+    The smoothness of this interactivity will depend on the storage read/write speeds and/or network speeds. For example, if the data is stored on the network, it will be slow to browse timepoints. However, if your data is on your SSD locally, the experience will be much better.
 
-## Deconvolution
+=== "Deconvolution"
 
-Deconvolution is primarily enabled by `pycudadecon`. For this functionality, you will need the point spread function (PSF) for the corresponding channel, either simulated or experimentally derived. You can find examples [here](https://doi.org/10.5281/zenodo.7117783).
+    Deconvolution is primarily enabled by `pycudadecon`. For this functionality, you will need the point spread function (PSF) for the corresponding channel, either simulated or experimentally derived. You can find examples [here](https://doi.org/10.5281/zenodo.7117783).
 
-!!! Important
+    !!! Important
 
-    Ensure you are using the right PSF file for each channel. The number and order of the PSF files should match the channels in the image.
+        Ensure you are using the right PSF file for each channel. The number and order of the PSF files should match the channels in the image.
 
-After loading the image and configuring it in the `Deskew` tab, select the `Deconvolution` tab. When you click `Enable`, you should see a green tick appear next to the name.
+    After loading the image and configuring it in the `Deskew` tab, select the `Deconvolution` tab. When you click `Enable`, you should see a green tick appear next to the name.
 
-![decon_tab](./images/008_deconvolution_tab.png)
+    ![decon_tab](./images/008_deconvolution_tab.png)
 
-Under processing algorithms only `cuda_gpu` and `cpu` are supported. `opencl_gpu` has not been implemented yet.
-The next step is to select the PSF files. In this example, we will use the `RBC_tiny.czi` file
+    Under processing algorithms only `cuda_gpu` and `cpu` are supported. `opencl_gpu` has not been implemented yet.
+    The next step is to select the PSF files. In this example, we will use the `RBC_tiny.czi` file
 
-![decon_options](./images/009_deconvolution_options.png)
+    ![decon_options](./images/009_deconvolution_options.png)
 
-- **PSFs**: Use the `Select files` to select multiple PSF files. As the dataset was acquired in the 48 channel, we use the 488.czi PSF file here.
-- **Number of iterations**: Try 10 if not sure and increase if needed.
-- **Background**: Background to subtract. 
-    - **Automatic**: median value of last Z slice will be used
-    - **Second Last**: median value of second last Z slice will be used. This is used in case the last Z slice is incomplete if acquisition is prematurely stopped.
-    - **Custom**: Enter a custom value
+    - **PSFs**: Use the `Select files` to select multiple PSF files. As the dataset was acquired in the 48 channel, we use the 488.czi PSF file here.
+    - **Number of iterations**: Try 10 if not sure and increase if needed.
+    - **Background**: Background to subtract. 
+        - **Automatic**: median value of last Z slice will be used
+        - **Second Last**: median value of second last Z slice will be used. This is used in case the last Z slice is incomplete if acquisition is prematurely stopped.
+        - **Custom**: Enter a custom value
 
-Once you are done, click `Preview` at the bottom, and select timepoint or channel. You should see output from `pycudadecon` printed to the terminal. 
-When complete, a deconvolved image will appear as an extra image layer. Below is an example of the deskewed image without (left) and with (right) deconvolution.
+    Once you are done, click `Preview` at the bottom, and select timepoint or channel. You should see output from `pycudadecon` printed to the terminal. 
+    When complete, a deconvolved image will appear as an extra image layer. Below is an example of the deskewed image without (left) and with (right) deconvolution.
 
-![decon_compare](./images/010_deconvolution_executed.png)
+    ![decon_compare](./images/010_deconvolution_executed.png)
 
-More instructions to be added..
+=== "Cropping"
+    More instructions to be added..
 
-## Cropping
+=== "Workflow"
+    More instructions to be added..
 
-## Workflow
-
-## Output (Saving files)
+=== "Output (Saving files)"
+    More instructions to be added..
 
 
 
