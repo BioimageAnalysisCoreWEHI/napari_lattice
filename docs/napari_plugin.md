@@ -107,13 +107,50 @@ To configure any parameters, you can change the settings here:
     ![decon_compare](./images/010_deconvolution_executed.png)
 
 === "Cropping"
+
+    There are two ways to do the cropping:
+
+    * Define ROIs within napari-lattice plugin
+    * Import ROIs generated elsewhere, such as Fiji ROI Manager.
+
+    <u>**Define ROIs in napari-lattice**</u>
+    
+    - Load and configure the image in the `Deskew` tab and you should see a green tick. 
+    - Run Preview to get a deskewed volume. We will use this as a reference to draw ROIs for cropping.
+    - Go to the `Crop` tab and tick the `Enabled` button to activate cropping.
+
+    ![crop_tick](./images/011_crop_tick.png){ width="400" }
+
+    The red text at the bottom indicates that atleast one ROI must be specified.
+
+    - Click on `New Crop` at the bottom of the plugin to add a `Shapes` layer on the left to draw ROIs. This Shapes layer will be called `Napari Lattice Crop`. Click here for more info on using [Shapes layers and drawing shapes](https://napari.org/dev/howtos/layers/shapes.html).
+    - Click on the `Napari Lattice Crop` Shapes layer and the rectangular ROI tool will be selected by default. 
+    - Draw an ROI around the region you would like to crop. After defining the ROI, it will appear on the right.
+    ![crop_ROI](./images/013_crop_draw_roi.png)
+    - Similarly, you can draw multiple ROIs. Each ROI will be an entry in the ROIs box. When you select one of them, the error message below will disappear.
+
+    ![crop_ROI](./images/014_crop_draw_roi_multiple.png){width="450"}
+
+    - Once you have drawn the ROIs, select one of them, and click `Preview` to visualize the cropped region. The cropped image will appear as a new layer in the image layer list on the left. 
+
+    ![crop_ROI](./images/015_crop_napari_layer.png)
+
+    - The purpose of the Crop tab is to setup the ROIs. Once you've defined all of them, you can save all of them by configuring it in the `Output` tab.
+
+    <u>**Import ROIs**</u>
+
+    We have added support to import ROIs from Fiji ROI Manager file. This workflow exists because the Zeiss lattice lightsheet produces a 2D maximum intensity projection at the end of the acquisition. This image can be used to select ROIs of interest in Fiji. 
+    
     More instructions to be added..
+
 
 === "Workflow"
-    More instructions to be added..
+    
+    Instructions about importing workflows to be added
 
 === "Output (Saving files)"
-    More instructions to be added..
+    
+    Instructions on how to save files after setting up the other tabs
 
 
 
