@@ -16,12 +16,15 @@ markdown_extensions:
 nav:
 - index.md
 - installation.md
-- napari_plugin.md
+- "Napari Plugin":
+  - napari_plugin/index.md
+  - "Napari Plugin": napari_plugin/plugin_usage.md
 - cli.md
 - api.md
 - workflow.md
 - development.md
-
+- "Miscellaneous":
+  - "Fiji ROIs": miscellaneous/index.md
 plugins:
 - search
 - mkdocs-video:
@@ -53,6 +56,9 @@ theme:
   features:
     - content.code.copy
     - content.tabs.link
+    - navigation.tabs #tabs on top
+    - navigation.tabs.sticky #visible even when scrolling down
+    - navigation.sections
   palette: 
     # Palette toggle for dark mode
     - scheme: slate

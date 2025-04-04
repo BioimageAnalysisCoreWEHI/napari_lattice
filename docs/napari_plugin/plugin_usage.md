@@ -1,47 +1,10 @@
-# Napari Plugin
-
-## Starting the plugin
-
-The napari plugin has been redesigned in the newer version.
-To activate the plugin, activate the `napari-lattice` environment in your terminal and type `napari` in the console.
-The plugin is under `Lattice Lightsheet Analysis`
-
-![Activate plugin](./images/001_start_plugin.png){ width="600" }
-
-The plugin should appear on the right side. You may have to resize the window.
-
-![llsz_plugin](./images/002_plugin.png){ width="600" }
-
-The functionalities with napari-lattice have been separated out into tabs:
-
-![plugin_tabs](./images/plugin_tabs.png){ width="600" }
-
-If its configured correctly, you should see a green tick next to the tab name, else you will see a red cross.
-
-![green_tick](./images/green_tick.png)
-
-To load an image, drag and drop it into napari. You can get some sample data [here](https://zenodo.org/records/7117784). We are using `RBC_tiny.czi` as an example here.
-
-![open_image](./images/003_open_image.png){ width="600" }
-
-!!! info
-
-    When opening a file, if you get a pop-up asking for preferred reader with `czi` files, select napari-aicsimageio
-
-
-## Configuration
-
-To configure any parameters, you can change the settings here:
-
-![settings](./images/004_configure.png)
-
 ## Plugin Usage
 
 === "Deskewing"
 
     To use the specific image for processing, you will have to select it under the `Image Layer(s) to Deskew` box on the right. Here, we will click on `RBC_tiny`. As its a czi file it should read the `metadata` accordingly and you will see a green tick.
 
-    ![deskew_active](./images/deskew_active.png)
+    ![deskew_active](../images/deskew_active.png)
 
     If you are loading a czi, the metadata fields should be populated automatically.
 
@@ -49,7 +12,7 @@ To configure any parameters, you can change the settings here:
 
     You should see the deskewed image appear as an extra layer with the `Preview` suffix attached to it.
 
-    ![deskewed](./images/005_deskewed.png){ width="600" }
+    ![deskewed](../images/005_deskewed.png){ width="600" }
 
     ??? Extra_info
         If you look at the terminal after deskew, you should see the settings used and any other metadata associated with the dataset. It is handy for troubleshooting.
@@ -62,18 +25,18 @@ To configure any parameters, you can change the settings here:
 
     To do this, once the plugin is initialized, click on `Quick Deskew`.
 
-    ![quick_deskew_checkbox](./images/006_quick_deskew_checkbox.png)
+    ![quick_deskew_checkbox](../images/006_quick_deskew_checkbox.png)
 
     Once you click it, you can view the deskewed image in the napari image canvas.
 
-    ![quick_deskew_active](./images/007_quick_deskew_active.png)
+    ![quick_deskew_active](../images/007_quick_deskew_active.png)
 
     You may get the following warning: `Non-orthogonal slicing is being requested, but is not fully supported. Data is displayed without applying an out-of-slice rotation or shear component.!`
     This is absolutely fine. It just means the image won't be displayed as deskewed in 2D mode. Hence, why we enable 3D mode.
 
     Here is an example of browsing through a timeseries
 
-    ![type:video](./images/video/quick_deskew_timeseries.mp4)
+    ![type:video](../images/video/quick_deskew_timeseries.mp4)
 
     The smoothness of this interactivity will depend on the storage read/write speeds and/or network speeds. For example, if the data is stored on the network, it will be slow to browse timepoints. However, if your data is on your SSD locally, the experience will be much better.
 
@@ -87,12 +50,12 @@ To configure any parameters, you can change the settings here:
 
     After loading the image and configuring it in the `Deskew` tab, select the `Deconvolution` tab. When you click `Enable`, you should see a green tick appear next to the name.
 
-    ![decon_tab](./images/008_deconvolution_tab.png)
+    ![decon_tab](../images/008_deconvolution_tab.png)
 
     Under processing algorithms only `cuda_gpu` and `cpu` are supported. `opencl_gpu` has not been implemented yet.
     The next step is to select the PSF files. In this example, we will use the `RBC_tiny.czi` file
 
-    ![decon_options](./images/009_deconvolution_options.png)
+    ![decon_options](../images/009_deconvolution_options.png)
 
     - **PSFs**: Use the `Select files` to select multiple PSF files. As the dataset was acquired in the 48 channel, we use the 488.czi PSF file here.
     - **Number of iterations**: Try 10 if not sure and increase if needed.
@@ -104,7 +67,7 @@ To configure any parameters, you can change the settings here:
     Once you are done, click `Preview` at the bottom, and select timepoint or channel. You should see output from `pycudadecon` printed to the terminal. 
     When complete, a deconvolved image will appear as an extra image layer. Below is an example of the deskewed image without (left) and with (right) deconvolution.
 
-    ![decon_compare](./images/010_deconvolution_executed.png)
+    ![decon_compare](../images/010_deconvolution_executed.png)
 
 === "Cropping"
 
@@ -119,30 +82,29 @@ To configure any parameters, you can change the settings here:
     - Run Preview to get a deskewed volume. We will use this as a reference to draw ROIs for cropping.
     - Go to the `Crop` tab and tick the `Enabled` button to activate cropping.
 
-    ![crop_tick](./images/011_crop_tick.png){ width="400" }
+    ![crop_tick](../images/011_crop_tick.png){ width="400" }
 
     The red text at the bottom indicates that atleast one ROI must be specified.
 
     - Click on `New Crop` at the bottom of the plugin to add a `Shapes` layer on the left to draw ROIs. This Shapes layer will be called `Napari Lattice Crop`. Click here for more info on using [Shapes layers and drawing shapes](https://napari.org/dev/howtos/layers/shapes.html).
     - Click on the `Napari Lattice Crop` Shapes layer and the rectangular ROI tool will be selected by default. 
     - Draw an ROI around the region you would like to crop. After defining the ROI, it will appear on the right.
-    ![crop_ROI](./images/013_crop_draw_roi.png)
+    ![crop_ROI](../images/013_crop_draw_roi.png)
     - Similarly, you can draw multiple ROIs. Each ROI will be an entry in the ROIs box. When you select one of them, the error message below will disappear.
 
-    ![crop_ROI](./images/014_crop_draw_roi_multiple.png){width="450"}
+    ![crop_ROI](../images/014_crop_draw_roi_multiple.png){width="450"}
 
     - Once you have drawn the ROIs, select one of them, and click `Preview` to visualize the cropped region. The cropped image will appear as a new layer in the image layer list on the left. 
 
-    ![crop_ROI](./images/015_crop_napari_layer.png)
+    ![crop_ROI](../images/015_crop_napari_layer.png)
 
     - The purpose of the Crop tab is to setup the ROIs. Once you've defined all of them, you can save all of them by configuring it in the `Output` tab.
 
     <u>**Import ROIs**</u>
 
-    We have added support to import ROIs from Fiji ROI Manager file. This workflow exists because the Zeiss lattice lightsheet produces a 2D maximum intensity projection at the end of the acquisition. This image can be used to select ROIs of interest in Fiji. 
-    
-    More instructions to be added..
+    We have added support to import ROIs from Fiji ROI Manager file. This workflow exists because the Zeiss lattice lightsheet produces a 2D maximum intensity projection at the end of the acquisition. This image can be used to select ROIs of interest in Fiji. Refer to this page [for more instructons on how to generate](../miscellaneous/index.md).
 
+    MORE INSTRUCTIONS TO BE ADDED
 
 === "Workflow"
     
