@@ -24,7 +24,7 @@ nav:
 - workflow.md
 - development.md
 - "Miscellaneous":
-  - "Fiji ROIs": miscellaneous/index.md
+  - "Defining ROIs for cropping": miscellaneous/index.md
 plugins:
 - search
 - mkdocs-video:
