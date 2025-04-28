@@ -18,7 +18,7 @@ nav:
 - installation.md
 - "Napari Plugin":
   - napari_plugin/index.md
-  - "Napari Plugin": napari_plugin/plugin_usage.md
+  - "Using the Plugin": napari_plugin/plugin_usage.md
 - cli.md
 - api.md
 - workflow.md

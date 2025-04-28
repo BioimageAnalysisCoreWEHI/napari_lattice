@@ -1,6 +1,4 @@
-# Using the napari plugin
-
-This section deals with how to use the napari plugin.
+# Initializing the plugin 
 
 ## Starting the plugin
 
@@ -36,3 +34,5 @@ To load an image, drag and drop it into napari. You can get some sample data [he
 To configure any parameters, you can change the settings here:
 
 ![settings](../images/004_configure.png)
+
+To use the plugin, click on [`Using the Plugin`](./plugin_usage.md) on the left menu.

@@ -1,5 +1,7 @@
 ## Plugin Usage
 
+Click on the tabs below to view the corresponding functionality.
+
 === "Deskewing"
 
     To use the specific image for processing, you will have to select it under the `Image Layer(s) to Deskew` box on the right. Here, we will click on `RBC_tiny`. As its a czi file it should read the `metadata` accordingly and you will see a green tick.
