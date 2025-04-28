@@ -42,6 +42,9 @@ jobs:
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
+        with:
+          # Install a specific version of uv.
+          version: "0.6.17"
         
       - name: Install core
         timeout-minutes: 10
@@ -49,7 +52,7 @@ jobs:
           conda install -y pyopencl pocl
           python --version
           pip install --upgrade pip setuptools wheel
-          uv pip install --use-pep517 -e './core[testing]'
+          pip install --use-pep517 -e './core[testing]'
 
       - name: Lint core
         uses: ./.github/lint
@@ -66,7 +69,7 @@ jobs:
         timeout-minutes: 10
         run: |
           /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
-          pip install pytest-qt PyQt5
+          uv pip install pytest-qt PyQt5
           uv pip install -e './plugin[testing]'
           uv pip install --upgrade aicsimageio "napari==0.5.5" "numpy<2"
 
