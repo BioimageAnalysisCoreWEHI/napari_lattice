@@ -113,9 +113,9 @@ jobs:
           version: "0.6.17"
       - name: Install dependencies
         run: |
-          uv pip install --upgrade pip setuptools wheel
-          uv pip install ./core[docs,deploy]
-          uv pip install ./plugin
+          uv pip install --system --upgrade pip setuptools wheel
+          uv pip install --system ./core[docs,deploy]
+          uv pip install --system ./plugin
 
       - name: Build distributions
         run: |
