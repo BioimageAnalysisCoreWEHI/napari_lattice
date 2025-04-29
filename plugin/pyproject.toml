@@ -54,7 +54,7 @@ dependencies = [
     "numpy<2",
     "psutil",
     "pyclesperanto_prototype>=0.20.0",
-    "pydantic",
+    "pydantic>=1.10.17,<3",
     "qtpy",
     "typing_extensions>=4.7.0",
     "rich",
