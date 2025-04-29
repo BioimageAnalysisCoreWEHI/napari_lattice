@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8", "3.9", "3.10"]
+        python-version: ["3.8","3.9","3.10"] #not compatible with py 3.10 and 3.12 yet
     env:
       DISPLAY: ":99.0"
     steps:
@@ -82,9 +82,7 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test plugin
-        run: |
-          pip list
-          pytest -v --cov=plugin --cov-report=xml plugin
+        run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
         uses: codecov/codecov-action@v3
