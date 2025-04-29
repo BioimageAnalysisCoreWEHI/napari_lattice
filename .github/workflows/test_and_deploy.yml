@@ -21,7 +21,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+<<<<<<< HEAD
         python-version: ["3.8","3.9","3.10"] #not compatible with py 3.10 and 3.12 yet
+=======
+        python-version: ["3.11","3.12"] # ["3.8","3.9","3.10"]
+>>>>>>> ad45cd65b2e8117481c34caaf9b04ef9e4dee072
     env:
       DISPLAY: ":99.0"
     steps:
