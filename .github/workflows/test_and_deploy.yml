@@ -74,9 +74,9 @@ jobs:
           if (( $(echo "$(python --version | cut -d' ' -f2 | cut -d'.' -f1,2) > 3.8" | bc -l) )); then
                 uv pip install --upgrade aicsimageio "napari==0.5.5" "numpy<2"
                 fi
-        #echo Pydantic version
-        # Print the Pydantic version to verify compatibility or debug issues
-        echo $(python -c "import pydantic; print(pydantic.__version__)")
+          #echo Pydantic version
+          #Print the Pydantic version to verify compatibility or debug issues
+          echo "$(python -c 'import pydantic; print(pydantic.__version__)')"
 
       - name: Lint plugin
         uses: ./.github/lint
