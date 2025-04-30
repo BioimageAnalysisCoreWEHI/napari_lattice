@@ -35,4 +35,4 @@ To configure any parameters, you can change the settings here:
 
 ![settings](../images/004_configure.png)
 
-To use the plugin, click on [`Using the Plugin`](./plugin_usage.md) on the left menu.
+For information on how to use the plugin, click on [`Using the Plugin`](./plugin_usage.md) on the left menu of this page.
