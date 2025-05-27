@@ -45,9 +45,9 @@ Support will be added for more file formats in the future.
 
 Sample lattice lightsheet data download: <https://doi.org/10.5281/zenodo.7117784>
 
-----------------------------------
+## Citing
 
-This [napari] plugin was generated with [Cookiecutter] using [@napari]'s [cookiecutter-napari-plugin] template.
+Rajasekhar, P., Milton, M., Geoghegan, N., Haase, R., Rogers, K. L., & Whitehead, L. (2025). napari-lattice (v1.0.3). Zenodo. https://doi.org/10.5281/zenodo.14974337
 
 ## Contributing
 
