@@ -145,7 +145,7 @@ class OMEZarrWriter(Writer):
         params,
         *,
         overwrite: bool = True,
-        chunk_zyx: Tuple[int, int, int] = DEFAULT_CHUNK_ZYX,
+        chunk_zyx: tuple[int, int, int] = DEFAULT_CHUNK_ZYX,
         compressor: Optional[Blosc] = None,
         roi_index: Optional[int] = None,         
         roi_label: Optional[str] = None,         
@@ -207,7 +207,7 @@ class OMEZarrWriter(Writer):
         """No-op; multiscales metadata is written at creation."""
         return
 
-    def _resolve_t_c_lengths(self, slice) -> Tuple[int, int]:
+    def _resolve_t_c_lengths(self, slice) -> tuple[int, int]:
         if self._t_len is not None and self._c_len is not None:
             return self._t_len, self._c_len
         t_len = len(getattr(self.params, "time_range", None))
@@ -216,8 +216,8 @@ class OMEZarrWriter(Writer):
         return t_len, c_len
 
     def _create_store(
-        self, t_len: int, c_len: int, zyx: Tuple[int, int, int], dtype: np.dtype
-    ) -> Tuple[zarr.Group, zarr.Array]:
+        self, t_len: int, c_len: int, zyx: tuple[int, int, int], dtype: np.dtype
+    ) -> tuple[zarr.Group, zarr.Array]:
         if self.overwrite and self._root_path.exists():
             import shutil
             shutil.rmtree(self._root_path)
