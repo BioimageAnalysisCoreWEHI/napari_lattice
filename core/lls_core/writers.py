@@ -176,7 +176,7 @@ class OMEZarrWriter(Writer):
         self._zyx = None
         self._t_len = None
         self._c_len = None
-        self._dtype = None
+        self._dtype = np.uint16
 
         self._pix_z, self._pix_y, self._pix_x = (self.lattice.new_dz, self.lattice.dy, self.lattice.dx)
 
@@ -199,7 +199,7 @@ class OMEZarrWriter(Writer):
         if self._arr is None:
             self._root_group, self._arr = self._create_store(t_len, c_len, self._zyx, self._dtype)
         
-        self._arr[t_idx, c_idx, :, :, :] = data3d
+        self._arr[t_idx, c_idx, :, :, :] = np.clip(data3d, 0.0, 65535.0).astype(np.uint16)
         return self._root_path
 
     # Optional hook if the framework ever calls it.
