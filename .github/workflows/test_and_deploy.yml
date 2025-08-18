@@ -26,7 +26,7 @@ jobs:
     env:
       DISPLAY: ":99.0"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - uses: conda-incubator/setup-miniconda@v2
         with:
@@ -101,7 +101,7 @@ jobs:
       pages: write
       contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
