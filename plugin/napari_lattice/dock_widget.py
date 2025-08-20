@@ -15,7 +15,7 @@ from napari_lattice.fields import (
     WorkflowFields,
 )
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QTabWidget
+from qtpy.QtWidgets import QTabWidget, QWidget
 from napari_lattice.parent_connect import ParentConnect
 
 if TYPE_CHECKING:
@@ -87,7 +87,7 @@ class LLSZWidget(MagicTemplate):
         For more information,&nbsp;<a href="https://bioimageanalysiscorewehi.github.io/napari_lattice/">please refer to the documentation here</a>.
         </div>
         """.strip()), widget_type="Label")
-
+        
         def __post_init__(self):
             from qtpy.QtCore import Qt
             from qtpy.QtWidgets import QLabel, QLayout
@@ -97,6 +97,11 @@ class LLSZWidget(MagicTemplate):
 
             if isinstance(self.heading1.native, QLabel):
                 self.heading1.native.setWordWrap(True)
+            
+            # Set minimum width for the entire widget to allow resizing 
+            if isinstance(self._widget._qwidget, QWidget):
+                self._widget._qwidget.setMinimumWidth(450)
+                #450 pixels ensures enough space for plugin content
 
         # Tabbed Widget container to house all the widgets
         @magicclass(widget_type="tabbed", name="Functions", labels=False)
