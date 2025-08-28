@@ -85,3 +85,6 @@ venv/
 
 #dask worker space
 dask-worker-space/
+
+# sample data folder for testing
+notebooks/sample_data/*
