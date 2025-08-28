@@ -5,16 +5,13 @@ The commands can be copied by clicking the `copy` button at the right side of th
 
 ## Recommended Installation
 
-We recommend the installation of [Miniconda](https://docs.anaconda.com/miniconda/install/) as is a minimal version of Anaconda Distribution. 
+We recommend the installation of [Miniforge](https://conda-forge.org/download/) as it is a minimal version of Anaconda Distribution and includes `mamba`, which is faster than conda. 
 
-??? Tip
-    If you can [install `mamba` in your environment](https://stackoverflow.com/a/76765625), the conda installation commands will be much faster. Once configured correctly, just replace `conda` with `mamba` in the commands below.
-
-First, create a new conda environment:
+First, create a new conda environment. To do this, you can look for Miniforge Prompt which we will use for running the commands below:
 
 
 ```bash
-conda create -n napari-lattice -c conda-forge "python==3.10" uv pycudadecon "numpy<2" 
+mamba create -n napari-lattice -c conda-forge "python==3.10" uv pycudadecon "numpy<2" 
 ```
 
 !!! info
@@ -27,7 +24,7 @@ Activate that environment:
 conda activate napari-lattice
 ```
 
-Then use `uv` to quickly install the napari-lattice suite using the following 2 commands:
+Then use `uv` for installing the napari-lattice suite using the following 2 commands:
 
 ```bash
 uv pip install lls-core napari-lattice
@@ -36,13 +33,17 @@ uv pip install lls-core napari-lattice
 ```bash
 uv pip install --upgrade aicsimageio "napari==0.5.5" "numpy<2" "tifffile==2025.1.10"
 ```
+!!! info
+
+    Using `uv` ensures the installs are fast!
+
 
 ## CLI only
 
 If you do not need to use napari, then you can install just the command line interface only, which has all the features
 
 ```bash
-conda create -n napari-lattice -c conda-forge "python==3.10" uv pycudadecon "numpy<2"
+mamba create -n napari-lattice -c conda-forge "python==3.10" uv pycudadecon "numpy<2"
 ```
 
 ```bash
