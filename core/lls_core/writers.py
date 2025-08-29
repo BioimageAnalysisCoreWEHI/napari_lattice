@@ -195,7 +195,7 @@ class OMEZarrWriter(Writer):
         c_idx = int(getattr(slice, "channel_index", 0))
         t_len, c_len = self._resolve_t_c_lengths(slice)
 
-        # If it's the first slice - initialize the full zarr array suze
+        # If it's the first slice - initialize the full zarr array size
         if self._arr is None:
             self._root_group, self._arr = self._create_store(t_len, c_len, self._zyx, self._dtype)
         
