@@ -184,7 +184,19 @@ class WorkflowSlices(ProcessedSlices[MaybeTupleRawWorkflowOutput]):
 
                         if isinstance(element, dict):
                             # If the row is a dict, it has column names
-                            element = {"time": f"T{result.time_index}", "channel": f"C{result.channel_index}", **element}
+                            #get max length of values in element
+                            len_values = {k:len(v) for k,v in element.items()}
+                            max_length = max(len_values.values())
+                            #Add time and channel columns that match the max length
+                            time_values = [f"T{result.time_index}"] * max_length
+                            channel_values = [f"C{result.channel_index}"] * max_length
+                            element = {"time": time_values, "channel": channel_values, **element}
+                        elif isinstance(element, pd.DataFrame):
+                            #add time and channel columns
+                            element["time"] = f"T{result.time_index}"
+                            element["channel"] = f"C{result.channel_index}"
+                            #convert to dict
+                            element = element.to_dict(orient="series")
                         elif isinstance(element, Iterable):
                             # If the row is a list, it has no column names
                             # We add the channel and time 
