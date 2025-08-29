@@ -27,8 +27,9 @@ nav:
 - api.md
 - workflow.md
 - development.md
-- "Miscellaneous":
-  - "Defining ROIs for cropping": miscellaneous/index.md
+- "Supporting Resources":
+  - "Supporting Resources": miscellaneous/index.md
+  - "Defining ROIs for cropping": miscellaneous/rois_cropping.md
 plugins:
 - search
 - mkdocs-video:

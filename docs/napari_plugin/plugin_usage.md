@@ -104,7 +104,7 @@ Click on the tabs below to view the corresponding functionality.
 
     <u>**Import ROIs**</u>
 
-    We have added support to import ROIs from Fiji ROI Manager file. This workflow exists because the Zeiss lattice lightsheet produces a 2D maximum intensity projection at the end of the acquisition. This image can be used to select ROIs of interest in Fiji. Refer to this page [for more instructons on how to generate](../miscellaneous/index.md).
+    We have added support to import ROIs from Fiji ROI Manager file. This workflow exists because the Zeiss lattice lightsheet produces a 2D maximum intensity projection at the end of the acquisition. This image can be used to select ROIs of interest in Fiji. Refer to this page [for more instructons on how to generate](../miscellaneous/rois_cropping.md).
 
     MORE INSTRUCTIONS TO BE ADDED
 
