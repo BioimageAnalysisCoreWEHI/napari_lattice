@@ -67,6 +67,8 @@ dependencies = [
     "typer",
     "typing_extensions>=4.7.0",
     "xarray[parallel]",
+    "zarr>=2.16,<3",
+    "numcodecs>=0.11",
 ]
 
 [project.urls]

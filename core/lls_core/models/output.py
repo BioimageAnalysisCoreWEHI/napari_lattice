@@ -14,6 +14,7 @@ class SaveFileType(StrEnum):
     """
     h5 = "h5"
     tiff = "tiff"
+    omezarr = "omezarr"
 
 class OutputParams(FieldAccessModel):
     save_dir: DirectoryPath = Field(
@@ -59,6 +60,8 @@ class OutputParams(FieldAccessModel):
     def file_extension(self):
         if self.save_type == SaveFileType.h5:
             return "h5"
+        elif self.save_type == SaveFileType.omezarr:
+            return "ome.zarr"
         else:
             return "tif"
 
