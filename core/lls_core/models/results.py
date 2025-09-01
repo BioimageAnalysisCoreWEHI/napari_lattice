@@ -188,11 +188,13 @@ class WorkflowSlices(ProcessedSlices[MaybeTupleRawWorkflowOutput]):
                             len_values = {k: len(v) if isinstance(v, Iterable) and not isinstance(v, str) else 1 for k, v in element.items()}
                             if len_values:
                                 max_length = max(len_values.values())
+                                #Add time and channel columns that match the max length
+                                time_values = [f"T{result.time_index}"] * max_length
+                                channel_values = [f"C{result.channel_index}"] * max_length
                             else:
-                                max_length = 1
-                            #Add time and channel columns that match the max length
-                            time_values = [f"T{result.time_index}"] * max_length
-                            channel_values = [f"C{result.channel_index}"] * max_length
+                                time_values = f"T{result.time_index}"
+                                channel_values = f"C{result.channel_index}"
+                                
                             element = {"time": time_values, "channel": channel_values, **element}
                             
                         elif isinstance(element, DataFrame):
