@@ -148,6 +148,7 @@ ignore_unused = [
     "mkdocs-click",
     "mkdocs-video",
     "mkdocs-material",
+    "mkdocs-jupyter",
     "fieldz",
     "griffe-fieldz",
 
@@ -160,3 +161,4 @@ ignore_unused = [
     "twine"
 ]
 output_format = "human_detailed"  
+
