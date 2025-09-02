@@ -12,19 +12,24 @@ markdown_extensions:
 - pymdownx.blocks.caption
 - pymdownx.tabbed:
     alternate_style: true
+- pymdownx.emoji:
+    emoji_index: !!python/name:material.extensions.emoji.twemoji
+    emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 nav:
 - index.md
 - installation.md
 - "Napari Plugin":
-  - napari_plugin/index.md
+  - "Napari Plugin": napari_plugin/index.md
+  - "Initializing the Plugin": napari_plugin/starting_plugin.md
   - "Using the Plugin": napari_plugin/plugin_usage.md
 - cli.md
 - api.md
 - workflow.md
 - development.md
-- "Miscellaneous":
-  - "Defining ROIs for cropping": miscellaneous/index.md
+- "Supporting Resources":
+  - "Supporting Resources": miscellaneous/index.md
+  - "Defining ROIs for cropping": miscellaneous/rois_cropping.md
 plugins:
 - search
 - mkdocs-video:

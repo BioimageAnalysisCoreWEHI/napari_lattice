@@ -26,7 +26,7 @@ jobs:
     env:
       DISPLAY: ":99.0"
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
 
       - uses: conda-incubator/setup-miniconda@v2
         with:
@@ -42,7 +42,7 @@ jobs:
         run: echo "python=$(which python)" >> "$GITHUB_ENV"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           # Install a specific version of uv.
           version: "0.6.17"
@@ -86,7 +86,7 @@ jobs:
         run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
-        uses: codecov/codecov-action@v3
+        uses: codecov/codecov-action@v5
 
   deploy:
     # this will run when you have tagged a commit, starting with "v*"
@@ -101,13 +101,13 @@ jobs:
       pages: write
       contents: write
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v5
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        uses: astral-sh/setup-uv@v6
         with:
           # Install a specific version of uv.
           version: "0.6.17"
@@ -126,7 +126,7 @@ jobs:
         run: mkdocs build
 
       - name: Upload docs artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
@@ -135,7 +135,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/deploy-pages@v4
 
-      - uses: ncipollo/release-action@v1.14.0
+      - uses: ncipollo/release-action@v1.18.0
         name: Create GitHub release 
         if: contains(github.ref, 'tags')
         with:
