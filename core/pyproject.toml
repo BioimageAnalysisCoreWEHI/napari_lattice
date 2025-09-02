@@ -94,6 +94,7 @@ docs = [
     "mkdocs-click",
     "mkdocs-material",
     "mkdocs-video",
+    "mkdocs-jupyter",
     # Includes fixes for Pydantic 1.X
     "fieldz>=0.1.0",
     "griffe-fieldz"

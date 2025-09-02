@@ -21,25 +21,18 @@ Check the [Docs website](https://bioimageanalysiscorewehi.github.io/napari_latti
 
 **Functions**
 
-* Deskewing and deconvolution of Zeiss lattice lightsheet images
-  * Ability to preview deskewed image at channel or timepoint of interest
+* Deskewing and deconvolution of Lattice Lightsheet data with a focus on the Zeiss LLS7
+* Ability to preview deskewed image at channel or timepoint of interest
 * Crop and process only a small portion of the image 
 * Import ImageJ ROIs for cropping
 * Create image processing workflows using napari-workflows
 * Run deskewing, deconvolution and custom image processing workflows from the terminal
-* Files can be saved as h5 (BigDataViewer/BigStitcher) or tiff files
-* Run in terminal without napari, enabling processing workflows on the HPC
+* Files can be saved as ome zarr, h5 (BigDataViewer/BigStitcher) or tiff files
+* COmmand Line Interface (CLI) `lls-core` to run napari-lattice workflows on the HPC at scale
 
 **Key Features**
 
 Apply custom image processing workflows using `napari-workflows`. 
-
-Examples to be added.
-
-* [Interactive workflow generation (no coding experience needed)]()
-* [Use custom python functions/modules within workflows]()
-* [How to use Cellpose for cell segmentation]()
-
 
 Support will be added for more file formats in the future.
 

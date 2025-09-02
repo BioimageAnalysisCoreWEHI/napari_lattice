@@ -25,7 +25,12 @@ nav:
   - "Using the Plugin": napari_plugin/plugin_usage.md
 - cli.md
 - api.md
-- workflow.md
+- "Workflows":
+  - "Workflows": workflows/index.md
+  - "Programmatic": workflows/programmatic_workflow.md
+  - "Interactive Workflow": workflows/interactive_workflow.md
+  - "Programmatic Workflow": 'workflows/notebooks/Image_analysis_workflow_simple.ipynb'
+  
 - development.md
 - "Supporting Resources":
   - "Supporting Resources": miscellaneous/index.md
@@ -38,6 +43,7 @@ plugins:
     video_controls: True
     css_style:
       width: "75%"
+- mkdocs-jupyter
 - mkdocstrings:
     default_handler: python
     handlers:
