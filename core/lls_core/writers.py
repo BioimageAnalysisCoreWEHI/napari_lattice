@@ -211,8 +211,8 @@ class OMEZarrWriter(Writer):
     def _resolve_t_c_lengths(self, slice) -> tuple[int, int]:
         if self._t_len is not None and self._c_len is not None:
             return self._t_len, self._c_len
-        t_len = len(getattr(self.params, "time_range", None))
-        c_len = len(getattr(self.params, "channel_range", None))     
+        t_len = len(getattr(self.params, "time_range", None) or [])
+        c_len = len(getattr(self.params, "channel_range", None) or [])
         self._t_len, self._c_len = t_len, c_len 
         return t_len, c_len
 
