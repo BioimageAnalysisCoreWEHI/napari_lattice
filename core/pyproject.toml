@@ -11,7 +11,7 @@ line_length = 79
 
 [project]
 name = "lls_core"
-version = "1.0.3"
+version = "1.0.4"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
@@ -161,4 +161,5 @@ ignore_unused = [
     "twine"
 ]
 output_format = "human_detailed"  
+
 
