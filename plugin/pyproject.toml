@@ -11,7 +11,7 @@ line_length = 79
 
 [project]
 name = "napari-lattice"
-version = "1.0.4"
+version = "1.0.5"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
@@ -118,4 +118,5 @@ reportMissingTypeArgument = false
 reportPrivateUsage = false
 reportPrivateImportUsage = false
 reportUnnecessaryComparison = false
+
 
