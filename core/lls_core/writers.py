@@ -175,7 +175,7 @@ class OMEZarrWriter(Writer):
         self._zyx = None
         self._t_len = None
         self._c_len = None
-        self._dtype = np.uint16
+        self._dtype = np.uint16 #We are enforcing 16-bit, but may change in future
 
         self._pix_z, self._pix_y, self._pix_x = (self.lattice.new_dz, self.lattice.dy, self.lattice.dx)
 
@@ -187,7 +187,9 @@ class OMEZarrWriter(Writer):
 
         if self._zyx is None:
             self._zyx = (int(data3d.shape[0]), int(data3d.shape[1]), int(data3d.shape[2]))
-        if self._dtype is None:
+
+        #if dtype of data is < uint16, use the data dtype
+        if np.iinfo(data3d.dtype).max < np.iinfo(np.uint16).max:
             self._dtype = data3d.dtype
 
         t_idx = int(getattr(slice, "time_index", 0))
