@@ -191,7 +191,7 @@ class WorkflowSlices(ProcessedSlices[MaybeTupleRawWorkflowOutput]):
                                 #Add time and channel columns that match the max length
                                 time_values = [f"T{result.time_index}"] * max_length
                                 channel_values = [f"C{result.channel_index}"] * max_length
-                            else:
+                            else: #handles empty dict
                                 time_values = f"T{result.time_index}"
                                 channel_values = f"C{result.channel_index}"
                                 
