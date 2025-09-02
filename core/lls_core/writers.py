@@ -159,7 +159,6 @@ class OMEZarrWriter(Writer):
         self.chunk_zyx = chunk_zyx
         self.compressor = compressor or Blosc(cname="zstd", clevel=5, shuffle=Blosc.SHUFFLE)
 
-        self._roi_index = roi_index
         self._roi_label = roi_label
 
         self._save_dir = Path(self.params.save_dir)
