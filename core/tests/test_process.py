@@ -146,7 +146,7 @@ def test_table_workflow(
             }
         ).process_workflow().save())
         # There should be one output for each element of the tuple
-        assert {result.name for result in results} == {'LLS7_t1_ch1_deskewed_output_3.csv', 'LLS7_t1_ch1_deskewed.h5', 'LLS7_t1_ch1_deskewed_output_1.csv', 'LLS7_t1_ch1_deskewed_output_2.csv'}
+        assert {result.name for result in results} == {'LLS7_t1_ch1_deskewed_output_3.csv', 'LLS7_t1_ch1_deskewed.h5', 'LLS7_t1_ch1_deskewed_output_1.csv', 'LLS7_t1_ch1_deskewed_output_2.csv','LLS7_t1_ch1_deskewed_output_4.csv'}
 
 @pytest.mark.parametrize(
     ["roi_subset"],
@@ -200,9 +200,9 @@ def test_process_crop_workflow(table_workflow: Workflow):
         # There should be one H5 for each ROI
         image_results = [path for path in results if path.suffix == ".h5"]
         assert len(image_results) == 2
-        # There should be three CSVs for each ROI, one for each workflow result
+        # There should be 4 CSVs for each ROI, one for each workflow result
         csv_results = [path for path in results if path.suffix == ".csv"]
-        assert len(csv_results) == 2 * 3
+        assert len(csv_results) == 2 * 4
         for csv in csv_results:
             # Test for CSV validity
             pd.read_csv(csv)

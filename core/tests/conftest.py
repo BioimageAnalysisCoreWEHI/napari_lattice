@@ -72,7 +72,7 @@ def image_workflow() -> Workflow:
 
 @pytest.fixture
 def table_workflow(image_workflow: Workflow) -> Workflow:
-    # Complex workflow that returns a tuple of (image, dict, list, int)
+    # Complex workflow that returns a tuple of (image, dict, dict with multiple values, list, int)
     ret = copy(image_workflow)
     ret.set("result", lambda x: (
         x,
@@ -80,6 +80,7 @@ def table_workflow(image_workflow: Workflow) -> Workflow:
             "foo": 1,
             "bar": 2
         },
+        {'multi1': [1, 2, 3], 'multi2': ['a', 'b', 'c']},
         ["foo", "bar"],
         1
     ), "labeling")

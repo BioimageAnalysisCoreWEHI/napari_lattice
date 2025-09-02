@@ -82,8 +82,15 @@ def test_table_workflow(lls7_t1_ch1: Path, table_workflow: Workflow):
                 assert nrow == params.nslices
                 assert ncol > 0
                 # Check that time and channel are included
-                assert data.iloc[0, 0] == "T0"
-                assert data.iloc[0, 1] == "C0"
+                # Accepts T0 as first element or a list of T0s. Same for C0
+                assert (
+                        data.iloc[0, 0] == "T0"
+                        or (isinstance(data.iloc[0, 0], list) and all(x == "T0" for x in data.iloc[0, 0]))
+                    )
+                assert (
+                    data.iloc[0, 1] == "C0"
+                    or (isinstance(data.iloc[0, 1], list) and all(x == "C0" for x in data.iloc[0, 1]))
+                )
             else:
                 assert valid_image_path(data)
 
