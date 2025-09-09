@@ -3,7 +3,7 @@ from typing import Sequence
 from typer.testing import CliRunner
 from lls_core.cmds.__main__ import app
 import npy2bdv
-from aicsimageio import AICSImage
+from bioio import BioImage
 
 def invoke(args: Sequence[str]):
     CliRunner().invoke(app, args, catch_exceptions=False)
@@ -13,5 +13,5 @@ def valid_image_path(path: Path) -> bool:
         npy2bdv.npy2bdv.BdvEditor(str(path)).read_view()
         return True
     else:
-        AICSImage(path).get_image_data()
+        BioImage(path).get_image_data()
         return True

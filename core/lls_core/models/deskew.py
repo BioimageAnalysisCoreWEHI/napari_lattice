@@ -16,7 +16,7 @@ from lls_core.utils import get_deskewed_shape,convert_xyz_to_zyx_order
 import numpy as np
 
 if TYPE_CHECKING:
-    from aicsimageio.types import PhysicalPixelSizes
+    from bioio import PhysicalPixelSizes
 
 class DefinedPixelSizes(FieldAccessModel):
     """
@@ -161,7 +161,7 @@ class DeskewParams(FieldAccessModel):
 
     @validator("physical_pixel_sizes", pre=True, always=True)
     def convert_pixels(cls, v: Any, values: dict[Any, Any]):
-        from aicsimageio.types import PhysicalPixelSizes
+        from bioio import PhysicalPixelSizes
         if isinstance(v, PhysicalPixelSizes):
             v = DefinedPixelSizes.from_physical(v)
         elif isinstance(v, tuple) and len(v) == 3:
@@ -176,15 +176,15 @@ class DeskewParams(FieldAccessModel):
 
     @root_validator(pre=True)
     def read_image(cls, values: dict):
-        from aicsimageio import AICSImage
+        from bioio import BioImage
         from os import fspath
 
         img = values["input_image"]
 
-        aics: AICSImage | None = None
+        aics: BioImage | None = None
         if is_pathlike(img):
-            aics = AICSImage(fspath(img))
-        elif isinstance(img, AICSImage):
+            aics = BioImage(fspath(img))
+        elif isinstance(img, BioImage):
             aics = img
         elif isinstance(img, DataArray):
             if set(img.dims) >= {"Z", "Y", "X"}:
@@ -198,9 +198,9 @@ class DeskewParams(FieldAccessModel):
             else:
                 raise ValueError("Only 3D numpy arrays are currently supported. If you have a different shape, please use a DataArray and name your dimensions C, T, Z, Y and/or Z.")
         else:
-            raise ValueError("Value of input_image was neither a path, an AICSImage, or array-like.")
+            raise ValueError("Value of input_image was neither a path, a BioImage, or array-like.")
 
-        # If the image was convertible to AICSImage, we should use the metadata from there
+        # If the image was convertible to BioImage, we should use the metadata from there
         if aics:
             values["input_image"] = aics.xarray_dask_data 
             # Take pixel sizes from the image metadata, but only if they're defined

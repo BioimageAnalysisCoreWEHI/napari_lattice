@@ -36,7 +36,7 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.6.3",
+    "bioio>=3.0.0",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version
     "fsspec>=2022.8.2",

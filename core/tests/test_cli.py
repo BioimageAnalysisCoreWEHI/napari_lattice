@@ -2,7 +2,7 @@
 
 from typing import Callable, List
 import pytest
-from aicsimageio.aics_image import AICSImage
+from bioio import BioImage
 from npy2bdv import BdvEditor
 import numpy as np
 from pathlib import Path
@@ -15,7 +15,7 @@ def create_image(path: Path):
     raw = np.zeros((5, 5, 5))
     raw[2, 4, 2] = 10
     # Save image as a tif filw in home directory
-    AICSImage(raw).save(path)
+    BioImage(raw).save(path)
     assert path.exists()
 
 
@@ -28,7 +28,7 @@ def create_data(dir: Path) -> Path:
     raw = np.zeros((5, 5, 5))
     raw[2, 4, 2] = 10
     # Save image as a tif filw in home directory
-    AICSImage(raw).save(input_file)
+    BioImage(raw).save(input_file)
     assert input_file.exists()
 
     config: dict[str, str] = {
@@ -47,7 +47,7 @@ def assert_tiff(output_dir: Path):
     results = list(output_dir.glob("*.tif"))
     assert len(results) > 0
     for result in results:
-        AICSImage(result).get_image_data()
+        BioImage(result).get_image_data()
 
 def assert_h5(output_dir: Path):
     """Checks that a valid H5 was generated"""
