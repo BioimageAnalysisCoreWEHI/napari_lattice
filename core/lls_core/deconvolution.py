@@ -7,7 +7,7 @@ from strenum import StrEnum
 import logging
 import importlib.util
 from typing import Collection, Iterable,Union,Literal, Optional, TYPE_CHECKING
-from aicsimageio.aics_image import AICSImage
+from bioio import BioImage
 from skimage.io import imread
 from aicspylibczi import CziFile
 from numpy.typing import NDArray
@@ -79,8 +79,8 @@ def read_psf(psf_paths: Collection[Path],
                    if len(psf_aics_data.shape) != 3:
                        raise ValueError(f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}")
                 else:
-                    #Use AICSImageIO
-                    psf_aics = AICSImage(str(psf))
+                    #Use BioIO
+                    psf_aics = BioImage(str(psf))
                     psf_aics_data = psf_aics.data[0][0]
                     psf_aics_data = pad_image_nearest_multiple(
                         img=psf_aics_data, nearest_multiple=16)           
