@@ -156,7 +156,7 @@ class LatticeData(OutputParams, DeskewParams):
             default_end = values["input_image"].sizes["T"]
             if v is None:
                 return range(default_start, default_end)
-            elif isinstance(v, Sequence) and len(v) == 2:
+            elif not isinstance(v, range) and isinstance(v, Sequence) and len(v) == 2:
                 # Allow 2-tuples to be used as input for this field
                 return range(v[0] or default_start, v[1] or default_end)
         return v
@@ -174,7 +174,7 @@ class LatticeData(OutputParams, DeskewParams):
             default_end = values["input_image"].sizes["C"]
             if v is None:
                 return range(default_start, default_end)
-            elif isinstance(v, Sequence) and len(v) == 2:
+            elif not isinstance(v, range) and isinstance(v, Sequence) and len(v) == 2:
                 # Allow 2-tuples to be used as input for this field
                 return range(v[0] or default_start, v[1] or default_end)
         return v
