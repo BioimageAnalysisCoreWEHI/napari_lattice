@@ -37,6 +37,9 @@ classifiers = [
 requires-python = ">=3.8"
 dependencies = [
     "bioio>=3.0.0",
+    "bioio-bioformats>=1.3.0",
+    "bioio-czi>=2.4.0",
+    "bioio-ome-tiff>=1.4.0",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version
     "fsspec>=2022.8.2",
@@ -45,7 +48,6 @@ dependencies = [
     # The lower bound is because we need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
     "magic-class>=0.7.5",
     "magicgui<0.8.0",
-    "napari-aicsimageio>=0.7.2",
     "napari-workflow-inspector",
     "napari-workflows>=0.2.8",
     "napari[all]>=0.4.11",
