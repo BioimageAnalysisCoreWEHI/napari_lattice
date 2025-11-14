@@ -118,7 +118,8 @@ class TiffWriter(Writer):
                 str(path),
                 data = images_array,
                 bigtiff=True,
-                resolution=(1./self.lattice.dx, 1./self.lattice.dy, "MICROMETER"),
+                resolution=(1./self.lattice.dx, 1./self.lattice.dy),
+                resolutionunit="MICROMETER",
                 metadata={'spacing': self.lattice.new_dz, 'unit': 'um', 'axes': 'TZCYX'},
                 imagej=True
             )
