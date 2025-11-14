@@ -29,7 +29,8 @@ def create_data(dir: Path) -> Path:
     raw = np.zeros((5, 5, 5))
     raw[2, 4, 2] = 10
     # Save image as a tif file in home directory
-    BioImage(raw).save(input_file)
+    b = BioImage(raw, physical_pixel_sizes={ax: 1. for ax in 'ZYX'})
+    b.save(input_file)
     assert input_file.exists()
 
     config: dict[str, str] = {
