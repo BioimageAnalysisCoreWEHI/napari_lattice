@@ -14,7 +14,7 @@ def create_image(path: Path):
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
     raw = np.zeros((5, 5, 5))
     raw[2, 4, 2] = 10
-    # Save image as a tif filw in home directory
+    # Save image as a tif file in home directory
     b = BioImage(raw, physical_pixel_sizes={ax: 1. for ax in 'ZYX'})
     b.save(path)
     assert path.exists()
@@ -28,7 +28,7 @@ def create_data(dir: Path) -> Path:
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
     raw = np.zeros((5, 5, 5))
     raw[2, 4, 2] = 10
-    # Save image as a tif filw in home directory
+    # Save image as a tif file in home directory
     BioImage(raw).save(input_file)
     assert input_file.exists()
 
