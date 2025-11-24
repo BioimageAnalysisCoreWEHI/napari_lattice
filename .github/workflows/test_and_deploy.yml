@@ -135,7 +135,7 @@ jobs:
         if: github.event_name == 'push'
         uses: actions/deploy-pages@v4
 
-      - uses: ncipollo/release-action@v1.18.0
+      - uses: ncipollo/release-action@v1.20.0
         name: Create GitHub release 
         if: contains(github.ref, 'tags')
         with:
