@@ -176,6 +176,7 @@ class DeskewParams(FieldAccessModel):
 
     @root_validator(pre=True)
     def read_image(cls, values: dict):
+        print("READING IMAGE DESKEW")
         from bioio import BioImage
         from os import fspath
 

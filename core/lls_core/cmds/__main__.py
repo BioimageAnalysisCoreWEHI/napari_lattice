@@ -210,6 +210,7 @@ def process(
             yaml_args = safe_load(fp)
 
     try:
+        print("TRYING")
         lattice = LatticeData.parse_obj(
             # Merge all three sources of config: YAML, JSON and CLI
             merge_with(
@@ -218,6 +219,7 @@ def process(
             )
         )
     except ValidationError as e:
+        print("EXCEPTING")
         console.print(rich_validation(e))
         raise Exit(code=1)
     

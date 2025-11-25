@@ -1,107 +1,105 @@
 [build-system]
-requires = ["setuptools", "wheel"]
 build-backend = "setuptools.build_meta"
+requires = ["setuptools", "wheel"]
 
 [tool.black]
 line-length = 79
 
 [tool.isort]
-profile = "black"
 line_length = 79
+profile = "black"
 
 [project]
-name = "lls_core"
-version = "1.0.5"
 authors = [
-    {name = "Pradeep Rajasekhar"},
-    {name = "Lachlan Whitehead"},
-    {name = "Robert Haase"},
-    {name = "Michael Milton"}
+  {name = "Pradeep Rajasekhar"},
+  {name = "Lachlan Whitehead"},
+  {name = "Robert Haase"},
+  {name = "Michael Milton"},
 ]
-license = {text = "GPL-3.0-only"}
-description = "Core functionality for analysing and visualizing lattice lightsheet and Oblique Plane Microscopy data."
-readme = { file = "README.md", content-type = "text/markdown" }
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
-    "Intended Audience :: Developers",
-    "Framework :: napari",
-    "Topic :: Software Development :: Testing",
-    "Programming Language :: Python",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Operating System :: OS Independent",
-    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Framework :: napari",
+  "Topic :: Software Development :: Testing",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Operating System :: OS Independent",
+  "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
 ]
-requires-python = ">=3.8"
 dependencies = [
-    "bioio>=3.0.0",
-    "bioio-bioformats>=1.3.0",
-    "bioio-czi>=2.4.0",
-    "bioio-ome-tiff>=1.4.0",
-    "click",
-    "dask",
-    "dask[distributed]",
-    "fsspec>=2022.8.2",
-    "importlib_resources",
-    "napari-workflows>=0.2.8",
-    "npy2bdv",
-    "numpy<2",
-    "pandas",
-    "pyclesperanto_prototype>=0.20.0",
-    "pyopencl",
-    # This is the first pydantic version that supports the "compatibility mode"
-    # https://docs.pydantic.dev/latest/migration/#using-pydantic-v1-features-in-a-v1v2-environment
-    "pydantic>=1.10.17,<3",
-    "pyyaml",
-    "ome-types<0.6.0",  #pydantic v1 support removed from 0.6 onwards
-    "read-roi",
-    "rich",
-    "resource-backed-dask-array>=0.1.0",
-    "scikit-image",
-    "StrEnum",
-    "tifffile>=2023.3.15,<2025.2.18", #>=2022.8.12
-    "toolz",
-    "tqdm",
-    "typer<0.17.0",
-    "typing_extensions>=4.7.0",
-    "xarray[parallel]",
-    "zarr>=2.16,<3",
-    "numcodecs>=0.11",
+  "bioio>=3.0.0",
+  "bioio-bioformats>=1.3.0",
+  "bioio-czi>=2.4.0",
+  "bioio-ome-tiff>=1.4.0",
+  "bioio-tifffile",
+  "click",
+  "dask",
+  "dask[distributed]",
+  "fsspec>=2022.8.2",
+  "importlib_resources",
+  "napari-workflows>=0.2.8",
+  "npy2bdv",
+  "numpy<2",
+  "pandas",
+  "pyclesperanto_prototype>=0.20.0",
+  "pyopencl", # This is the first pydantic version that supports the "compatibility mode"  # https://docs.pydantic.dev/latest/migration/#using-pydantic-v1-features-in-a-v1v2-environment
+  "pydantic>=1.10.17,<3",
+  "pyyaml",
+  "ome-types<0.6.0", #pydantic v1 support removed from 0.6 onwards
+  "read-roi",
+  "rich",
+  "resource-backed-dask-array>=0.1.0",
+  "scikit-image",
+  "StrEnum",
+  "tifffile>=2025.5.21",
+  "toolz",
+  "tqdm",
+  "typer<0.17.0",
+  "typing_extensions>=4.7.0",
+  "xarray[parallel]",
+  "zarr>=2.16",
+  "numcodecs>=0.11",
 ]
+description = "Core functionality for analysing and visualizing lattice lightsheet and Oblique Plane Microscopy data."
+license = {text = "GPL-3.0-only"}
+name = "lls_core"
+readme = {file = "README.md", content-type = "text/markdown"}
+requires-python = ">=3.8"
+version = "1.0.5"
 
 [project.urls]
-Repository = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 BugTracker = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
 Documentation = "https://bioimageanalysiscorewehi.github.io/napari_lattice/"
+Repository = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 SourceCode = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
 UserSupport = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
 
 [project.optional-dependencies]
-testing = [
-    "tox",
-    "pytest",  # https://docs.pytest.org/en/latest/contents.html
-    "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
-    "napari" # We use napari for type checking only, and not at runtime
-]
 deconvolution = [
-    "pycudadecon~=0.5",
-    "numpy<2"
-]
-docs = [
-    "mkdocstrings[python]",
-    "mkdocs-click",
-    "mkdocs-material",
-    "mkdocs-video",
-    "mkdocs-jupyter",
-    # Includes fixes for Pydantic 1.X
-    "fieldz>=0.1.0",
-    "griffe-fieldz"
+  "pycudadecon~=0.5",
+  "numpy<2",
 ]
 deploy = [
-    "build",
-    "twine"
+  "build",
+  "twine",
+]
+docs = [
+  "mkdocstrings[python]",
+  "mkdocs-click",
+  "mkdocs-material",
+  "mkdocs-video",
+  "mkdocs-jupyter", # Includes fixes for Pydantic 1.X
+  "fieldz>=0.1.0",
+  "griffe-fieldz",
+]
+testing = [
+  "tox",
+  "pytest", # https://docs.pytest.org/en/latest/contents.html
+  "pytest-cov", # https://pytest-cov.readthedocs.io/en/latest/
+  "napari", # We use napari for type checking only, and not at runtime
 ]
 
 [project.scripts]
@@ -109,58 +107,47 @@ lls-pipeline = "lls_core.cmds.__main__:main"
 
 [tool.mypy]
 plugins = [
-  "pydantic.mypy"
+  "pydantic.mypy",
 ]
 
 [tool.pydantic-mypy]
 init_typed = false
 
 [tool.pyright]
-typeCheckingMode = "off"
-reportUndefinedVariable = "error"
 reportMissingImports = "none"
+reportMissingTypeArgument = false
 reportMissingTypeStubs = false
-reportUnknownVariableType = false
+reportPrivateImportUsage = false
+reportPrivateUsage = false
+reportUndefinedVariable = "error"
 reportUnknownArgumentType = false
 reportUnknownLambdaType = false
 reportUnknownMemberType = false
 reportUnknownParameterType = false
-reportUntypedFunctionDecorator = false
-reportMissingTypeArgument = false
-reportPrivateUsage = false
-reportPrivateImportUsage = false
+reportUnknownVariableType = false
 reportUnnecessaryComparison = false
+reportUntypedFunctionDecorator = false
+typeCheckingMode = "off"
 
 [tool.fawltydeps]
 ignore_unused = [
-    # None of the testing packages are imported
-    "tox",
-    "pytest",
-    "pytest-cov",
-    "pytest-qt",
-
-    # These napari plugins are needed to use the plugin, but aren't imported directly
-    "napari-aicsimageio",
-    "napari-workflow-inspector",
-
-    # These are used for docs
-    "mkdocstrings",
-    "mkdocs-click",
-    "mkdocs-video",
-    "mkdocs-material",
-    "mkdocs-jupyter",
-    "fieldz",
-    "griffe-fieldz",
-
-    # This is pinned but unused
-    "fsspec",
-    "ome-types",
-
-    # Used for the deployment, but never imported
-    "build",
-    "twine"
+  # None of the testing packages are imported
+  "tox",
+  "pytest",
+  "pytest-cov",
+  "pytest-qt", # These napari plugins are needed to use the plugin, but aren't imported directly
+  "napari-aicsimageio",
+  "napari-workflow-inspector", # These are used for docs
+  "mkdocstrings",
+  "mkdocs-click",
+  "mkdocs-video",
+  "mkdocs-material",
+  "mkdocs-jupyter",
+  "fieldz",
+  "griffe-fieldz", # This is pinned but unused
+  "fsspec",
+  "ome-types", # Used for the deployment, but never imported
+  "build",
+  "twine",
 ]
-output_format = "human_detailed"  
-
-
-
+output_format = "human_detailed"
