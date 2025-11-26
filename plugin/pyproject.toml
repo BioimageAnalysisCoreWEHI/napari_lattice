@@ -102,7 +102,7 @@ ignore_unused = [
     # This is pinned but unused
     "fsspec",
     "imageio",
-    "ome-types"
+    "ome-types",
 
     #bioio packages are needed but not directly imported
     "bioio-bioformats",
