@@ -48,7 +48,7 @@ def test_allow_trailing_slash():
 
 def test_infer_czi_pixel_sizes(rbc_tiny: Path):
     mock = PropertyMock()
-    with patch("aicsimageio.AICSImage.physical_pixel_sizes", new=mock):
+    with patch("bioio.BioImage.physical_pixel_sizes", new=mock):
         DeskewParams(input_image=rbc_tiny)
-        # The AICSImage should be queried for the pixel sizes
+        # The BioImage should be queried for the pixel sizes
         assert mock.called
