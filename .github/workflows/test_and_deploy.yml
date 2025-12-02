@@ -46,7 +46,7 @@ jobs:
         with:
           # Install a specific version of uv.
           version: "0.6.17"
-        
+
       - name: Install core
         timeout-minutes: 10
         run: |
@@ -94,9 +94,9 @@ jobs:
     # github secrets (see readme for details)
     needs: [test]
     runs-on: ubuntu-latest
-    environment: 
+    environment:
       name: github-pages
-    permissions: 
+    permissions:
       id-token: write
       pages: write
       contents: write
@@ -136,7 +136,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - uses: ncipollo/release-action@v1.18.0
-        name: Create GitHub release 
+        name: Create GitHub release
         if: contains(github.ref, 'tags')
         with:
           skipIfReleaseExists: true
