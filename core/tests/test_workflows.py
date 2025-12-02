@@ -97,9 +97,11 @@ def test_table_workflow(lls7_t1_ch1: Path, table_workflow: Workflow):
 def test_argument_order(rbc_tiny: Path):
     # Tests that only the first unfilled argument is passed an array
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Get the path relative to this test file
+        workflow_path = Path(__file__).parent / "workflows" / "argument_order" / "test_workflow.yml"
         params = LatticeData(
             input_image = rbc_tiny,
-            workflow = "core/tests/workflows/argument_order/test_workflow.yml",
+            workflow = str(workflow_path),
             save_dir = tmpdir
         )
         for output in params.process_workflow().process():
@@ -109,9 +111,11 @@ def test_sum_preview(rbc_tiny: Path):
     import numpy as np
     # Tests that we can sum the preview result. This is required for the plugin
     with tempfile.TemporaryDirectory() as tmpdir:
+        # Get the path relative to this test file
+        workflow_path = Path(__file__).parent / "workflows" / "binarisation" / "workflow.yml"
         params = LatticeData(
             input_image = rbc_tiny,
-            workflow = "core/tests/workflows/binarisation/workflow.yml",
+            workflow = str(workflow_path),
             save_dir = tmpdir
         )
         previews = list(params.process_workflow().roi_previews())
@@ -122,9 +126,10 @@ def test_crop_workflow(lls7_t1_ch1: Path):
     # Tests that crop workflows only process each ROI lazily
 
     with tempfile.TemporaryDirectory() as tmpdir:
+        workflow_path = Path(__file__).parent / "workflows" / "binarisation" / "workflow.yml"
         params = LatticeData(
             input_image = lls7_t1_ch1,
-            workflow = "core/tests/workflows/binarisation/workflow.yml",
+            workflow = str(workflow_path),
             save_dir = tmpdir,
             crop=CropParams(
                 roi_list=[
