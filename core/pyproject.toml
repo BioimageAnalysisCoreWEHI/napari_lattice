@@ -39,7 +39,7 @@ dependencies = [
     "bioio>=3.0.0",
     "bioio-czi>=2.4.0",
     "bioio-tifffile==1.3.0",
-    "bioio-ome-tiff",
+    "bioio-ome-tiff>=1.4.0",
     "click",
     "dask",
     "dask[distributed]",
