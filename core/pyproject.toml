@@ -162,7 +162,7 @@ ignore_unused = [
     "twine",
 
     #bioio packages are needed but not directly imported
-    #"bioio-bioformats",
+    "bioio-bioformats",
     "bioio-czi",
     "bioio-ome-tiff"
 ]

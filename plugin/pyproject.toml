@@ -105,7 +105,7 @@ ignore_unused = [
     "ome-types",
 
     #bioio packages are needed but not directly imported
-    #"bioio-bioformats",
+    "bioio-bioformats",
     "bioio-czi",
     "bioio-ome-tiff"
 ]
