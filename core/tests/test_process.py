@@ -91,7 +91,7 @@ def test_process_time_range(multi_channel_time: Path):
                 # Time point 2
                 "time_range": range(1, 2),
                 "save_dir": outdir,
-                "save_type": SaveFileType.h5,
+                "save_type": SaveFileType.bdv_h5,
             }
         ).save()
 
@@ -200,7 +200,7 @@ def test_process_crop_workflow(table_workflow: Workflow):
                 "input_image": lattice_path,
                 "workflow": table_workflow,
                 "save_dir": outdir,
-                "save_type": SaveFileType.h5,
+                "save_type": SaveFileType.bdv_h5,
                 "crop": {
                     "roi_list": [root / "crop" / "two_rois.zip"],
                 },

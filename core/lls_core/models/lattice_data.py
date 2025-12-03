@@ -500,7 +500,7 @@ class LatticeData(OutputParams, DeskewParams):
 
     def get_writer(self) -> Type[Writer]:
         from lls_core.writers import BdvWriter, TiffWriter, OMEZarrWriter
-        if self.save_type == SaveFileType.h5:
+        if self.save_type == SaveFileType.bdv_h5:
             return BdvWriter
         elif self.save_type == SaveFileType.tiff:
             return TiffWriter

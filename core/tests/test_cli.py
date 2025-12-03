@@ -36,7 +36,7 @@ def create_data(dir: Path) -> Path:
     config: dict[str, str] = {
         "input_image": str(input_file),
         "save_dir": str(dir),
-        "save_type": "h5"
+        "save_type": "BDV h5"
     }
 
     with config_location.open("w") as fp:
@@ -62,7 +62,7 @@ def assert_h5(output_dir: Path):
 @pytest.mark.parametrize(
         ["flags", "check_fn"],
         [
-            [["--save-type", "h5"], assert_h5],
+            [["--save-type", "BDV h5"], assert_h5],
             [["--save-type", "tiff"], assert_tiff],
             [["--save-type", "tiff", "--time-range", "0", "1"], assert_tiff],
         ]
