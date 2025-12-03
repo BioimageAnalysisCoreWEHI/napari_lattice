@@ -107,7 +107,8 @@ ignore_unused = [
     #bioio packages are needed but not directly imported
     "bioio-bioformats",
     "bioio-czi",
-    "bioio-ome-tiff"
+    "bioio-ome-tiff",
+    "tifffile"
 ]
 output_format = "human_detailed"  
 
