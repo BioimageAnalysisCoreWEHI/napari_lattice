@@ -26,7 +26,7 @@ jobs:
     env:
       DISPLAY: ":99.0"
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - uses: conda-incubator/setup-miniconda@v2
         with:
@@ -42,7 +42,7 @@ jobs:
         run: echo "python=$(which python)" >> "$GITHUB_ENV"
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           # Install a specific version of uv.
           version: "0.6.17"
@@ -101,13 +101,13 @@ jobs:
       pages: write
       contents: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
       - name: Install uv
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@v7
         with:
           # Install a specific version of uv.
           version: "0.6.17"
