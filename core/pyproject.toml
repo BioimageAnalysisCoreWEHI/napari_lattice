@@ -10,6 +10,8 @@ line_length = 79
 profile = "black"
 
 [project]
+name = "lls_core"
+version = "1.0.6"
 authors = [
   {name = "Pradeep Rajasekhar"},
   {name = "Lachlan Whitehead"},
