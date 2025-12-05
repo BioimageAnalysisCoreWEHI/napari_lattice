@@ -10,8 +10,6 @@ line_length = 79
 profile = "black"
 
 [project]
-name = "lls_core"
-version = "1.0.6"
 authors = [
   {name = "Pradeep Rajasekhar"},
   {name = "Lachlan Whitehead"},
@@ -64,12 +62,8 @@ dependencies = [
   "zarr>=2.16,<3",
   "numcodecs>=0.11",
 ]
-description = "Core functionality for analysing and visualizing lattice lightsheet and Oblique Plane Microscopy data."
-license = {text = "GPL-3.0-only"}
 name = "lls_core"
-readme = {file = "README.md", content-type = "text/markdown"}
-requires-python = ">=3.8"
-version = "1.0.5"
+version = "1.0.6"
 
 [project.urls]
 BugTracker = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues"
