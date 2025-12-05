@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8","3.9","3.10"] #not compatible with py 3.10 and 3.12 yet
+        python-version: ["3.10", "3.11", "3.12"]
 
     env:
       DISPLAY: ":99.0"
@@ -46,7 +46,7 @@ jobs:
         with:
           # Install a specific version of uv.
           version: "0.6.17"
-        
+
       - name: Install core
         timeout-minutes: 10
         run: |
@@ -94,9 +94,9 @@ jobs:
     # github secrets (see readme for details)
     needs: [test]
     runs-on: ubuntu-latest
-    environment: 
+    environment:
       name: github-pages
-    permissions: 
+    permissions:
       id-token: write
       pages: write
       contents: write
@@ -136,7 +136,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - uses: ncipollo/release-action@v1.18.0
-        name: Create GitHub release 
+        name: Create GitHub release
         if: contains(github.ref, 'tags')
         with:
           skipIfReleaseExists: true
