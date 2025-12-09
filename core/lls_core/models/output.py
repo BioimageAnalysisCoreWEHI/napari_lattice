@@ -30,7 +30,7 @@ class OutputParams(FieldAccessModel):
         default=None
     )
     save_type: SaveFileType = Field(
-        default=SaveFileType.bdv_h5,
+        default=SaveFileType.bdv_h5.value,
         description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: `{enum_choices(SaveFileType)}`. Choices can alternatively be specifed as `str`, for example `'tiff'`."
     )
     time_range: range = Field(
