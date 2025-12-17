@@ -40,7 +40,7 @@ Sample lattice lightsheet data download: <https://doi.org/10.5281/zenodo.7117784
 
 ## Citing
 
-Rajasekhar, P., Milton, M., Geoghegan, N., Haase, R., Rogers, K. L., & Whitehead, L. (2025). napari-lattice (v1.0.3). Zenodo. https://doi.org/10.5281/zenodo.14974337
+Rajasekhar, P., Milton, M., Geoghegan, N., Haase, R., Rogers, K. L., & Whitehead, L. (2025). napari-lattice (v1.0.3). Zenodo. https://doi.org/10.5281/zenodo.14776381
 
 ## Contributing
 
@@ -78,3 +78,4 @@ If you encounter any problems, please [file an issue](https://github.com/Bioimag
 [tox]: https://tox.readthedocs.io/en/latest/
 [pip]: https://pypi.org/project/pip/
 [PyPI]: https://pypi.org/
+
