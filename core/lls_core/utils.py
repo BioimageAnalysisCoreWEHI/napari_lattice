@@ -342,3 +342,17 @@ def convert_xyz_to_zyx_order(deskew_affine_transform:cle.AffineTransform3D):
     xyz_to_zyx = [2, 1, 0, 3]  
     zyx_tranform = deskew_affine_transform[xyz_to_zyx][:, xyz_to_zyx]
     return zyx_tranform
+
+def get_max_allocation_size():
+    """Returns maximum memory size for OpenCL device
+    Returns:
+        int: Maximum allocation size for OpenCL device
+    """
+    import re
+    info = cle.cl_info()
+    match = re.search(r'MAX_MEM_ALLOC_SIZE:(\d+)', info)
+    if match:
+        return int(match.group(1))
+    else:
+        logger.error("Could not find MAX_MEM_ALLOC_SIZE in OpenCL device info")
+    return None
