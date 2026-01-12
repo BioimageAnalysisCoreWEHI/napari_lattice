@@ -58,6 +58,7 @@ class LatticeData(OutputParams, DeskewParams):
 
     @root_validator(pre=True)
     def read_image(cls, values: dict):
+        print("READING IMAGE LATTICE")
         from lls_core.types import is_pathlike
         from pathlib import Path
         input_image = values.get("input_image")
@@ -499,7 +500,7 @@ class LatticeData(OutputParams, DeskewParams):
 
     def get_writer(self) -> Type[Writer]:
         from lls_core.writers import BdvWriter, TiffWriter, OMEZarrWriter
-        if self.save_type == SaveFileType.h5:
+        if self.save_type == SaveFileType.bdv_h5:
             return BdvWriter
         elif self.save_type == SaveFileType.tiff:
             return TiffWriter

@@ -9,7 +9,7 @@ parameterized = pytest.mark.parametrize("args", [
     {"skew": "Y"},
     {"angle": 30},
     {"physical_pixel_sizes": (1, 1, 1)},
-    {"save_type": SaveFileType.h5},
+    {"save_type": SaveFileType.bdv_h5},
     {"save_type": SaveFileType.tiff},
 ])
 

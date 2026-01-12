@@ -13,18 +13,18 @@ import dask.delayed as delayed
 import os 
 import numpy as np
 from napari.layers import Image
-from aicsimageio.aics_image import AICSImage
+from bioio import BioImage
 
 from typing import List, Optional, Tuple, Collection, TYPE_CHECKING, TypedDict
 
-from aicsimageio.types import PhysicalPixelSizes
+from bioio import PhysicalPixelSizes
 from lls_core.models.deskew import DefinedPixelSizes
 
 from logging import getLogger
 logger = getLogger(__name__)
 
 if TYPE_CHECKING:
-    from aicsimageio.types import ImageLike
+    from bioio import ImageLike
     from xarray import DataArray
 
 class NapariImageParams(TypedDict):
@@ -74,7 +74,7 @@ def lattice_params_from_napari(
         save_names.append(save_name)
             
         if 'aicsimage' in img.metadata.keys():
-            img_data_aics: AICSImage = img.metadata['aicsimage']
+            img_data_aics: BioImage = img.metadata['aicsimage']
             # If the user has not provided pixel sizes, we extract them fro the metadata
             # Only process pixel sizes that are not none
             if physical_pixel_sizes is None and all(img_data_aics.physical_pixel_sizes):
@@ -191,13 +191,13 @@ def bdv_h5_reader(path):
     layer_type = "image"  # optional, default is "image"
     return [(images, add_kwargs, layer_type)]
 
-def tiff_reader(path: ImageLike) -> List[Tuple[AICSImage, dict, str]]:
+def tiff_reader(path: ImageLike) -> List[Tuple[BioImage, dict, str]]:
     """Take path to tiff image and returns a list of LayerData tuples.
-    Specifying tiff_reader to have better control over tifffile related errors when using AICSImage
+    Specifying tiff_reader to have better control over tifffile related errors when using BioImage
     """
     
     try:
-        image = AICSImage(path)
+        image = BioImage(path)
     except Exception as e:
         raise Exception("Error reading TIFF. Try upgrading tifffile library: pip install tifffile --upgrade.") from e
 

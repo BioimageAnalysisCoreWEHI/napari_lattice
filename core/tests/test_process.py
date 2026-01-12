@@ -9,6 +9,8 @@ import tempfile
 from pathlib import Path
 from napari_workflows import Workflow
 from pytest import FixtureRequest
+from bioio_tifffile import reader as tiffreader
+from bioio import BioImage
 
 
 from .params import parameterized
@@ -51,22 +53,30 @@ def test_save(minimal_image_path: str, args: dict):
 
 
 def test_process_deconv_crop():
-    for slice in (
-        LatticeData.parse_obj(
-            {
-                "input_image": root / "raw.tif",
-                "deconvolution": {
-                    "psf": [root / "psf.tif"],
-                },
-                "crop": CropParams(
-                    roi_list=[[[0, 0], [0, 110], [95, 0], [95, 110]]]
-                ),
-            }
-        )
-        .process()
-        .slices
-    ):
-        assert slice.data.ndim == 3
+    with tempfile.TemporaryDirectory() as tempdir:
+        for slice in (
+            LatticeData.parse_obj(
+                {
+                    # use BioImage rather than just Path to ensure tifffile
+                    # is used instead of bioformats, which prevents dask use
+                    # due to a bug:
+                    # https://github.com/bioio-devs/bioio-bioformats/issues/40
+                    "input_image": BioImage(
+                        root / "raw.tif", reader=tiffreader.Reader
+                    ),
+                    "deconvolution": {
+                        "psf": [root / "psf.tif"],
+                    },
+                    "crop": CropParams(
+                        roi_list=[[[0, 0], [0, 110], [95, 0], [95, 110]]]
+                    ),
+                    "save_dir": tempdir,
+                }
+            )
+            .process()
+            .slices
+        ):
+            assert slice.data.ndim == 3
 
 
 def test_process_time_range(multi_channel_time: Path):
@@ -81,7 +91,7 @@ def test_process_time_range(multi_channel_time: Path):
                 # Time point 2
                 "time_range": range(1, 2),
                 "save_dir": outdir,
-                "save_type": SaveFileType.h5,
+                "save_type": SaveFileType.bdv_h5,
             }
         ).save()
 
@@ -190,7 +200,7 @@ def test_process_crop_workflow(table_workflow: Workflow):
                 "input_image": lattice_path,
                 "workflow": table_workflow,
                 "save_dir": outdir,
-                "save_type": SaveFileType.h5,
+                "save_type": SaveFileType.bdv_h5,
                 "crop": {
                     "roi_list": [root / "crop" / "two_rois.zip"],
                 },

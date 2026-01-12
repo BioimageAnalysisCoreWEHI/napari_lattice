@@ -12,7 +12,7 @@ class SaveFileType(StrEnum):
     """
     Choice of File extension to save
     """
-    h5 = "h5"
+    bdv_h5 = "BDV h5"
     tiff = "tiff"
     omezarr = "omezarr"
 
@@ -30,7 +30,7 @@ class OutputParams(FieldAccessModel):
         default=None
     )
     save_type: SaveFileType = Field(
-        default=SaveFileType.h5,
+        default=SaveFileType.bdv_h5.value,
         description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: `{enum_choices(SaveFileType)}`. Choices can alternatively be specifed as `str`, for example `'tiff'`."
     )
     time_range: range = Field(
@@ -58,7 +58,7 @@ class OutputParams(FieldAccessModel):
 
     @property
     def file_extension(self):
-        if self.save_type == SaveFileType.h5:
+        if self.save_type == SaveFileType.bdv_h5:
             return "h5"
         elif self.save_type == SaveFileType.omezarr:
             return "ome.zarr"

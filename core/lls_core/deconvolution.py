@@ -7,9 +7,9 @@ from strenum import StrEnum
 import logging
 import importlib.util
 from typing import Collection, Iterable,Union,Literal, Optional, TYPE_CHECKING
-from aicsimageio.aics_image import AICSImage
+from bioio import BioImage
+import bioio_czi
 from skimage.io import imread
-from aicspylibczi import CziFile
 from numpy.typing import NDArray
 import os
 import numpy as np
@@ -62,12 +62,10 @@ def read_psf(psf_paths: Collection[Path],
     for psf in psf_paths:
         if psf.exists() and psf.is_file():
             if psf.suffix == ".czi":
-                psf_czi = CziFile(psf.__str__())
-                psf_aics = psf_czi.read_image()
+                psf_czi = BioImage(psf.__str__(), reader=bioio_czi.Reader)
+                psf_aics = psf_czi.data
                 # make sure shape is 3D
-                psf_aics = psf_aics[0][0]  # np.expand_dims(psf_aics[0],axis=0)
-                # if len(psf_aics[0])>=1:
-                #psf_channels = len(psf_aics[0])
+                psf_aics = psf_aics[0][0]  
                 assert len(
                     psf_aics.shape) == 3, f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}"
                 # pad psf to multiple of 16 for decon
@@ -79,8 +77,8 @@ def read_psf(psf_paths: Collection[Path],
                    if len(psf_aics_data.shape) != 3:
                        raise ValueError(f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}")
                 else:
-                    #Use AICSImageIO
-                    psf_aics = AICSImage(str(psf))
+                    #Use BioIO
+                    psf_aics = BioImage(str(psf))
                     psf_aics_data = psf_aics.data[0][0]
                     psf_aics_data = pad_image_nearest_multiple(
                         img=psf_aics_data, nearest_multiple=16)           

@@ -2,7 +2,7 @@
 
 from typing import Callable, List
 import pytest
-from aicsimageio.aics_image import AICSImage
+from bioio import BioImage
 from npy2bdv import BdvEditor
 import numpy as np
 from pathlib import Path
@@ -14,8 +14,9 @@ def create_image(path: Path):
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
     raw = np.zeros((5, 5, 5))
     raw[2, 4, 2] = 10
-    # Save image as a tif filw in home directory
-    AICSImage(raw).save(path)
+    # Save image as a tif file in home directory
+    b = BioImage(raw, physical_pixel_sizes={ax: 1. for ax in 'ZYX'})
+    b.save(path)
     assert path.exists()
 
 
@@ -27,14 +28,15 @@ def create_data(dir: Path) -> Path:
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
     raw = np.zeros((5, 5, 5))
     raw[2, 4, 2] = 10
-    # Save image as a tif filw in home directory
-    AICSImage(raw).save(input_file)
+    # Save image as a tif file in home directory
+    b = BioImage(raw, physical_pixel_sizes={ax: 1. for ax in 'ZYX'})
+    b.save(input_file)
     assert input_file.exists()
 
     config: dict[str, str] = {
         "input_image": str(input_file),
         "save_dir": str(dir),
-        "save_type": "h5"
+        "save_type": "BDV h5"
     }
 
     with config_location.open("w") as fp:
@@ -47,7 +49,7 @@ def assert_tiff(output_dir: Path):
     results = list(output_dir.glob("*.tif"))
     assert len(results) > 0
     for result in results:
-        AICSImage(result).get_image_data()
+        BioImage(result).get_image_data()
 
 def assert_h5(output_dir: Path):
     """Checks that a valid H5 was generated"""
@@ -60,7 +62,7 @@ def assert_h5(output_dir: Path):
 @pytest.mark.parametrize(
         ["flags", "check_fn"],
         [
-            [["--save-type", "h5"], assert_h5],
+            [["--save-type", "BDV h5"], assert_h5],
             [["--save-type", "tiff"], assert_tiff],
             [["--save-type", "tiff", "--time-range", "0", "1"], assert_tiff],
         ]

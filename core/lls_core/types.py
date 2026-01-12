@@ -6,7 +6,7 @@ from pyopencl.array import Array as OCLArray
 import numpy as np
 from numpy.typing import NDArray
 from xarray import DataArray
-from aicsimageio import AICSImage
+from bioio import BioImage
 from os import fspath, PathLike as OriginalPathLike
 
 # This is a superset of os.PathLike
@@ -19,17 +19,17 @@ ArrayLike: TypeAlias = Union[DaskArray, NDArray, OCLArray, DataArray]
 def is_arraylike(arr: Any) -> TypeGuard[ArrayLike]:
     return isinstance(arr, (DaskArray, np.ndarray, OCLArray, DataArray))
 
-ImageLike: TypeAlias = Union[PathLike, AICSImage, ArrayLike]
+ImageLike: TypeAlias = Union[PathLike, BioImage, ArrayLike]
 def image_like_to_image(img: ImageLike) -> DataArray:
     """
     Converts an image in one of many formats to a DataArray
     """
     # First try treating it as a path
     try:
-        img = AICSImage(fspath(img))
+        img = BioImage(fspath(img))
     except TypeError:
         pass
-    if isinstance(img, AICSImage):
+    if isinstance(img, BioImage):
         return img.xarray_dask_data
     else:
         for required_key in ("shape", "dtype", "ndim", "__array__", "__array_ufunc__"):
