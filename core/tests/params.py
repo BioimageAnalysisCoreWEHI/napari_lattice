@@ -11,6 +11,7 @@ parameterized = pytest.mark.parametrize("args", [
     {"physical_pixel_sizes": (1, 1, 1)},
     {"save_type": SaveFileType.h5},
     {"save_type": SaveFileType.tiff},
+    {"save_type": SaveFileType.zarr},
 ])
 
 # Allows parameterisation over two serialization formats

@@ -9,6 +9,7 @@ from pathlib import Path
 import tempfile
 from tests.utils import invoke
 import yaml
+import zarr 
 
 def create_image(path: Path):
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
@@ -42,6 +43,15 @@ def create_data(dir: Path) -> Path:
     with config_location.open("w") as fp:
         yaml.safe_dump(config, fp)
 
+    config_zarr: dict[str, str] = {
+        "input_image": str(input_file),
+        "save_dir": str(dir),
+        "save_type": "zarr"
+    }
+
+    with config_location.open("w") as fp:
+        yaml.safe_dump(config_zarr, fp)
+
     return config_location
 
 def assert_tiff(output_dir: Path):
@@ -59,11 +69,20 @@ def assert_h5(output_dir: Path):
     for h5 in h5s:
         BdvEditor(str(h5)).read_view()
 
+def assert_zarr(output_dir: Path):
+    """Checks that a valid zarr was generated"""
+    zarrs = list(output_dir.glob("*.zarr"))
+    assert len(zarrs) > 0
+    for zarr in zarrs:
+        z = zarr.open(str(zarr), mode='r')
+        assert len(z.array_keys()) > 0
+
 @pytest.mark.parametrize(
         ["flags", "check_fn"],
         [
             [["--save-type", "h5"], assert_h5],
             [["--save-type", "tiff"], assert_tiff],
+            [["--save-type", "zarr"], assert_zarr],
             [["--save-type", "tiff", "--time-range", "0", "1"], assert_tiff],
         ]
 )
@@ -95,7 +114,7 @@ def test_batch_deskew(flags: List[str], check_fn: Callable[[Path], None]):
 def test_yaml_deskew():
     """
     Write image to disk and then execute napari_lattice from terminal
-    Checks if an deskewed output file is created for both tif and h5
+    Checks if an deskewed output file is created for both tif, h5 and zarr
     """
     with tempfile.TemporaryDirectory() as test_dir:
         test_dir = Path(test_dir)
