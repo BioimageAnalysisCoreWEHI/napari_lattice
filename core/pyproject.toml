@@ -48,6 +48,7 @@ dependencies = [
     "napari-workflows>=0.2.8",
     "npy2bdv",
     "numpy<2",
+    "packaging",
     "pandas",
     "pyclesperanto_prototype>=0.20.0",
     "pyopencl",
@@ -163,9 +164,8 @@ ignore_unused = [
     #bioio packages are needed but not directly imported
     "bioio-czi",
     "bioio-ome-tiff",
-    
-    #for zarr version checking
-    "packaging",
+
 ]
 output_format = "human_detailed"  
+
 
