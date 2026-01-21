@@ -67,7 +67,7 @@ dependencies = [
     "typer<0.17.0",
     "typing_extensions>=4.7.0",
     "xarray[parallel]",
-    "zarr>=2.16,<3",
+    "zarr>=2.16",
     "numcodecs>=0.11",
 ]
 
@@ -165,6 +165,3 @@ ignore_unused = [
     "bioio-ome-tiff",
 ]
 output_format = "human_detailed"  
-
-
-

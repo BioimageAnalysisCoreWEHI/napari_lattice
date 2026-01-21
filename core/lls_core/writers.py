@@ -15,7 +15,7 @@ import dask.array as da
 import numpy as np
 import zarr
 
-from lls_core.utils import make_filename_suffix
+from lls_core.utils import make_filename_suffix, get_zarr_compression
 RoiIndex = Optional[NonNegativeInt]
 
 if TYPE_CHECKING:
@@ -231,18 +231,27 @@ class OMEZarrWriter(Writer):
             import shutil
             shutil.rmtree(self._root_path)
 
-        store = zarr.DirectoryStore(str(self._root_path))
-        root = zarr.group(store=store)
-
         chunks = (1, 1, *self.chunk_zyx)
-        arr = root.create_dataset(
-            "0",
-            shape=(t_len, c_len, zyx[0], zyx[1], zyx[2]),
-            chunks=chunks,
-            compressor=self.compressor,
-            dtype=dtype,
-            overwrite=self.overwrite,
-        )
+
+        compression_kwargs = get_zarr_compression()
+        #adding compatibility fix for zarr v2 and v3
+        if int(zarr.__version__.split(".")[0]) >= 3:
+            #zarr v3: group class cannot be constructed from path directly
+            root = zarr.open_group(store=str(self._root_path), mode="a")
+        else:
+            store = zarr.DirectoryStore(str(self._root_path))
+            root = zarr.group(store=store)
+
+        dataset_kwargs = {
+            "shape": (t_len, c_len, zyx[0], zyx[1], zyx[2]),
+            "chunks": chunks,
+            "dtype": dtype,
+            **compression_kwargs,
+        }
+        if int(zarr.__version__.split(".")[0]) < 3:
+            dataset_kwargs["overwrite"] = self.overwrite
+
+        arr = root.create_dataset("0", **dataset_kwargs)
         self._write_ngff_attrs(root)
         return root, arr
 
