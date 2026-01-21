@@ -72,9 +72,6 @@ jobs:
           /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
           uv pip install pytest-qt PyQt5
           uv pip install -e './plugin[testing]'
-          if (( $(echo "$(python --version | cut -d' ' -f2 | cut -d'.' -f1,2) > 3.8" | bc -l) )); then
-                uv pip install --upgrade aicsimageio "napari==0.5.5" "numpy<2" "ome-types<0.6.0"
-                fi
 
       - name: Lint plugin
         uses: ./.github/lint
