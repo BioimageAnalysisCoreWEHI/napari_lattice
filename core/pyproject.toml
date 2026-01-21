@@ -47,7 +47,7 @@ dependencies = [
     "importlib_resources",
     "napari-workflows>=0.2.8",
     "npy2bdv",
-    "numpy<2",
+    "numpy",
     "packaging",
     "pandas",
     "pyclesperanto_prototype>=0.20.0",
