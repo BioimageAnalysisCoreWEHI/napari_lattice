@@ -190,9 +190,16 @@ class OMEZarrWriter(Writer):
             self._zyx = (int(data3d.shape[0]), int(data3d.shape[1]), int(data3d.shape[2]))
 
         #if dtype of data is < uint16, use the data dtype
-        if np.iinfo(data3d.dtype).max < np.iinfo(np.uint16).max:
+        if np.issubdtype(data3d.dtype, np.integer):
+            self._dtype = (data3d.dtype
+                            if np.iinfo(data3d.dtype).max < np.iinfo(np.uint16).max
+                            else np.uint16)
+        elif np.issubdtype(data3d.dtype, np.floating):
+            #float data, so preserve dtype
             self._dtype = data3d.dtype
-
+        else:
+            raise TypeError(f"Unsupported data dtype: {data3d.dtype}")
+                
         t_idx = int(getattr(slice, "time_index", 0))
         c_idx = int(getattr(slice, "channel_index", 0))
         t_len, c_len = self._resolve_t_c_lengths(slice)
