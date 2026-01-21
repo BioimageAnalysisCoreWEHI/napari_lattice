@@ -163,5 +163,9 @@ ignore_unused = [
     #bioio packages are needed but not directly imported
     "bioio-czi",
     "bioio-ome-tiff",
+    
+    #for zarr version checking
+    "packaging",
 ]
 output_format = "human_detailed"  
+
