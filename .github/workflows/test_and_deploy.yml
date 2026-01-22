@@ -55,8 +55,9 @@ jobs:
         run: |
           conda install -y pyopencl pocl
           python --version
-          pip install --upgrade pip setuptools wheel
-          pip install --use-pep517 -e './core[testing]'
+          uv pip install --system "numpy<2"
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install --use-pep517 -e './core[testing]'
 
       #- name: Lint core
       #  uses: ./.github/lint
@@ -70,7 +71,7 @@ jobs:
       - name: Install plugin
         timeout-minutes: 10
         run: |
-          uv pip install --system "napari[pyqt6]" pytest-qt
+          uv pip install --system "numpy<2" "napari[pyqt5]" pytest-qt
           uv pip install --system -e './plugin[testing]'
 
       - name: Lint plugin
