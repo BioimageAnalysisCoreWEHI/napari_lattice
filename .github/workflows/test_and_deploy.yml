@@ -70,7 +70,7 @@ jobs:
       - name: Install plugin
         timeout-minutes: 10
         run: |
-          uv pip install --system "napari[pyqt5]" pytest-qt
+          uv pip install --system "napari[pyqt6]" pytest-qt
           uv pip install --system -e './plugin[testing]'
 
       - name: Lint plugin
