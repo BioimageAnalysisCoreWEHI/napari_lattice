@@ -35,6 +35,11 @@ jobs:
           python-version: ${{ matrix.python-version }}
           channels: conda-forge
 
+      - name: Setup headless display
+        uses: pyvista/setup-headless-display-action@v3
+        with:
+          qt: true
+
       - name: Conda info
         run: conda info
 
@@ -64,12 +69,10 @@ jobs:
       - name: Test core
         run: pytest --verbose --verbose core/
 
-      - uses: tlambert03/setup-qt-libs@v1
-
       - name: Install plugin
         timeout-minutes: 10
         run: |
-          uv pip install pytest-qt PyQt5
+          uv pip install --system "napari[pyqt5]" pytest-qt
           uv pip install -e './plugin[testing]'
 
       - name: Lint plugin
@@ -79,9 +82,7 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test plugin
-        uses: GabrielBB/xvfb-action@v1
-        with:
-          run: python -m pytest -v --cov=plugin --cov-report=xml plugin
+        run: python -m pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
         uses: codecov/codecov-action@v5
