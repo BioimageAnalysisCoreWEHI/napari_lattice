@@ -8,8 +8,8 @@ contributions:
 
 # ~~ Reader ~~
   - id: napari-lattice.get_reader
-    python_name: napari_lattice._reader:napari_get_reader
-    title: BDV H5 reader
+    python_name: napari_lattice.reader:napari_get_reader
+    title: BioIO reader
   #- id: napari-lattice.crop_deskew
   #  title: Crop & Deskew
   #  python_name: napari_lattice.crop_deskew:_crop_deskew_widget 
@@ -32,4 +32,4 @@ contributions:
   readers:
   - command: napari-lattice.get_reader
     accepts_directories: false
-    filename_patterns: ["*.h5"]
+    filename_patterns: ["*.h5","*.czi","*.tif","*.tiff"]
