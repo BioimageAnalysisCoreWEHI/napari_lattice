@@ -71,8 +71,8 @@ jobs:
       - name: Install plugin
         timeout-minutes: 10
         run: |
-          uv pip install --system "numpy<2" "napari[pyqt5]" pytest-qt
-          uv pip install --system -e './plugin[testing]'
+          conda install -y napari pyqt pytest-qt
+          uv pip install --system --no-deps -e './plugin[testing]'
 
       - name: Lint plugin
         uses: ./.github/lint
