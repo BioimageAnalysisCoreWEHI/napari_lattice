@@ -85,7 +85,7 @@ jobs:
       - name: Test plugin
         uses: aganders3/headless-gui@v2.2
         with:
-          run: pytest -v --cov=plugin --cov-report=xml plugin
+          run: xvfb-run -a pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
         uses: codecov/codecov-action@v5
