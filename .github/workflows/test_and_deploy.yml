@@ -53,7 +53,7 @@ jobs:
       - name: Install core
         timeout-minutes: 10
         run: |
-          conda install -y "numpy<2.0" pyopencl pocl
+          conda install -y pyopencl pocl
           python --version
           uv pip install --system --upgrade pip setuptools wheel
           uv pip install --system -e './core[testing]'
@@ -70,9 +70,10 @@ jobs:
       - name: Install plugin
         timeout-minutes: 10
         run: |
-          conda install -y "numpy<2.0" napari magic-class pytest-qt
+          conda install -y napari magic-class pytest-qt
           conda install -y pyqt6
-          uv pip install --system --no-deps -e './plugin[testing]'
+          uv pip install --system -e './plugin[testing]'
+          python -c "import numpy; print(f'NumPy: {numpy.__version__}')"
 
       - name: Lint plugin
         uses: ./.github/lint
