@@ -21,8 +21,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11"] #["3.10", "3.11", "3.12"]
+        python-version: ["3.8","3.9","3.10"] #not compatible with py 3.10 and 3.12 yet
 
+    env:
+      DISPLAY: ":99.0"
     steps:
       - uses: actions/checkout@v6
 
@@ -32,11 +34,6 @@ jobs:
           activate-environment: test
           python-version: ${{ matrix.python-version }}
           channels: conda-forge
-
-      - name: Setup headless display
-        uses: pyvista/setup-headless-display-action@v3
-        with:
-          qt: true
 
       - name: Conda info
         run: conda info
@@ -49,31 +46,35 @@ jobs:
         with:
           # Install a specific version of uv.
           version: "0.6.17"
-
+        
       - name: Install core
         timeout-minutes: 10
         run: |
           conda install -y pyopencl pocl
           python --version
-          uv pip install --system --upgrade pip setuptools wheel
-          uv pip install --system -e './core[testing]'
+          pip install --upgrade pip setuptools wheel
+          pip install --use-pep517 -e './core[testing]'
 
-      #- name: Lint core
-      #  uses: ./.github/lint
-      #  with:
-      #    directory: core
-      #    python: ${{ env.python }}
+      - name: Lint core
+        uses: ./.github/lint
+        with:
+          directory: core
+          python: ${{ env.python }}
 
-      #- name: Test core
-      #  run: pytest --verbose --verbose core/
+      - name: Test core
+        run: pytest --verbose --verbose core/
+
+      - uses: tlambert03/setup-qt-libs@v1
 
       - name: Install plugin
         timeout-minutes: 10
         run: |
-          conda install -y napari
-          conda install -y pyqt6
-          uv pip install --system -e './plugin[testing]'
-          python -c "import numpy; print(f'NumPy: {numpy.__version__}')"
+          /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
+          uv pip install pytest-qt PyQt5
+          uv pip install -e './plugin[testing]'
+          if (( $(echo "$(python --version | cut -d' ' -f2 | cut -d'.' -f1,2) > 3.8" | bc -l) )); then
+                uv pip install --upgrade aicsimageio "napari==0.5.5" "numpy<2" "ome-types<0.6.0"
+                fi
 
       - name: Lint plugin
         uses: ./.github/lint
@@ -82,16 +83,7 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test plugin
-        env: # OpenGL to use software rendering instead of crashing
-          LIBGL_ALWAYS_SOFTWARE: true
-          LP_NUM_THREADS: 0
-          # Force X11 backend (Vital for Xvfb)
-          QT_QPA_PLATFORM: xcb
-          #Disable shared memory (Prevents crashes in containers)
-          QT_X11_NO_MITSHM: 1
-          #Disable accessibility bus (Common source of segfaults)
-          QT_ACCESSIBILITY: 0
-        run: python -m pytest -v --cov=plugin --cov-report=xml plugin
+        run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
         uses: codecov/codecov-action@v5
@@ -102,9 +94,9 @@ jobs:
     # github secrets (see readme for details)
     needs: [test]
     runs-on: ubuntu-latest
-    environment:
+    environment: 
       name: github-pages
-    permissions:
+    permissions: 
       id-token: write
       pages: write
       contents: write
@@ -144,7 +136,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - uses: ncipollo/release-action@v1.18.0
-        name: Create GitHub release
+        name: Create GitHub release 
         if: contains(github.ref, 'tags')
         with:
           skipIfReleaseExists: true
