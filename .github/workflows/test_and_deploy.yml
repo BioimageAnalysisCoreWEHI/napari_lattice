@@ -73,7 +73,6 @@ jobs:
       - name: Install plugin
         timeout-minutes: 10
         run: |
-          /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
           conda install -y napari pyqt
           uv pip install -e './plugin[testing]'
 
