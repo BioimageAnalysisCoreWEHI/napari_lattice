@@ -71,7 +71,7 @@ jobs:
         timeout-minutes: 10
         run: |
           uv pip install --system "napari[pyqt5]" pytest-qt
-          uv pip install -e './plugin[testing]'
+          uv pip install --system -e './plugin[testing]'
 
       - name: Lint plugin
         uses: ./.github/lint
@@ -80,6 +80,8 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test plugin
+        env: # OpenGL to use software rendering instead of crashing
+          LIBGL_ALWAYS_SOFTWARE: true
         run: python -m pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
