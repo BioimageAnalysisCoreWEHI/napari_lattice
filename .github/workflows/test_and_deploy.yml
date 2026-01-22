@@ -70,7 +70,7 @@ jobs:
       - name: Install plugin
         timeout-minutes: 10
         run: |
-          conda install -y napari magic-class pytest-qt
+          conda install -y napari
           conda install -y pyqt6
           uv pip install --system -e './plugin[testing]'
           python -c "import numpy; print(f'NumPy: {numpy.__version__}')"
