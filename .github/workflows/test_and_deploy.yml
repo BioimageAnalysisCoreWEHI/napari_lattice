@@ -53,7 +53,7 @@ jobs:
       - name: Install core
         timeout-minutes: 10
         run: |
-          conda install -y pyopencl pocl
+          conda install -y "numpy<2.0" pyopencl pocl
           python --version
           uv pip install --system "numpy<2"
           uv pip install --system --upgrade pip setuptools wheel
