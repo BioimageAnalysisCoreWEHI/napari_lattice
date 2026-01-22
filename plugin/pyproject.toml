@@ -111,6 +111,9 @@ ignore_unused = [
 ]
 output_format = "human_detailed"  
 
+[tool.fawltydeps.custom_mapping]
+magic-class = ["magicclass"]
+
 [tool.pyright]
 typeCheckingMode = "off"
 reportUndefinedVariable = "error"
