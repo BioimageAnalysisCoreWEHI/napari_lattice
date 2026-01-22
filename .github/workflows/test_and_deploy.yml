@@ -84,6 +84,12 @@ jobs:
         env: # OpenGL to use software rendering instead of crashing
           LIBGL_ALWAYS_SOFTWARE: true
           LP_NUM_THREADS: 0
+          # Force X11 backend (Vital for Xvfb)
+          QT_QPA_PLATFORM: xcb
+          #Disable shared memory (Prevents crashes in containers)
+          QT_X11_NO_MITSHM: 1
+          #Disable accessibility bus (Common source of segfaults)
+          QT_ACCESSIBILITY: 0
         run: python -m pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
