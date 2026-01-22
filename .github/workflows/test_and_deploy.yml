@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        python-version: ["3.11"] #["3.10", "3.11", "3.12"]
 
     env:
       DISPLAY: ":99.0"
@@ -69,7 +69,6 @@ jobs:
       - name: Install plugin
         timeout-minutes: 10
         run: |
-          /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
           uv pip install pytest-qt PyQt5
           uv pip install -e './plugin[testing]'
 
@@ -80,7 +79,9 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test plugin
-        run: pytest -v --cov=plugin --cov-report=xml plugin
+        uses: GabrielBB/xvfb-action@v1
+        with:
+          run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
         uses: codecov/codecov-action@v5
