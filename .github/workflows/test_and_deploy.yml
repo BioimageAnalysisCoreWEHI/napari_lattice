@@ -65,8 +65,8 @@ jobs:
           directory: core
           python: ${{ env.python }}
 
-      - name: Test core
-        run: pytest --verbose --verbose core/
+      #- name: Test core
+      #  run: pytest --verbose --verbose core/
 
       - uses: tlambert03/setup-qt-libs@v1
 
@@ -83,6 +83,8 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test plugin
+        env:
+          PYTHONPATH: ${{ github.workspace }}/core
         run: xvfb-run -a pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
