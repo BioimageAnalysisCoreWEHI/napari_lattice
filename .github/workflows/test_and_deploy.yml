@@ -85,7 +85,7 @@ jobs:
       - name: Test plugin
         env:
           PYTHONPATH: ${{ github.workspace }}/core
-        run: xvfb-run -a pytest -v --cov=plugin --cov-report=xml plugin
+        run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
         uses: codecov/codecov-action@v5
