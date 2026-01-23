@@ -9,7 +9,8 @@ from magicclass.widgets import Widget
 from magicclass._gui._gui_modes import ErrorMode
 import pytest
 from lls_core.sample import resources
-from bioio import BioImage
+#from bioio import BioImage
+from aicsimageio import AICSImage
 from napari_lattice.fields import PixelSizeSource
 from tempfile import TemporaryDirectory
 
@@ -35,7 +36,7 @@ def image_data(request: pytest.FixtureRequest):
     Fixture function that yields test images as file paths
     """
     with as_file(resources / request.param) as image_path:
-        yield BioImage(image_path, )
+        yield AICSImage(image_path, )
 
 def set_debug(cls: MagicTemplate):
     """
@@ -48,7 +49,7 @@ def set_debug(cls: MagicTemplate):
     for child in cls.__magicclass_children__:
         set_debug(child)
 
-def test_dock_widget(make_napari_viewer: Callable[[], Viewer], image_data: BioImage):
+def test_dock_widget(make_napari_viewer: Callable[[], Viewer], image_data: AICSImage):
     # make viewer and add an image layer using our fixture
     viewer = make_napari_viewer()
 
