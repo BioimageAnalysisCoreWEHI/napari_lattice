@@ -56,8 +56,8 @@ jobs:
         run: |
           conda install -y pyopencl pocl
           python --version
-          pip install --upgrade pip setuptools wheel
-          pip install --use-pep517 -e './core[testing]'
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e './core[testing]'
 
       - name: Lint core
         uses: ./.github/lint
@@ -65,8 +65,8 @@ jobs:
           directory: core
           python: ${{ env.python }}
 
-      #- name: Test core
-      #  run: pytest --verbose --verbose core/
+      - name: Test core
+        run: pytest --verbose --verbose core/
 
       - uses: tlambert03/setup-qt-libs@v1
 
