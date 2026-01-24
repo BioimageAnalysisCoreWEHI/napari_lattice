@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.10"] #, "3.10", "3.12"
+        python-version: ["3.11"] #, "3.10", "3.12"
     
     env:
       DISPLAY: ":0"
@@ -70,7 +70,6 @@ jobs:
       - name: Install plugin
         timeout-minutes: 10
         run: |
-          #/sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
           uv pip install pytest-qt PyQt5
           uv pip install -e './plugin[testing]'
           uv pip install --upgrade aicsimageio "numpy<2" "zarr<3" "napari==0.5.5" "tifffile>=2023.3.15,<2025.2.18"
@@ -88,68 +87,3 @@ jobs:
 
       - name: Coverage
         uses: codecov/codecov-action@v5
-
-  deploy:
-    # this will run when you have tagged a commit, starting with "v*"
-    # and requires that you have put your twine API key in your
-    # github secrets (see readme for details)
-    needs: [test]
-    runs-on: ubuntu-latest
-    environment: 
-      name: github-pages
-    permissions: 
-      id-token: write
-      pages: write
-      contents: write
-    steps:
-      - uses: actions/checkout@v6
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.10"
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-        with:
-          # Install a specific version of uv.
-          version: "0.6.17"
-      - name: Install dependencies
-        run: |
-          uv pip install --system --upgrade pip setuptools wheel
-          uv pip install --system ./core[docs,deploy]
-          uv pip install --system ./plugin
-
-      - name: Build distributions
-        run: |
-          python -m build core
-          python -m build plugin
-
-      - name: Build docs
-        run: mkdocs build
-
-      - name: Upload docs artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: site
-
-      - name: Deploy to GitHub Pages
-        # Only a non-pr push has permissions to deploy pages
-        if: github.event_name == 'push'
-        uses: actions/deploy-pages@v4
-
-      - uses: ncipollo/release-action@v1.18.0
-        name: Create GitHub release 
-        if: contains(github.ref, 'tags')
-        with:
-          skipIfReleaseExists: true
-          artifacts: "core/dist/*,plugin/dist/*"
-
-      - name: Release on PyPI
-        if: contains(github.ref, 'tags')
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.TWINE_TOKEN }}
-        run: |
-          twine upload --skip-existing --non-interactive core/dist/*
-
-          twine upload --skip-existing --non-interactive plugin/dist/*
-
