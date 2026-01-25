@@ -1,0 +1,72 @@
+# Note: this is the conda package config file, not to be confused with the Python package config file `pyproject.toml`
+{% set name = "lls_core" %}
+{% set version = "0.2.7" %}
+
+package:
+  name: {{ name|lower }}
+  version: {{ version }}
+
+source:
+  path: .
+
+build:
+  entry_points:
+    - napari_lattice = napari_lattice.cmds.__main__:main
+  noarch: python
+  script: {{ PYTHON }} -m pip install . -vv --no-deps --no-build-isolation
+  number: 0
+
+requirements:
+  host:
+    - python >=3.8
+    - setuptools
+    - wheel
+    - pip
+  run:
+    - python >=3.8
+    - aicsimageio >=4.6.3
+    - aicspylibczi >=3.1.1
+    - click
+    - dask-core
+    - fsspec >=2022.8.2
+    - importlib_resources
+    - napari-workflows >=0.2.8
+    - npy2bdv
+    - numpy
+    - pandas
+    - pyclesperanto-prototype >=0.20.0
+    - pyopencl
+    - pydantic >=1.10.17,<3
+    - pyyaml
+    - read-roi
+    - rich
+    - resource_backed_dask_array >=0.1.0
+    - scikit-image
+    - strenum
+    - tifffile >=2023.3.15
+    - toolz
+    - tqdm
+    - typer
+    - typing_extensions >=4.7.0
+    - xarray
+
+  run_constrained:
+    - ome-types >=0.3.4
+
+test:
+  imports:
+    - lls_core
+  commands:
+    - pip check
+    - lls-pipeline --help
+  requires:
+    - pip
+
+about:
+  home: https://github.com/BioimageAnalysisCoreWEHI/napari_lattice
+  license: GPL-3.0
+  license_file: ../LICENSE
+
+extra:
+  recipe-maintainers:
+    - multimeric
