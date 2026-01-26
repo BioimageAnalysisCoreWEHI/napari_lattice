@@ -107,11 +107,12 @@ jobs:
           # Install core and plugin
           uv pip install -e './core[testing]'
           uv pip install -e './plugin[testing]'
-
-      - name: Constrain napari version to 0.5.5 # otherwise throws error: RuntimeError: Using glBindFramebuffer with no OpenGL context.
-        timeout-minutes: 10
+      
+      # strategy borrowed from vispy for installing opengl libs on windows
+      - name: Install Windows OpenGL
         run: |
-          uv pip install "napari==0.5.5" 
+          git clone --depth 1 https://github.com/pyvista/gl-ci-helpers.git
+          powershell gl-ci-helpers/appveyor/install_opengl.ps1
           
       - name: Lint plugin
         uses: ./.github/lint
