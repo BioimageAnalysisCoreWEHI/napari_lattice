@@ -48,7 +48,7 @@ def set_debug(cls: MagicTemplate):
     for child in cls.__magicclass_children__:
         set_debug(child)
 
-def test_dock_widget(make_napari_viewer: Callable[[], Viewer], image_data: AICSImage):
+def test_dock_widget(make_napari_viewer: Callable[[], Viewer], image_data: BioImage):
     # make viewer and add an image layer using our fixture
     viewer = make_napari_viewer()
 
