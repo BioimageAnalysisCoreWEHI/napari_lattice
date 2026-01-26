@@ -13,16 +13,72 @@ on:
       - "**/README.md"
 
 jobs:
-  test:
-    runs-on: windows-latest
+  test-core:
+    name: Core Tests (Ubuntu)
+    runs-on: ubuntu-latest
     defaults:
       run:
         shell: bash -l {0}
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11"] #, "3.10", "3.12"
-    
+        python-version: ["3.10"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          activate-environment: test
+          python-version: ${{ matrix.python-version }}
+          channels: conda-forge
+
+      # Standard path for Linux linter
+      - name: Save conda location
+        run: echo "python=$(which python)" >> "$GITHUB_ENV"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.6.17"
+
+      - name: Install core
+        timeout-minutes: 10
+        run: |
+          # Install dependencies
+          # We include types-PyYAML here too for linux linting consistency
+          conda install -y pyqt pyopencl pocl pytest-qt 
+          
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e './core[testing]'
+
+      - name: Lint core
+        uses: ./.github/lint
+        with:
+          directory: core
+          python: ${{ env.python }}
+
+      - name: Test core
+        run: pytest --verbose --verbose core/
+
+      - name: Coverage
+        uses: codecov/codecov-action@v5
+        with:
+          flags: core
+
+  test-plugin:
+    name: Plugin Tests (Windows)
+    runs-on:  ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10"]
+        os: [windows-latest]
+
     env:
       DISPLAY: ":0"
     steps:
@@ -34,9 +90,6 @@ jobs:
           activate-environment: test
           python-version: ${{ matrix.python-version }}
           channels: conda-forge
-      
-      - name: Conda info
-        run: conda info
 
       - name: Save conda location
         run: echo "python=$(which python)" >> "$GITHUB_ENV"
@@ -44,46 +97,33 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
-          # Install a specific version of uv.
           version: "0.6.17"
-        
-      - name: Install core
+
+      - name: Install core & plugin
         timeout-minutes: 10
         run: |
-          conda install -y pyopencl pocl
-          python --version
+          conda install -y pyqt pyopencl pocl pytest-qt typing-extensions
           uv pip install --upgrade pip setuptools wheel
+          # Install core and plugin
           uv pip install -e './core[testing]'
-          uv pip install aicsimageio
+          uv pip install -e './plugin[testing]'
 
-      #- name: Lint core
-      #  uses: ./.github/lint
-      #  with:
-      #    directory: core
-      #    python: ${{ env.python }}
-
-      #- name: Test core
-      #  run: pytest --verbose --verbose core/
-
-      #- uses: tlambert03/setup-qt-libs@v1.8
-
-      - name: Install plugin
+      - name: Constrain napari version to 0.5.5 # otherwise throws error: RuntimeError: Using glBindFramebuffer with no OpenGL context.
         timeout-minutes: 10
         run: |
-          uv pip install pytest-qt PyQt5
-          uv pip install -e './plugin[testing]'
-          uv pip install --upgrade aicsimageio "numpy<2" "zarr<3" "napari==0.5.5" "tifffile>=2023.3.15,<2025.2.18"
-
-      #- name: Lint plugin
-      #  uses: ./.github/lint
-      #  with:
-      #    directory: plugin
-      #    python: ${{ env.python }}
+          uv pip install "napari==0.5.5" 
+          
+      - name: Lint plugin
+        uses: ./.github/lint
+        with:
+          directory: plugin
+          python: ${{ env.python }}
 
       - name: Test plugin
-        env:
-          PYTHONPATH: ${{ github.workspace }}/core
+        timeout-minutes: 10
         run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
         uses: codecov/codecov-action@v5
+        with:
+          flags: plugin
