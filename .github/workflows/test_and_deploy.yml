@@ -13,7 +13,8 @@ on:
       - "**/README.md"
 
 jobs:
-  test:
+  test-core:
+    name: Core Tests (Ubuntu)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,10 +22,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.8","3.9","3.10"] #not compatible with py 3.10 and 3.12 yet
+        python-version: ["3.10", "3.11", "3.12"]
 
-    env:
-      DISPLAY: ":99.0"
     steps:
       - uses: actions/checkout@v6
 
@@ -35,25 +34,24 @@ jobs:
           python-version: ${{ matrix.python-version }}
           channels: conda-forge
 
-      - name: Conda info
-        run: conda info
-
+      # Standard path for Linux linter
       - name: Save conda location
         run: echo "python=$(which python)" >> "$GITHUB_ENV"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
-          # Install a specific version of uv.
           version: "0.6.17"
-        
+
       - name: Install core
         timeout-minutes: 10
         run: |
-          conda install -y pyopencl pocl
-          python --version
-          pip install --upgrade pip setuptools wheel
-          pip install --use-pep517 -e './core[testing]'
+          # Install dependencies
+          # We include types-PyYAML here too for linux linting consistency
+          conda install -y pyqt pyopencl pocl pytest-qt 
+          
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e './core[testing]'
 
       - name: Lint core
         uses: ./.github/lint
@@ -64,18 +62,58 @@ jobs:
       - name: Test core
         run: pytest --verbose --verbose core/
 
-      - uses: tlambert03/setup-qt-libs@v1
+      - name: Coverage
+        uses: codecov/codecov-action@v5
+        with:
+          flags: core
 
-      - name: Install plugin
+  test-plugin:
+    name: Plugin Tests (Windows)
+    runs-on:  ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11"] #just run on 3.11 for windows for now
+        os: [windows-latest]
+
+    env:
+      DISPLAY: ":0"
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          auto-update-conda: true
+          activate-environment: test
+          python-version: ${{ matrix.python-version }}
+          channels: conda-forge
+
+      - name: Save conda location
+        run: echo "python=$(which python)" >> "$GITHUB_ENV"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.6.17"
+
+      - name: Install core & plugin
         timeout-minutes: 10
         run: |
-          /sbin/start-stop-daemon --start --quiet --pidfile /tmp/custom_xvfb_99.pid --make-pidfile --background --exec /usr/bin/Xvfb -- :99 -screen 0 1920x1200x24 -ac +extension GLX
-          uv pip install pytest-qt PyQt5
+          conda install -y pyqt pyopencl pocl pytest-qt typing-extensions
+          uv pip install --upgrade pip setuptools wheel
+          # Install core and plugin
+          uv pip install -e './core[testing]'
           uv pip install -e './plugin[testing]'
-          if (( $(echo "$(python --version | cut -d' ' -f2 | cut -d'.' -f1,2) > 3.8" | bc -l) )); then
-                uv pip install --upgrade aicsimageio "napari==0.5.5" "numpy<2" "ome-types<0.6.0"
-                fi
-
+      
+      # strategy borrowed from vispy for installing opengl libs on windows
+      - name: Install Windows OpenGL
+        run: |
+          git clone --depth 1 https://github.com/pyvista/gl-ci-helpers.git
+          powershell gl-ci-helpers/appveyor/install_opengl.ps1
+          
       - name: Lint plugin
         uses: ./.github/lint
         with:
@@ -83,20 +121,25 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test plugin
+        timeout-minutes: 10
         run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
         uses: codecov/codecov-action@v5
+        with:
+          flags: plugin
 
   deploy:
+    # run this job only for tag refs (e.g. refs/tags/v1.2.3)
+    if: startsWith(github.ref, 'refs/tags/')
     # this will run when you have tagged a commit, starting with "v*"
     # and requires that you have put your twine API key in your
     # github secrets (see readme for details)
-    needs: [test]
+    needs: [test-core, test-plugin]
     runs-on: ubuntu-latest
-    environment: 
+    environment:
       name: github-pages
-    permissions: 
+    permissions:
       id-token: write
       pages: write
       contents: write
@@ -136,7 +179,7 @@ jobs:
         uses: actions/deploy-pages@v4
 
       - uses: ncipollo/release-action@v1.18.0
-        name: Create GitHub release 
+        name: Create GitHub release
         if: contains(github.ref, 'tags')
         with:
           skipIfReleaseExists: true

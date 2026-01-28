@@ -402,7 +402,7 @@ class DeskewFields(NapariFieldGroup):
         """
         Returns the LatticeData fields that the Deskew tab can provide
         """
-        from aicsimageio.types import PhysicalPixelSizes
+        from bioio import PhysicalPixelSizes
         DeskewParams.update_forward_refs()
         params = lattice_params_from_napari(
                 imgs=self.img_layer.value,

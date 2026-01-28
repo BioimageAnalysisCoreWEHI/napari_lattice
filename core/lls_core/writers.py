@@ -15,7 +15,7 @@ import dask.array as da
 import numpy as np
 import zarr
 
-from lls_core.utils import make_filename_suffix
+from lls_core.utils import make_filename_suffix, get_zarr_compression
 RoiIndex = Optional[NonNegativeInt]
 
 if TYPE_CHECKING:
@@ -118,7 +118,8 @@ class TiffWriter(Writer):
                 str(path),
                 data = images_array,
                 bigtiff=True,
-                resolution=(1./self.lattice.dx, 1./self.lattice.dy, "MICROMETER"),
+                resolution=(1./self.lattice.dx, 1./self.lattice.dy),
+                resolutionunit="MICROMETER",
                 metadata={'spacing': self.lattice.new_dz, 'unit': 'um', 'axes': 'TZCYX'},
                 imagej=True
             )
@@ -189,9 +190,16 @@ class OMEZarrWriter(Writer):
             self._zyx = (int(data3d.shape[0]), int(data3d.shape[1]), int(data3d.shape[2]))
 
         #if dtype of data is < uint16, use the data dtype
-        if np.iinfo(data3d.dtype).max < np.iinfo(np.uint16).max:
+        if np.issubdtype(data3d.dtype, np.integer):
+            self._dtype = (data3d.dtype
+                            if np.iinfo(data3d.dtype).max < np.iinfo(np.uint16).max
+                            else np.uint16)
+        elif np.issubdtype(data3d.dtype, np.floating):
+            #float data, so preserve dtype
             self._dtype = data3d.dtype
-
+        else:
+            raise TypeError(f"Unsupported data dtype: {data3d.dtype}")
+                
         t_idx = int(getattr(slice, "time_index", 0))
         c_idx = int(getattr(slice, "channel_index", 0))
         t_len, c_len = self._resolve_t_c_lengths(slice)
@@ -223,18 +231,27 @@ class OMEZarrWriter(Writer):
             import shutil
             shutil.rmtree(self._root_path)
 
-        store = zarr.DirectoryStore(str(self._root_path))
-        root = zarr.group(store=store)
-
         chunks = (1, 1, *self.chunk_zyx)
-        arr = root.create_dataset(
-            "0",
-            shape=(t_len, c_len, zyx[0], zyx[1], zyx[2]),
-            chunks=chunks,
-            compressor=self.compressor,
-            dtype=dtype,
-            overwrite=self.overwrite,
-        )
+
+        compression_kwargs = get_zarr_compression()
+        #adding compatibility fix for zarr v2 and v3
+        if int(zarr.__version__.split(".")[0]) >= 3:
+            #zarr v3: group class cannot be constructed from path directly
+            root = zarr.open_group(store=str(self._root_path), mode="a")
+        else:
+            store = zarr.DirectoryStore(str(self._root_path))
+            root = zarr.group(store=store)
+
+        dataset_kwargs = {
+            "shape": (t_len, c_len, zyx[0], zyx[1], zyx[2]),
+            "chunks": chunks,
+            "dtype": dtype,
+            **compression_kwargs,
+        }
+        if int(zarr.__version__.split(".")[0]) < 3:
+            dataset_kwargs["overwrite"] = self.overwrite
+
+        arr = root.create_dataset("0", **dataset_kwargs)
         self._write_ngff_attrs(root)
         return root, arr
 

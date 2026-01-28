@@ -4,6 +4,7 @@ from collections import defaultdict
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from os import devnull, path
 from typing import Collection, List, Optional, Tuple, TypeVar, Union
+from urllib import parse
 
 import numpy as np
 import pyclesperanto_prototype as cle
@@ -342,3 +343,25 @@ def convert_xyz_to_zyx_order(deskew_affine_transform:cle.AffineTransform3D):
     xyz_to_zyx = [2, 1, 0, 3]  
     zyx_tranform = deskew_affine_transform[xyz_to_zyx][:, xyz_to_zyx]
     return zyx_tranform
+
+def get_zarr_compression():
+    """
+    Returns zarr compression settings depending on zarr version
+    zarrv3 does not accept numcodecs compressors directly whereas zarrv <3 does
+    """
+    from packaging.version import parse
+    import zarr
+    if parse(zarr.__version__).major >= 3:
+        from zarr.codecs import BloscCodec
+        return dict(
+            compressors=[BloscCodec(cname="zstd", clevel=5, shuffle="shuffle")]
+        )
+    else:
+        from numcodecs import Blosc
+        return dict(
+            compressor=Blosc(
+                cname="zstd",
+                clevel=5,
+                shuffle=Blosc.SHUFFLE,
+            )
+        )

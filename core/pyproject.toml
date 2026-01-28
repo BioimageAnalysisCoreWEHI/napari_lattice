@@ -36,10 +36,10 @@ classifiers = [
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "aicsimageio>=4.6.3",
-    # Earlier versions don't have Python 3.11 binaries, and the sdist
-    # is misconfigured: https://github.com/AllenCellModeling/aicspylibczi/issues/90
-    "aicspylibczi>=3.1.1",
+    "bioio>=3.0.0",
+    "bioio-czi>=2.4.0",
+    "bioio-tifffile==1.3.0",
+    "bioio-ome-tiff>=1.4.0",
     "click",
     "dask",
     "dask[distributed]",
@@ -48,6 +48,7 @@ dependencies = [
     "napari-workflows>=0.2.8",
     "npy2bdv",
     "numpy<2",
+    "packaging",
     "pandas",
     "pyclesperanto_prototype>=0.20.0",
     "pyopencl",
@@ -61,13 +62,13 @@ dependencies = [
     "resource-backed-dask-array>=0.1.0",
     "scikit-image",
     "StrEnum",
-    "tifffile>=2023.3.15,<2025.2.18", #>=2022.8.12
+    "tifffile>=2023.3.15",#<2025.2.18", #>=2022.8.12
     "toolz",
     "tqdm",
     "typer<0.17.0",
     "typing_extensions>=4.7.0",
     "xarray[parallel]",
-    "zarr>=2.16,<3",
+    "zarr>=2.16",
     "numcodecs>=0.11",
 ]
 
@@ -158,10 +159,13 @@ ignore_unused = [
 
     # Used for the deployment, but never imported
     "build",
-    "twine"
+    "twine",
+
+    #bioio packages are needed but not directly imported
+    "bioio-czi",
+    "bioio-ome-tiff",
+
 ]
 output_format = "human_detailed"  
-
-
 
 
