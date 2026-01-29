@@ -1,0 +1,64 @@
+name: Documentation
+
+on:
+  push:
+    branches: ["main", "master"]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "core/**"   # Include code paths so API docs update when code changes
+      - "plugin/**"
+  pull_request:
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  deploy-docs:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.6.17"
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system --upgrade pip setuptools wheel
+          # Install the package so mkdocstrings can read the API docs
+          # We do NOT need heavy testing deps like xvfb or pocl here
+          uv pip install --system ./core[docs]
+          uv pip install --system ./plugin
+
+      - name: Build docs
+        run: mkdocs build
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        if: github.event_name == 'push'
+        uses: actions/deploy-pages@v4

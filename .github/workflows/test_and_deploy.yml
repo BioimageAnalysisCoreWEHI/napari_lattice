@@ -8,11 +8,16 @@ on:
   pull_request:
     paths-ignore:
       - "**/README.md"
+      - "docs/**"
   push:
     paths-ignore:
       - "**/README.md"
+      - "docs/**"
 
 jobs:
+  # ------------------------------------------------------------------
+  # JOB 1: Install Core and test on Ubuntu (Linux - Ubuntu 22.04)
+  # ------------------------------------------------------------------
   test-core:
     name: Core Tests (Ubuntu)
     runs-on: ubuntu-latest
@@ -66,7 +71,9 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           flags: core
-
+  # ------------------------------------------------------------------
+  # JOB 2: Install Plugin and test on Windows
+  # ------------------------------------------------------------------
   test-plugin:
     name: Plugin Tests (Windows)
     runs-on:  ${{ matrix.os }}
@@ -128,20 +135,17 @@ jobs:
         uses: codecov/codecov-action@v5
         with:
           flags: plugin
+  # ------------------------------------------------------------------
+  # JOB 3: Release on PyPI 
+  # ------------------------------------------------------------------
 
   deploy:
     # run this job only for tag refs (e.g. refs/tags/v1.2.3)
     if: startsWith(github.ref, 'refs/tags/')
-    # this will run when you have tagged a commit, starting with "v*"
-    # and requires that you have put your twine API key in your
-    # github secrets (see readme for details)
     needs: [test-core, test-plugin]
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
     permissions:
       id-token: write
-      pages: write
       contents: write
     steps:
       - uses: actions/checkout@v6
@@ -152,12 +156,12 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
         with:
-          # Install a specific version of uv.
           version: "0.6.17"
       - name: Install dependencies
         run: |
           uv pip install --system --upgrade pip setuptools wheel
-          uv pip install --system ./core[docs,deploy]
+          # Only install what's needed for building the package
+          uv pip install --system ./core[deploy]
           uv pip install --system ./plugin
 
       - name: Build distributions
@@ -165,28 +169,13 @@ jobs:
           python -m build core
           python -m build plugin
 
-      - name: Build docs
-        run: mkdocs build
-
-      - name: Upload docs artifact
-        uses: actions/upload-pages-artifact@v4
-        with:
-          path: site
-
-      - name: Deploy to GitHub Pages
-        # Only a non-pr push has permissions to deploy pages
-        if: github.event_name == 'push'
-        uses: actions/deploy-pages@v4
-
-      - uses: ncipollo/release-action@v1.18.0
+      - uses: ncipollo/release-action@v1.18.0 #Create a release when tag is pushed
         name: Create GitHub release
-        if: contains(github.ref, 'tags')
         with:
           skipIfReleaseExists: true
           artifacts: "core/dist/*,plugin/dist/*"
 
       - name: Release on PyPI
-        if: contains(github.ref, 'tags')
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.TWINE_TOKEN }}

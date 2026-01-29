@@ -23,7 +23,7 @@ Click on the tabs below to view the corresponding functionality.
     
     From version 1.0.3 onwards, we have an option to show the Deskewed image without actually deskewing it. 
     It does not create a new image, but simply transforms the image in the canvas to a deskewed image. 
-    This can be useful for quick preview of the data.
+    This can be useful for quick preview of the data and especially if you have a large dataset that you don't want to process yet.
 
     To do this, once the plugin is initialized, click on `Quick Deskew`.
 
