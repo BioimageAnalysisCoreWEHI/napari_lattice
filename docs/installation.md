@@ -30,7 +30,6 @@ Then use `uv` for installing the napari-lattice suite using the following 2 comm
 uv pip install lls-core napari-lattice
 ```
 
-```
 !!! info
 
     Using `uv` ensures the installs are fast!
