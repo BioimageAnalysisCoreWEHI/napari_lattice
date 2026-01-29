@@ -11,7 +11,7 @@ First, create a new conda environment. To do this, you can look for Miniforge Pr
 
 
 ```bash
-mamba create -n napari-lattice -c conda-forge "python==3.10" uv pycudadecon "numpy<2" 
+mamba create -n napari-lattice -c conda-forge "python==3.10" uv pycudadecon 
 ```
 
 !!! info
@@ -30,8 +30,6 @@ Then use `uv` for installing the napari-lattice suite using the following 2 comm
 uv pip install lls-core napari-lattice
 ```
 
-```bash
-uv pip install --upgrade aicsimageio "napari==0.5.5" "numpy<2" "tifffile==2025.1.10"
 ```
 !!! info
 
