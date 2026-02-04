@@ -11,7 +11,7 @@ line_length = 79
 
 [project]
 name = "lls_core"
-version = "1.0.6"
+version = "1.1.0"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
@@ -28,13 +28,13 @@ classifiers = [
     "Topic :: Software Development :: Testing",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Operating System :: OS Independent",
     "License :: OSI Approved :: GNU General Public License v3 (GPLv3)"
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.10"
 dependencies = [
     "bioio>=3.0.0",
     "bioio-czi>=2.4.0",
@@ -167,5 +167,6 @@ ignore_unused = [
 
 ]
 output_format = "human_detailed"  
+
 
 
