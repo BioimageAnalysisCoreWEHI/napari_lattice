@@ -16,6 +16,10 @@ import numpy as np
 import zarr
 
 from lls_core.utils import make_filename_suffix, get_zarr_compression
+
+import logging
+logger = logging.getLogger(__name__)
+
 RoiIndex = Optional[NonNegativeInt]
 
 if TYPE_CHECKING:
@@ -97,16 +101,10 @@ class TiffWriter(Writer):
         self.pending_slices = []
     
     def flush(self):
-        "Write out all pending slices"
-        import numpy as np
+        "Write out all pending slices to a TIFF file"
         import tifffile
         if len(self.pending_slices) > 0:
             first_result = self.pending_slices[0]
-            images_array = np.swapaxes(
-                np.expand_dims([result.data for result in self.pending_slices], axis=0),
-                1, 2
-            ).astype("uint16")
-            # ImageJ TIFF can only handle 16-bit uints, not 32
             path = self.lattice.make_filepath(
                 make_filename_suffix(
                     channel=first_result.channel,
@@ -114,19 +112,70 @@ class TiffWriter(Writer):
                     roi_index=first_result.roi_index
                 )
             )
-            tifffile.imwrite(
-                str(path),
-                data = images_array,
-                bigtiff=True,
-                resolution=(1./self.lattice.dx, 1./self.lattice.dy),
-                resolutionunit="MICROMETER",
-                metadata={'spacing': self.lattice.new_dz, 'unit': 'um', 'axes': 'TZCYX'},
-                imagej=True
-            )
+
+            n_channels = len(self.pending_slices)
+
+            if n_channels == 1:
+                # Single channel: write directly using imwrite.
+                # For memmap-backed data, tifffile iterates Z-pages lazily,
+                # avoiding loading the full volume into RAM.
+                # Reshape to 5D (T,Z,C,Y,X) so tifffile correctly identifies
+                # the Z dimension as slices (not channels). reshape() on a
+                # memmap creates a view — no data is copied.
+                data = np.asarray(self.pending_slices[0].data)
+                z, y, x = data.shape
+                data_5d = data.reshape(1, z, 1, y, x)
+                tifffile.imwrite(
+                    str(path),
+                    data=data_5d,
+                    bigtiff=True,
+                    imagej=True,
+                    resolution=(1./self.lattice.dx, 1./self.lattice.dy),
+                    resolutionunit="MICROMETER",
+                    metadata={'spacing': self.lattice.new_dz, 'unit': 'um', 'axes': 'TZCYX'},
+                )
+            else:
+                # Multi-channel: build TZCYX array and write at once.
+                # Preserve the data's native dtype (uint8 labels, uint16
+                # intensity, float32 workflow outputs, etc.).
+                images_array = np.swapaxes(
+                    np.expand_dims(
+                        [np.asarray(result.data) for result in self.pending_slices],
+                        axis=0,
+                    ),
+                    1, 2,
+                )
+                tifffile.imwrite(
+                    str(path),
+                    data=images_array,
+                    bigtiff=True,
+                    imagej=True,
+                    resolution=(1./self.lattice.dx, 1./self.lattice.dy),
+                    resolutionunit="MICROMETER",
+                    metadata={'spacing': self.lattice.new_dz, 'unit': 'um', 'axes': 'TZCYX'},
+                )
+
             self.written_files.append(path)
-            
-            # Reinitialise
+
+            # Clean up memmap temp files if any slices were backed by memmap
+            memmap_paths = set()
+            for result in self.pending_slices:
+                if isinstance(result.data, np.memmap):
+                    p = getattr(result.data, 'filename', None)
+                    if p:
+                        memmap_paths.add(p)
+
             self.pending_slices = []
+
+            if memmap_paths:
+                import gc, os
+                gc.collect()
+                for p in memmap_paths:
+                    try:
+                        os.unlink(p)
+                        logger.info(f"Cleaned up memmap temp file: {p}")
+                    except OSError:
+                        pass
 
     def write_slice(self, slice: ProcessedSlice[ArrayLike]):
         if slice.time != self.time:
@@ -180,6 +229,30 @@ class OMEZarrWriter(Writer):
 
         self._pix_z, self._pix_y, self._pix_x = (self.lattice.new_dz, self.lattice.dy, self.lattice.dx)
 
+    def ensure_initialized(self, zyx_shape: tuple[int, int, int], t_len: int, c_len: int, dtype) -> zarr.Array:
+        """Pre-create the zarr store and return the backing array.
+
+        This allows callers (e.g. the direct-write tiling path) to obtain
+        the zarr array before any ``write_slice()`` calls, so they can
+        write slabs directly into the array.
+
+        Args:
+            zyx_shape: (Z, Y, X) dimensions of a single 3D volume.
+            t_len: Number of time points.
+            c_len: Number of channels.
+            dtype: Data type for the array.
+
+        Returns:
+            The zarr.Array backing this store (shape: ``(t, c, z, y, x)``).
+        """
+        self._zyx = (int(zyx_shape[0]), int(zyx_shape[1]), int(zyx_shape[2]))
+        self._t_len = t_len
+        self._c_len = c_len
+        self._dtype = np.dtype(dtype)
+        if self._arr is None:
+            self._root_group, self._arr = self._create_store(t_len, c_len, self._zyx, self._dtype)
+        return self._arr
+
     def write_slice(self, slice) -> Path:
         """Write a 3D (Z,Y,X) slice into (t,c,:,:,:) and return root .ome.zarr path."""
         data3d = self._to_numpy(getattr(slice, "data", slice))
@@ -189,13 +262,9 @@ class OMEZarrWriter(Writer):
         if self._zyx is None:
             self._zyx = (int(data3d.shape[0]), int(data3d.shape[1]), int(data3d.shape[2]))
 
-        #if dtype of data is < uint16, use the data dtype
-        if np.issubdtype(data3d.dtype, np.integer):
-            self._dtype = (data3d.dtype
-                            if np.iinfo(data3d.dtype).max < np.iinfo(np.uint16).max
-                            else np.uint16)
-        elif np.issubdtype(data3d.dtype, np.floating):
-            #float data, so preserve dtype
+        # Preserve the data's native dtype so label images (uint8, uint32)
+        # and float workflow outputs are not silently truncated.
+        if np.issubdtype(data3d.dtype, np.integer) or np.issubdtype(data3d.dtype, np.floating):
             self._dtype = data3d.dtype
         else:
             raise TypeError(f"Unsupported data dtype: {data3d.dtype}")
@@ -208,7 +277,15 @@ class OMEZarrWriter(Writer):
         if self._arr is None:
             self._root_group, self._arr = self._create_store(t_len, c_len, self._zyx, self._dtype)
         
-        self._arr[t_idx, c_idx, :, :, :] = np.clip(data3d, 0.0, 65535.0).astype(np.uint16)
+        # Convert to the store dtype.  For integer targets, clip to the
+        # valid range to avoid wrap-around; for floats, cast directly.
+        if np.issubdtype(self._dtype, np.integer):
+            info = np.iinfo(self._dtype)
+            self._arr[t_idx, c_idx, :, :, :] = np.clip(
+                data3d, float(info.min), float(info.max)
+            ).astype(self._dtype)
+        else:
+            self._arr[t_idx, c_idx, :, :, :] = data3d.astype(self._dtype)
         return self._root_path
 
     # Optional hook if the framework ever calls it.
@@ -233,25 +310,43 @@ class OMEZarrWriter(Writer):
 
         chunks = (1, 1, *self.chunk_zyx)
 
-        compression_kwargs = get_zarr_compression()
-        #adding compatibility fix for zarr v2 and v3
-        if int(zarr.__version__.split(".")[0]) >= 3:
-            #zarr v3: group class cannot be constructed from path directly
-            root = zarr.open_group(store=str(self._root_path), mode="a")
+        zarr_major = int(zarr.__version__.split(".")[0])
+
+        # Always write zarr v2-format stores for maximum compatibility
+        # (Fiji, OMERO, QuPath, napari).  Use numcodecs compressor
+        # regardless of zarr library version since zarr_format=2
+        # requires numcodecs, not zarr.codecs.
+        from numcodecs import Blosc as _Blosc
+        compressor = _Blosc(cname="zstd", clevel=5, shuffle=_Blosc.SHUFFLE)
+
+        if zarr_major >= 3:
+            root = zarr.open_group(
+                store=str(self._root_path),
+                mode="a",
+                zarr_format=2,
+            )
         else:
-            store = zarr.DirectoryStore(str(self._root_path))
+            store = zarr.DirectoryStore(
+                str(self._root_path),
+                dimension_separator="/",
+            )
             root = zarr.group(store=store)
 
         dataset_kwargs = {
             "shape": (t_len, c_len, zyx[0], zyx[1], zyx[2]),
             "chunks": chunks,
             "dtype": dtype,
-            **compression_kwargs,
+            "compressor": compressor,
         }
-        if int(zarr.__version__.split(".")[0]) < 3:
+        if zarr_major < 3:
             dataset_kwargs["overwrite"] = self.overwrite
+            dataset_kwargs["dimension_separator"] = "/"
 
         arr = root.create_dataset("0", **dataset_kwargs)
+
+        # _ARRAY_DIMENSIONS is expected by xarray and some NGFF readers
+        arr.attrs["_ARRAY_DIMENSIONS"] = ["t", "c", "z", "y", "x"]
+
         self._write_ngff_attrs(root)
         return root, arr
 

@@ -24,6 +24,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+
 class LatticeData(OutputParams, DeskewParams):
     """
     Parameters for the entire deskewing process, including outputs and optional steps such as deconvolution.
@@ -69,10 +70,10 @@ class LatticeData(OutputParams, DeskewParams):
             save_dir = values.get("save_dir")
             if save_dir is None:
                 # By default, make the save dir be the same dir as the input
-                values["save_dir"] = Path(input_image).parent
+                values["save_dir"] = Path(input_image).resolve().parent
             elif is_pathlike(save_dir):
                 # Convert a string path to a Path object
-                values["save_dir"] = Path(save_dir)
+                values["save_dir"] = Path(save_dir).resolve()
 
         # Use the Deskew version of this validator, to do the actual image loading
         return super().read_image(values)
@@ -244,6 +245,23 @@ class LatticeData(OutputParams, DeskewParams):
         "True if deconvolution should be performed"
         return self.deconvolution is not None
 
+    @property
+    def uses_gpu(self) -> bool:
+        """
+        Returns True if any part of the processing pipeline uses the GPU.
+        """
+        import pyclesperanto_prototype as cle
+        # Deskewing with pyclesperanto uses the selected device.
+        # A device is assumed to be a GPU unless its name contains "cpu".
+        # This is more robust than checking for "gpu"/"graphics" keywords,
+        # since NVIDIA/AMD GPUs often don't include those substrings
+        # (e.g. "NVIDIA GeForce RTX 3090", "AMD Radeon RX 6800").
+        device_name = cle.get_device().name.lower()
+        is_gpu_device = "cpu" not in device_name
+        # Deconvolution can also be on the GPU.
+        use_gpu_decon = self.deconvolution is not None and self.deconvolution.decon_processing in [DeconvolutionChoice.cuda_gpu, DeconvolutionChoice.opencl_gpu]
+        return is_gpu_device or use_gpu_decon
+
     def __post_init__(self):
         logger.info(f"Channels: {self.channels}, Time: {self.time}")
         logger.info("If channel and time need to be swapped, you can enforce this by choosing 'Last dimension is channel' when initialising the plugin")
@@ -361,22 +379,64 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices with cropping enabled
         """
+        from lls_core.llsz_core import deskew_large_image, _should_tile_on_gpu
+        import numpy as np
+
         if self.crop is None:
             raise Exception("This function can only be called when crop is set")
         
         for slice in self.iter_slices():
             roi_index = cast(int, slice.roi_index)
             roi = self.crop.roi_list[roi_index]
-            deconv_args: dict[Any, Any] = {}
-            if self.deconvolution is not None:
-                deconv_args = dict(
-                    num_iter = self.deconvolution.decon_num_iter,
-                    psf = self.deconvolution.psf[slice.channel].to_numpy(),
-                    decon_processing=self.deconvolution.decon_processing
-                )
 
-            yield slice.copy(update={
-                "data": crop_volume_deskew(
+            # Calculate shape of cropped region in deskewed space
+            z_start, z_end = self.crop.z_range
+            y_coords = [p[0] for p in roi]
+            x_coords = [p[1] for p in roi]
+            y_min, y_max = int(min(y_coords)), int(max(y_coords))
+            x_min, x_max = int(min(x_coords)), int(max(x_coords))
+
+            crop_output_shape = (z_end - z_start, y_max - y_min, x_max - x_min)
+        
+            # We should consider tiling if the selected pyclesperanto device is a GPU,
+            # as deskewing will happen on it regardless of deconvolution settings.
+            if self.uses_gpu and _should_tile_on_gpu(slice.data.shape, crop_output_shape, np.float32):
+                # Use tiling for this large crop
+                deconv_args = {}
+                if self.deconvolution is not None:
+                    deconv_args = dict(
+                        deconvolution=True,
+                        decon_processing=self.deconvolution.decon_processing,
+                        psf=self.deconvolution.psf[slice.channel].to_numpy(),
+                        num_iter=self.deconvolution.decon_num_iter,
+                        background=self.deconvolution.background,
+                    )
+                from lls_core.models.results import _ensure_numpy
+                deskewed_data = _ensure_numpy(
+                    deskew_large_image(
+                        original_volume=slice.data,
+                        deskewed_shape=crop_output_shape,
+                        angle_in_degrees=self.angle,
+                        voxel_size_x=self.dx,
+                        voxel_size_y=self.dy,
+                        voxel_size_z=self.dz,
+                        skew_dir=self.skew,
+                        offset=(z_start, y_min, x_min),
+                        **deconv_args,
+                    ),
+                    use_gpu=self.uses_gpu,
+                )
+            else:
+                # Process this crop in-memory
+                deconv_args = {}
+                if self.deconvolution is not None:
+                    deconv_args = dict(
+                        num_iter=self.deconvolution.decon_num_iter,
+                        psf=self.deconvolution.psf[slice.channel].to_numpy(),
+                        decon_processing=self.deconvolution.decon_processing,
+                        background=self.deconvolution.background,
+                    )
+                deskewed_data = crop_volume_deskew(
                     original_volume=slice.data,
                     deconvolution=self.deconv_enabled,
                     get_deskew_and_decon=False,
@@ -387,11 +447,14 @@ class LatticeData(OutputParams, DeskewParams):
                     voxel_size_y=self.dy,
                     voxel_size_z=self.dz,
                     angle_in_degrees=self.angle,
-                    deskewed_volume=self.deskewed_volume,
+                    skew_dir=self.skew,
                     z_start=self.crop.z_range[0],
                     z_end=self.crop.z_range[1],
-                    **deconv_args
-                ),
+                    **deconv_args,
+                )
+
+            yield slice.copy(update={
+                "data": deskewed_data,
                 "roi_index": roi_index
             })
             
@@ -399,12 +462,28 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices without cropping
         """
+        from lls_core.llsz_core import deskew_xy_tiles, _should_tile_on_gpu
+        import numpy as np
         import pyclesperanto_prototype as cle
+
+        # Check once whether tiling is needed for this image
+        tile = self.uses_gpu and _should_tile_on_gpu(
+            self.slice_data(0, 0).shape, self.derived.deskew_vol_shape, np.float32
+        )
+
+        # Capture the original input dtype so output can match it
+        original_dtype = self.input_image.dtype
 
         for slice in self.iter_slices():
             data: ArrayLike = slice.data
-            if isinstance(slice.data, DaskArray):
-                data = slice.data.compute()
+
+            # Always pre-load into RAM to avoid repeated disk I/O
+            if isinstance(data, DaskArray):
+                data = data.compute()
+            elif not isinstance(data, np.ndarray):
+                data = np.asarray(data)
+
+            # Deconvolution (before deskewing, same order as non-tiled path)
             if self.deconvolution is not None:
                 if self.deconvolution.decon_processing == DeconvolutionChoice.cuda_gpu:
                     data = pycuda_decon(
@@ -415,7 +494,7 @@ class LatticeData(OutputParams, DeskewParams):
                         dxdata=self.dx,
                         dzpsf=self.dz,
                         dxpsf=self.dx,
-                        num_iter=self.deconvolution.decon_num_iter
+                        num_iter=self.deconvolution.decon_num_iter,
                     )
                 else:
                     data = skimage_decon(
@@ -424,19 +503,40 @@ class LatticeData(OutputParams, DeskewParams):
                         num_iter=self.deconvolution.decon_num_iter,
                         clip=False,
                         filter_epsilon=0,
-                        boundary='nearest'
+                        boundary="nearest",
                     )
 
-            yield slice.copy_with_data(
-                cle.pull_zyx(self.deskew_func(
-                    input_image=data,
+            if tile:
+                deskewed = deskew_xy_tiles(
+                    input_volume=data,
+                    deskew_vol_shape=self.derived.deskew_vol_shape,
                     angle_in_degrees=self.angle,
-                    linear_interpolation=True,
                     voxel_size_x=self.dx,
                     voxel_size_y=self.dy,
-                    voxel_size_z=self.dz
-                ))
-            )
+                    voxel_size_z=self.dz,
+                    skew_dir=self.skew,
+                    output_dtype=original_dtype,
+                )
+                yield slice.copy_with_data(deskewed)
+            else:
+                deskewed_in_mem = cle.pull_zyx(
+                    self.deskew_func(
+                        input_image=data,
+                        angle_in_degrees=self.angle,
+                        linear_interpolation=True,
+                        voxel_size_x=self.dx,
+                        voxel_size_y=self.dy,
+                        voxel_size_z=self.dz,
+                    )
+                )
+                # Convert output to match input dtype
+                if deskewed_in_mem.dtype != original_dtype:
+                    if np.issubdtype(original_dtype, np.integer):
+                        iinfo = np.iinfo(original_dtype)
+                        deskewed_in_mem = np.clip(deskewed_in_mem, iinfo.min, iinfo.max).astype(original_dtype)
+                    else:
+                        deskewed_in_mem = deskewed_in_mem.astype(original_dtype)
+                yield slice.copy_with_data(deskewed_in_mem)
 
     def process_workflow(self) -> WorkflowSlices:
         """

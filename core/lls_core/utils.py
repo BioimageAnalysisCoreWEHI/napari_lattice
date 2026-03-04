@@ -365,3 +365,26 @@ def get_zarr_compression():
                 shuffle=Blosc.SHUFFLE,
             )
         )
+
+
+def get_max_allocation_size():
+    """Returns maximum memory allocation size for the currently selected OpenCL device.
+    Returns:
+        int or None: Maximum allocation size in bytes, or None if unavailable.
+    """
+    try:
+        return cle.get_device().device.max_mem_alloc_size
+    except Exception:
+        logger.error("Could not determine MAX_MEM_ALLOC_SIZE for the selected device")
+        return None
+
+def get_global_mem_size():
+    """Returns global memory size for the currently selected OpenCL device in bytes.
+    Returns:
+        int or None: Global memory size in bytes, or None if unavailable.
+    """
+    try:
+        return cle.get_device().device.global_mem_size
+    except Exception:
+        logger.error("Could not determine GLOBAL_MEM_SIZE for the selected device")
+        return None

@@ -15,6 +15,15 @@ if TYPE_CHECKING:
     from numpy.typing import NDArray
     from lls_core.models.lattice_data import LatticeData
 
+
+def _ensure_numpy(data: ArrayLike, use_gpu: bool) -> ArrayLike:
+    """Compute dask arrays serially when using GPU to avoid VRAM exhaustion."""
+    from dask.array.core import Array as DaskArray
+    if isinstance(data, DaskArray) and use_gpu:
+        return data.compute(scheduler="single-threaded")
+    return data
+
+
 T = TypeVar("T")
 S = TypeVar("S")
 R = TypeVar("R")
@@ -79,10 +88,11 @@ class ImageSlices(ProcessedSlices[ArrayLike]):
         """
         Extracts a single 3D image for each ROI
         """
-        import numpy as np
+        use_gpu = self.lattice_data.uses_gpu
+
         def _preview(slices: Iterable[ProcessedSlice[ArrayLike]]) -> ArrayLike:
             for slice in slices:
-                return slice.data
+                return _ensure_numpy(slice.data, use_gpu)
             raise Exception("This ROI has no images. This shouldn't be possible")
 
         for roi_index, slices in groupby(self.slices, key=lambda slice: slice.roi_index):
@@ -157,24 +167,26 @@ class WorkflowSlices(ProcessedSlices[MaybeTupleRawWorkflowOutput]):
         from lls_core.models.lattice_data import LatticeData
         ProcessedWorkflowOutput.update_forward_refs(LatticeData=LatticeData)
 
+        use_gpu = self.lattice_data.uses_gpu
+
         # Handle each ROI separately
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
             values: list[Union[Writer, list]] = []
             for result in roi_results:
                 # If the user didn't return a tuple, put it into one
                 for i, element in enumerate(result.as_tuple()):
+                    slice_to_write = result.copy_with_data(element)
                     # If the element is array like, we assume it's an image to write to disk
-                    if is_arraylike(element):
+                    if is_arraylike(slice_to_write.data):
                         # Make the writer the first time only
                         if len(values) <= i:
                             values.append(self.lattice_data.get_writer()(self.lattice_data, roi_index=roi))
 
                         writer = cast(Writer, values[i])
-                        writer.write_slice(
-                            result.copy_with_data(
-                                element
-                            )
+                        slice_to_write = slice_to_write.copy_with_data(
+                            _ensure_numpy(slice_to_write.data, use_gpu)
                         )
+                        writer.write_slice(slice_to_write)
                     else:
                         # Otherwise, we assume it's one row to be added to a data frame
                         if len(values) <= i:
@@ -233,11 +245,13 @@ class WorkflowSlices(ProcessedSlices[MaybeTupleRawWorkflowOutput]):
         Extracts a single 3D image for each ROI
         """
         import numpy as np
+        use_gpu = self.lattice_data.uses_gpu
+
         def _preview(slices: Iterable[ProcessedSlice[MaybeTupleRawWorkflowOutput]]) -> NDArray:
             for slice in slices:
                 for value in slice.as_tuple():
                     if is_arraylike(value):
-                        return np.asarray(value)
+                        return np.asarray(_ensure_numpy(value, use_gpu))
             raise Exception("This ROI has no images. This shouldn't be possible")
 
         for roi_index, slices in groupby(self.slices, key=lambda slice: slice.roi_index):
