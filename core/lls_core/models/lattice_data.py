@@ -471,8 +471,12 @@ class LatticeData(OutputParams, DeskewParams):
             self.slice_data(0, 0).shape, self.derived.deskew_vol_shape, np.float32
         )
 
-        # Capture the original input dtype so output can match it
+        # Capture the original input dtype so integer outputs can match it.
+        # For floating-point inputs we keep the GPU's native float32 to avoid
+        # upcasting to float64 (which ImageJ TIFF doesn't support).
         original_dtype = self.input_image.dtype
+        if not np.issubdtype(original_dtype, np.integer):
+            original_dtype = np.dtype(np.float32)
 
         for slice in self.iter_slices():
             data: ArrayLike = slice.data
