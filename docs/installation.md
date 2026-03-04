@@ -11,12 +11,12 @@ First, create a new conda environment. To do this, you can look for Miniforge Pr
 
 
 ```bash
-mamba create -n napari-lattice -c conda-forge "python==3.10" uv pycudadecon 
+mamba create -n napari-lattice -c conda-forge "python==3.11" uv pycudadecon 
 ```
 
 !!! info
-
-    We include `pycudadecon` to enable GPU accelerated deconvolution.
+    Python 3.10, 3.11 or 3.12 are supported
+    If you do not want deconvolution, you can omit `pycudadecon` from above.
 
 Activate that environment:
 
@@ -40,7 +40,7 @@ uv pip install lls-core napari-lattice
 If you do not need to use napari, then you can install just the command line interface only, which has all the features
 
 ```bash
-mamba create -n napari-lattice -c conda-forge "python==3.10" uv pycudadecon "numpy<2"
+mamba create -n napari-lattice -c conda-forge "python==3.11" uv pycudadecon
 ```
 
 ```bash
@@ -56,5 +56,4 @@ To install the development version of `lls-core`, create the `napari-lattice` en
 git clone https://github.com/BioimageAnalysisCoreWEHI/napari_lattice.git
 cd napari_lattice
 uv pip install -e core -e plugin
-uv pip install napari --upgrade "numpy<2"
 ```
