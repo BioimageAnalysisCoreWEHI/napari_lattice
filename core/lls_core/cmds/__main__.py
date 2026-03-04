@@ -168,12 +168,45 @@ def process(
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 
+    device: Optional[str] = Option(None, help="OpenCL device to use for GPU processing. Substring match, e.g. 'RTX' or 'Intel'. Use 'list' to show available devices and exit."),
+
     show_schema: bool = Option(default=False, help="If provided, image processing will not be performed, and instead a JSON document outlining the JSON/YAML options will be printed to stdout. This can be used to assist with writing a config file for use with the --json-config and --yaml-config options.")
 ) -> None:
     from click.core import ParameterSource
     from rich.console import Console
+    import pyclesperanto_prototype as cle
+    import logging
+
+    # Show INFO-level messages from lls_core so tiling/GPU info is visible
+    logging.basicConfig(level=logging.WARNING)
+    logging.getLogger("lls_core").setLevel(logging.INFO)
 
     console = Console(stderr=True)
+
+    # Handle --device before anything else
+    if device is not None:
+        if device.lower() == "list":
+            console.print("[bold]Available OpenCL devices:[/bold]")
+            for name in cle.available_device_names():
+                marker = " [green](selected)[/green]" if name == cle.get_device().name else ""
+                console.print(f"  - {name}{marker}")
+            raise Exit()
+        cle.select_device(device)
+        console.print(f"Using device: {cle.get_device().name}")
+    else:
+        # Warn if there are other GPU devices available that aren't selected
+        selected = cle.get_device().name
+        other_gpus = [
+            name for name in cle.available_device_names()
+            if name != selected and "cpu" not in name.lower()
+        ]
+        if other_gpus:
+            console.print(
+                f"[yellow]Warning:[/yellow] Using [bold]{selected}[/bold], "
+                f"but other GPU(s) detected: {', '.join(other_gpus)}. "
+                f"Use [bold]--device[/bold] to select a different device "
+                f"(or [bold]--device list[/bold] to see all)."
+            )
 
     if show_schema:
         import json
