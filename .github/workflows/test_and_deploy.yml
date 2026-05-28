@@ -32,7 +32,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: conda-incubator/setup-miniconda@v2
+      - uses: conda-incubator/setup-miniconda@v3
         with:
           auto-update-conda: true
           activate-environment: test
@@ -87,8 +87,7 @@ jobs:
         os: [windows-latest]
 
     env:
-      DISPLAY: ":0"
-      QT_API: pyqt5
+      QT_API: pyqt6
     steps:
       - uses: actions/checkout@v6
 
@@ -110,7 +109,7 @@ jobs:
       - name: Install core & plugin
         timeout-minutes: 10
         run: |
-          conda install -y pyqt=5.* qtpy pyopencl pocl pytest-qt typing-extensions
+          conda install -y qtpy pyopencl pocl pytest-qt typing-extensions
           uv pip install --upgrade pip setuptools wheel
           # Install core and plugin
           uv pip install -e './core[testing]'
