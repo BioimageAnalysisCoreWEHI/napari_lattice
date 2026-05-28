@@ -109,11 +109,22 @@ jobs:
       - name: Install core & plugin
         timeout-minutes: 10
         run: |
-          conda install -y qtpy pyopencl pocl pytest-qt typing-extensions
+          conda install -y qtpy pyopencl oclgrind pytest-qt typing-extensions
           uv pip install --upgrade pip setuptools wheel
           # Install core and plugin
           uv pip install -e './core[testing]'
           uv pip install -e './plugin[testing]'
+
+      - name: Register oclgrind OpenCL ICD
+        shell: pwsh
+        run: |
+          # Find oclgrind DLL
+          $dll = Get-ChildItem "C:\Miniconda\envs\test\Library\bin" -Filter "*oclgrind*" | Select-Object -First 1
+          Write-Host "Found: $($dll.FullName)"
+          $regPath = "HKLM:\SOFTWARE\Khronos\OpenCL\Vendors"
+          if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+          New-ItemProperty -Path $regPath -Name $dll.FullName -Value 0 -PropertyType DWORD -Force | Out-Null
+          Write-Host "Registered oclgrind in OpenCL ICD registry"
       
       # strategy borrowed from vispy for installing opengl libs on windows
       - name: Install Windows OpenGL
@@ -128,7 +139,7 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test plugin
-        timeout-minutes: 10
+        timeout-minutes: 18
         run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
