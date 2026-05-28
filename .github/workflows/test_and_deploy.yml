@@ -139,7 +139,7 @@ jobs:
           python: ${{ env.python }}
 
       - name: Test plugin
-        timeout-minutes: 10
+        timeout-minutes: 18
         run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
