@@ -118,8 +118,12 @@ jobs:
       - name: Configure pocl ICD
         shell: bash -l {0}
         run: |
-          POCL=$(find /c/Miniconda/envs/test -name "pocl*.dll" 2>/dev/null | head -1)
-          echo "OCL_ICD_FILENAMES=$POCL" >> "$GITHUB_ENV"
+          echo "=== All pocl files ==="
+          find /c/Miniconda/envs/test -name "*pocl*" 2>/dev/null
+          echo "=== OpenCL vendor files ==="
+          find /c/Miniconda/envs/test -name "*OpenCL*" -o -name "*.icd" 2>/dev/null
+          echo "=== Library/bin contents (opencl related) ==="
+          ls /c/Miniconda/envs/test/Library/bin/ | grep -i -E "pocl|opencl|ocl"
       
       # strategy borrowed from vispy for installing opengl libs on windows
       - name: Install Windows OpenGL
