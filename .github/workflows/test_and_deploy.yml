@@ -114,6 +114,12 @@ jobs:
           # Install core and plugin
           uv pip install -e './core[testing]'
           uv pip install -e './plugin[testing]'
+
+      - name: Configure pocl ICD
+        shell: bash -l {0}
+        run: |
+          POCL=$(find /c/Miniconda/envs/test -name "pocl*.dll" 2>/dev/null | head -1)
+          echo "OCL_ICD_FILENAMES=$POCL" >> "$GITHUB_ENV"
       
       # strategy borrowed from vispy for installing opengl libs on windows
       - name: Install Windows OpenGL
