@@ -238,6 +238,7 @@ class DeskewFields(NapariFieldGroup):
         else:
             raise Exception("Only 3-5 dimensional arrays are supported")
 
+    # --- Input / interpretation ---
     img_layer = field(List[Image], widget_type='Select').with_options(
         label="Image Layer(s) to Deskew",
         tooltip="All the image layers you select will be stacked into one image and then deskewed. To select multiple layers, hold Command (MacOS) or Control (Windows, Linux)."
@@ -251,21 +252,6 @@ class DeskewFields(NapariFieldGroup):
         tooltip="The direction along which to stack multiple selected layers.",
         value=StackAlong.CHANNEL
     )
-    pixel_sizes_source = field(PixelSizeSource.Metadata, widget_type="RadioButtons").with_options(label="Pixel Size Source", orientation="horizontal").with_choices([it.value for it in PixelSizeSource])
-    pixel_sizes = field(Tuple[float, float, float]).with_options(
-        label="Pixel Sizes: XYZ (µm)",
-        tooltip="The size of each pixel in microns. The first field selects the X pixel size, then Y, then Z."
-    )
-    angle = field(LatticeData.get_default("angle")).with_options(
-        value=LatticeData.get_default("angle"),
-        label="Skew Angle (°)",
-        tooltip="The angle to deskew the image, in degrees"
-    )
-    device = field(str).with_choices(cle.available_device_names()).with_options(
-        label="Graphics Device",
-        tooltip="The GPU that will be used to perform the processing"
-    )
-    # merge_all_channels = field(False).with_options(label="Merge all Channels")
     dimension_order = field(
         str
     ).with_choices(
@@ -275,10 +261,22 @@ class DeskewFields(NapariFieldGroup):
         tooltip="Specifies the order of dimensions in the input images. For example, if your image is a 4D array with multiple channels along the first axis, you will specify CZYX.",
         value="Get from Metadata"
     )
+    pixel_sizes_source = field(PixelSizeSource.Metadata, widget_type="RadioButtons").with_options(label="Pixel Size Source", orientation="horizontal").with_choices([it.value for it in PixelSizeSource])
+    pixel_sizes = field(Tuple[float, float, float]).with_options(
+        label="Pixel Sizes: XYZ (µm)",
+        tooltip="The size of each pixel in microns. The first field selects the X pixel size, then Y, then Z."
+    )
+
+    # --- Skew geometry ---
     skew_dir = field(DeskewDirection.Y, widget_type="RadioButtons").with_options(
         label="Skew Direction",
         tooltip="The axis along which to deskew",
         orientation="horizontal"
+    )
+    angle = field(LatticeData.get_default("angle")).with_options(
+        value=LatticeData.get_default("angle"),
+        label="Skew Angle (°)",
+        tooltip="The angle to deskew the image, in degrees"
     )
     invert_scan_direction = field(DeskewParams.get_default("invert_scan_direction")).with_options(
         label="Invert Scan Direction",
@@ -286,6 +284,13 @@ class DeskewFields(NapariFieldGroup):
                 "Enable this for microscopes whose scan direction can be reversed.\n"
                 "Leaving it False preserves original behaviour compatible with Zeiss LLS."
     )
+
+    # --- Processing / preview ---
+    device = field(str).with_choices(cle.available_device_names()).with_options(
+        label="Graphics Device",
+        tooltip="The GPU that will be used to perform the processing"
+    )
+    # merge_all_channels = field(False).with_options(label="Merge all Channels")
     quick_deskew = field(False).with_options(
         label="Quick Deskew",
         tooltip = "View the deskewed image. This does NOT generate a new image, but instead transforms\nthe current image in the viewer. Use `Preview` to generate a new image.")
