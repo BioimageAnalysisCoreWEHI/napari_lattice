@@ -254,7 +254,7 @@ class LatticeData(OutputParams, DeskewParams):
         if channel > self.channels:
             raise ValueError("channel is out of range")
 
-        return self.input_image.isel(T=time, C=channel)
+        return self.apply_scan_flip(self.input_image.isel(T=time, C=channel))
 
     def iter_roi_indices(self) -> Iterable[Optional[int]]:
         """
@@ -312,6 +312,9 @@ class LatticeData(OutputParams, DeskewParams):
                 crop = None
             new_lattice = self.copy_validate(update={
                 "input_image": subarray.data,
+                # The scan flip is already baked into subarray.data by slice_data, so
+                # disable it here to avoid flipping the volume a second time.
+                "invert_scan_direction": False,
                 "time_range": range(1),
                 "channel_range": range(1),
                 "crop": crop,

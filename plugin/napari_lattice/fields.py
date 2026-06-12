@@ -217,6 +217,7 @@ class NapariFieldGroup(MagicTemplate):
 class DeskewKwargs(NapariImageParams):
     angle: float
     skew: DeskewDirection
+    invert_scan_direction: bool
 
 @magicclass
 class DeskewFields(NapariFieldGroup):
@@ -278,6 +279,12 @@ class DeskewFields(NapariFieldGroup):
         label="Skew Direction",
         tooltip="The axis along which to deskew",
         orientation="horizontal"
+    )
+    invert_scan_direction = field(DeskewParams.get_default("invert_scan_direction")).with_options(
+        label="Invert Scan Direction",
+        tooltip="Reverse the order of planes along the scan (Z) axis before deskewing.\n"
+                "Enable this for microscopes whose scan direction can be reversed.\n"
+                "Leaving it False preserves original behaviour compatible with Zeiss LLS."
     )
     quick_deskew = field(False).with_options(
         label="Quick Deskew",
@@ -345,11 +352,13 @@ class DeskewFields(NapariFieldGroup):
     @quick_deskew.connect
     @skew_dir.connect #when deskewing parameters change
     @angle.connect
+    @invert_scan_direction.connect
     @pixel_sizes_source.connect
     @pixel_sizes.connect
     def _quick_deskew(self):
         image: Image
-        #Apply quick deskew where image is displayed in canvas as deskewed. 
+        import numpy as np
+        #Apply quick deskew where image is displayed in canvas as deskewed.
         #get value of quick deskew
         quick_deskew = self.quick_deskew.value
         #If quick deskew is True
@@ -385,9 +394,21 @@ class DeskewFields(NapariFieldGroup):
             ndim_display = 2
 
         #transform each image layer selected
+        invert_raw_view = affine_transform is None and self.invert_scan_direction.value
         for image in self.img_layer.value:
             #we do not inverse transform as napari goes from input to output space
-            image.affine = affine_transform
+            if invert_raw_view:
+                # Quick Deskew is off but the scan direction is inverted: give visual
+                # feedback by showing the raw layer with its scan (Z) axis reversed,
+                # without switching to a 3D view. This mirrors the flip that processing
+                # applies. The reflection is in data-index space (z -> nz - 1 - z).
+                nz = image.data.shape[-3]
+                layer_affine = np.eye(4)
+                layer_affine[0, 0] = -1
+                layer_affine[0, 3] = nz - 1
+                image.affine = layer_affine
+            else:
+                image.affine = affine_transform
             image.scale = scale
         
         try:
@@ -418,6 +439,7 @@ class DeskewFields(NapariFieldGroup):
             **params,
             angle=self.angle.value,
             skew = self.skew_dir.value,
+            invert_scan_direction=self.invert_scan_direction.value,
         )
 
     def _make_model(self) -> DeskewParams:
@@ -427,6 +449,7 @@ class DeskewFields(NapariFieldGroup):
             physical_pixel_sizes=kwargs["physical_pixel_sizes"],
             angle=kwargs["angle"],
             skew = kwargs["skew"],
+            invert_scan_direction=kwargs["invert_scan_direction"],
         )
 
 @magicclass
