@@ -58,6 +58,7 @@ class LLSZWidget(MagicTemplate):
             angle=deskew_args["angle"],
             physical_pixel_sizes=deskew_args["physical_pixel_sizes"],
             skew=deskew_args["skew"],
+            invert_scan_direction=deskew_args["invert_scan_direction"],
 
             # Output
             channel_range=output_args.channel_range,

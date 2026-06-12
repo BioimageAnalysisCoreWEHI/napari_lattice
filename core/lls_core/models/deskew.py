@@ -70,6 +70,12 @@ class DeskewParams(FieldAccessModel):
         description="Pixel size of the microscope, in microns. This can alternatively be provided as a `tuple[float]` of `(Z, Y, X)`",
         default=None
     )
+    invert_scan_direction: bool = Field(
+        default=False,
+        description="If `True`, reverse the order of planes along the scan (Z) axis before deskewing. "
+                    "This is required for oblique plane microscopes whose stage/galvo scans can be in opposite directions. "
+                    "Leaving this `False` preserves the original behaviour compatible with Zeiss LLS."
+    )
     derived: DerivedDeskewFields = Field(
         init_var=False,
         default=None,
@@ -152,6 +158,17 @@ class DeskewParams(FieldAccessModel):
         import math
         return math.sin(self.angle * math.pi / 180.0) * self.dz
 
+    def apply_scan_flip(self, volume: DataArray) -> DataArray:
+        """
+        Reverse the plane/scan (Z) axis of a volume if `invert_scan_direction` is set.
+        This is a lazy operation (a view for numpy-backed arrays, lazy for dask), so it
+        adds no measurable cost and does not introduce a second resampling pass.
+        The scan axis is always Z (the plane-stacking axis), regardless of skew direction.
+        """
+        if self.invert_scan_direction:
+            return volume.isel(Z=slice(None, None, -1))
+        return volume
+
     @validator("skew", pre=True)
     def convert_skew(cls, v: Any):
         # Allow skew to be provided as a string
@@ -226,7 +243,7 @@ class DeskewParams(FieldAccessModel):
         return array.transpose("T", "C", "Z", "Y", "X")
 
     def get_3d_slice(self) -> DataArray:
-        return self.input_image.isel(C=0, T=0)
+        return self.apply_scan_flip(self.input_image.isel(C=0, T=0))
 
     @validator("derived", always=True)
     def calculate_derived(cls, v: Any, values: dict) -> DerivedDeskewFields:
@@ -246,6 +263,19 @@ class DeskewParams(FieldAccessModel):
                 values["skew"]
             )
             deskew_affine_transform_zyx = convert_xyz_to_zyx_order(deskew_affine_transform)
+            if values.get("invert_scan_direction"):
+                # The actual deskew/crop output flips the scan (Z) axis of the data (see
+                # `apply_scan_flip`). The deskew transform itself is shape-derived and so
+                # is identical regardless of the flip, which means the in-canvas "Quick
+                # Deskew" display (the only consumer of this matrix) would otherwise ignore
+                # the flag. Fold the Z reflection into the *display* transform so that
+                # applying it to the unflipped layer reproduces the flipped-then-deskewed
+                # geometry, matching the processed/preview output.
+                nz = int(data.sizes["Z"])
+                flip_zyx = np.eye(4)
+                flip_zyx[0, 0] = -1
+                flip_zyx[0, 3] = nz - 1
+                deskew_affine_transform_zyx = deskew_affine_transform_zyx @ flip_zyx
             return DerivedDeskewFields(
                 deskew_affine_transform=deskew_affine_transform,
                 deskew_vol_shape=deskew_vol_shape,
