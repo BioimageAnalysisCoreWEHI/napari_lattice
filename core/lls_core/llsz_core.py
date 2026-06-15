@@ -11,6 +11,7 @@ from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
     affine_transform_deskew_3d,
 )
 from numpy.typing import NDArray
+import math
  
 from lls_core.utils import calculate_crop_bbox
 from lls_core import config, DeskewDirection
@@ -49,6 +50,7 @@ class CommonArgs(TypedDict, total=False):
     psf: Union[Psf, None]
     num_iter: int
     linear_interpolation: bool
+    background: Union[float, str]
     skew_dir: DeskewDirection
 
 @overload
@@ -76,6 +78,7 @@ def crop_volume_deskew(
     psf: Union[Psf, None]=None,
     num_iter: int = 10,
     linear_interpolation: bool=True,
+    background: Union[float, str] = 0,
     skew_dir: DeskewDirection=DeskewDirection.Y,
     get_deskew_and_decon: bool = False,
 ):
@@ -96,6 +99,7 @@ def crop_volume_deskew(
         psf (_type_, optional): Pass a psf array for deconvolution. Defaults to None.
         num_iter (int, optional): Number of Iterations for Richardson Lucy deconvolution. Defaults to 10.
         linear_interpolation (bool, optional): Linear Interpolation after deskewing. Defaults to True.
+        background (float, str, optional): Background value to subtract for deconvolution. Defaults to 0.
         skew_direct (DeskewDirection, optional): Deskew direction. Defaults to DeskewDirection.Y.
         get_deskew_no_decon (bool, optional): Return both deconvolved data and deskewed data with no deconvolution. Defaults to False.
 
@@ -223,6 +227,7 @@ def crop_volume_deskew(
                 dxpsf=voxel_size_x,
                 num_iter=num_iter,
                 cropping=True,
+                background=background,
             )
         else:
             crop_volume_processed = skimage_decon(
@@ -535,3 +540,468 @@ def _yield_arr_slice(img):
 
     for slice in img:
         yield slice
+
+
+def _fit_to_shape(result: NDArray, expected_shape: Tuple[int, ...]) -> NDArray:
+    """
+    Pad or crop `result` so its shape matches `expected_shape`.
+
+    This handles the edge-of-volume case where `crop_volume_deskew` may
+    return a slightly different shape than requested.
+    """
+    if result.shape == expected_shape:
+        return result
+    output = np.zeros(expected_shape, dtype=result.dtype)
+    slicers = tuple(
+        slice(0, min(result.shape[i], expected_shape[i]))
+        for i in range(result.ndim)
+    )
+    output[slicers] = result[slicers]
+    return output
+
+
+def _cast_dtype(data: NDArray, target: np.dtype) -> NDArray:
+    """Clip (for integers) and cast `data` to `target` dtype."""
+    if data.dtype == target:
+        return data
+    if np.issubdtype(target, np.integer):
+        iinfo = np.iinfo(target)
+        np.clip(data, float(iinfo.min), float(iinfo.max), out=data)
+    return data.astype(target)
+
+
+def _write_xy_tile(output: NDArray, y_start: int, x_start: int, tile: NDArray) -> None:
+    """Write a non-overlapping XY tile (full Z) into the output array."""
+    y_end = y_start + tile.shape[1]
+    x_end = x_start + tile.shape[2]
+    output[:tile.shape[0], y_start:y_end, x_start:x_end] = tile
+
+
+def deskew_xy_tiles(
+    input_volume: NDArray,
+    deskew_vol_shape: Tuple[int, ...],
+    angle_in_degrees: float,
+    voxel_size_x: float,
+    voxel_size_y: float,
+    voxel_size_z: float,
+    skew_dir: DeskewDirection,
+    output_dtype: Any = None,
+) -> NDArray:
+    """Deskew a volume by tiling in XY only, keeping the full Z per tile.
+
+    Each tile will call ``crop_volume_deskew`` with z_start=0, z_end=oz and a
+    small YX ROI.  This avoids Z-boundary artifacts caused by the deskew
+    shear. Tile writing of tile N will overlap with GPU procesing of tile N+1 GPU using a background thread.
+    This will make it faster.
+
+    Args:
+        input_volume: 3D numpy array (ZYX), already in memory.
+        deskew_vol_shape: Expected shape of the full deskewed output (Z, Y, X).
+        angle_in_degrees: Deskewing angle.
+        voxel_size_x, voxel_size_y, voxel_size_z: Pixel sizes in microns.
+        skew_dir: Deskew direction (DeskewDirection.Y or DeskewDirection.X).
+        output_dtype: If set, convert the output to this dtype.
+
+    Returns:
+        NDArray: Deskewed volume in output_dtype (or float32 if not specified).
+    """
+    #TODO: What if input volume is large on Z and does not fit; Perhaps we'll need to tile in XYZ then
+    from concurrent.futures import ThreadPoolExecutor
+    import tempfile as _tempfile
+    import os as _os
+
+    oz, oy, ox = deskew_vol_shape
+    target = np.dtype(output_dtype) if output_dtype is not None else np.dtype(np.float32)
+
+    tile_y, tile_x = get_xy_tile_sizes(
+        input_volume.shape, deskew_vol_shape, skew_dir
+    )
+
+    n_tiles_y = math.ceil(oy / tile_y)
+    n_tiles_x = math.ceil(ox / tile_x)
+
+    # Overlap margin on the shear axis — only when there are multiple tiles
+    if skew_dir == DeskewDirection.Y:
+        y_margin = _compute_overlap_margin(tile_y) if n_tiles_y > 1 else 0
+        x_margin = 0
+    else:
+        y_margin = 0
+        x_margin = _compute_overlap_margin(tile_x) if n_tiles_x > 1 else 0
+    logger.info(
+        f"XY tiling: {n_tiles_y}x{n_tiles_x} tiles of ({oz}, {tile_y}, {tile_x}), "
+        f"Y margin={y_margin}, X margin={x_margin}"
+    )
+
+    # Allocate output (memmap for >2 GB, ndarray otherwise)
+    _memmap_path = None
+    output_bytes = math.prod(deskew_vol_shape) * target.itemsize
+    if output_bytes > 2 * 1024**3:
+        _tmpfd, _memmap_path = _tempfile.mkstemp(suffix='.mmap')
+        _os.close(_tmpfd)
+        output = np.memmap(
+            _memmap_path, dtype=target, mode='w+', shape=deskew_vol_shape
+        )
+        logger.info(
+            f"Using memory-mapped output ({output_bytes / 1e9:.1f} GB, {target})"
+        )
+    else:
+        output = np.zeros(deskew_vol_shape, dtype=target)
+
+    # Pipeline: GPU on main thread, write on background thread
+    prev_future = None
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        for yi in range(0, oy, tile_y):
+            for xi in range(0, ox, tile_x):
+                y_start = yi
+                y_end = min(yi + tile_y, oy)
+                x_start = xi
+                x_end = min(xi + tile_x, ox)
+
+                # Wait for previous write before submitting the next GPU result
+                if prev_future is not None:
+                    prev_future.result()
+
+                # Expand shear axis by margin
+                y_start_exp = max(0, y_start - y_margin)
+                y_end_exp = min(oy, y_end + y_margin)
+                x_start_exp = max(0, x_start - x_margin)
+                x_end_exp = min(ox, x_end + x_margin)
+
+                roi_shape = [
+                    [y_start_exp, x_start_exp],
+                    [y_start_exp, x_end_exp],
+                    [y_end_exp, x_end_exp],
+                    [y_end_exp, x_start_exp],
+                ]
+
+                result = crop_volume_deskew(
+                    original_volume=input_volume,
+                    roi_shape=roi_shape,
+                    z_start=0,
+                    z_end=oz,
+                    angle_in_degrees=angle_in_degrees,
+                    voxel_size_x=voxel_size_x,
+                    voxel_size_y=voxel_size_y,
+                    voxel_size_z=voxel_size_z,
+                    skew_dir=skew_dir,
+                    deconvolution=False,
+                )
+
+                # Fit to expanded shape, then trim margins
+                expanded_shape = (oz, y_end_exp - y_start_exp, x_end_exp - x_start_exp)
+                result = _fit_to_shape(result, expanded_shape)
+
+                y_trim = y_start - y_start_exp
+                x_trim = x_start - x_start_exp
+                result = result[
+                    :,
+                    y_trim : y_trim + (y_end - y_start),
+                    x_trim : x_trim + (x_end - x_start),
+                ]
+
+                result = _cast_dtype(result, target)
+                prev_future = pool.submit(
+                    _write_xy_tile, output, y_start, x_start, result
+                )
+
+        if prev_future is not None:
+            prev_future.result()
+
+    if _memmap_path is not None:
+        output.flush()
+        # Copy to a regular numpy array and clean up the temp file.
+        # The memmap was only needed during tiling to avoid holding
+        # the full output + GPU buffers in RAM simultaneously.
+        result = np.array(output)
+        del output
+        try:
+            _os.unlink(_memmap_path)
+            logger.info(f"Cleaned up memmap temp file: {_memmap_path}")
+        except OSError:
+            logger.warning(f"Could not remove memmap temp file: {_memmap_path}")
+        return result
+
+    return output
+
+
+def _should_tile_on_gpu(input_shape, output_shape: Tuple[int, ...], dtype: Any) -> bool:
+    """
+    Check if an image of a given shape and dtype should be tiled for GPU processing.
+    Tiling is recommended if the image size is > 95% of the GPU's max allocation size.
+    or if the combined size of input and output buffers exceeds available VRAM.
+    """
+    from lls_core.utils import get_max_allocation_size, get_global_mem_size
+
+    max_alloc = get_max_allocation_size()
+    global_mem = get_global_mem_size()
+
+    if not max_alloc or not global_mem:
+        # If we can't get GPU memory, it's safer to tile.
+        logger.warning("Could not determine GPU memory information. Falling back to tiling.")
+        return True
+
+    # All GPU buffers are float32 (pyclesperanto converts internally)
+    BYTES_PER_ELEMENT = 4
+    output_bytes = math.prod(output_shape) * BYTES_PER_ELEMENT
+    input_bytes = math.prod(input_shape) * BYTES_PER_ELEMENT
+
+    # Check 1: A single buffer cannot exceed MAX_MEM_ALLOC_SIZE.
+    if output_bytes > max_alloc:
+        logger.info(
+            f"Output volume ({output_bytes / 1e6:.2f} MB) exceeds GPU max single allocation "
+            f"({max_alloc / 1e6:.2f} MB). Tiling will be used."
+        )
+        return True
+
+    # Check 2: Input + output (with 2x safety factor for internal temp iages)
+    # should not exceed total VRAM.
+    total_required_bytes = (input_bytes + output_bytes) * 2
+    if total_required_bytes > global_mem:
+        logger.info(
+            f"Estimated GPU memory ({total_required_bytes / 1e6:.2f} MB) exceeds "
+            f"total GPU memory ({global_mem / 1e6:.2f} MB). Tiling will be used."
+        )
+        return True
+
+    logger.info(f"Output volume ({output_bytes / 1e6:.2f} MB) fits in GPU memory. Processing as a whole.")
+    return False
+
+
+def get_xy_tile_sizes(
+    input_shape: Tuple[int, int, int],
+    output_shape: Tuple[int, int, int],
+    skew_dir: DeskewDirection = DeskewDirection.Y,
+) -> Tuple[int, int]:
+    """Compute (tile_y, tile_x) for XY-only tiling with full Z per tile.
+
+    Each OpenCL buffer must fit in MAX_MEM_ALLOC_SIZE, and the total of
+    input + output (with 2x safety for temporaries) must fit in VRAM.
+
+    For full-Z tiles the input subvolume spans nearly the full input
+    along the shear axis (Y for DeskewDirection.Y, X for DeskewDirection.X)
+    because the inverse affine maps the full Z range across it.  Reducing
+    the *non-shear* axis shrinks both input and output proportionally, so
+    it is halved first.
+
+    Returns:
+        (tile_y, tile_x) — full output Y/X if no tiling is needed.
+    """
+    from lls_core.utils import get_max_allocation_size, get_global_mem_size
+
+    BYTES_PER_ELEMENT = 4  # float32 on GPU
+    max_alloc = get_max_allocation_size() or (500 * 1024 * 1024)
+    global_mem = get_global_mem_size() or (2 * 1024 * 1024 * 1024)
+
+    iz, iy, ix = input_shape
+    oz, oy, ox = output_shape
+    tile_y, tile_x = oy, ox
+
+    def _exceeds_limits(ty: int, tx: int) -> bool:
+        output_bytes = oz * ty * tx * BYTES_PER_ELEMENT
+        # Input subvolume: shear axis spans full input extent,
+        # non-shear axis tracks the tile size proportionally.
+        if skew_dir == DeskewDirection.Y:
+            input_bytes = iz * iy * tx * BYTES_PER_ELEMENT
+        else:  # DeskewDirection.X
+            input_bytes = iz * ty * ix * BYTES_PER_ELEMENT
+        if output_bytes > max_alloc or input_bytes > max_alloc:
+            return True
+        if (input_bytes + output_bytes) * 2 > global_mem:
+            return True
+        return False
+
+    while _exceeds_limits(tile_y, tile_x) and (tile_y > 32 or tile_x > 32):
+        # Halve the non-shear axis first (shrinks both input and output).
+        if skew_dir == DeskewDirection.Y:
+            # X is non-shear; halve X first, then Y.
+            if tile_x > 32:
+                tile_x = max(32, tile_x // 2)
+            else:
+                tile_y = max(32, tile_y // 2)
+        else:  # DeskewDirection.X
+            # Y is non-shear; halve Y first, then X.
+            if tile_y > 32:
+                tile_y = max(32, tile_y // 2)
+            else:
+                tile_x = max(32, tile_x // 2)
+
+    return (tile_y, tile_x)
+
+
+def _compute_overlap_margin(chunk_size: int, fraction: float = 0.1) -> int:
+    """Compute overlap margin as a percentage of the tile's chunk size.
+
+    Args:
+        chunk_size: Number of pixels in this dimension's chunk.
+        fraction: Fraction of chunk_size to use as margin on each side.
+            Defaults to 10%.
+
+    Returns:
+        Margin in pixels (at least 2).
+    """
+    #TODO: Could make this configurable
+    return max(2, int(math.ceil(chunk_size * fraction)))
+
+
+def _deskew_tile(
+    block: NDArray,
+    block_info: dict | None = None,
+    original_volume: ArrayLike | None = None,
+    angle_in_degrees: float = 30,
+    voxel_size_x: float = 1.0,
+    voxel_size_y: float = 1.0,
+    voxel_size_z: float = 1.0,
+    skew_dir: DeskewDirection = DeskewDirection.Y,
+    deconvolution: bool = False,
+    decon_processing: DeconvolutionChoice | None = None,
+    psf: Psf | None = None,
+    num_iter: int = 10,
+    background: Union[float, str] = 0,
+    offset: Optional[Tuple[int, int, int]] = None,
+    y_margin: int = 0,
+    x_margin: int = 0,
+    total_output_shape: Tuple[int, int, int] = (0, 0, 0),
+) -> NDArray:
+    """Process one XY tile (full Z) via ``crop_volume_deskew``.
+
+    Called by dask ``map_blocks`` from :func:`deskew_large_image`.
+    Chunks are ``(full_z, tile_y, tile_x)`` so Z is never tiled.
+    A small margin is applied on the shear axis (Y or X depending on
+    ``skew_dir``) to handle rounding at tile boundaries.
+    """
+    if block_info is None or original_volume is None:
+        raise ValueError("block_info and original_volume must be provided")
+
+    total_oz, total_oy, total_ox = total_output_shape
+
+    expected_shape = block.shape
+    loc = block_info[0]["array-location"]
+    z_start, z_end = loc[0]
+    y_start, y_end = loc[1]
+    x_start, x_end = loc[2]
+
+    if offset:
+        z_start += offset[0]
+        z_end += offset[0]
+        y_start += offset[1]
+        y_end += offset[1]
+        x_start += offset[2]
+        x_end += offset[2]
+
+    # Expand shear axis by margin, trim afterwards
+    y_start_exp = max(0, y_start - y_margin)
+    y_end_exp = min(total_oy, y_end + y_margin) if total_oy > 0 else y_end + y_margin
+    x_start_exp = max(0, x_start - x_margin)
+    x_end_exp = min(total_ox, x_end + x_margin) if total_ox > 0 else x_end + x_margin
+
+    roi_shape = [
+        [y_start_exp, x_start_exp],
+        [y_start_exp, x_end_exp],
+        [y_end_exp, x_end_exp],
+        [y_end_exp, x_start_exp],
+    ]
+
+    result = crop_volume_deskew(
+        original_volume=original_volume,
+        roi_shape=roi_shape,
+        z_start=z_start,
+        z_end=z_end,
+        angle_in_degrees=angle_in_degrees,
+        voxel_size_x=voxel_size_x,
+        voxel_size_y=voxel_size_y,
+        voxel_size_z=voxel_size_z,
+        skew_dir=skew_dir,
+        deconvolution=deconvolution,
+        decon_processing=decon_processing,
+        psf=psf,
+        num_iter=num_iter,
+        background=background,
+        debug=False,
+        get_deskew_and_decon=False,
+    )
+
+    # Fit to expanded shape, then trim margins
+    expanded_expected = (
+        z_end - z_start,
+        y_end_exp - y_start_exp,
+        x_end_exp - x_start_exp,
+    )
+    result = _fit_to_shape(result, expanded_expected)
+
+    y_trim = y_start - y_start_exp
+    x_trim = x_start - x_start_exp
+    result = result[
+        :,
+        y_trim : y_trim + (y_end - y_start),
+        x_trim : x_trim + (x_end - x_start),
+    ]
+
+    if result.shape != expected_shape:
+        output_block = np.zeros(expected_shape, dtype=result.dtype)
+        slicers = tuple(slice(0, min(result.shape[i], expected_shape[i])) for i in range(result.ndim))
+        output_block[slicers] = result[slicers]
+        return output_block
+    return result
+
+
+def deskew_large_image(
+    original_volume: ArrayLike,
+    deskewed_shape: Tuple[int, int, int],
+    angle_in_degrees: float,
+    voxel_size_x: float,
+    voxel_size_y: float,
+    voxel_size_z: float,
+    skew_dir: DeskewDirection,
+    deconvolution: bool = False,
+    decon_processing: Optional[DeconvolutionChoice] = None,
+    psf: Optional[Psf] = None,
+    num_iter: int = 10,
+    background: Union[float, str] = 0,
+    offset: Optional[Tuple[int, int, int]] = None,
+) -> DaskArray:
+    oz, oy, ox = deskewed_shape
+
+    # XY-only tile sizes — full Z per tile
+    tile_y, tile_x = get_xy_tile_sizes(
+        original_volume.shape, deskewed_shape, skew_dir
+    )
+    chunks = (oz, tile_y, tile_x)
+    n_tiles_y = math.ceil(oy / tile_y)
+    n_tiles_x = math.ceil(ox / tile_x)
+
+    # Overlap margin on the shear axis — only when there are multiple tiles
+    if skew_dir == DeskewDirection.Y:
+        y_margin = _compute_overlap_margin(tile_y) if n_tiles_y > 1 else 0
+        x_margin = 0
+    else:
+        y_margin = 0
+        x_margin = _compute_overlap_margin(tile_x) if n_tiles_x > 1 else 0
+
+    logger.info(
+        f"Tiling: chunks={chunks}, Y margin={y_margin}, X margin={x_margin}"
+    )
+
+    template = da.zeros(deskewed_shape, chunks=chunks, dtype=np.float32)
+
+    deskewed = template.map_blocks(
+        _deskew_tile,
+        dtype=np.float32,
+        chunks=chunks,
+        original_volume=original_volume,
+        angle_in_degrees=angle_in_degrees,
+        voxel_size_x=voxel_size_x,
+        voxel_size_y=voxel_size_y,
+        voxel_size_z=voxel_size_z,
+        skew_dir=skew_dir,
+        deconvolution=deconvolution,
+        decon_processing=decon_processing,
+        psf=psf,
+        num_iter=num_iter,
+        background=background,
+        offset=offset,
+        y_margin=y_margin,
+        x_margin=x_margin,
+        total_output_shape=deskewed_shape,
+    )
+
+    return deskewed

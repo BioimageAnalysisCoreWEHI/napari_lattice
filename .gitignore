@@ -89,3 +89,5 @@ dask-worker-space/
 # sample data folder for testing
 notebooks/sample_data/*
 notebooks/troubleshooting/sample_data/*
+CLAUDE.md
+.claude/settings.local.json

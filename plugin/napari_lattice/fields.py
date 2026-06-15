@@ -366,33 +366,30 @@ class DeskewFields(NapariFieldGroup):
         #Apply quick deskew where image is displayed in canvas as deskewed.
         #get value of quick deskew
         quick_deskew = self.quick_deskew.value
-        #If quick deskew is True
         from pydantic.v1 import ValidationError
+        import numpy as np
+
         if quick_deskew:
             try:
-                #initialize lattice model
-                lattice = self._make_model() 
+                lattice = self._make_model()
             except ValidationError as e:
                 logger.info(f"Validation Error: {e}")
-                # Ignore if the deskew parameters are invalid
                 return
-            #get new pixel sizes and update scale
-            scale = (
-                    lattice.new_dz,
-                    lattice.dy,
-                    lattice.dx
-                )
-            #use zyx deskew affine transform
-            affine_transform = lattice.derived.deskew_affine_transform_zyx
+
+            # napari pipeline: data_to_world = affine @ diag(scale) @ data
+            # Preview shows:   world = diag(new_dz,dy,dx) @ T_fwd @ data
+            # pyclesperanto stores T_fwd (input→output); it inverts
+            # internally for resampling.
+            # With scale=(1,1,1): affine = diag(new_dz,dy,dx) @ T_fwd
+            deskew_forward = lattice.derived.deskew_affine_transform_zyx
+            physical_scale = np.diag([lattice.new_dz, lattice.dy, lattice.dx, 1.0])
+            affine_transform = physical_scale @ deskew_forward
+            scale = (1.0, 1.0, 1.0)
             ndim_display = 3
         else:
-            try: 
+            try:
                 pixels = self._get_kwargs()["physical_pixel_sizes"]
-                scale = (
-                            pixels.Z,
-                            pixels.Y,
-                            pixels.X,
-                        )
+                scale = (pixels.Z, pixels.Y, pixels.X)
             except:
                 scale = None
             affine_transform = None
@@ -421,7 +418,7 @@ class DeskewFields(NapariFieldGroup):
             viewer = get_viewer()
             viewer.dims.ndisplay = ndim_display
             viewer.reset_view()
-        except: 
+        except:
             pass
 
     def _get_kwargs(self) -> DeskewKwargs:
