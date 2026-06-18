@@ -156,6 +156,14 @@ def _import_workflow_modules(workflow: Path) -> None:
     if not workflow.is_file():
         raise Exception("Workflow must be a file!")
 
+    # Put the workflow's folder on sys.path so its sibling .py modules are
+    # importable by name (not just by file path). spawn workers inherit sys.path,
+    # so this lets each parallel worker re-import the custom functions itself.
+    import sys
+    workflow_dir = str(workflow.parent.resolve())
+    if workflow_dir not in sys.path:
+        sys.path.insert(0, workflow_dir)
+
     counter = 0
     for script in workflow.parent.glob("*.py"):
         if script.stem == "__init__":
