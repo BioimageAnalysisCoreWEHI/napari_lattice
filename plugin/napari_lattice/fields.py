@@ -653,7 +653,25 @@ class OutputFields(NapariFieldGroup):
         value=OutputParams.get_default("save_suffix"),
         label = "Save Suffix",
     )
+    parallel_enabled = field(False).with_options(
+        label="Parallel ROI Processing",
+        tooltip="Process multiple cropped ROIs in parallel worker processes. "
+                "Leave off to process ROIs one at a time (recommended while "
+                "testing a single ROI).",
+    )
+    process_parallel = field(int).with_options(
+        label="Workers (0 = auto)",
+        value=0,
+        min=0,
+        tooltip="Number of worker processes. 0 = auto: a memory-safe count is "
+                "chosen from the memory estimate. Only used with more than one ROI.",
+    )
     errors = field(Label).with_options(label="Errors")
+
+    @parallel_enabled.connect
+    @enable_if([process_parallel])
+    def _enable_parallel(self, enabled: bool) -> bool:
+        return enabled
 
     def _make_model(self, validate: bool = True) -> OutputParams:
         return OutputParams.make(
@@ -664,6 +682,7 @@ class OutputFields(NapariFieldGroup):
             save_dir=self.save_path.value,
             save_suffix=self.save_suffix.value,
             save_type=self.save_type.value,
+            process_parallel=self.process_parallel.value if self.parallel_enabled.value else 1,
         )
 
     @connect_parent("deskew_fields.img_layer")

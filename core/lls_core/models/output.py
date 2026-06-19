@@ -48,13 +48,15 @@ class OutputParams(FieldAccessModel):
         description="Number of worker processes for cropping ROIs. Each worker processes a subset "
                     "of the ROI list independently, sharing the GPU. 1 (default) keeps the serial "
                     "behaviour; higher values help when a single ROI does not saturate the GPU. "
+                    "0 means 'auto': a memory-safe worker count is derived from the memory "
+                    "estimate (disabled for deconvolution/workflow runs, which it cannot size). "
                     "Ignored when cropping is disabled.",
-        ge=1,
+        ge=0,
     )
     memory_safety_factor: float = Field(
         default=1.5,
-        description="Multiplier applied to the estimated per-worker working set in the pre-flight "
-                    "memory estimate, covering OpenCL scratch buffers and fragmentation. Increase "
+        description="Multiplier applied to the estimated per-worker working set in the memory "
+                    "estimate, covering OpenCL scratch buffers and fragmentation. Increase "
                     "if you hit OOM crashes with parallel processing; decrease for more aggressive packing.",
         gt=0,
     )

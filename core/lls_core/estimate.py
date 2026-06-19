@@ -1,5 +1,5 @@
 """
-Pre-flight memory estimation for crop-deskew pipelines.
+Memory estimation for crop-deskew pipelines.
 
 Computes per-ROI bounding boxes from the same affine math as `crop_volume_deskew`,
 without touching pixel data, to estimate whether a requested worker count fits in
@@ -43,11 +43,9 @@ class RoiEstimate:
     roi_index: int
     input_bbox_zyx: Tuple[int, int, int]
     intermediate_zyx: Tuple[int, int, int]
-    output_crop_zyx: Tuple[int, int, int]
     host_input_bytes: int
     gpu_input_bytes: int
     gpu_intermediate_bytes: int
-    gpu_output_bytes: int
     safety_factor: float
 
     @property
@@ -70,7 +68,7 @@ class RoiEstimate:
 
 @dataclass
 class MemoryEstimate:
-    """Summary of a pre-flight memory check across all ROIs."""
+    """Summary of a memory estimate across all ROIs."""
 
     rois: List[RoiEstimate]
     n_workers: int
@@ -158,49 +156,27 @@ class MemoryEstimate:
         return self.total_host_bytes <= self.host_available_bytes
 
     def format_report(self) -> str:
-        """Return a human-readable report suitable for printing to a log/console."""
+        """Return a short, human-readable memory estimate for a log/console."""
         def fmt_bytes(n: Optional[int]) -> str:
             if n is None:
                 return "unknown"
             for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
                 if abs(n) < 1024:
-                    return f"{n:.2f} {unit}"
+                    return f"{n:.1f} {unit}"
                 n /= 1024
-            return f"{n:.2f} PiB"
+            return f"{n:.1f} PiB"
 
         lines = [
-            "Lattice pre-flight memory estimate",
-            f"  ROIs                  : {len(self.rois)}",
-            f"  Workers (configured)  : {self.n_workers}",
-            f"  Workers (recommended) : {self.recommended_workers}",
-            f"  Safety factor         : {self.safety_factor:g}x",
-            f"  Per-worker GPU peak   : {fmt_bytes(self.worker_peak_bytes)}",
-            f"  Per-worker host peak  : {fmt_bytes(self.host_worker_peak_bytes)}",
-            f"  Total concurrent VRAM : {fmt_bytes(self.total_gpu_bytes)}",
-            f"  Total concurrent host : {fmt_bytes(self.total_host_bytes)}",
-            f"  GPU global memory     : {fmt_bytes(self.gpu_global_bytes)}",
-            f"  GPU reserve           : {fmt_bytes(self.gpu_reserve_bytes)}",
-            f"  GPU max single alloc  : {fmt_bytes(self.gpu_max_alloc_bytes)}",
-            f"  Host available RAM    : {fmt_bytes(self.host_available_bytes)}",
-            f"  Fits in GPU?          : {self.fits_gpu}",
-            f"  Fits in host RAM?     : {self.fits_host}",
+            f"Memory estimate: {len(self.rois)} ROI(s), {self.n_workers} worker(s) "
+            f"(recommended: {self.recommended_workers})",
+            f"  VRAM (GPU)  : needs {fmt_bytes(self.total_gpu_bytes)} of {fmt_bytes(self.gpu_budget_bytes)} -> fits: {self.fits_gpu}",
+            f"  RAM (host)  : needs {fmt_bytes(self.total_host_bytes)} of {fmt_bytes(self.host_available_bytes)} -> fits: {self.fits_host}",
         ]
-        if self.rois:
-            # Show the worst (biggest) ROI's breakdown so the user can see what's binding
-            worst = max(self.rois, key=lambda r: r.gpu_working_set)
-            lines.append(f"  Largest ROI (#{worst.roi_index}) buffer breakdown:")
-            lines.append(f"    GPU input (float32)        : {fmt_bytes(worst.gpu_input_bytes)}  shape={worst.input_bbox_zyx}")
-            lines.append(f"    GPU intermediate (float32) : {fmt_bytes(worst.gpu_intermediate_bytes)}  shape={worst.intermediate_zyx}")
-            lines.append(f"    GPU output crop (float32)  : {fmt_bytes(worst.gpu_output_bytes)}  shape={worst.output_crop_zyx}")
-            lines.append(f"    Host input (raw dtype)     : {fmt_bytes(worst.host_input_bytes)}")
         if self.per_buffer_violators:
-            lines.append("  ERROR: the following ROIs exceed CL_DEVICE_MAX_MEM_ALLOC_SIZE:")
-            lines.append("  (no worker count can fix this; reduce the ROI or use a larger GPU)")
-            for r in self.per_buffer_violators:
-                lines.append(
-                    f"    ROI {r.roi_index}: single buffer "
-                    f"{fmt_bytes(r.max_single_allocation)} > {fmt_bytes(self.gpu_max_alloc_bytes)}"
-                )
+            lines.append(
+                f"  ERROR: {len(self.per_buffer_violators)} ROI(s) exceed the GPU's max single "
+                f"allocation ({fmt_bytes(self.gpu_max_alloc_bytes)}); no worker count can fix this."
+            )
         return "\n".join(lines)
 
 
@@ -251,22 +227,41 @@ def get_host_available_bytes() -> Optional[int]:
     return available
 
 
+def _parse_slurm_mem_bytes(value: str) -> Optional[int]:
+    """
+    Parse a SLURM memory value to bytes. SLURM uses binary units and defaults to
+    mebibytes when no suffix is given, but may also carry a K/M/G/T suffix (e.g.
+    `16384`, `16384M`, `16G`, `2T`). Returns None for unparseable values and for
+    `0`, which in SLURM means "all node memory" (i.e. no explicit cap).
+    """
+    text = value.strip().upper()
+    if not text:
+        return None
+    multipliers = {"K": 1024, "M": 1024 ** 2, "G": 1024 ** 3, "T": 1024 ** 4}
+    if text[-1] in multipliers:
+        number, mult = text[:-1], multipliers[text[-1]]
+    else:
+        number, mult = text, multipliers["M"]  # bare number is in MiB
+    try:
+        result = int(float(number) * mult)
+    except ValueError:
+        return None
+    return result if result > 0 else None
+
+
 def _slurm_memory_limit_bytes() -> Optional[int]:
     """Read SLURM memory caps from environment if present. Returns bytes."""
-    mb: Optional[int] = None
-    if os.environ.get("SLURM_MEM_PER_NODE"):
-        try:
-            mb = int(os.environ["SLURM_MEM_PER_NODE"])
-        except ValueError:
-            pass
-    elif os.environ.get("SLURM_MEM_PER_CPU") and os.environ.get("SLURM_CPUS_PER_TASK"):
-        try:
-            mb = int(os.environ["SLURM_MEM_PER_CPU"]) * int(os.environ["SLURM_CPUS_PER_TASK"])
-        except ValueError:
-            pass
-    if mb is None:
-        return None
-    return mb * 1024 * 1024
+    per_node = os.environ.get("SLURM_MEM_PER_NODE")
+    if per_node:
+        return _parse_slurm_mem_bytes(per_node)
+
+    per_cpu = os.environ.get("SLURM_MEM_PER_CPU")
+    cpus = _slurm_cpu_cap()
+    if per_cpu and cpus is not None:
+        mem = _parse_slurm_mem_bytes(per_cpu)
+        if mem is not None:
+            return mem * cpus
+    return None
 
 
 def _slurm_cpu_cap() -> Optional[int]:
@@ -282,6 +277,12 @@ def _slurm_cpu_cap() -> Optional[int]:
 
 # -- Per-ROI bbox math (pixel-free) ------------------------------------------
 
+class _ShapeOnly:
+    """Lightweight stand-in for a volume; only `.shape` is read by the deskew helpers."""
+    def __init__(self, shape: Tuple[int, ...]) -> None:
+        self.shape = shape
+
+
 def _roi_to_shape_array(roi: Any) -> np.ndarray:
     """Coerce a Roi/np.ndarray/list-of-points into the ndarray shape that
     `calculate_crop_bbox` expects."""
@@ -291,9 +292,27 @@ def _roi_to_shape_array(roi: Any) -> np.ndarray:
     return np.asarray(list(roi))
 
 
+def _roi_context(lattice: "LatticeData") -> Tuple[Tuple[int, int, int], Any, "DeskewDirection"]:
+    """
+    Compute the ROI-independent inputs shared by every ROI's bbox: the raw 3D shape,
+    the reverse (deskewed->raw) affine, and the skew direction. Hoisting these out of
+    the per-ROI loop avoids recomputing the affine and re-slicing for each ROI.
+    """
+    from lls_core.llsz_core import get_inverse_affine_transform
+
+    raw_3d = lattice.get_3d_slice()
+    raw_shape_zyx = tuple(int(s) for s in raw_3d.shape[-3:])
+    skew_dir = lattice.skew if isinstance(lattice.skew, DeskewDirection) else DeskewDirection[str(lattice.skew)]
+    reverse_aff, _excess, _deskew = get_inverse_affine_transform(
+        _ShapeOnly(raw_shape_zyx), lattice.angle, lattice.dx, lattice.dy, lattice.dz, skew_dir,
+    )
+    return raw_shape_zyx, reverse_aff, skew_dir
+
+
 def get_roi_bboxes(
     lattice: "LatticeData",
     roi_index: int,
+    context: Optional[Tuple[Tuple[int, int, int], Any, "DeskewDirection"]] = None,
 ) -> Tuple[Tuple[int, int, int], Tuple[int, int, int], Tuple[int, int, int]]:
     """
     Returns (input_bbox_zyx, intermediate_zyx, output_crop_zyx) for one ROI
@@ -301,12 +320,16 @@ def get_roi_bboxes(
     the raw subvolume read off disk, the deskewed subvolume the GPU produces
     (usually the largest allocation, as it grows along the shear axis), and the
     final crop written out.
+
+    `context` is the ROI-independent `_roi_context(lattice)`; it is computed here when
+    omitted, but `estimate_pipeline` passes it in once to avoid per-ROI recomputation.
     """
-    from lls_core.llsz_core import get_inverse_affine_transform
     from lls_core.utils import calculate_crop_bbox, get_deskewed_shape
 
     if lattice.crop is None:
         raise ValueError("get_roi_bboxes requires a LatticeData with cropping enabled")
+
+    raw_shape_zyx, reverse_aff, skew_dir = context if context is not None else _roi_context(lattice)
 
     roi_shape = _roi_to_shape_array(lattice.crop.roi_list[roi_index])
     z_start, z_end = lattice.crop.z_range
@@ -315,24 +338,6 @@ def get_roi_bboxes(
         int(crop_vol_shape[0]),
         int(crop_vol_shape[1]),
         int(crop_vol_shape[2]),
-    )
-
-    # Use a lightweight stand-in for the original volume; only `.shape` is read.
-    raw_3d = lattice.get_3d_slice()
-    raw_shape_zyx = tuple(int(s) for s in raw_3d.shape[-3:])
-
-    class _ShapeOnly:
-        def __init__(self, shape: Tuple[int, ...]) -> None:
-            self.shape = shape
-
-    skew_dir = lattice.skew if isinstance(lattice.skew, DeskewDirection) else DeskewDirection[str(lattice.skew)]
-    reverse_aff, _excess, _deskew = get_inverse_affine_transform(
-        _ShapeOnly(raw_shape_zyx),
-        lattice.angle,
-        lattice.dx,
-        lattice.dy,
-        lattice.dz,
-        skew_dir,
     )
 
     # Map ROI corners back to raw-volume xyz coordinates and take the clipped extents.
@@ -384,26 +389,24 @@ def estimate_roi(
     lattice: "LatticeData",
     roi_index: int,
     safety_factor: float = DEFAULT_SAFETY_FACTOR,
+    context: Optional[Tuple[Tuple[int, int, int], Any, "DeskewDirection"]] = None,
 ) -> RoiEstimate:
     """Compute the per-ROI memory estimate: the host subvolume copy (raw dtype)
-    plus the float32 GPU input, intermediate deskewed buffer (usually the binding
-    constraint), and final crop.
+    plus the float32 GPU input and intermediate deskewed buffer (usually the
+    binding constraint). `context` is the ROI-independent `_roi_context(lattice)`.
     """
-    input_bbox, intermediate, output_bbox = get_roi_bboxes(lattice, roi_index)
+    input_bbox, intermediate, _output_bbox = get_roi_bboxes(lattice, roi_index, context=context)
     host_itemsize = _input_dtype_itemsize(lattice)
     host_input_bytes = int(np.prod(input_bbox)) * host_itemsize
     gpu_input_bytes = int(np.prod(input_bbox)) * GPU_DTYPE_ITEMSIZE
     gpu_intermediate_bytes = int(np.prod(intermediate)) * GPU_DTYPE_ITEMSIZE
-    gpu_output_bytes = int(np.prod(output_bbox)) * GPU_DTYPE_ITEMSIZE
     return RoiEstimate(
         roi_index=roi_index,
         input_bbox_zyx=input_bbox,
         intermediate_zyx=intermediate,
-        output_crop_zyx=output_bbox,
         host_input_bytes=host_input_bytes,
         gpu_input_bytes=gpu_input_bytes,
         gpu_intermediate_bytes=gpu_intermediate_bytes,
-        gpu_output_bytes=gpu_output_bytes,
         safety_factor=safety_factor,
     )
 
@@ -415,7 +418,7 @@ def estimate_pipeline(
     gpu_reserve_bytes: int = 512 * 1024 * 1024,
 ) -> MemoryEstimate:
     """
-    Build a complete pre-flight estimate for the configured pipeline.
+    Build a complete memory estimate for the configured pipeline.
 
     `gpu_reserve_bytes` is subtracted from total global memory to leave
     headroom for OpenCL runtime allocations the user can't see.
@@ -430,7 +433,9 @@ def estimate_pipeline(
             gpu_reserve_bytes=gpu_reserve_bytes,
             host_available_bytes=get_host_available_bytes(),
         )
-    rois = [estimate_roi(lattice, idx, safety_factor) for idx in lattice.crop.roi_subset]
+    # Compute the ROI-independent context (raw shape + reverse affine) once, not per ROI.
+    context = _roi_context(lattice)
+    rois = [estimate_roi(lattice, idx, safety_factor, context=context) for idx in lattice.crop.roi_subset]
     return MemoryEstimate(
         rois=rois,
         n_workers=max(1, n_workers),

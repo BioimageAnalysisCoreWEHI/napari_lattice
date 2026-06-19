@@ -55,6 +55,7 @@ class LLSZWidget(MagicTemplate):
 
             # Deskew
             input_image=deskew_args["data"],
+            input_image_path=deskew_args.get("input_image_path"),
             angle=deskew_args["angle"],
             physical_pixel_sizes=deskew_args["physical_pixel_sizes"],
             skew=deskew_args["skew"],
@@ -67,7 +68,8 @@ class LLSZWidget(MagicTemplate):
             save_name=output_args.save_name or deskew_args["save_name"],
             save_type=output_args.save_type,
             save_suffix=output_args.save_suffix,
-            
+            process_parallel=output_args.process_parallel,
+
             workflow=self.LlszMenu.WidgetContainer.workflow_fields._make_model(),
             deconvolution=self.LlszMenu.WidgetContainer.deconv_fields._make_model(),
             crop=self.LlszMenu.WidgetContainer.cropping_fields._make_model()

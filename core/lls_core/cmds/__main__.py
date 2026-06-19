@@ -174,7 +174,7 @@ def process(
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 
-    estimate: bool = Option(default=False, help="If provided, print a pre-flight VRAM/RAM estimate for the configured pipeline and exit without processing. Useful for sizing SLURM jobs or picking a value for --process-parallel."),
+    estimate: bool = Option(default=False, help="If provided, print a VRAM/RAM memory estimate for the configured pipeline and exit without processing. Useful for sizing SLURM jobs or picking a value for --process-parallel."),
     show_schema: bool = Option(default=False, help="If provided, image processing will not be performed, and instead a JSON document outlining the JSON/YAML options will be printed to stdout. This can be used to assist with writing a config file for use with the --json-config and --yaml-config options.")
 ) -> None:
     from click.core import ParameterSource
@@ -183,7 +183,7 @@ def process(
 
     console = Console(stderr=True)
 
-    # Surface lls_core INFO logs (pre-flight memory report, per-chunk failure
+    # Surface lls_core INFO logs (memory estimate, per-chunk failure
     # summaries) without turning on noisy INFO logging for every dependency.
     logging.basicConfig(level=logging.WARNING)
     logging.getLogger("lls_core").setLevel(logging.INFO)
@@ -240,14 +240,15 @@ def process(
             from yaml import safe_load
             yaml_args = safe_load(fp)
 
+    # Merge all three sources of config: YAML, JSON and CLI
+    merged = merge_with(handle_merge, [yaml_args, json_args, cli_args])
+    # On the CLI, default to 'auto' (0) worker selection when the user set no value
+    # anywhere. The model default stays 1 (serial) so GUI/library callers are
+    # unaffected; only an unconfigured CLI run opts into auto.
+    merged.setdefault("process_parallel", 0)
+
     try:
-        lattice = LatticeData.parse_obj(
-            # Merge all three sources of config: YAML, JSON and CLI
-            merge_with(
-                handle_merge,
-                [yaml_args, json_args, cli_args]
-            )
-        )
+        lattice = LatticeData.parse_obj(merged)
     except ValidationError as e:
         console.print(rich_validation(e))
         raise Exit(code=1)
