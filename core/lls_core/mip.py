@@ -12,9 +12,6 @@ it goes. Because it gathers rather than scatters, it is free of the gaps,
 striping and edge-dilation that a scatter/push suffers when the scan step is
 large -- i.e. it has no dependence on the scan-step-to-pixel ratio (`dz/dy`).
 
-Peak memory is `raw + 2D output`: no 3D
-intermediate, no tiling.
-
 The kernel is `numba @njit(parallel=True)` (CPU): portable, with no GPU /
 OpenCL / CUDA dependency, which suits HPC batch nodes that lack a GPU but have
 ample host RAM. It parallelises over the output rows (disjoint per thread -> no
@@ -26,7 +23,8 @@ output pixel (yd, xd), the inverse map traces a straight diagonal in raw space:
   X-skew:  y = yd ;  raw_x = i (swept) ;  scan n = (xd - cos(theta)*i) / (dz/dx)
 Nearest-neighbour rounds n to the closest scan plane; linear blends planes n,n+1.
 
-Sapoznik, Chang, Welf, Fiolka et al., "A versatile oblique plane microscope…", eLife 2020 (PMC7707824)
+OPM deskew approach reference:
+Sapoznik, Chang, Welf, Fiolka et al., "A versatile oblique plane microscope…", eLife 2020 
 """
 from __future__ import annotations
 
