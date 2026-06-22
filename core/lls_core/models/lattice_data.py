@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from lls_core.workflow import RawWorkflowOutput
     from lls_core.types import ArrayLike
     from lls_core.models.results import WorkflowSlices
+    from lls_core.estimate import MemoryEstimate
 
 import logging
 
