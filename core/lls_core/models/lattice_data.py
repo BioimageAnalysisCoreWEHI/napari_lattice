@@ -19,10 +19,69 @@ if TYPE_CHECKING:
     from lls_core.workflow import RawWorkflowOutput
     from lls_core.types import ArrayLike
     from lls_core.models.results import WorkflowSlices
+    from lls_core.estimate import MemoryEstimate
 
 import logging
 
 logger = logging.getLogger(__name__)
+
+
+def _run_roi_chunk(lattice: "LatticeData", roi_indices: list) -> None:
+    """
+    Worker entry point for parallel ROI processing; module-level so it is
+    picklable by `ProcessPoolExecutor`. Restricts the lattice to `roi_indices`,
+    disables further parallelism, and runs the serial save path.
+
+    When the parent stripped `input_image` before dispatch (because a file-backed
+    lazy image is not picklable), re-open the file here so this worker reads only
+    its own ROI crops from disk rather than the whole volume.
+
+    Uses non-validating `.copy()` so the child does not re-run validators like
+    `add_save_suffix` (which would turn `test_deskewed` into `test_deskewed_deskewed`).
+    """
+    if lattice.crop is None:
+        raise RuntimeError("ROI worker invoked without crop configured")
+    image = lattice.input_image
+    if image is None:
+        from lls_core.models.deskew import load_image_lazy
+        if lattice.input_image_path is None:
+            raise RuntimeError(
+                "Parallel ROI worker received no input image and no path to re-open it from"
+            )
+        image = load_image_lazy(lattice.input_image_path)
+    sub_crop = lattice.crop.copy(update={"roi_subset": list(roi_indices)})
+    sub_lattice = lattice.copy(update={"crop": sub_crop, "process_parallel": 1, "input_image": image})
+    sub_lattice.save()
+
+
+def _materialized_image(image: Any) -> Any:
+    """
+    Return a picklable, in-memory version of an input image. A lazy/dask-backed
+    array (e.g. a napari layer holding a bioio reader) is not picklable and must be
+    computed once before being sent to worker processes. A numpy-backed array is
+    already picklable and is returned unchanged.
+    """
+    import dask.array as da
+    if isinstance(getattr(image, "data", None), da.Array):
+        return image.copy(data=image.data.compute())
+    return image
+
+
+def _run_chunk_isolated(lattice: "LatticeData", roi_indices: list) -> None:
+    """
+    Run one ROI chunk in its own single-worker process pool, so that a hard worker
+    death (OOM kill, segfault) breaks only this pool. Sibling chunks live in
+    separate pools and are unaffected, instead of all failing together via a shared
+    pool's `BrokenProcessPool`.
+    """
+    from concurrent.futures import ProcessPoolExecutor
+    from multiprocessing import get_context
+
+    # `spawn`, not fork: forking after pyclesperanto has created an OpenCL context
+    # in the parent deadlocks the workers.
+    with ProcessPoolExecutor(max_workers=1, mp_context=get_context("spawn")) as pool:
+        pool.submit(_run_roi_chunk, lattice, roi_indices).result()
+
 
 class LatticeData(OutputParams, DeskewParams):
     """
@@ -485,11 +544,172 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Apply the processing, and saves the results to disk.
         Results can be found in `save_dir`.
+
+        When `process_parallel > 1` and cropping is enabled, ROIs are distributed
+        across worker processes; otherwise the original serial path runs.
         """
+        if self._use_parallel_roi_processing():
+            return self._save_parallel_rois()
         if self.workflow:
             list(self.process_workflow().save())
         else:
             self.process().save_image()
+
+    def _resolve_worker_count(self, estimate: Optional["MemoryEstimate"] = None) -> int:
+        """
+        Resolve the effective worker count. `process_parallel >= 1` is used as-is;
+        `0` means 'auto': derive a memory-safe count from the memory estimate.
+
+        The estimate only models the crop->deskew buffers, so 'auto' falls back to
+        serial (1) when deconvolution or a workflow is attached, since their extra
+        memory cannot be sized. An explicit `process_parallel` overrides this. Pass a
+        precomputed `estimate` to avoid recomputing it for the auto case.
+        """
+        if self.process_parallel != 0:
+            return self.process_parallel
+        if self.deconvolution is not None or self.workflow is not None:
+            logger.warning(
+                "process_parallel=auto cannot size deconvolution/workflow memory; "
+                "running serially. Pass an explicit process_parallel to override."
+            )
+            return 1
+        try:
+            if estimate is None:
+                from lls_core.estimate import estimate_pipeline
+                estimate = estimate_pipeline(self, n_workers=1, safety_factor=self.memory_safety_factor)
+            return max(1, estimate.recommended_workers)
+        except Exception:
+            logger.debug("Auto worker estimate failed; running serially", exc_info=True)
+            return 1
+
+    def _use_parallel_roi_processing(self) -> bool:
+        """Return True when the parallel-ROI save path should be used."""
+        if not self.cropping_enabled or self.crop is None:
+            return False
+        if len(self.crop.roi_subset) <= 1:
+            return False
+        if self._resolve_worker_count() <= 1:
+            return False
+        if self.workflow is not None and not self._workflow_is_picklable():
+            # Workers run in spawned processes, so the workflow must pickle.
+            # Lambdas and custom-module workflows don't; run those serially.
+            logger.warning(
+                "process_parallel was set but the attached workflow is not "
+                "picklable (e.g. lambdas or custom modules); falling back to "
+                "serial ROI processing."
+            )
+            return False
+        return True
+
+    def _workflow_is_picklable(self) -> bool:
+        import pickle
+        try:
+            pickle.dumps(self.workflow)
+            return True
+        except Exception:
+            return False
+
+    def _dispatch_payload(self) -> "LatticeData":
+        """
+        Return a picklable copy of this lattice to hand to worker processes.
+
+        A file-backed `input_image` is a lazy bioio reader that cannot be pickled
+        (and would copy the whole volume to every worker even if it could). When the
+        source path is known, strip the image and let each worker re-open the file and
+        read only its own crops. Otherwise the input is in-memory (e.g. a napari
+        layer): materialize any lazy/dask array once so it can be pickled. A PSF loaded
+        from a path is a lazy reader too; PSFs are small, so materialize them as well.
+        """
+        if self.input_image_path is not None:
+            payload = self.copy(update={"input_image": None})
+        else:
+            payload = self.copy(update={"input_image": _materialized_image(self.input_image)})
+
+        if payload.deconvolution is not None:
+            payload = payload.copy(update={
+                "deconvolution": payload.deconvolution.copy(update={
+                    "psf": [_materialized_image(p) for p in payload.deconvolution.psf]
+                })
+            })
+        return payload
+
+    def _save_parallel_rois(self) -> None:
+        """
+        Dispatch ROI processing across worker processes: each worker runs the
+        serial save() path on a chunk of `roi_subset`. Every chunk is attempted;
+        if any fail, the partial output is kept and a RuntimeError is raised so
+        the run fails loudly instead of being mistaken for success.
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from dataclasses import replace
+
+        from lls_core.estimate import chunk_roi_subset, estimate_pipeline
+
+        assert self.crop is not None  # for type-checkers; gated by _use_parallel_roi_processing
+
+        # Compute the memory estimate once and reuse it for both the worker-count
+        # decision and the report. The estimator only models crop->deskew buffers, so
+        # it is skipped for workflows (their extra steps aren't covered).
+        estimate = None
+        if self.workflow is None:
+            try:
+                estimate = estimate_pipeline(self, n_workers=1, safety_factor=self.memory_safety_factor)
+            except Exception:
+                logger.debug("Memory estimate failed; continuing without it", exc_info=True)
+
+        chunks = chunk_roi_subset(self.crop.roi_subset, self._resolve_worker_count(estimate=estimate))
+        n_workers = len(chunks)
+
+        # Warn-only report; the user knows their hardware best.
+        if self.workflow is not None:
+            logger.info("Skipping memory estimate: covers deskew/crop only, not workflow steps.")
+        elif estimate is not None:
+            report = replace(estimate, n_workers=n_workers)
+            logger.info("\n" + report.format_report())
+            if report.fits_gpu is False:
+                logger.warning(
+                    "Memory estimate suggests the requested concurrency "
+                    "may exceed available GPU memory. Proceeding anyway."
+                )
+            if report.fits_host is False:
+                logger.warning(
+                    "Memory estimate suggests the requested concurrency "
+                    "may exceed available host memory. Proceeding anyway."
+                )
+
+        payload = self._dispatch_payload()
+
+        failures: list[tuple[list[int], str]] = []
+        # Each chunk runs in its own single-worker process pool (see
+        # `_run_chunk_isolated`), so a hard worker death only fails that chunk. A
+        # thread per chunk just waits on its child process, so a ThreadPoolExecutor
+        # gives `n_workers` concurrent jobs without the GIL mattering.
+        with ThreadPoolExecutor(max_workers=n_workers) as driver:
+            future_to_chunk = {
+                driver.submit(_run_chunk_isolated, payload, chunk): chunk for chunk in chunks
+            }
+            for future in as_completed(future_to_chunk):
+                chunk = future_to_chunk[future]
+                try:
+                    future.result()
+                except Exception as e:  # continue-on-error: log and move on
+                    logger.exception("ROI chunk %s failed", chunk)
+                    failures.append((chunk, f"{type(e).__name__}: {e}"))
+
+        if failures:
+            summary = "; ".join(f"ROIs {c} -> {msg}" for c, msg in failures)
+            logger.warning(
+                "Parallel ROI processing finished with %d of %d failed chunk(s): %s",
+                len(failures),
+                len(chunks),
+                summary,
+            )
+            # Partial output is kept, but raise so the run fails loudly, matching
+            # the serial path where an ROI error aborts the run.
+            raise RuntimeError(
+                f"Parallel ROI processing failed for {len(failures)} of "
+                f"{len(chunks)} chunk(s): {summary}"
+            )
 
     def process_into_image(self) -> ArrayLike:
         """

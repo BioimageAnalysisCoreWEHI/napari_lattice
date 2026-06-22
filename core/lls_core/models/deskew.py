@@ -3,7 +3,9 @@ from __future__ import annotations
 # TODO: handle scenes
 from pydantic.v1 import Field, NonNegativeFloat, validator, root_validator
 
-from typing_extensions import Self, TYPE_CHECKING, Any, Tuple
+from typing_extensions import Self, TYPE_CHECKING, Any, Optional, Tuple
+
+from pathlib import Path
 
 import pyclesperanto_prototype as cle
 
@@ -17,6 +19,18 @@ import numpy as np
 
 if TYPE_CHECKING:
     from bioio import PhysicalPixelSizes
+
+
+def load_image_lazy(path: Path) -> DataArray:
+    """
+    Re-open an image file as a lazy DataArray. Used by parallel workers, since the
+    bioio reader backing a file-loaded `input_image` is not picklable. bioio always
+    returns standard TCZYX dims, so this matches the parent's `input_image` directly
+    (no reshaping needed); each worker then reads only its own ROI crops from disk.
+    """
+    from bioio import BioImage
+    from os import fspath
+    return BioImage(fspath(path)).xarray_dask_data
 
 class DefinedPixelSizes(FieldAccessModel):
     """
@@ -56,6 +70,13 @@ class DeskewParams(FieldAccessModel):
     input_image: DataArray = Field(
         description="A 3-5D array containing the image data. Can be anything convertible to an Xarray, including a `dask.array` or `numpy.ndarray`. Can also be provided as a `str`, in which case it must indicate the path to an image to load from disk.",
         cli_description="A path to any standard image file (TIFF, H5 etc) containing a 3-5D array to process."
+    )
+    input_image_path: Optional[Path] = Field(
+        default=None,
+        cli_hide=True,
+        description="Internal: the filesystem path the input image was loaded from, if any. "
+                    "Set automatically when `input_image` is provided as a path, and used to re-open "
+                    "the image lazily inside parallel worker processes. Not a user-facing parameter."
     )
     skew: DeskewDirection = Field(
         default=DeskewDirection.Y,
@@ -201,6 +222,8 @@ class DeskewParams(FieldAccessModel):
         aics: BioImage | None = None
         if is_pathlike(img):
             aics = BioImage(fspath(img))
+            # Remember the source path so parallel workers can re-open the file lazily
+            values["input_image_path"] = Path(fspath(img)).resolve()
         elif isinstance(img, BioImage):
             aics = img
         elif isinstance(img, DataArray):

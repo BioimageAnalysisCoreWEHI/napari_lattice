@@ -49,5 +49,10 @@ Alternatively, you can rotate the image, draw ROIs and save the ROI Manager file
 - This will process the ROI Manager file and save it in the specified directory with `_corrected` suffix.
 - This ROI file can be used in the napari-lattice workflows.
 
+## Processing a subset of ROIs
+
+A ROI file may contain many regions. By default all of them are processed. To
+process only some of them, or to speed up processing of many ROIs in parallel,
+see [ROI selection and Parallel ROI Processing](../api.md#selecting-which-rois-to-process).
 
 

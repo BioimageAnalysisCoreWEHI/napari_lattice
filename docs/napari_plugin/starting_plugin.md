@@ -24,7 +24,7 @@ To load an image, drag and drop it into napari. You can get some sample data [he
 
 !!! info
 
-    When opening a file, if you get a pop-up asking for preferred reader with `czi` files, select napari-aicsimageio
+    When opening a file, if you get a pop-up asking for preferred reader with `czi` files, select napari-lattice (which provides a BioIO-based reader)
 
 
 ## Configuration

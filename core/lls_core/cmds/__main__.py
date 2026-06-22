@@ -51,6 +51,8 @@ CLI_PARAM_MAP = {
     "save_dir": ["save_dir"],
     "save_name": ["save_name"],
     "save_type": ["save_type"],
+    "process_parallel": ["process_parallel"],
+    "memory_safety_factor": ["memory_safety_factor"],
 }
 
 app = Typer(add_completion=False, rich_markup_mode="rich", no_args_is_help=True)
@@ -149,8 +151,8 @@ def process(
         DefinedPixelSizes.get_default("X")
     )),
 
-    roi_list: List[Path] = field_from_model(CropParams, "roi_list"), 
-    roi_subset: List[int] = field_from_model(CropParams, "roi_subset"),
+    roi_list: List[Path] = field_from_model(CropParams, "roi_list"),
+    roi_subset: List[str] = field_from_model(CropParams, "roi_subset", extra_description="Accepts either repeated flags (--roi-subset 2 --roi-subset 5) or a comma-separated list (--roi-subset 2,5,7)."),
     z_range: Optional[Tuple[int,int]] = field_from_model(CropParams, "z_range", show_default=False),
     
     enable_deconvolution: bool = Option(False, "--deconvolution/--disable-deconvolution", rich_help_panel="Deconvolution"),
@@ -165,17 +167,26 @@ def process(
     save_dir: Path = field_from_model(OutputParams, "save_dir", rich_help_panel="Output"),
     save_name: Optional[str] = field_from_model(OutputParams, "save_name", rich_help_panel="Output"),
     save_type: SaveFileType = field_from_model(OutputParams, "save_type", rich_help_panel="Output"),
+    process_parallel: int = field_from_model(OutputParams, "process_parallel", rich_help_panel="Output"),
+    memory_safety_factor: float = field_from_model(OutputParams, "memory_safety_factor", rich_help_panel="Output"),
 
     workflow: Optional[Path] = field_from_model(LatticeData, "workflow", show_default=False),
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 
+    estimate: bool = Option(default=False, help="If provided, print a VRAM/RAM memory estimate for the configured pipeline and exit without processing. Useful for sizing SLURM jobs or picking a value for --process-parallel."),
     show_schema: bool = Option(default=False, help="If provided, image processing will not be performed, and instead a JSON document outlining the JSON/YAML options will be printed to stdout. This can be used to assist with writing a config file for use with the --json-config and --yaml-config options.")
 ) -> None:
     from click.core import ParameterSource
     from rich.console import Console
+    import logging
 
     console = Console(stderr=True)
+
+    # Surface lls_core INFO logs (memory estimate, per-chunk failure
+    # summaries) without turning on noisy INFO logging for every dependency.
+    logging.basicConfig(level=logging.WARNING)
+    logging.getLogger("lls_core").setLevel(logging.INFO)
 
     if show_schema:
         import json
@@ -191,6 +202,24 @@ def process(
     if all(src != ParameterSource.COMMANDLINE for src in ctx._parameter_source.values()):
         print(ctx.get_help())
         raise Exit()
+
+    # Allow `--roi-subset 2,5,7` as well as repeated `--roi-subset 2 ...` flags.
+    # Each element may itself be a comma-separated string; flatten and coerce to int.
+    if roi_subset:
+        flat: List[int] = []
+        for item in roi_subset:
+            for piece in str(item).split(","):
+                piece = piece.strip()
+                if not piece:
+                    continue
+                try:
+                    flat.append(int(piece))
+                except ValueError:
+                    console.print(
+                        f"[red]Invalid --roi-subset value '{piece}': expected an integer index.[/red]"
+                    )
+                    raise Exit(code=1) from None
+        ctx.params["roi_subset"] = flat
 
     from toolz.dicttoolz import merge_with
     cli_args = {}
@@ -211,19 +240,38 @@ def process(
             from yaml import safe_load
             yaml_args = safe_load(fp)
 
+    # Merge all three sources of config: YAML, JSON and CLI
+    merged = merge_with(handle_merge, [yaml_args, json_args, cli_args])
+    # On the CLI, default to 'auto' (0) worker selection when the user set no value
+    # anywhere. The model default stays 1 (serial) so GUI/library callers are
+    # unaffected; only an unconfigured CLI run opts into auto.
+    merged.setdefault("process_parallel", 0)
+
     try:
-        lattice = LatticeData.parse_obj(
-            # Merge all three sources of config: YAML, JSON and CLI
-            merge_with(
-                handle_merge,
-                [yaml_args, json_args, cli_args]
-            )
-        )
+        lattice = LatticeData.parse_obj(merged)
     except ValidationError as e:
         console.print(rich_validation(e))
         raise Exit(code=1)
-    
-    lattice.save()
+
+    if estimate:
+        from lls_core.estimate import estimate_pipeline
+        try:
+            report = estimate_pipeline(
+                lattice,
+                n_workers=lattice.process_parallel,
+                safety_factor=lattice.memory_safety_factor,
+            )
+        except Exception as e:
+            console.print(f"[red]Could not produce memory estimate:[/red] {e}")
+            raise Exit(code=1)
+        console.print(report.format_report())
+        return
+
+    try:
+        lattice.save()
+    except Exception as e:
+        console.print(f"[red]Processing failed:[/red] {e}")
+        raise Exit(code=1)
     console.print(f"Processing successful. Results can be found in {lattice.save_dir.resolve()}")
 
 # Used by the docs

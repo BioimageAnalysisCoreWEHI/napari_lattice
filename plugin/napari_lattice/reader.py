@@ -10,7 +10,8 @@ from __future__ import annotations
 
 import dask.array as da
 import dask.delayed as delayed
-import os 
+import os
+from pathlib import Path
 import numpy as np
 from napari.layers import Image
 from bioio import BioImage
@@ -31,6 +32,10 @@ class NapariImageParams(TypedDict):
     data: DataArray
     physical_pixel_sizes: DefinedPixelSizes
     save_name: str
+    # Source file path, set only for a single unmodified file-backed layer, so that
+    # parallel workers can re-open the file and lazily read only their ROI crops
+    # (instead of materializing the whole volume). None for stacked/derived/in-memory.
+    input_image_path: Optional[Path]
 
 def lattice_params_from_napari(
     imgs: Collection[Image],
@@ -113,7 +118,17 @@ def lattice_params_from_napari(
             final_pixel_size = DefinedPixelSizes.from_physical(metadata_pixel_sizes.pop())
 
     final_img = concat(final_imgs, dim=stack_along)
-    return NapariImageParams(save_name=save_names[0], physical_pixel_sizes=final_pixel_size, data=final_img, dims=final_img.shape)
+
+    # Only a single, unmodified file-backed layer can be safely re-opened from its
+    # path in a worker and reproduce the same array. Skip stacked layers (no single
+    # source) and any layer with a user-overridden dimension order (the reload uses
+    # metadata dims, which may then differ). Otherwise -> materialize.
+    imgs_seq = list(imgs)
+    input_image_path: Optional[Path] = None
+    if len(imgs_seq) == 1 and dimension_order is None and imgs_seq[0].source.path is not None:
+        input_image_path = Path(imgs_seq[0].source.path)
+
+    return NapariImageParams(save_name=save_names[0], physical_pixel_sizes=final_pixel_size, data=final_img, dims=final_img.shape, input_image_path=input_image_path)
 
 def napari_get_reader(path: list[str] | str):
     """Check if file ends with h5 or supported bioio format (czi, tif) and returns reader function if true
