@@ -16,6 +16,13 @@ class SaveFileType(StrEnum):
     tiff = "tiff"
     omezarr = "omezarr"
 
+class MipInterpolation(StrEnum):
+    """
+    Interpolation used when generating a deskewed MIP
+    """
+    nearest = "nearest"
+    linear = "linear"
+
 class OutputParams(FieldAccessModel):
     save_dir: DirectoryPath = Field(
         description="The directory where the output data will be saved. This can be specified as a `str` or `Path`."
@@ -59,6 +66,21 @@ class OutputParams(FieldAccessModel):
                     "estimate, covering OpenCL scratch buffers and fragmentation. Increase "
                     "if you hit OOM crashes with parallel processing; decrease for more aggressive packing.",
         gt=0,
+    )
+    save_mip: bool = Field(
+        default=False,
+        description="If `True`, save a 2D maximum-intensity projection (top-down/coverslip view) of the "
+                    "deskewed data instead of the full volume. The MIP is computed directly from the raw "
+                    "data without materialising the deskewed volume (a CPU/numba gather), so it is "
+                    "memory-light and fast for very large acquisitions. One MIP is written per timepoint "
+                    "and channel, using the chosen `save_type`. Cropping and deconvolution are ignored "
+                    "for MIP output."
+    )
+    mip_interpolation: MipInterpolation = Field(
+        default=MipInterpolation.nearest,
+        description=f"Interpolation used when `save_mip` is enabled. Choices: `{enum_choices(MipInterpolation)}`. "
+                    "`'nearest'` (default) is fastest and blocky; `'linear'` blends adjacent scan planes "
+                    "for a smoother MIP."
     )
 
     @validator("save_dir", pre=True)

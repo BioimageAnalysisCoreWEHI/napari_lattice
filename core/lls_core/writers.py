@@ -60,11 +60,18 @@ class BdvWriter(Writer):
         import npy2bdv
         suffix = f"_{make_filename_suffix(roi_index=str(self.roi_index))}" if self.roi_index is not None else ""
         path = self.lattice.make_filepath(suffix)
+        # A MIP is a singleton-Z (1, Y, X) volume; the default (2, 4, 4) level
+        # downsamples Z by 2, which is degenerate for Z=1. Drop Z-subsampling
+        # levels in that case.
+        if getattr(self.lattice, "save_mip", False):
+            subsamp = ((1, 1, 1), (1, 2, 2))
+        else:
+            subsamp = ((1, 1, 1), (1, 2, 2), (2, 4, 4))
         self.bdv_writer = npy2bdv.BdvWriter(
             filename=str(path),
             compression='gzip',
             nchannels=len(self.lattice.channel_range),
-            subsamp=((1, 1, 1), (1, 2, 2), (2, 4, 4)),
+            subsamp=subsamp,
             overwrite=False
         )
         self.written_files.append(path)
