@@ -203,24 +203,6 @@ def process(
         print(ctx.get_help())
         raise Exit()
 
-    # Allow `--roi-subset 2,5,7` as well as repeated `--roi-subset 2 ...` flags.
-    # Each element may itself be a comma-separated string; flatten and coerce to int.
-    if roi_subset:
-        flat: List[int] = []
-        for item in roi_subset:
-            for piece in str(item).split(","):
-                piece = piece.strip()
-                if not piece:
-                    continue
-                try:
-                    flat.append(int(piece))
-                except ValueError:
-                    console.print(
-                        f"[red]Invalid --roi-subset value '{piece}': expected an integer index.[/red]"
-                    )
-                    raise Exit(code=1) from None
-        ctx.params["roi_subset"] = flat
-
     from toolz.dicttoolz import merge_with
     cli_args = {}
     for source, dest in CLI_PARAM_MAP.items():
