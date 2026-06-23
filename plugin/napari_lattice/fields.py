@@ -88,6 +88,25 @@ class BackgroundSource(StrEnum):
     SecondLast = "Second Last"
     Custom = "Custom"
 
+def dimension_order_options(ndims: Optional[int]) -> List[str]:
+    """
+    Dimension-order choices offered for an image stack of the given dimensionality,
+    including the "Get from Metadata" option. Kept as a separate function so 
+    we can test interaction between the reader -> GUI without a Qt widget: For example, a
+    single-channel stack that the reader keeps 5D must offer the TCZYX/CTZYX orders.
+    """
+    default = ["Get from Metadata"]
+    if ndims is None:
+        return default
+    elif ndims == 3:
+        return ["ZYX"] + default
+    elif ndims == 4:
+        return ["TZYX", "CZYX"] + default
+    elif ndims == 5:
+        return ["TCZYX", "CTZYX"] + default
+    else:
+        raise Exception("Only 3-5 dimensional arrays are supported")
+
 def enable_field(field: MagicField, enabled: bool = True) -> None:
     """
     Enable the widget associated with a field
@@ -225,18 +244,8 @@ class DeskewFields(NapariFieldGroup):
         """
         Returns the list of dimension order options that might be possible for the current image stack
         """
-        default = ["Get from Metadata"]
         ndims = max([len(layer.data.shape) for layer in self.img_layer.value], default=None)
-        if ndims is None:
-            return default
-        elif ndims == 3:
-            return ["ZYX"] + default
-        elif ndims == 4:
-            return ["TZYX", "CZYX"] + default
-        elif ndims == 5:
-            return ["TCZYX", "CTZYX"] + default
-        else:
-            raise Exception("Only 3-5 dimensional arrays are supported")
+        return dimension_order_options(ndims)
 
     # --- Input / interpretation ---
     img_layer = field(List[Image], widget_type='Select').with_options(
