@@ -28,6 +28,27 @@ if TYPE_CHECKING:
     from bioio import ImageLike
     from xarray import DataArray
 
+import re
+# bioio can invent placeholder channel names: "Channel:<image>:<channel>"
+# (e.g. "Channel:0:0") for files that with no channel metadata, such 
+# as plain TIFFs. The TCZYX order is  guessed from the array shape.
+# `test_reader` pins thisformat so a future bioio rename surfaces as a test failure instead of silently
+# re-enabling channel splitting. Genuine acquisitions have descriptive names ("LLS1").
+_AUTO_CHANNEL_NAME = re.compile(r"^Channel:\d+:\d+$")
+
+def _has_real_channel_metadata(image: BioImage) -> bool:
+    """
+    Whether the image's channel axis is trustworthy enough to split a napari layer on.
+
+    We trust it only when the channel names are descriptive, rather than bioio's
+    "Channel:i:j" placeholders. This is best-effort: it cannot recognise a real channel
+    axis that simply has no names, but it covers every observed file format.
+    """
+    names = image.channel_names
+    if not names:
+        return False
+    return not all(_AUTO_CHANNEL_NAME.match(str(name)) for name in names)
+
 class NapariImageParams(TypedDict):
     data: DataArray
     physical_pixel_sizes: DefinedPixelSizes
@@ -249,19 +270,36 @@ def bioio_reader(path: str | list[str]) -> List[Tuple[Any, dict, str]]:
             getattr(pixel_sizes, dim, 1.0) or 1.0 for dim in image.dims.order
         ]
         
-        # Set the channel axis
-        if "C" in image.dims.order:
-            c_idx = image.dims.order.index("C")
+        # Set the channel axis.
+        # Only split the layer into one image per channel when the channel axis is
+        # genuine: it must have more than one channel AND come with real channel
+        # metadata. bioio pads plain TIFFs out to a guessed TCZYX order (size-1 C, or a
+        # frame axis mislabelled as "C"), so splitting on that guess would collapse a
+        # single-channel stack to a lower dimensionality or carve a frame axis into
+        # spurious channels - in both cases hiding the TCZYX/CTZYX dimension-order
+        # options the user needs to correct the interpretation downstream.
+        c_idx = image.dims.order.index("C") if "C" in image.dims.order else None
+        channel_size = image.dims.shape[c_idx] if c_idx is not None else 1
+        split_channels = (
+            c_idx is not None and channel_size > 1 and _has_real_channel_metadata(image)
+        )
+        if split_channels:
             add_kwargs["channel_axis"] = c_idx
             #remove channel idx from scale
             scale.pop(c_idx)
             dim_order.pop(c_idx)
-            if image.channel_names:
-                if len(scenes) > 1 and scene is not None:
-                    add_kwargs["name"] = [f"{scene} - {ch}" for ch in image.channel_names]
-                else:
-                    add_kwargs["name"] = image.channel_names
+            if len(scenes) > 1 and scene is not None:
+                add_kwargs["name"] = [f"{scene} - {ch}" for ch in image.channel_names]
+            else:
+                add_kwargs["name"] = image.channel_names
         else:
+            if c_idx is not None and channel_size > 1:
+                logger.info(
+                    f"Not splitting the guessed channel axis of '{os.path.basename(path)}' "
+                    f"(size {channel_size}) into separate layers, because the file has no "
+                    f"genuine channel metadata. If this axis is not really the channel "
+                    f"dimension, set the dimension order manually in the Deskew tab."
+                )
             if len(scenes) > 1 and scene is not None:
                 add_kwargs["name"] = f"{os.path.splitext(os.path.basename(path))[0]} - {scene}"
             else:
