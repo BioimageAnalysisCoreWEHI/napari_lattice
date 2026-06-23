@@ -178,15 +178,6 @@ def crop_volume_deskew(
     # clip to z bounds of original volume
     z_end_vol = np.clip(z_end_vol_prelim, 0, orig_img_shape[2])
 
-    # If the coordinates are out of bound, then the final volume needs adjustment in Y axis
-    # if skew in X direction, then use y axis for finding correction factor instead
-    if z_end_vol_prelim != z_end_vol:
-        out_bounds_correction = z_end_vol_prelim - z_end_vol
-    elif z_start_vol_prelim != z_start_vol:
-        out_bounds_correction = z_start_vol_prelim - z_start_vol
-    else:
-        out_bounds_correction = 0
-
     # make sure z_start < z_end
     if z_start_vol > z_end_vol:
         # tuple swap  #https://docs.python.org/3/reference/expressions.html#evaluation-order
@@ -264,38 +255,41 @@ def crop_volume_deskew(
             deskew_direction=skew_dir,
         )
 
-    # The height of deskewed_prelim will be larger than specified shape
-    # as the coordinates of the ROI are skewed in the original volume
-    # IF CLIPPING HAPPENS FOR Y_START or Y_END, use difference to calculate offset
-    if skew_dir == DeskewDirection.Y:
-        deskewed_height = deskewed_prelim.shape[1]
-        crop_height = crop_vol_shape[1]
+    # deskewed_prelim is larger than the crop (the shear adds empty wedges), and
+    # its row/col 0 is the MINIMUM deskewed coordinate of the clipped sub-block,
+    # so crop_excess = round(ROI_origin - that_minimum). Old code assumed 
+    # ROI was centred ((deskewed_dim - crop_dim) / 2 + an out-of-bounds fudge),
+    # which only holds at scan-centre and mis-placed off-centre ROIs. 
+    # This was not the case with larger datasets where ROIs were far away from scan centre,
+    # Projecting the clipped corners through the raw->deskewed transform is exact.
+    deskewed_prelim = np.asarray(deskewed_prelim)
+    full_deskew_matrix = np.linalg.inv(reverse_aff._matrix)  # get aff matrix for raw->deskewed, incl. translation
+    # get the 8 ROI box corners in raw space: same corners as calculate_crop_bbox
+    # but clipped to the volume, in xyz order with a homogeneous 1
+    from itertools import product
 
-        # Find "excess" volume on both sides due to deskewing
-        crop_excess: int = max(
-            int(round((deskewed_height - crop_height) / 2)) + out_bounds_correction,
-            0
-        )
-        # Crop in Y
-        deskewed_prelim = np.asarray(deskewed_prelim)
-        deskewed_crop = deskewed_prelim[
-            :, crop_excess : crop_height + crop_excess, :
-        ]
-    # IF CLIPPING HAPPENS FOR X_START or X_END, use difference to calculate offset
+    sub_corners = np.asarray([
+        [x, y, z, 1]
+        for x, y, z in product((x_start, x_end), (y_start, y_end), (z_start_vol, z_end_vol))
+    ])
+    prelim_corners = (full_deskew_matrix @ sub_corners.T).T  # deskewed xyz of sub-block corners
+    roi_origin = np.asarray(crop_bounding_box).min(axis=0)   # [x, y, z, 1]
+
+    if skew_dir == DeskewDirection.Y:
+        crop_height = crop_vol_shape[1]
+        crop_excess: int = max(int(round(roi_origin[1] - prelim_corners[:, 1].min())), 0)
+        deskewed_crop = deskewed_prelim[:, crop_excess : crop_height + crop_excess, :]
+        # Pad the skew axis if the prelim is short near the far field edge
+        if deskewed_crop.shape[1] < crop_height:
+            pad = crop_height - deskewed_crop.shape[1]
+            deskewed_crop = np.pad(deskewed_crop, ((0, 0), (0, pad), (0, 0)))
     elif skew_dir == DeskewDirection.X:
-        deskewed_width = deskewed_prelim.shape[2]
         crop_width = crop_vol_shape[2]
-        
-        # Find "excess" volume on both sides due to deskewing
-        crop_excess = max(
-            int(round((deskewed_width - crop_width) / 2)) + out_bounds_correction,
-            0
-        )
-        # Crop in X
-        deskewed_prelim = np.asarray(deskewed_prelim)
-        deskewed_crop = deskewed_prelim[
-            :, :, crop_excess : crop_width + crop_excess
-        ]
+        crop_excess = max(int(round(roi_origin[0] - prelim_corners[:, 0].min())), 0)
+        deskewed_crop = deskewed_prelim[:, :, crop_excess : crop_width + crop_excess]
+        if deskewed_crop.shape[2] < crop_width:
+            pad = crop_width - deskewed_crop.shape[2]
+            deskewed_crop = np.pad(deskewed_crop, ((0, 0), (0, 0), (0, pad)))
 
     # For debugging, ,deskewed_prelim will also be returned which is the uncropped volume
     if debug:
