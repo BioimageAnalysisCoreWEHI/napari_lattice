@@ -150,6 +150,30 @@ jobs:
   # JOB 3: Release on PyPI 
   # ------------------------------------------------------------------
 
+  build_conda:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-name: conda-build-env
+          create-args: >-
+            conda-build
+            conda-verify
+          init-shell: bash
+
+        # We don't want the whole repo (recipe), since that includes some test data
+      - run: |
+          mkdir output/
+          conda-build core --output-folder output --no-include-recipe
+        shell: bash -leo pipefail {0}
+        name: Build conda package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lls-core-conda
+          # Upload the actual conda package
+          path: output/**/lls_core*.tar.bz2
+
   deploy:
     # run this job only for tag refs (e.g. refs/tags/v1.2.3)
     if: startsWith(github.ref, 'refs/tags/')
