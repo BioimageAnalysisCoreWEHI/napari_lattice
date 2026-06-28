@@ -180,7 +180,7 @@ jobs:
           python -m build core
           python -m build plugin
 
-      - uses: ncipollo/release-action@v1.18.0 #Create a release when tag is pushed
+      - uses: ncipollo/release-action@v1.21.0 #Create a release when tag is pushed
         name: Create GitHub release
         with:
           skipIfReleaseExists: true
