@@ -19,7 +19,7 @@ from lls_core.deconvolution import DeconvolutionChoice
 from typer import Typer, Argument, Option, Context, Exit
 from typer.main import get_command
 
-from lls_core.models.output import SaveFileType
+from lls_core.models.output import SaveFileType, MipInterpolation
 from pydantic.v1 import ValidationError
 from toolz.dicttoolz import merge_with
 
@@ -53,6 +53,8 @@ CLI_PARAM_MAP = {
     "save_type": ["save_type"],
     "process_parallel": ["process_parallel"],
     "memory_safety_factor": ["memory_safety_factor"],
+    "save_mip": ["save_mip"],
+    "mip_interpolation": ["mip_interpolation"],
 }
 
 app = Typer(add_completion=False, rich_markup_mode="rich", no_args_is_help=True)
@@ -169,6 +171,8 @@ def process(
     save_type: SaveFileType = field_from_model(OutputParams, "save_type", rich_help_panel="Output"),
     process_parallel: int = field_from_model(OutputParams, "process_parallel", rich_help_panel="Output"),
     memory_safety_factor: float = field_from_model(OutputParams, "memory_safety_factor", rich_help_panel="Output"),
+    save_mip: bool = field_from_model(OutputParams, "save_mip", rich_help_panel="Output"),
+    mip_interpolation: MipInterpolation = field_from_model(OutputParams, "mip_interpolation", rich_help_panel="Output"),
 
     workflow: Optional[Path] = field_from_model(LatticeData, "workflow", show_default=False),
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),

@@ -47,6 +47,7 @@ dependencies = [
     "importlib_resources",
     "napari-workflows>=0.2.8",
     "npy2bdv",
+    "numba",
     "numpy<2",
     "packaging",
     "pandas",

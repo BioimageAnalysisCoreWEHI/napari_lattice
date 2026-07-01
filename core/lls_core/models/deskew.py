@@ -16,6 +16,9 @@ from lls_core.models.utils import FieldAccessModel, enum_choices
 from lls_core.types import is_arraylike, is_pathlike
 from lls_core.utils import get_deskewed_shape,convert_xyz_to_zyx_order
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from bioio import PhysicalPixelSizes
@@ -208,14 +211,34 @@ class DeskewParams(FieldAccessModel):
         elif v is None:
             # At this point, we have exhausted all other methods of obtaining pixel sizes:
             # User defined and image metadata. So we just use the defaults
-            return DefinedPixelSizes()
-        
+            defaults = DefinedPixelSizes()
+            logger.warning(
+                "No pixel sizes were provided or found in the image metadata; falling back to "
+                f"default (Zeiss) values Z={defaults.Z}, Y={defaults.Y}, X={defaults.X} microns. "
+                "For non-Zeiss data, specify physical_pixel_sizes (deskew/MIP geometry depends on it)."
+            )
+            return defaults
+
         return v
 
     @root_validator(pre=True)
     def read_image(cls, values: dict):
         from bioio import BioImage
         from os import fspath
+
+        # Warn when geometry-defining parameters are left at their defaults, since
+        # the deskew/MIP geometry depends entirely on them. `values` here is the
+        # raw user input (pre-validation), so a missing key means "not provided".
+        # (Internal copies pass all fields explicitly, so they don't trigger this.)
+        if "angle" not in values:
+            logger.warning(
+                f"No deskew angle was provided; using the default of {cls.__fields__['angle'].default} degrees. "
+                "Specify the angle if your microscope differs."
+            )
+        if "skew" not in values:
+            logger.warning(
+                f"No skew direction was provided; using the default '{cls.__fields__['skew'].default.name}'."
+            )
 
         img = values["input_image"]
 

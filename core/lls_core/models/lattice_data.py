@@ -521,6 +521,42 @@ class LatticeData(OutputParams, DeskewParams):
             lattice_data=self
         )
 
+    def _process_mip(self) -> Iterable[ImageSlice]:
+        """
+        Yields a 2D deskewed maximum-intensity projection per timepoint and
+        channel, as a singleton-Z `(1, Y, X)` slice so it flows through the
+        existing 3D writers unchanged. The MIP is computed directly from the raw
+        data (no full deskew), grid-pinned to the deskewed shape. Cropping and
+        deconvolution are intentionally ignored for MIP output.
+        """
+        import numpy as np
+        from lls_core.mip import deskew_mip
+        from lls_core.models.results import ProcessedSlice
+
+        # MIP is whole-FOV, so iterate time/channel directly (no ROI axis).
+        target_shape = self.derived.deskew_vol_shape[1:]
+        for time_idx, time in enumerate(self.time_range):
+            for ch_idx, ch in enumerate(self.channel_range):
+                raw_3d = self.slice_data(time=time, channel=ch)
+                mip = deskew_mip(
+                    raw_3d.data,
+                    angle_in_degrees=self.angle,
+                    voxel_size_z=self.dz,
+                    voxel_size_y=self.dy,
+                    voxel_size_x=self.dx,
+                    skew=self.skew,
+                    interpolation=self.mip_interpolation,
+                    target_shape=target_shape,
+                )
+                yield ProcessedSlice(
+                    data=mip[np.newaxis, :, :],  # (1, Y, X): singleton Z for the 3D writers
+                    roi_index=None,
+                    time_index=time_idx,
+                    time=time,
+                    channel_index=ch_idx,
+                    channel=ch,
+                )
+
     def process(self) -> ImageSlices:
         """
         Execute the processing and return the result.
@@ -529,7 +565,17 @@ class LatticeData(OutputParams, DeskewParams):
         from lls_core.models.results import ImageSlices
         ImageSlices.update_forward_refs(LatticeData=LatticeData)
 
-        if self.cropping_enabled:
+        if self.save_mip:
+            if self.deconvolution is not None or self.workflow is not None or self.cropping_enabled:
+                logger.warning(
+                    "save_mip is enabled: the deskewed MIP is a whole-FOV projection, so the "
+                    "attached cropping/deconvolution/workflow will be ignored for this output."
+                )
+            return ImageSlices(
+                lattice_data=self,
+                slices=self._process_mip()
+            )
+        elif self.cropping_enabled:
             return ImageSlices(
                 lattice_data=self,
                 slices=self._process_crop()
@@ -548,6 +594,11 @@ class LatticeData(OutputParams, DeskewParams):
         When `process_parallel > 1` and cropping is enabled, ROIs are distributed
         across worker processes; otherwise the original serial path runs.
         """
+        # MIP output is a whole-FOV projection: it bypasses cropping, parallel-ROI
+        # dispatch and workflows.
+        if self.save_mip:
+            self.process().save_image()
+            return
         if self._use_parallel_roi_processing():
             return self._save_parallel_rois()
         if self.workflow:
