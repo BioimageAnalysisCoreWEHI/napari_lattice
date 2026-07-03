@@ -9,9 +9,11 @@ which is then consumed by the
 - the crop ROI
 mappings so they cannot drift. Pure numpy/math; We do not include any pyclesperanto or numba imports.
 
-Geometry follows the qi2lab orthogonal-deskew convention: 
-the coverslip axial extent is `n_lat * sin(theta)`
-and the sheared lateral extent is `(n_scan-1)*step + n_lat*cos(theta)`.
+Geometry follows the qi2lab orthogonal-deskew convention. The coverslip axial (Z)
+extent is SCAN-driven -- `(n_scan-1)*sin(theta)*step + 1` (step = dz/d_lateral) -- NOT
+raw-lateral-driven: verified against the two-pass oracle (moving a feature along raw-Y at a
+fixed scan plane leaves its coverslip height unchanged). The sheared lateral extent is
+`(n_scan-1)*cos(theta)*step + (n_lat-1) + 1`.
 
 """
 from __future__ import annotations
