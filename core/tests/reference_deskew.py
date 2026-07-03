@@ -133,33 +133,25 @@ def two_pass_shear_only(raw_zyx, angle_deg, dz, dy, dx, skew="Y"):
     return vol
 
 
-def tilt_residual_slope(deskewed_zyx, support_thr=1e-6):
-    """Slope of (structure centroid - support centroid) in Y per output-Z slice.
-    ~0 => content is level in the coverslip frame (adapted from
-    deskew_tilt_control.py)."""
-    vol = np.asarray(deskewed_zyx, dtype=np.float64)
-    ny = vol.shape[1]
-    yg = np.arange(ny)
-    tot = vol.reshape(vol.shape[0], -1).sum(1)
-    if tot.max() <= 0:
+def yz_slab_angle(vol, skew="Y", thr_frac=0.5):
+    """Angle (degrees) of the bright slab in the sheared-axis projection of a ZYX volume.
+
+    Simple, visual flatness check: threshold to the bright slab, project along the
+    passthrough lateral axis, and take the principal-axis angle in the (Z, sheared)
+    plane. 90 == vertical (upright, along output-Z); 0 == horizontal. For a
+    coverslip-NORMAL post a correctly leveled (shear-only) deskew gives ~90; the
+    un-leveled objective frame leaves it tilted off vertical by ~the deskew angle.
+    Y-skew projects along X (-> Z, Y); X-skew projects along Y (-> Z, X). Assumes OPM
+    acquisition geometry."""
+    arr = np.asarray(vol, dtype=np.float64)
+    proj = arr.max(axis=2) if skew == "Y" else arr.max(axis=1)   # -> (Z, sheared-lateral)
+    if proj.max() <= 0:
         return 0.0
-    core = np.where(tot > 0.05 * tot.max())[0]
-    zc, res = [], []
-    for z in range(int(core.min()), int(core.max()) + 1):
-        sl = vol[z]
-        mask = sl > support_thr
-        msum = mask.sum(1)
-        if msum.sum() <= 0:
-            continue
-        sup_c = (msum * yg).sum() / msum.sum()
-        vals = sl[mask]
-        bg = np.percentile(vals, 50) if vals.size else 0.0
-        s = np.clip(sl - bg, 0, None)
-        ws = s.sum(1)
-        if ws.sum() <= 0:
-            continue
-        str_c = (ws * yg).sum() / ws.sum()
-        zc.append(z); res.append(str_c - sup_c)
-    if len(zc) < 2:
+    zz, ll = np.nonzero(proj > thr_frac * proj.max())
+    if zz.size < 2:
         return 0.0
-    return float(np.polyfit(np.array(zc), np.array(res), 1)[0])
+    pts = np.stack([zz, ll]).astype(float)
+    pts -= pts.mean(1, keepdims=True)
+    eigvals, eigvecs = np.linalg.eigh(np.cov(pts))
+    dzc, dll = eigvecs[:, int(np.argmax(eigvals))]       # dominant principal direction
+    return float(np.degrees(np.arctan2(abs(dzc), abs(dll))))
