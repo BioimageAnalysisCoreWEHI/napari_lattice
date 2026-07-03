@@ -1,5 +1,5 @@
 """
-Single-pass, memory-light deskewed MIP (no intermediate deskewed volume).
+Single-pass, memory-light deskewed MIP.
 The main advantage here is that we create a MIP without deskewing the whole volume. 
 
 

@@ -102,11 +102,10 @@ class DeskewParams(FieldAccessModel):
     )
     coverslip_rotation: bool = Field(
         default=True,
-        description="Whether to apply the coverslip rotation. If True (default), use the standard "
-                    "deskew (cle.deskew_y/cle.deskew_x), which rotates the volume into the coverslip "
-                    "frame — correct for Zeiss LLS. If False, skip that rotation and deskew into the "
-                    "shear-only frame that is level for OPM/SOPi (single-pass equivalent of "
-                    "shear-then-rotate)."
+        description="Apply the coverslip rotation (rotate the deskewed volume by the deskew angle). "
+                    "Effect is acquisition-geometry dependent: True (default) uses the standard deskew "
+                    "(cle.deskew_y/x) and is coverslip-level for Zeiss LLS7; False skips the rotation and "
+                    "is coverslip-level for some OPM/SOPi."
     )
     derived: DerivedDeskewFields = Field(
         init_var=False,
@@ -135,7 +134,7 @@ class DeskewParams(FieldAccessModel):
                 return shear_only_deskew(input_image, angle_in_degrees, voxel_size_z,
                                         voxel_size_y, voxel_size_x, skew=skew_name)
             return _cover
-        # Chance deskew function absed on skew direction
+        # Choose deskew function based on skew direction
         if self.skew == DeskewDirection.Y:
             return cle.deskew_y
         elif self.skew == DeskewDirection.X:
