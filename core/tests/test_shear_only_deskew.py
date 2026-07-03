@@ -70,11 +70,12 @@ def _sheared_axis_view(vol, skew):
 @pytest.mark.parametrize("skew", ["Y", "X"])
 def test_numba_shear_only_both_skews_level(skew):
     # Off-centre COMPACT blob, narrow in the sheared lateral axis and spanning
-    # only mid scan planes. This is asymmetric with genuine tilt-detection power:
-    # if the shear is NOT removed (objective frame) the structure's centroid
-    # drifts monotonically along the sheared axis with output-Z (slope ~0.12),
-    # whereas correct shear-only leveling gives slope ~0. A full-scan symmetric
-    # slab (the old content) gives the metric almost no power.
+    # only mid scan planes, with genuine tilt-detection power: if the shear is
+    # NOT removed (objective frame) the structure's centroid drifts monotonically
+    # along the sheared axis with output-Z (slope ~0.15), whereas correct
+    # shear-only leveling gives slope ~0.
+    # NOTE: "level" here assumes OPM acquisition geometry (coverslip_rotation=False);
+    # for Zeiss LLS the objective/True path is the coverslip-level one instead.
     ang, dz, dy, dx = 45.0, 2.0, 1.04, 1.04
     raw = np.zeros((30, 60, 60), dtype=np.float32)
     if skew == "Y":
@@ -144,17 +145,30 @@ def test_deskew_params_shear_only_shape_and_default():
 
 
 def test_non_crop_shear_only_is_level():
-    """With coverslip_rotation=False (OPM/SOPi), _process_non_crop must return a ZYX array
-    whose shape equals shear_only_output_shape and whose tilt residual slope < 0.2."""
+    """With coverslip_rotation=False (OPM/SOPi geometry), _process_non_crop must return a ZYX
+    array whose shape equals shear_only_output_shape and that is coverslip-level (tilt
+    residual slope ~0).  NOTE: "level" here assumes OPM acquisition geometry; for Zeiss LLS
+    it is coverslip_rotation=True (the objective path) that is the coverslip-level one."""
+    # Full-scan slab: strong objective tilt (~0.23 through the pipeline), so the gate below
+    # is non-vacuous — the un-leveled result would clearly fail it (see guard).
     raw = np.zeros((30, 60, 60), dtype=np.float32)
     raw[:, 24:36, 20:40] = 200.0
-    with tempfile.TemporaryDirectory() as d:
-        lat = LatticeData(input_image=DataArray(raw, dims=["Z", "Y", "X"]),
-                          physical_pixel_sizes=(2.0, 1.04, 1.04), angle=45,
-                          coverslip_rotation=False, save_name="t", save_dir=d)
-        out = np.asarray(next(iter(lat.process().slices)).data)
-    assert abs(tilt_residual_slope(out)) < 0.2
+
+    def _pipeline(coverslip_rotation: bool):
+        with tempfile.TemporaryDirectory() as d:
+            lat = LatticeData(input_image=DataArray(raw, dims=["Z", "Y", "X"]),
+                              physical_pixel_sizes=(2.0, 1.04, 1.04), angle=45,
+                              coverslip_rotation=coverslip_rotation, save_name="t", save_dir=d)
+            return np.asarray(next(iter(lat.process().slices)).data)
+
+    out = _pipeline(False)
+    assert abs(tilt_residual_slope(out)) < 0.06
     assert out.shape == shear_only_output_shape((30, 60, 60), 45, 2.0, 1.04, 1.04, "Y")
+
+    # Anti-vacuous guard: the un-leveled objective result (coverslip_rotation=True) must
+    # clearly exceed the gate, proving the metric has tilt-detection power for this content.
+    tilted = _pipeline(True)
+    assert abs(tilt_residual_slope(tilted)) > 0.06
 
 
 def _shear_only_forward(p, yr, xr, angle_deg, dz, dy, dx, skew):
