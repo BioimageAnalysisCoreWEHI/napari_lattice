@@ -37,6 +37,7 @@ CLI_PARAM_MAP = {
     "angle": ["angle"],
     "skew": ["skew"],
     "invert_scan_direction": ["invert_scan_direction"],
+    "coverslip_rotation": ["coverslip_rotation"],
     "physical_pixel_sizes": ["physical_pixel_sizes"],
     "roi_list": ["crop", "roi_list"],
     "roi_subset": ["crop", "roi_subset"],
@@ -147,6 +148,7 @@ def process(
     skew: CliDeskewDirection = field_from_model(DeskewParams, "skew"),# DeskewParams.make_typer_field("skew"),
     angle: float = field_from_model(DeskewParams, "angle") ,
     invert_scan_direction: bool = field_from_model(DeskewParams, "invert_scan_direction"),
+    coverslip_rotation: bool = field_from_model(DeskewParams, "coverslip_rotation"),
     physical_pixel_sizes: Tuple[float, float, float] = field_from_model(DeskewParams, "physical_pixel_sizes", extra_description="This takes three arguments, corresponding to the Z, Y and X pixel dimensions respectively", default=(
         DefinedPixelSizes.get_default("Z"),
         DefinedPixelSizes.get_default("Y"),

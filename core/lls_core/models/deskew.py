@@ -100,6 +100,14 @@ class DeskewParams(FieldAccessModel):
                     "This is required for oblique plane microscopes whose stage/galvo scans can be in opposite directions. "
                     "Leaving this `False` preserves the original behaviour compatible with Zeiss LLS."
     )
+    coverslip_rotation: bool = Field(
+        default=True,
+        description="Whether to apply the coverslip rotation. If True (default), use the standard "
+                    "deskew (cle.deskew_y/cle.deskew_x), which rotates the volume into the coverslip "
+                    "frame — correct for Zeiss LLS. If False, skip that rotation and deskew into the "
+                    "shear-only frame that is level for OPM/SOPi (single-pass equivalent of "
+                    "shear-then-rotate)."
+    )
     derived: DerivedDeskewFields = Field(
         init_var=False,
         default=None,
@@ -117,6 +125,16 @@ class DeskewParams(FieldAccessModel):
 
     @property
     def deskew_func(self):
+        if not self.coverslip_rotation:
+            # OPM/SOPi (shear-only) branch
+            from lls_core.shear_only_deskew import shear_only_deskew
+            skew_name = "Y" if self.skew == DeskewDirection.Y else "X"
+            # Adapt to the deskew_func call convention used in _process_non_crop
+            def _cover(input_image, angle_in_degrees, linear_interpolation,
+                       voxel_size_x, voxel_size_y, voxel_size_z):
+                return shear_only_deskew(input_image, angle_in_degrees, voxel_size_z,
+                                        voxel_size_y, voxel_size_x, skew=skew_name)
+            return _cover
         # Chance deskew function absed on skew direction
         if self.skew == DeskewDirection.Y:
             return cle.deskew_y
@@ -180,6 +198,9 @@ class DeskewParams(FieldAccessModel):
     @property
     def new_dz(self):
         import math
+        if not self.coverslip_rotation:
+            # Coverslip output Z axis sits on the lateral-pixel grid: one zc index = d_lateral
+            return self.dy if self.skew == DeskewDirection.Y else self.dx
         return math.sin(self.angle * math.pi / 180.0) * self.dz
 
     def apply_scan_flip(self, volume: DataArray) -> DataArray:
@@ -300,6 +321,43 @@ class DeskewParams(FieldAccessModel):
         if isinstance(v, DerivedDeskewFields):
             return v
         elif v is None:
+            if not values.get("coverslip_rotation", True):
+                # OPM/SOPi (shear-only) branch
+                from lls_core.shear_only_geometry import shear_only_output_shape, shear_only_display_affine_zyx
+                raw3d = data.isel(C=0, T=0)
+                raw_shape_zyx = tuple(int(s) for s in raw3d.shape)
+                skew_name = "Y" if values["skew"] == DeskewDirection.Y else "X"
+                cover_shape = shear_only_output_shape(
+                    raw_shape_zyx,
+                    values["angle"],
+                    values["physical_pixel_sizes"].Z,
+                    values["physical_pixel_sizes"].Y,
+                    values["physical_pixel_sizes"].X,
+                    skew_name,
+                )
+                # deskew_affine_transform (xyz/CLE) is only used by the objective display/crop
+                # path; keep the objective CLE transform so that path (if ever reached) still works.
+                _, deskew_affine_transform = get_deskewed_shape(
+                    raw3d, values["angle"],
+                    values["physical_pixel_sizes"].X, values["physical_pixel_sizes"].Y,
+                    values["physical_pixel_sizes"].Z, values["skew"])
+                # The _zyx display affine is the only one consumed by Quick Deskew preview.
+                # Use the coverslip shear-only affine so toggling "Coverslip Rotation" OFF
+                # shows the OPM/shear-only orientation in the napari canvas.
+                deskew_affine_transform_zyx = shear_only_display_affine_zyx(
+                    raw_shape_zyx,
+                    values["angle"],
+                    values["physical_pixel_sizes"].Z,
+                    values["physical_pixel_sizes"].Y,
+                    values["physical_pixel_sizes"].X,
+                    skew_name,
+                    invert_scan_direction=values.get("invert_scan_direction", False),
+                )
+                return DerivedDeskewFields(
+                    deskew_affine_transform=deskew_affine_transform,
+                    deskew_vol_shape=cover_shape,
+                    deskew_affine_transform_zyx=deskew_affine_transform_zyx,
+                )
             deskew_vol_shape, deskew_affine_transform = get_deskewed_shape(
                 data.isel(C=0, T=0),
                 values["angle"],

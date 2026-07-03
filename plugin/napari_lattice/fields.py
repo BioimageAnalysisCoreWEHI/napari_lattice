@@ -218,6 +218,7 @@ class DeskewKwargs(NapariImageParams):
     angle: float
     skew: DeskewDirection
     invert_scan_direction: bool
+    coverslip_rotation: bool
 
 @magicclass
 class DeskewFields(NapariFieldGroup):
@@ -283,6 +284,10 @@ class DeskewFields(NapariFieldGroup):
         tooltip="Reverse the order of planes along the scan (Z) axis before deskewing.\n"
                 "Enable this for microscopes whose scan direction can be reversed.\n"
                 "Leaving it False preserves original behaviour compatible with Zeiss LLS."
+    )
+    coverslip_rotation = field(DeskewParams.get_default("coverslip_rotation")).with_options(
+        label="Coverslip Rotation",
+        tooltip="Apply the coverslip rotation (standard deskew; correct for Zeiss LLS). Uncheck for OPM/SOPi to deskew into the shear-only, coverslip-level frame."
     )
 
     # --- Processing / preview ---
@@ -354,10 +359,21 @@ class DeskewFields(NapariFieldGroup):
         # Hide the "Stack Along" option if we only have one image
         return len(img_layer) > 1
     
+    @coverslip_rotation.connect
+    def _on_coverslip_toggled(self):
+        ticked = self.coverslip_rotation.value
+        logger.info(f"Coverslip Rotation {'Enabled' if ticked else 'Disabled'}")
+
+    @invert_scan_direction.connect
+    def _on_invert_scan_direction_toggled(self):
+        ticked = self.invert_scan_direction.value
+        logger.info(f"Invert Scan Direction {'True' if ticked else 'False'}")
+
     @quick_deskew.connect
     @skew_dir.connect #when deskewing parameters change
     @angle.connect
     @invert_scan_direction.connect
+    @coverslip_rotation.connect
     @pixel_sizes_source.connect
     @pixel_sizes.connect
     def _quick_deskew(self):
@@ -445,6 +461,7 @@ class DeskewFields(NapariFieldGroup):
             angle=self.angle.value,
             skew = self.skew_dir.value,
             invert_scan_direction=self.invert_scan_direction.value,
+            coverslip_rotation=self.coverslip_rotation.value,
         )
 
     def _make_model(self) -> DeskewParams:
@@ -455,6 +472,7 @@ class DeskewFields(NapariFieldGroup):
             angle=kwargs["angle"],
             skew = kwargs["skew"],
             invert_scan_direction=kwargs["invert_scan_direction"],
+            coverslip_rotation=kwargs["coverslip_rotation"],
         )
 
 @magicclass

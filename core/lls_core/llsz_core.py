@@ -50,6 +50,7 @@ class CommonArgs(TypedDict, total=False):
     num_iter: int
     linear_interpolation: bool
     skew_dir: DeskewDirection
+    coverslip_rotation: bool
 
 @overload
 def crop_volume_deskew(*, debug: Literal[True], get_deskew_and_decon: bool = False, **kwargs: Unpack[CommonArgs]) -> Tuple[NDArray, NDArray]:
@@ -78,6 +79,7 @@ def crop_volume_deskew(
     linear_interpolation: bool=True,
     skew_dir: DeskewDirection=DeskewDirection.Y,
     get_deskew_and_decon: bool = False,
+    coverslip_rotation: bool = True,
 ):
     """Crop the volume from original data and deskew the cropped volume
     Args:
@@ -128,6 +130,26 @@ def crop_volume_deskew(
     crop_bounding_box, crop_vol_shape = calculate_crop_bbox(
         shape, z_start, z_end
     )
+
+    if not coverslip_rotation:
+        # OPM/SOPi: ROI corners are in the coverslip frame → map to raw via the
+        # frozen coverslip inverse map (shear_only_inverse_map), not the objective affine.
+        return _crop_volume_deskew_shear_only(
+            original_volume=original_volume,
+            crop_bounding_box=crop_bounding_box,
+            crop_vol_shape=crop_vol_shape,
+            angle_in_degrees=angle_in_degrees,
+            voxel_size_x=voxel_size_x,
+            voxel_size_y=voxel_size_y,
+            voxel_size_z=voxel_size_z,
+            skew_dir=skew_dir,
+            debug=debug,
+            deconvolution=deconvolution,
+            decon_processing=decon_processing,
+            psf=psf,
+            num_iter=num_iter,
+            get_deskew_and_decon=get_deskew_and_decon,
+        )
 
     # get reverse transform by rotating around original volume
     (
@@ -303,6 +325,166 @@ def crop_volume_deskew(
             deskewed_crop_no_decon = deskewed_no_decon[
                 :, :, crop_excess : crop_width + crop_excess
             ]
+        return deskewed_crop, deskewed_crop_no_decon
+    else:
+        return deskewed_crop
+
+
+def _crop_volume_deskew_shear_only(
+    original_volume,
+    crop_bounding_box,
+    crop_vol_shape,
+    angle_in_degrees: float,
+    voxel_size_x: float,
+    voxel_size_y: float,
+    voxel_size_z: float,
+    skew_dir: DeskewDirection,
+    debug: bool = False,
+    deconvolution: bool = False,
+    decon_processing: Optional[DeconvolutionChoice] = None,
+    psf: Union[Psf, None] = None,
+    num_iter: int = 10,
+    get_deskew_and_decon: bool = False,
+):
+    """Crop + deskew for the coverslip frame (see caller for the rationale).
+
+    The crop ROI (``crop_bounding_box``, coverslip-frame corners as [x, y, z, 1])
+    is mapped to raw scan/Y/X via the frozen coverslip inverse map; the raw
+    sub-volume is extracted (with a 1px halo for interpolation), deskewed into the
+    shear-only (coverslip) frame with ``shear_only_deskew``, then trimmed to the ROI's
+    shear-only extent using the sub-block shear-only offset (a pure translation).
+    """
+    from lls_core.shear_only_deskew import shear_only_deskew
+    from lls_core.shear_only_geometry import (
+        shear_only_inverse_map,
+        shear_only_subblock_offset,
+    )
+
+    skew_name = "Y" if skew_dir == DeskewDirection.Y else "X"
+    Nz, Ny, Nx = (int(s) for s in original_volume.shape)
+
+    # Map shear-only ROI corners -> raw (scan p, raw_y, raw_x) via the frozen inverse
+    raw_pts = np.asarray([
+        shear_only_inverse_map(
+            zc, yc, xc, angle_in_degrees,
+            voxel_size_z, voxel_size_y, voxel_size_x, skew_name,
+        )
+        for (xc, yc, zc, _one) in crop_bounding_box
+    ])
+
+    halo = 1  # extra margin so bilinear interpolation has neighbours
+    scan_start = int(np.clip(np.floor(raw_pts[:, 0].min()) - halo, 0, Nz))
+    scan_end = int(np.clip(np.ceil(raw_pts[:, 0].max()) + halo, 0, Nz))
+    rawy_start = int(np.clip(np.floor(raw_pts[:, 1].min()) - halo, 0, Ny))
+    rawy_end = int(np.clip(np.ceil(raw_pts[:, 1].max()) + halo, 0, Ny))
+    rawx_start = int(np.clip(np.floor(raw_pts[:, 2].min()) - halo, 0, Nx))
+    rawx_end = int(np.clip(np.ceil(raw_pts[:, 2].max()) + halo, 0, Nx))
+
+    # shear_only_deskew needs at least two scan planes (bilinear over plane, plane+1)
+    if scan_end - scan_start < 2:
+        scan_end = min(scan_start + 2, Nz)
+        scan_start = max(scan_end - 2, 0)
+    # guard degenerate lateral extents
+    if rawy_end <= rawy_start:
+        rawy_end = min(rawy_start + 1, Ny)
+    if rawx_end <= rawx_start:
+        rawx_end = min(rawx_start + 1, Nx)
+
+    if isinstance(original_volume, (DaskArray, ResourceBackedDaskArray)):
+        crop_volume = (
+            original_volume[scan_start:scan_end, rawy_start:rawy_end, rawx_start:rawx_end]
+            .map_blocks(np.copy)
+            .squeeze()
+        )
+    else:
+        crop_volume = original_volume[
+            scan_start:scan_end, rawy_start:rawy_end, rawx_start:rawx_end
+        ]
+
+    crop_volume_no_decon = crop_volume
+    if deconvolution:
+        if decon_processing == DeconvolutionChoice.cuda_gpu:
+            crop_volume = pycuda_decon(
+                image=crop_volume,
+                psf=psf,
+                dzdata=voxel_size_z,
+                dxdata=voxel_size_x,
+                dzpsf=voxel_size_z,
+                dxpsf=voxel_size_x,
+                num_iter=num_iter,
+                cropping=True,
+            )
+        else:
+            crop_volume = skimage_decon(
+                vol_zyx=crop_volume,
+                psf=psf,
+                num_iter=num_iter,
+                clip=False,
+                filter_epsilon=0,
+                boundary="nearest",
+            )
+
+    # Deskew the raw sub-volume into the shear-only (coverslip) frame
+    def _deskew(vol):
+        return np.asarray(cle.pull(shear_only_deskew(
+            vol, angle_in_degrees, voxel_size_z, voxel_size_y, voxel_size_x,
+            skew=skew_name,
+        )))
+
+    deskewed_prelim = _deskew(crop_volume)
+
+    # Trim the sub-block coverslip output to the ROI's coverslip extent.
+    # The sub-block deskews into its OWN coverslip frame, offset from the global
+    # shear-only frame by a pure translation (shear_only_subblock_offset).
+    off_zc, off_yc, off_xc = shear_only_subblock_offset(
+        scan_start, rawy_start, rawx_start, angle_in_degrees,
+        voxel_size_z, voxel_size_y, voxel_size_x, skew_name,
+    )
+    roi_origin = np.asarray(crop_bounding_box).min(axis=0)  # [x0, y0, z0, 1]
+    x0, y0, z0 = float(roi_origin[0]), float(roi_origin[1]), float(roi_origin[2])
+    dz_roi, dy_roi, dx_roi = (int(v) for v in crop_vol_shape)  # (z, y, x) extents
+
+    def _trim(vol):
+        # Negative start ⇒ zero-pad the leading edge to keep ROI-origin alignment.
+        zc_start_raw = int(round(z0 - off_zc))
+        yc_start_raw = int(round(y0 - off_yc))
+        xc_start_raw = int(round(x0 - off_xc))
+
+        pre_z = max(-zc_start_raw, 0)
+        pre_y = max(-yc_start_raw, 0)
+        pre_x = max(-xc_start_raw, 0)
+
+        zc_start = max(zc_start_raw, 0)
+        yc_start = max(yc_start_raw, 0)
+        xc_start = max(xc_start_raw, 0)
+
+        # How many voxels to take from the sub-block after accounting for leading pad
+        take_z = dz_roi - pre_z
+        take_y = dy_roi - pre_y
+        take_x = dx_roi - pre_x
+
+        out = vol[
+            zc_start:zc_start + take_z,
+            yc_start:yc_start + take_y,
+            xc_start:xc_start + take_x,
+        ]
+        # Prepend zero-padding on leading edges that extend before the sub-block origin
+        if pre_z or pre_y or pre_x:
+            out = np.pad(out, ((pre_z, 0), (pre_y, 0), (pre_x, 0)))
+        # Append zero-padding on trailing edges if sub-block was too short
+        pad_z = max(dz_roi - out.shape[0], 0)
+        pad_y = max(dy_roi - out.shape[1], 0)
+        pad_x = max(dx_roi - out.shape[2], 0)
+        if pad_z or pad_y or pad_x:
+            out = np.pad(out, ((0, pad_z), (0, pad_y), (0, pad_x)))
+        return out
+
+    deskewed_crop = _trim(deskewed_prelim)
+
+    if debug:
+        return deskewed_crop, deskewed_prelim
+    elif get_deskew_and_decon:
+        deskewed_crop_no_decon = _trim(_deskew(crop_volume_no_decon))
         return deskewed_crop, deskewed_crop_no_decon
     else:
         return deskewed_crop

@@ -114,3 +114,15 @@ def test_yaml_deskew():
         # Batch deskew and save as h5
         invoke(["--yaml-config", str(config_location)], )
         assert_h5(test_dir)
+
+def test_cli_coverslip_rotation_flag(runner, lls7_t1_ch1):
+    from lls_core.cmds.__main__ import app
+    with tempfile.TemporaryDirectory() as d:
+        res = runner.invoke(app, [str(lls7_t1_ch1),
+                                  "--no-coverslip-rotation",
+                                  "--save-type", "tiff",
+                                  "--save-dir", d, "--save-name", "t"])
+        assert res.exit_code == 0, res.output
+        # A silent fallback (or a crash swallowed to exit 0) would write nothing:
+        # require the shear-only path to actually produce a readable output file.
+        assert_tiff(Path(d))
