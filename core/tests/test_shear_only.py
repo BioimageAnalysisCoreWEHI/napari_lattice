@@ -26,8 +26,8 @@ What actually proves the geometry is correct:
     That oracle only works for Y-skew: the X-skew two-pass rotates about a different
     axis, so its content can't be compared directly (the bounding box happens to match
     at 45 deg, but the content correlation collapses, and the box drifts at shallow angles).
-  * X-skew geometry is proved instead by test_shear_only_post_is_upright (both skews,
-    both angles), the MIP-vs-full-deskew parity, and the bit-exact OpenCL<->numba parity.
+  * X-skew geometry is proved instead by test_shear_only_post_is_upright (both skews;
+    two angles for Y, 45 deg for X), the MIP-vs-full-deskew parity, and the OpenCL<->numba parity.
   * OpenCL<->numba and MIP<->full-deskew both reuse the frozen map, so they are fidelity
     checks, not independent oracles.
 
@@ -108,7 +108,7 @@ def _ss_cc_display(angle_deg, dz, d_lateral):
 # ===========================================================================
 @pytest.mark.parametrize("bad", ["Z", None])
 def test_bad_skew_raises(bad):
-    # Both display affine and sub-block offset must reject unknown skew.
+    # Forward affine, sub-block offset, and display affine must all reject unknown skew.
     with pytest.raises(ValueError):
         shear_only_forward_affine(45.0, 2.0, 1.04, 1.04, bad)
     with pytest.raises(ValueError):
@@ -337,9 +337,11 @@ def test_shear_only_crop_roundtrip_places_feature(skew):
 
 @pytest.mark.parametrize("skew", ["Y", "X"])
 def test_shear_only_crop_edge_roi_aligned(skew):
-    """Regression: an ROI touching the shear-only frame's Z=0 edge. When the raw sub-block
-    halo pushes scan_start > 0, shear_only_subblock_offset returns off_zc > 0, making
-    z0 - off_zc < 0. Fix: zero-pad the leading edge so the output aligns to the ROI origin."""
+    """Regression: an ROI whose coverslip Z-range starts at the frame's Z=0 edge (z0_roi=0).
+    The ROI origin then maps to raw scan plane 0, so the sub-block offset off_zc is 0 and the
+    deskewed output must stay aligned to the ROI origin -- the blob must land at the low-z
+    (bottom) edge, not be shifted inward or dropped. (_trim zero-pads the leading edge whenever
+    a sub-block origin would map before the ROI origin, keeping this alignment.)"""
     ang, dz, dy, dx = 45.0, 2.0, 1.04, 1.04
     raw = np.zeros((30, 60, 60), dtype=np.float32)
     raw[0:4, 28:34, 26:32] = 500.0

@@ -110,7 +110,7 @@ def workflow_config_cli(image_workflow: Workflow, test_image: NDArray):
         workflow_path = tempdir / "workflow.json"
         save_workflow(str(workflow_path), image_workflow) 
         
-        # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
+        # Save the test_image (5x5x5 zeros with a value of 10 at (2,2,2)) to disk
         imsave(input, test_image)
         assert input.exists()
 

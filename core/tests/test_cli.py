@@ -1,4 +1,4 @@
-# Tests for napari_lattice using arguments and saving output files as h5, as well as tiff
+# Tests for napari_lattice using arguments and saving output files as h5, tiff and omezarr
 
 from typing import Callable, List
 import pytest
@@ -15,7 +15,7 @@ def create_image(path: Path):
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
     raw = np.zeros((5, 5, 5))
     raw[2, 4, 2] = 10
-    # Save image as a tif file in home directory
+    # Save image as a tif file at the given path
     b = BioImage(raw, physical_pixel_sizes={ax: 1. for ax in 'ZYX'})
     b.save(path)
     assert path.exists()
@@ -29,7 +29,7 @@ def create_data(dir: Path) -> Path:
     # Create a zero array of shape 5x5x5 with a value of 10 at (2,4,2)
     raw = np.zeros((5, 5, 5))
     raw[2, 4, 2] = 10
-    # Save image as a tif file in home directory
+    # Save image as a tif file at the given path
     b = BioImage(raw, physical_pixel_sizes={ax: 1. for ax in 'ZYX'})
     b.save(input_file)
     assert input_file.exists()
@@ -81,7 +81,7 @@ def assert_zarr(output_dir: Path):
 def test_batch_deskew(flags: List[str], check_fn: Callable[[Path], None]):
     """
     Write image to disk and then execute napari_lattice from terminal
-    Checks if an deskewed output file is created for both tif and h5
+    Checks a deskewed output file is created for each save type (h5, tiff, omezarr)
     """
     with tempfile.TemporaryDirectory() as _test_dir:
         test_dir = Path(_test_dir)
@@ -106,7 +106,7 @@ def test_batch_deskew(flags: List[str], check_fn: Callable[[Path], None]):
 def test_yaml_deskew():
     """
     Write image to disk and then execute napari_lattice from terminal
-    Checks if an deskewed output file is created for both h5 only
+    Checks a deskewed H5 output file is created from a YAML config
     """
     with tempfile.TemporaryDirectory() as test_dir:
         test_dir = Path(test_dir)
