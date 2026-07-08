@@ -452,6 +452,8 @@ class LatticeData(OutputParams, DeskewParams):
                     deskewed_volume=self.deskewed_volume,
                     z_start=self.crop.z_range[0],
                     z_end=self.crop.z_range[1],
+                    skew_dir=self.skew_dir,
+                    coverslip_rotation=self.coverslip_rotation,
                     **deconv_args
                 ),
                 "roi_index": roi_index
@@ -547,6 +549,7 @@ class LatticeData(OutputParams, DeskewParams):
                     skew=self.skew,
                     interpolation=self.mip_interpolation,
                     target_shape=target_shape,
+                    frame="shear_only" if not self.coverslip_rotation else "objective",
                 )
                 yield ProcessedSlice(
                     data=mip[np.newaxis, :, :],  # (1, Y, X): singleton Z for the 3D writers

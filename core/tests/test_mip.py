@@ -1,10 +1,11 @@
 """
 Tests for the single-pass deskewed MIP (lls_core.mip).
 
-These verify the push/scatter MIP kernel against the ground-truth
+These verify the bounded-pull (gather) MIP kernel against the ground-truth
 "full deskew then max-project" using pyclesperanto, for both skew directions.
-The push kernel is approximate (max-dilation splat), so we assert high
-correlation and small mean error rather than exact equality.
+The kernel does its own interpolation (nearest/linear) rather than reusing
+cle's, so we assert high correlation and small mean error rather than exact
+equality.
 """
 from __future__ import annotations
 
@@ -71,9 +72,9 @@ def test_deskew_mip_rejects_unknown_skew():
 @pytest.mark.parametrize("scan_scale_dz", [2.0, 5.0, 10.0])
 def test_deskew_mip_no_striping_at_large_scan_scale(scan_scale_dz):
     # The bounded pull (gather) must be free of striping regardless of the
-    # scan-step-to-pixel ratio dz/dy. A thin feature spanning all scan planes
-    # projects to a continuous line with no interior holes (a scatter/push
-    # leaves holes here once dz/dy is large).
+    # scan-step-to-pixel ratio dz/dy: every output pixel reads back into the
+    # source, so none is skipped. A thin feature spanning all scan planes
+    # projects to a continuous line with no interior holes.
     raw = np.zeros((30, 40, 20), dtype=np.float32)
     raw[:, 18:20, 8:12] = 100.0
     mip = deskew_mip(raw, 45.0, scan_scale_dz, 1.0, 1.04, skew="Y", interpolation="nearest")
@@ -100,8 +101,8 @@ def test_deskew_mip_rejects_bad_interpolation():
 
 
 def test_deskew_mip_no_holes_in_feature():
-    # A solid block must project to a solid (gap-free) region: the max-dilation
-    # splat is specifically there to prevent striping/holes.
+    # A solid block must project to a solid (gap-free) region: the bounded pull
+    # (gather) fills every output pixel, so there are no striping/holes.
     raw = np.zeros((30, 60, 60), dtype=np.float32)
     raw[:, 20:40, 20:40] = 100.0  # spans all scan planes
     mip = deskew_mip(raw, 45.0, 2.0, 1.04, 1.04, skew="Y")

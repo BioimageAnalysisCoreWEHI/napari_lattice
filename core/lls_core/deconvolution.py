@@ -229,8 +229,15 @@ def skimage_decon(
     """
     from skimage.restoration import richardson_lucy as rl_decon_skimage
 
-    depth = tuple(np.array(psf.shape) // 2)
     vol_zyx = array_to_dask(vol_zyx)
+    # Overlap halo is half the PSF, but dask's map_overlap requires the depth
+    # along each axis to not exceed that axis' (smallest) chunk. Cropped volumes
+    # can be smaller than the PSF, so clamp per axis to avoid
+    # "The overlapping depth N is larger than your array M".
+    depth = tuple(
+        min(psf_dim // 2, min(axis_chunks))
+        for psf_dim, axis_chunks in zip(psf.shape, vol_zyx.chunks)
+    )
     decon_data = vol_zyx.map_overlap(
         rl_decon_skimage,
         psf=psf,
