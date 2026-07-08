@@ -316,7 +316,7 @@ class OMEZarrWriter(Writer):
         if int(zarr.__version__.split(".")[0]) < 3:
             dataset_kwargs["overwrite"] = self.overwrite
 
-        arr = root.create_dataset("0", **dataset_kwargs)
+        arr = root.create_array("0", **dataset_kwargs)
         self._write_ngff_attrs(root)
         return root, arr
 
