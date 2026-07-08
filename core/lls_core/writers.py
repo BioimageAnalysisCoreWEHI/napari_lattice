@@ -95,45 +95,103 @@ class BdvWriter(Writer):
 @dataclass
 class TiffWriter(Writer):
     """
-    A writer for for TIFF output format
+    A writer for for TIFF output format.
+
+    By default write a deflate-compressed OME-TIFF (compression='zlib),
+    which keeps the compresses empty/black space at borders of deskewed images keeping
+    Fiji/Bio-Formats readability. Set compression=None to fall back to the legacy
+    uncompressed ImageJ TIFF.
     """
     pending_slices: List[ImageSlice] = field(default_factory=list, init=False)
     time: Optional[NonNegativeInt] = None
+    #: tifffile compression codec for the OME-TIFF output. ``'zlib'`` (deflate) is
+    #: the default; ``None`` writes an uncompressed ImageJ-TIFF as before.
+    compression: Optional[str] = "zlib"
 
     def __post_init__(self):
         self.pending_slices = []
-    
+
     def flush(self):
         "Write out all pending slices"
         import numpy as np
         import tifffile
-        if len(self.pending_slices) > 0:
-            first_result = self.pending_slices[0]
-            images_array = np.swapaxes(
-                np.expand_dims([result.data for result in self.pending_slices], axis=0),
-                1, 2
-            ).astype("uint16")
-            # ImageJ TIFF can only handle 16-bit uints, not 32
-            path = self.lattice.make_filepath(
-                make_filename_suffix(
-                    channel=first_result.channel,
-                    time=first_result.time,
-                    roi_index=first_result.roi_index
-                )
+        if len(self.pending_slices) == 0:
+            return
+
+        first_result = self.pending_slices[0]
+        # One buffered slice per channel for this timepoint; each is a (Z, Y, X)
+        # volume. flush() is called once the timepoint changes, so T == 1 here.
+        channel_arrays = [np.asarray(result.data) for result in self.pending_slices]
+        n_t = 1
+        n_c = len(channel_arrays)
+        n_z, n_y, n_x = channel_arrays[0].shape
+
+        path = self.lattice.make_filepath(
+            make_filename_suffix(
+                channel=first_result.channel,
+                time=first_result.time,
+                roi_index=first_result.roi_index
             )
+        )
+
+        if self.compression is None:
+            # Legacy uncompressed ImageJ-TIFF (TZCYX). ImageJ-TIFF cannot be
+            # compressed, so this path only exists as a fallback.
+            images_array = np.swapaxes(
+                np.expand_dims(channel_arrays, axis=0), 1, 2
+            ).astype("uint16")  # ImageJ TIFF can only handle 16-bit uints, not 32
             tifffile.imwrite(
                 str(path),
-                data = images_array,
+                data=images_array,
                 bigtiff=True,
-                resolution=(1./self.lattice.dx, 1./self.lattice.dy),
+                resolution=(1. / self.lattice.dx, 1. / self.lattice.dy),
                 resolutionunit="MICROMETER",
                 metadata={'spacing': self.lattice.new_dz, 'unit': 'um', 'axes': 'TZCYX'},
                 imagej=True
             )
-            self.written_files.append(path)
-            
-            # Reinitialise
-            self.pending_slices = []
+        else:
+            # Compressed OME-TIFF. A single OME-TIFF is written with
+            # one write() call fed by a plane generator. Planes are yielded in
+            # T, C, Z order to match dimension_order='TCZYX'. imagej=True is
+            # incompatible with both compression and OME; pixel
+            # size information is in the OME-XML.
+            from bioio_ome_tiff.writers import OmeTiffWriter
+            from bioio_base.types import PhysicalPixelSizes
+
+            channel_names = [str(result.channel) for result in self.pending_slices]
+            ome = OmeTiffWriter.build_ome(
+                data_shapes=[(n_t, n_c, n_z, n_y, n_x)],
+                data_types=[np.dtype(np.uint16)],
+                dimension_order=["TCZYX"],
+                channel_names=[channel_names],
+                physical_pixel_sizes=[PhysicalPixelSizes(
+                    Z=self.lattice.new_dz, Y=self.lattice.dy, X=self.lattice.dx
+                )],
+            )
+            ome_xml = ome.to_xml()
+
+            def plane_generator():
+                # Yield (Y, X) planes lazily in T, C, Z nested order (T == 1).
+                # uint16 is enforced per-plane so at most one converted plane is
+                # held beyond the already-buffered channel volumes.
+                for vol in channel_arrays:
+                    for z in range(n_z):
+                        yield np.asarray(vol[z]).astype(np.uint16, copy=False)
+
+            with tifffile.TiffWriter(str(path), bigtiff=True) as tw:
+                tw.write(
+                    data=plane_generator(),
+                    shape=(n_t, n_c, n_z, n_y, n_x),
+                    dtype=np.uint16,
+                    compression=self.compression,  
+                    description=ome_xml,
+                    metadata=None,
+                )
+
+        self.written_files.append(path)
+
+        # Reinitialise
+        self.pending_slices = []
 
     def write_slice(self, slice: ProcessedSlice[ArrayLike]):
         if slice.time != self.time:
