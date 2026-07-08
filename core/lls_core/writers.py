@@ -18,6 +18,23 @@ import zarr
 from lls_core.utils import make_filename_suffix, get_zarr_compression
 RoiIndex = Optional[NonNegativeInt]
 
+def resolve_output_dtype(dtype: np.dtype) -> np.dtype:
+    """Pick the output dtype: keep float and small ints, cast larger ints (int32, int64) to uint16."""
+    dtype = np.dtype(dtype)
+    if np.issubdtype(dtype, np.integer):
+        return dtype if np.iinfo(dtype).max < np.iinfo(np.uint16).max else np.dtype(np.uint16)
+    if np.issubdtype(dtype, np.floating):
+        return dtype
+    raise TypeError(f"Unsupported data dtype: {dtype}")
+
+
+def to_output_dtype(array: np.ndarray, out_dtype: np.dtype) -> np.ndarray:
+    """Cast to ``out_dtype``, clipping to range only when casting to uint16."""
+    out_dtype = np.dtype(out_dtype)
+    if out_dtype == np.uint16 and array.dtype != np.uint16:
+        return np.clip(array, 0.0, 65535.0).astype(np.uint16)
+    return array.astype(out_dtype, copy=False)
+
 if TYPE_CHECKING:
     from lls_core.models.lattice_data import LatticeData
     import npy2bdv
@@ -150,43 +167,28 @@ class TiffWriter(Writer):
                 imagej=True
             )
         else:
-            # Compressed OME-TIFF. A single OME-TIFF is written with
-            # one write() call fed by a plane generator. Planes are yielded in
-            # T, C, Z order to match dimension_order='TCZYX'. imagej=True is
-            # incompatible with both compression and OME; pixel
-            # size information is in the OME-XML.
-            from bioio_ome_tiff.writers import OmeTiffWriter
-            from bioio_base.types import PhysicalPixelSizes
+            # Compressed OME-TIFF. The full timepoint is already buffered in
+            # channel_arrays, so assemble the (T, C, Z, Y, X) array (T == 1) and
+            # write it with tifffile's native OME support, which lays out the
+            # pages and OME-XML correctly for any Z depth. imagej=True is
+            # incompatible with both compression and OME; physical pixel sizes
+            # and channel names travel in the OME-XML instead.
 
-            channel_names = [str(result.channel) for result in self.pending_slices]
-            ome = OmeTiffWriter.build_ome(
-                data_shapes=[(n_t, n_c, n_z, n_y, n_x)],
-                data_types=[np.dtype(np.uint16)],
-                dimension_order=["TCZYX"],
-                channel_names=[channel_names],
-                physical_pixel_sizes=[PhysicalPixelSizes(
-                    Z=self.lattice.new_dz, Y=self.lattice.dy, X=self.lattice.dx
-                )],
-            )
-            ome_xml = ome.to_xml()
+            # Same dtype policy as OMEZarrWriter: preserve small ints and float,
+            # standardise wider integers to uint16.
+            out_dtype = resolve_output_dtype(np.result_type(*channel_arrays))
+            stack = to_output_dtype(np.stack(channel_arrays, axis=0), out_dtype)  # (C, Z, Y, X)
+            data5d = stack[np.newaxis, ...]  # (T=1, C, Z, Y, X), matches TCZYX
 
-            def plane_generator():
-                # Yield (Y, X) planes lazily in T, C, Z nested order (T == 1).
-                # uint16 is enforced per-plane so at most one converted plane is
-                # held beyond the already-buffered channel volumes.
-                for vol in channel_arrays:
-                    for z in range(n_z):
-                        yield np.asarray(vol[z]).astype(np.uint16, copy=False)
-
-            with tifffile.TiffWriter(str(path), bigtiff=True) as tw:
-                tw.write(
-                    data=plane_generator(),
-                    shape=(n_t, n_c, n_z, n_y, n_x),
-                    dtype=np.uint16,
-                    compression=self.compression,  
-                    description=ome_xml,
-                    metadata=None,
-                )
+            ome_metadata = {
+                "axes": "TCZYX",
+                "PhysicalSizeX": float(self.lattice.dx), "PhysicalSizeXUnit": "µm",
+                "PhysicalSizeY": float(self.lattice.dy), "PhysicalSizeYUnit": "µm",
+                "PhysicalSizeZ": float(self.lattice.new_dz), "PhysicalSizeZUnit": "µm",
+                "Channel": {"Name": [str(result.channel) for result in self.pending_slices]},
+            }
+            with tifffile.TiffWriter(str(path), bigtiff=True, ome=True) as tw:
+                tw.write(data5d, compression=self.compression, metadata=ome_metadata)
 
         self.written_files.append(path)
 
@@ -241,7 +243,7 @@ class OMEZarrWriter(Writer):
         self._zyx = None
         self._t_len = None
         self._c_len = None
-        self._dtype = np.uint16 #We are enforcing 16-bit, but may change in future
+        self._dtype = np.uint16 #Placeholder; resolved per data in write_slice
 
         self._pix_z, self._pix_y, self._pix_x = (self.lattice.new_dz, self.lattice.dy, self.lattice.dx)
 
@@ -254,17 +256,12 @@ class OMEZarrWriter(Writer):
         if self._zyx is None:
             self._zyx = (int(data3d.shape[0]), int(data3d.shape[1]), int(data3d.shape[2]))
 
-        #if dtype of data is < uint16, use the data dtype
-        if np.issubdtype(data3d.dtype, np.integer):
-            self._dtype = (data3d.dtype
-                            if np.iinfo(data3d.dtype).max < np.iinfo(np.uint16).max
-                            else np.uint16)
-        elif np.issubdtype(data3d.dtype, np.floating):
-            #float data, so preserve dtype
-            self._dtype = data3d.dtype
-        else:
-            raise TypeError(f"Unsupported data dtype: {data3d.dtype}")
-                
+        # Same dtype policy as TiffWriter: preserve small ints and float,
+        # standardise wider integers to uint16. Preserving float means label/
+        # mask images (typically float32) keep their values instead of being
+        # clipped to 16-bit.
+        self._dtype = resolve_output_dtype(data3d.dtype)
+
         t_idx = int(getattr(slice, "time_index", 0))
         c_idx = int(getattr(slice, "channel_index", 0))
         t_len, c_len = self._resolve_t_c_lengths(slice)
@@ -272,8 +269,8 @@ class OMEZarrWriter(Writer):
         # If it's the first slice - initialize the full zarr array size
         if self._arr is None:
             self._root_group, self._arr = self._create_store(t_len, c_len, self._zyx, self._dtype)
-        
-        self._arr[t_idx, c_idx, :, :, :] = np.clip(data3d, 0.0, 65535.0).astype(np.uint16)
+
+        self._arr[t_idx, c_idx, :, :, :] = to_output_dtype(data3d, self._arr.dtype)
         return self._root_path
 
     # Optional hook if the framework ever calls it.
