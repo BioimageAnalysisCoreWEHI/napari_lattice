@@ -139,9 +139,6 @@ class TiffWriter(Writer):
         # One buffered slice per channel for this timepoint; each is a (Z, Y, X)
         # volume. flush() is called once the timepoint changes, so T == 1 here.
         channel_arrays = [np.asarray(result.data) for result in self.pending_slices]
-        n_t = 1
-        n_c = len(channel_arrays)
-        n_z, n_y, n_x = channel_arrays[0].shape
 
         path = self.lattice.make_filepath(
             make_filename_suffix(
@@ -153,7 +150,10 @@ class TiffWriter(Writer):
 
         if self.compression is None:
             # Legacy uncompressed ImageJ-TIFF (TZCYX). ImageJ-TIFF cannot be
-            # compressed, so this path only exists as a fallback.
+            # compressed, so this path only exists as a fallback. It is not an
+            # OME-TIFF, so drop the ".ome" from the default ".ome.tif" name.
+            if path.name.endswith(".ome.tif"):
+                path = path.with_name(path.name[:-len(".ome.tif")] + ".tif")
             images_array = np.swapaxes(
                 np.expand_dims(channel_arrays, axis=0), 1, 2
             ).astype("uint16")  # ImageJ TIFF can only handle 16-bit uints, not 32

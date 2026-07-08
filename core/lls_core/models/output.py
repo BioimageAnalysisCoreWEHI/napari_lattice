@@ -38,7 +38,7 @@ class OutputParams(FieldAccessModel):
     )
     save_type: SaveFileType = Field(
         default=SaveFileType.h5,
-        description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: `{enum_choices(SaveFileType)}`. Choices can alternatively be specifed as `str`, for example `'tiff'`."
+        description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: `{enum_choices(SaveFileType)}`. Choices can alternatively be specifed as `str`, for example `'tiff'`. Note: `tiff` is saved as a compressed OME-TIFF (`.ome.tif`)."
     )
     time_range: range = Field(
         default=None,
@@ -102,7 +102,9 @@ class OutputParams(FieldAccessModel):
         elif self.save_type == SaveFileType.omezarr:
             return "ome.zarr"
         else:
-            return "tif"
+            # TIFF is written as a compressed OME-TIFF by default. The legacy
+            # uncompressed path renames itself back to plain ".tif".
+            return "ome.tif"
 
     def make_filepath(self, suffix: str) -> Path:
         """

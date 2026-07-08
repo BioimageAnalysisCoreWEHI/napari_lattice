@@ -297,6 +297,23 @@ def _dask_no_path_kwargs(rbc_tiny):
     )
 
 
+def _assert_same_output_images(ser_dir: str, par_dir: str) -> None:
+    """Assert serial and parallel runs wrote the same files with the same pixels.
+
+    Pixel content is compared rather than raw bytes: the default OME-TIFF output
+    embeds a per-file UUID in its OME-XML, so two runs of identical data are not
+    byte-identical (only the plain ImageJ-TIFF ever was).
+    """
+    import tifffile
+    ser_files = sorted(p.name for p in Path(ser_dir).iterdir())
+    par_files = sorted(p.name for p in Path(par_dir).iterdir())
+    assert ser_files == par_files, (ser_files, par_files)
+    for name in ser_files:
+        ser_img = tifffile.imread(Path(ser_dir) / name)
+        par_img = tifffile.imread(Path(par_dir) / name)
+        assert np.array_equal(ser_img, par_img), name
+
+
 @pytest.mark.parametrize("make_kwargs", [
     pytest.param(_numpy_kwargs, id="numpy_materialize"),
     pytest.param(_file_path_kwargs, id="file_path_lazy_reload"),
@@ -304,7 +321,7 @@ def _dask_no_path_kwargs(rbc_tiny):
 ])
 def test_parallel_save_matches_serial(make_kwargs, rbc_tiny):
     """
-    Parallel ROI save must be byte-identical to serial across input variants:
+    Parallel ROI save must match serial across input variants:
     in-memory numpy (materialize passthrough), a file path (lazy per-crop reload),
     and an in-memory dask array with no path (materialize). The numpy-only case
     would pickle fine and hide the unpicklable lazy-reader bugs, hence the file
@@ -320,11 +337,7 @@ def test_parallel_save_matches_serial(make_kwargs, rbc_tiny):
     with tempfile.TemporaryDirectory() as ser_dir, tempfile.TemporaryDirectory() as par_dir:
         build(ser_dir, 1).save()
         build(par_dir, 2).save()
-        ser_files = sorted(p.name for p in Path(ser_dir).iterdir())
-        par_files = sorted(p.name for p in Path(par_dir).iterdir())
-        assert ser_files == par_files, (ser_files, par_files)
-        for name in ser_files:
-            assert (Path(ser_dir) / name).read_bytes() == (Path(par_dir) / name).read_bytes(), name
+        _assert_same_output_images(ser_dir, par_dir)
 
 
 def test_parallel_isolates_hard_worker_failure(monkeypatch):
@@ -408,7 +421,7 @@ def test_dispatch_payload_materializes_lazy_psf():
 def test_parallel_decon_matches_serial(rbc_tiny):
     """
     End-to-end: deconvolution + parallel ROI save must run (PSF materialized for the
-    workers) and be byte-identical to serial. GPU-gated, so CI skips it.
+    workers) and match serial. GPU-gated, so CI skips it.
     """
     from importlib_resources import as_file
     from lls_core.sample import resources
@@ -430,11 +443,7 @@ def test_parallel_decon_matches_serial(rbc_tiny):
          tempfile.TemporaryDirectory() as ser_dir, tempfile.TemporaryDirectory() as par_dir:
         build(psf, ser_dir, 1).save()
         build(psf, par_dir, 2).save()
-        ser_files = sorted(p.name for p in Path(ser_dir).iterdir())
-        par_files = sorted(p.name for p in Path(par_dir).iterdir())
-        assert ser_files == par_files, (ser_files, par_files)
-        for name in ser_files:
-            assert (Path(ser_dir) / name).read_bytes() == (Path(par_dir) / name).read_bytes(), name
+        _assert_same_output_images(ser_dir, par_dir)
 
 
 def test_resolve_worker_count_explicit():
