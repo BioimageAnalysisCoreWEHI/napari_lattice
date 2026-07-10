@@ -15,6 +15,12 @@ from typing_extensions import TYPE_CHECKING, Any, TypeGuard
 
 from . import DeskewDirection, config
 
+from packaging.version import parse as parse_version
+
+#Get zarr major version here and single source of truth for rest of the codebase
+import zarr
+ZARR_MAJOR_VERSION = parse_version(zarr.__version__).major  #get the major zarr vers
+
 if TYPE_CHECKING:
     from xml.etree.ElementTree import Element
     from dask.array.core import Array as DaskArray
@@ -349,9 +355,7 @@ def get_zarr_compression():
     Returns zarr compression settings depending on zarr version
     zarrv3 does not accept numcodecs compressors directly whereas zarrv <3 does
     """
-    from packaging.version import parse
-    import zarr
-    if parse(zarr.__version__).major >= 3:
+    if ZARR_MAJOR_VERSION >= 3:
         from zarr.codecs import BloscCodec
         return dict(
             compressors=[BloscCodec(cname="zstd", clevel=5, shuffle="shuffle")]
