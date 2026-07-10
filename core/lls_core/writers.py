@@ -15,7 +15,7 @@ import dask.array as da
 import numpy as np
 import zarr
 
-from lls_core.utils import make_filename_suffix, get_zarr_compression
+from lls_core.utils import make_filename_suffix, get_zarr_compression, ZARR_MAJOR_VERSION
 RoiIndex = Optional[NonNegativeInt]
 
 def resolve_output_dtype(dtype: np.dtype) -> np.dtype:
@@ -293,27 +293,26 @@ class OMEZarrWriter(Writer):
             import shutil
             shutil.rmtree(self._root_path)
 
-        chunks = (1, 1, *self.chunk_zyx)
-
-        compression_kwargs = get_zarr_compression()
-        #adding compatibility fix for zarr v2 and v3
-        if int(zarr.__version__.split(".")[0]) >= 3:
-            #zarr v3: group class cannot be constructed from path directly
-            root = zarr.open_group(store=str(self._root_path), mode="a")
-        else:
-            store = zarr.DirectoryStore(str(self._root_path))
-            root = zarr.group(store=store)
-
         dataset_kwargs = {
             "shape": (t_len, c_len, zyx[0], zyx[1], zyx[2]),
-            "chunks": chunks,
+            "chunks": (1, 1, *self.chunk_zyx),
             "dtype": dtype,
-            **compression_kwargs,
+            **get_zarr_compression(),
         }
-        if int(zarr.__version__.split(".")[0]) < 3:
-            dataset_kwargs["overwrite"] = self.overwrite
 
-        arr = root.create_array("0", **dataset_kwargs)
+        # Single version check for both group and array creation 
+        if ZARR_MAJOR_VERSION >= 3:
+            # zarr v3: group cannot be constructed from a path directly, and
+            # create_array is the current API (create_dataset is deprecated).
+            root = zarr.open_group(store=str(self._root_path), mode="a")
+            arr = root.create_array("0", **dataset_kwargs)
+        else:
+            # zarr v2: build  group from a DirectoryStore; the group has no
+            # create_array, so create_dataset is the equivalent.
+            root = zarr.group(store=zarr.DirectoryStore(str(self._root_path)))
+            dataset_kwargs["overwrite"] = self.overwrite
+            arr = root.create_dataset("0", **dataset_kwargs)
+
         self._write_ngff_attrs(root)
         return root, arr
 
