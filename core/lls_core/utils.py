@@ -355,8 +355,6 @@ def get_zarr_compression():
     Returns zarr compression settings depending on zarr version
     zarrv3 does not accept numcodecs compressors directly whereas zarrv <3 does
     """
-    from packaging.version import parse
-    import zarr
     if ZARR_MAJOR_VERSION >= 3:
         from zarr.codecs import BloscCodec
         return dict(
