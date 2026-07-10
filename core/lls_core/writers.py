@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, List, Optional
+from typing import TYPE_CHECKING, Iterable, List, Optional
 
 from lls_core.types import ArrayLike
 
@@ -65,6 +65,17 @@ class Writer(ABC):
         Called when no more image slices are available, and the writer should finalise its output files
         """
         pass
+
+    def write_all(self, slices: Iterable[ProcessedSlice[ArrayLike]]) -> None:
+        """
+        Write each slice, then finish the output.
+
+        By default, each slice is passed to ``write_slice`` in order, and
+        ``close`` is called at the end. Override this for custom behavior.
+        """
+        for slice in slices:
+            self.write_slice(slice)
+        self.close()
 
 @dataclass
 class BdvWriter(Writer):
@@ -205,6 +216,80 @@ class TiffWriter(Writer):
 
     def close(self):
         self.flush()
+
+    def write_all(self, slices: Iterable[ProcessedSlice[ArrayLike]]) -> None:
+        """
+        Stream every timepoint/channel into a single compressed OME-TIFF.
+
+        tifffile only makes one OME series per ``write()`` call, so we stream
+        planes from the slice iterator instead of buffering full volumes.
+        The uncompressed path keeps the old per-timepoint behavior.
+        """
+        # Legacy ImageJ-TIFF: unchanged, one file per timepoint.
+        if self.compression is None:
+            super().write_all(slices) # default behaviour
+            return
+
+        import numpy as np
+        import tifffile
+
+        it = iter(slices)
+        first = next(it, None)
+        if first is None:
+            # Empty ROI: write nothing.
+            return
+
+        first_vol = np.asarray(first.data)
+        if first_vol.ndim != 3:
+            raise ValueError(f"Expected (Z, Y, X) slice, got shape {first_vol.shape}")
+
+        # Dtype policy matches OMEZarrWriter: fixed from the first slice.
+        out_dtype = resolve_output_dtype(first_vol.dtype)
+        z_len, y_len, x_len = (int(d) for d in first_vol.shape)
+        t_len = len(self.lattice.time_range)
+        c_len = len(self.lattice.channel_range)
+
+        # One file per ROI, named like the other writers (no timepoint/channel
+        # in the name, since the file holds them all).
+        suffix = f"_{make_filename_suffix(roi_index=str(self.roi_index))}" if self.roi_index is not None else ""
+        path = self.lattice.make_filepath(suffix)
+
+        ome_metadata = {
+            "axes": "TCZYX",
+            "PhysicalSizeX": float(self.lattice.dx), "PhysicalSizeXUnit": "µm",
+            "PhysicalSizeY": float(self.lattice.dy), "PhysicalSizeYUnit": "µm",
+            "PhysicalSizeZ": float(self.lattice.new_dz), "PhysicalSizeZUnit": "µm",
+            "Channel": {"Name": [str(ch) for ch in self.lattice.channel_range]},
+        }
+
+        def plane_generator():
+            # First slice is already materialised; cast it once and emit its
+            # Z-planes, then pull and cast the rest. Slices arrive time-major,
+            # channel-minor, so flattening each (Z, Y, X) volume yields planes in
+            # exactly the (t, c, z) order tifffile expects for shape=(T,C,Z,Y,X).
+            first_cast = to_output_dtype(first_vol, out_dtype)
+            for z in range(first_cast.shape[0]):
+                yield first_cast[z]
+            for sl in it:
+                vol = to_output_dtype(np.asarray(sl.data), out_dtype)
+                if vol.shape != (z_len, y_len, x_len):
+                    raise ValueError(
+                        f"Inconsistent slice shape {vol.shape}; expected {(z_len, y_len, x_len)}"
+                    )
+                for z in range(vol.shape[0]):
+                    yield vol[z]
+
+        # A plane count != T*C*Z makes tw.write raise, so a partial or misordered
+        # run fails loudly instead of writing a silently wrong file.
+        with tifffile.TiffWriter(str(path), bigtiff=True, ome=True) as tw:
+            tw.write(
+                plane_generator(),
+                shape=(t_len, c_len, z_len, y_len, x_len),
+                dtype=out_dtype,
+                compression=self.compression,
+                metadata=ome_metadata,
+            )
+        self.written_files.append(path)
 
 @dataclass
 class OMEZarrWriter(Writer):

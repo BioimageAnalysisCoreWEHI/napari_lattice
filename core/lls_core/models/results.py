@@ -95,9 +95,7 @@ class ImageSlices(ProcessedSlices[ArrayLike]):
         Writer = self.lattice_data.get_writer()
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
             writer = Writer(self.lattice_data, roi_index=roi)
-            for slice in roi_results:
-                writer.write_slice(slice)
-            writer.close()
+            writer.write_all(roi_results)
 
 class ProcessedWorkflowOutput(BaseModel, arbitrary_types_allowed=True):
     """
