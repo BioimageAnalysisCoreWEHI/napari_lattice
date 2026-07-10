@@ -232,8 +232,9 @@ class TiffWriter(Writer):
 
         import numpy as np
         import tifffile
-
+        #get whole slice iterator for write_all
         it = iter(slices)
+        
         first = next(it, None)
         if first is None:
             # Empty ROI: write nothing.
@@ -263,13 +264,15 @@ class TiffWriter(Writer):
         }
 
         def plane_generator():
-            # First slice is already materialised; cast it once and emit its
-            # Z-planes, then pull and cast the rest. Slices arrive time-major,
-            # channel-minor, so flattening each (Z, Y, X) volume yields planes in
-            # exactly the (t, c, z) order tifffile expects for shape=(T,C,Z,Y,X).
+            # first slice is already loaded, so cast it once and write its
+            # Z planes. Then load and cast the rest. Slices come in time order
+            # and then channel order, so this matches the (t, c, z) order that
+            # tifffile expects for shape=(T,C,Z,Y,X).
             first_cast = to_output_dtype(first_vol, out_dtype)
+            #load and cast rest of slices
             for z in range(first_cast.shape[0]):
                 yield first_cast[z]
+            #stream rest of slices
             for sl in it:
                 vol = to_output_dtype(np.asarray(sl.data), out_dtype)
                 if vol.shape != (z_len, y_len, x_len):
