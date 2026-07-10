@@ -140,9 +140,10 @@ class TiffWriter(Writer):
         # volume. flush() is called once the timepoint changes, so T == 1 here.
         channel_arrays = [np.asarray(result.data) for result in self.pending_slices]
 
+        # Holds every channel for this timepoint (TCZYX / TZCYX), so
+        # name will just be by ROI and time
         path = self.lattice.make_filepath(
             make_filename_suffix(
-                channel=first_result.channel,
                 time=first_result.time,
                 roi_index=first_result.roi_index
             )
