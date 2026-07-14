@@ -178,3 +178,55 @@ def test_check_buildable():
     set_debug(ui)
     check_function_gui_buildable(ui)
 
+
+def test_parallel_roi_save_off_main_thread():
+    """
+    Regression: calling LatticeData.save() from off the main thread (as the GUI
+    now does via thread_worker) must not break the parallel-ROI process/thread
+    pools. Engine correctness itself is covered in core/tests/test_parallel_processing.py.
+
+    Construction mirrors core/tests/test_parallel_processing.py::_make_lattice.
+    A 2-ROI crop with process_parallel=2 forces the parallel-ROI save path
+    (_use_parallel_roi_processing: >1 ROI and >1 worker).
+    """
+    import os
+    import numpy as np
+    from xarray import DataArray
+    from magicclass import magicclass
+    from magicclass.utils import thread_worker
+    from lls_core.models.lattice_data import LatticeData
+    from lls_core.models.crop import CropParams
+
+    def _roi(y0, x0, y1, x1):
+        return [[y0, x0], [y0, x1], [y1, x1], [y1, x0]]
+
+    raw = np.zeros((30, 90, 90), dtype=np.uint16)
+    rois = [_roi(0, 0, 30, 30), _roi(0, 30, 30, 60)]  # 2 ROIs
+
+    with TemporaryDirectory() as tmpdir:
+        lattice = LatticeData(
+            input_image=DataArray(raw, dims=["Z", "Y", "X"]),
+            physical_pixel_sizes=(1, 1, 1),
+            save_name="test",
+            save_dir=tmpdir,
+            save_type="tiff",
+            crop=CropParams(roi_list=rois, z_range=(0, 20)),
+            process_parallel=2,
+        )
+
+        # Sanity: this really is the parallel path, not the serial fallback.
+        assert lattice._use_parallel_roi_processing()
+
+        @magicclass
+        class _Runner:
+            @thread_worker
+            def run(self):
+                lattice.save()
+
+        runner = _Runner()
+        with thread_worker.blocking_mode():
+            runner.run()  # runs the worker body synchronously to completion
+
+        produced = list(os.scandir(tmpdir))
+        assert produced, "parallel ROI save produced no output files"
+
