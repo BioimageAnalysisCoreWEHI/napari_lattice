@@ -326,9 +326,13 @@ class DeskewFields(NapariFieldGroup):
         # Recalculate the dimension options whenever the image changes
         self.dimension_order.reset_choices()
 
+    @quick_deskew.connect
     @pixel_sizes_source.connect
     @pixel_sizes.connect
     def _rescale_image(self):
+        # Also fires when Quick Deskew is toggled: when it is turned OFF this
+        # restores the raw-view scale (the `not quick_deskew` guard below no-ops
+        # the ON case, where _quick_deskew owns the scale instead).
         # Whenever the pixel sizes are changed, this should be reflected in the viewer
         image: Image
         from napari_lattice.utils import get_viewer, apply_layer_transform
@@ -460,12 +464,29 @@ class DeskewFields(NapariFieldGroup):
         The inputs that the reader output (`lattice_params_from_napari`) actually
         depends on. Deliberately excludes the deskew scalars (angle/skew/invert/
         coverslip), which do NOT change the concatenated image — so tweaking them
-        can reuse a cached reader result instead of re-running the concat. Layers
-        are keyed by identity (`id`) since they are unhashable and we only care
-        about the exact selection.
+        can reuse a cached reader result instead of re-running the concat.
+
+        Each layer is keyed by *content*, not just ``id(layer)``: the cache does
+        not keep the layer objects alive, so a bare ``id`` could be reused by a
+        later object (open file A, close it, open file B) and false-hit. Including
+        ``id(data)``, the data shape, the name and the source path makes a false
+        hit require a simultaneous double address-reuse (layer AND its array) —
+        practically impossible — and picks up renames (which affect save_name)
+        and per-layer metadata pixel sizes (distinct paths -> distinct keys).
         """
+        def layer_key(layer):
+            source = getattr(layer, "source", None)
+            path = getattr(source, "path", None) if source is not None else None
+            data = getattr(layer, "data", None)
+            return (
+                id(layer),
+                id(data),
+                tuple(getattr(data, "shape", ()) or ()),
+                getattr(layer, "name", None),
+                str(path) if path is not None else None,
+            )
         return (
-            tuple(id(layer) for layer in self.img_layer.value),
+            tuple(layer_key(layer) for layer in self.img_layer.value),
             self.dimension_order.value,
             self.pixel_sizes_source.value,
             tuple(self.pixel_sizes.value),

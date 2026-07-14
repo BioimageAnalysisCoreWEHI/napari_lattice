@@ -132,6 +132,42 @@ def test_get_kwargs_caches_reader(make_napari_viewer: Callable[[], Viewer], monk
         assert calls["n"] >= 1
 
 
+def test_quick_deskew_toggle_restores_raw_scale(make_napari_viewer: Callable[[], Viewer]):
+    """
+    Toggling Quick Deskew OFF must restore the raw-view scale. Regression for the
+    fix wiring `_rescale_image` to the `quick_deskew` signal — previously the
+    layer was left at the deskewed z-spacing after turning Quick Deskew off.
+    """
+    import numpy as np
+
+    viewer = make_napari_viewer()
+    with as_file(resources / "RBC_tiny.czi") as image_path:
+        image_data = BioImage(image_path)
+        viewer.add_image(image_data.xarray_dask_data)
+
+        ui = LLSZWidget()
+        set_debug(ui)
+        viewer.window.add_dock_widget(ui)
+
+        fields = ui.LlszMenu.WidgetContainer.deskew_fields
+        fields.img_layer.value = list(viewer.layers)
+        fields.dimension_order.value = image_data.dims.order
+        fields.pixel_sizes_source.value = PixelSizeSource.Manual
+        fields.pixel_sizes.value = (0.15, 0.15, 0.3)  # X, Y, Z
+
+        layer = list(viewer.layers)[0]
+        raw = tuple(np.asarray(layer.scale)[-3:])          # QD off after setup
+
+        fields.quick_deskew.value = True
+        deskewed = tuple(np.asarray(layer.scale)[-3:])     # deskewed z-spacing
+
+        fields.quick_deskew.value = False
+        restored = tuple(np.asarray(layer.scale)[-3:])     # must be raw again
+
+        assert deskewed != raw, "enabling Quick Deskew should change the scale"
+        assert np.allclose(restored, raw), "disabling Quick Deskew must restore raw scale"
+
+
 def test_check_buildable():
     ui = LLSZWidget()
     set_debug(ui)

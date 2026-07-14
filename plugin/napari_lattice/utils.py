@@ -26,6 +26,32 @@ def _transforms_equal(a: Any, b: Any) -> bool:
     return aa.shape == bb.shape and bool(np.allclose(aa, bb))
 
 
+def _embed_affine(matrix: Any, target_size: int):
+    """
+    Embed a ``(k+1)x(k+1)`` square homogeneous affine (k spatial dims) into a
+    ``target_size x target_size`` identity so it acts on the LAST k axes —
+    matching how napari coerces a smaller affine assigned to a higher-dimensional
+    layer (verified against napari for 4x4->5x5 and 4x4->6x6: linear block at
+    offset ``n-k``, translation in the last column).
+
+    Only a *square* matrix smaller than ``target_size`` is embedded; anything
+    else (non-square, non-2-D, or already ``>= target_size``) is returned
+    unchanged so the caller's equality check errs toward assigning rather than
+    silently mis-embedding a malformed input.
+    """
+    import numpy as np
+    m = np.asarray(matrix, dtype=float)
+    if m.ndim != 2 or m.shape[0] != m.shape[1] or m.shape[0] >= target_size:
+        return m
+    k = m.shape[0] - 1          # spatial dims of the given affine
+    n = target_size - 1         # spatial dims of the layer
+    offset = n - k
+    result = np.eye(target_size)
+    result[offset:offset + k, offset:offset + k] = m[:k, :k]     # linear part
+    result[offset:offset + k, n] = m[:k, k]                      # translation
+    return result
+
+
 def apply_layer_transform(image: Any, scale: Any = _UNSET, affine: Any = _UNSET) -> List[str]:
     """
     Assign ``scale``/``affine`` to a napari layer ONLY when the value actually
@@ -36,26 +62,49 @@ def apply_layer_transform(image: Any, scale: Any = _UNSET, affine: Any = _UNSET)
     tens of seconds, so skipping no-op assignments is the difference between an
     instant parameter tweak and a multi-second freeze.
 
+    The desired value is first normalized to the layer's dimensionality exactly
+    as napari would coerce it (a short scale is front-padded with 1.0; a small
+    affine is embedded into a layer-sized identity). Without this, a 3-tuple
+    scale / 4x4 affine assigned to a >3-D layer never shape-matches napari's
+    padded value, so the no-op skip is silently defeated for the very case it
+    exists to optimize.
+
     Pass ``_UNSET`` (the default) to leave a property alone. ``affine=None``
     means "reset to identity"; it is skipped only when the layer is already at
     identity. Returns the list of property names that were actually assigned,
     which callers use for logging and tests.
     """
+    import numpy as np
     changed: List[str] = []
 
     if scale is not _UNSET and scale is not None:
-        if not _transforms_equal(getattr(image, "scale", None), scale):
-            image.scale = scale
+        current_scale = getattr(image, "scale", None)
+        desired = tuple(scale)
+        if current_scale is not None and len(current_scale) > len(desired):
+            desired = (1.0,) * (len(current_scale) - len(desired)) + desired
+        if not _transforms_equal(current_scale, desired):
+            image.scale = desired
             changed.append("scale")
 
     if affine is not _UNSET:
         current = getattr(getattr(image, "affine", None), "affine_matrix", None)
-        desired = affine
-        if desired is None and current is not None:
-            import numpy as np
-            desired = np.eye(current.shape[0])
+        if affine is None:
+            # Reset to identity; compare against an identity of the layer's size.
+            desired = np.eye(current.shape[0]) if current is not None else None
+            assign_value = affine   # None -> napari coerces to identity
+        else:
+            assign_value = affine
+            try:
+                m = np.asarray(affine, dtype=float)
+                if current is not None and m.ndim == 2 and m.shape[0] < current.shape[0]:
+                    desired = _embed_affine(m, current.shape[0])
+                    assign_value = desired   # assign the embedded form napari would store
+                else:
+                    desired = m
+            except Exception:
+                desired = affine        # unusual input -> let _transforms_equal decide (assigns)
         if not _transforms_equal(current, desired):
-            image.affine = affine
+            image.affine = assign_value
             changed.append("affine")
 
     return changed
