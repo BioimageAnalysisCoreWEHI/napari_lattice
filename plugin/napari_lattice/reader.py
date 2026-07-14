@@ -209,6 +209,109 @@ def bdv_h5_reader(path):
     layer_type = "image"  # optional, default is "image"
     return [(images, add_kwargs, layer_type)]
 
+def _czi_fast_dask_data(path: str, image: BioImage):
+    """
+    Build a lazily-read dask array for a (non-mosaic) CZI, chunked per T,C via
+    single bulk ``aicspylibczi`` reads. Multi-scene CZIs are supported: the
+    caller iterates scenes and calls this once per scene, so we read the scene
+    bioio currently has selected (``image.current_scene_index``) via the S index.
+
+    Why: bioio's ``dask_data`` chunks the volume per Z-plane, producing tens of
+    thousands of tiny chunks. Slicing a single plane in napari then pays dask
+    graph overhead proportional to the whole chunk count (~9 s on a 20 GB CZI),
+    even though the underlying CZI read is ~40 ms on an SSD. Reading a whole T,C
+    ZYX stack in one single call collapses the graph (T*C chunks) and reads in
+    ~130 ms. Keeps it fully lazy: only displayed time,channel is read.
+    Key point: Rechunking bioio's dask_data was not helping, as
+    coarse chunk still assembled from the same slow per-plane reads.
+
+    For multi-scene files (untested in CI) the result is checked one plane
+    against bioio before being trusted; on any mismatch we return ``None`` so the
+    caller falls back to bioio's (slow but correct) ``dask_data``.
+    """
+    if not str(path).lower().endswith(".czi"):
+        return None
+    try:
+        from aicspylibczi import CziFile
+        import threading
+        from dask import delayed as _delayed
+    except Exception:
+        return None
+
+    try:
+        czi = CziFile(str(path))
+        if czi.is_mosaic():
+            return None
+        dims_shape = czi.get_dims_shape()[0]
+        n_scenes = dims_shape.get("S", (0, 1))[1]
+        # The scene bioio currently has selected (0 for single-scene files).
+        scene_idx = int(getattr(image, "current_scene_index", 0) or 0)
+    except Exception:
+        return None
+
+    order = image.dims.order
+    if not all(d in order for d in ("Z", "Y", "X")):
+        return None
+
+    sizes = dict(zip(order, image.dask_data.shape))
+    dtype = image.dask_data.dtype
+    Z, Y, X = sizes["Z"], sizes["Y"], sizes["X"]
+    nT, nC = sizes.get("T", 1), sizes.get("C", 1)
+
+    # aicspylibczi's reader is not guaranteed thread-safe; napari slices on
+    # worker threads, so serialise reads. Each read is fast (~130 ms).
+    lock = threading.Lock()
+    def read_stack(t: int, c: int) -> np.ndarray:
+        kwargs = {"T": int(t), "C": int(c)}
+        if n_scenes > 1:
+            kwargs["S"] = scene_idx
+        with lock:
+            arr, _ = czi.read_image(**kwargs)
+        return np.asarray(arr).reshape(Z, Y, X)
+
+    try:
+        # Assemble as TCZYX (singleton T/C when absent), then squeeze/transpose
+        # to match the image's actual dimension order.
+        t_blocks = []
+        for t in range(nT):
+            c_blocks = [
+                da.from_delayed(_delayed(read_stack)(t, c), shape=(Z, Y, X), dtype=dtype)
+                for c in range(nC)
+            ]
+            t_blocks.append(da.stack(c_blocks))   # (C, Z, Y, X)
+        arr = da.stack(t_blocks)                  # (T, C, Z, Y, X)
+
+        # Drop singleton T/C axes that aren't in the real order.
+        take = tuple(
+            slice(None) if d in order or d in ("Z", "Y", "X") else 0
+            for d in "TCZYX"
+        )
+        arr = arr[take]
+        present = [d for d in "TCZYX" if d in order]
+        if present != list(order):
+            arr = arr.transpose([present.index(d) for d in order])
+    except Exception:
+        return None
+
+    if arr.shape != image.dask_data.shape:
+        return None
+
+    # Multi-scene is untested in CI: verify one plane matches bioio before
+    # trusting the S-index alignment; fall back to bioio on any mismatch.
+    if n_scenes > 1:
+        try:
+            probe = tuple(slice(None) if d in ("Y", "X") else 0 for d in order)
+            if not np.array_equal(
+                np.asarray(arr[probe].compute()),
+                np.asarray(image.dask_data[probe].compute()),
+            ):
+                return None
+        except Exception:
+            return None
+
+    return arr
+
+
 def bioio_reader(path: str | list[str]) -> List[Tuple[Any, dict, str]]:
     """
     Reader for bioio supported files
@@ -237,8 +340,11 @@ def bioio_reader(path: str | list[str]) -> List[Tuple[Any, dict, str]]:
         # optional kwargs for the corresponding viewer.add_* method
         add_kwargs = {}
 
-        # Get the dask data
-        data = image.dask_data
+        # Get the dask data. For CZIs, prefer a per-(T,C) bulk-read dask array
+        # (fast slicing); fall back to bioio's per-plane dask_data otherwise.
+        data = _czi_fast_dask_data(path, image)
+        if data is None:
+            data = image.dask_data
 
         # Get the dimensions
         dim_order = list(image.dims.order)
