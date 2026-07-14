@@ -81,6 +81,57 @@ def test_dock_widget(make_napari_viewer: Callable[[], Viewer], image_data: BioIm
         tester.call()
 
 
+def test_get_kwargs_caches_reader(make_napari_viewer: Callable[[], Viewer], monkeypatch):
+    """
+    `_get_kwargs` must reuse the cached reader output when only deskew scalars
+    change, and re-run the reader when an image-side input changes. This is the
+    validation-cost fix: the ~300 ms image concat should not run on every
+    angle/skew tweak.
+    """
+    import napari_lattice.fields as fmod
+
+    viewer = make_napari_viewer()
+    with as_file(resources / "RBC_tiny.czi") as image_path:
+        image_data = BioImage(image_path)
+        viewer.add_image(image_data.xarray_dask_data)
+
+        ui = LLSZWidget()
+        set_debug(ui)
+        viewer.window.add_dock_widget(ui)
+
+        fields = ui.LlszMenu.WidgetContainer.deskew_fields
+        fields.img_layer.value = list(viewer.layers)
+        fields.dimension_order.value = image_data.dims.order
+        fields.pixel_sizes_source.value = PixelSizeSource.Manual
+
+        # Count reader invocations without changing behaviour.
+        calls = {"n": 0}
+        real = fmod.lattice_params_from_napari
+        def counting(*args, **kwargs):
+            calls["n"] += 1
+            return real(*args, **kwargs)
+        monkeypatch.setattr(fmod, "lattice_params_from_napari", counting)
+
+        # Prime the cache, then measure deltas from here.
+        fields._get_kwargs()
+        calls["n"] = 0
+
+        # (1) Identical inputs -> cache hit, reader not called.
+        fields._get_kwargs()
+        assert calls["n"] == 0
+
+        # (2) Changing a deskew scalar must NOT invalidate the cache.
+        fields.angle.value = 32.0
+        fields._get_kwargs()
+        assert calls["n"] == 0
+
+        # (3) Changing an image-side input MUST invalidate the cache.
+        pv = fields.pixel_sizes.value
+        fields.pixel_sizes.value = (pv[0] + 1.0, pv[1], pv[2])
+        fields._get_kwargs()
+        assert calls["n"] >= 1
+
+
 def test_check_buildable():
     ui = LLSZWidget()
     set_debug(ui)

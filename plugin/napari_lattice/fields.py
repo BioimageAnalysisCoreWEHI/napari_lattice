@@ -331,17 +331,21 @@ class DeskewFields(NapariFieldGroup):
     def _rescale_image(self):
         # Whenever the pixel sizes are changed, this should be reflected in the viewer
         image: Image
-        from napari_lattice.utils import get_viewer
+        from napari_lattice.utils import get_viewer, apply_layer_transform
         try:
             pixels = self._get_kwargs()["physical_pixel_sizes"]
-            if not self.quick_deskew.value: # Only rescale if we're not in quick deskew mode 
+            if not self.quick_deskew.value: # Only rescale if we're not in quick deskew mode
                 for image in self.img_layer.value:
-                    image.scale = (
+                    new_scale = (
                         *image.scale[0:-3],
                         pixels.Z,
                         pixels.Y,
                         pixels.X,
                     )
+                    # Assign only if the scale actually changed; a no-op re-assign
+                    # still forces a full re-slice (tens of seconds on a large,
+                    # lazily-loaded image).
+                    apply_layer_transform(image, scale=new_scale)
                 viewer = get_viewer()
                 viewer.reset_view()
         except:
@@ -415,6 +419,7 @@ class DeskewFields(NapariFieldGroup):
             ndim_display = 2
 
         #transform each image layer selected
+        from napari_lattice.utils import apply_layer_transform
         invert_raw_view = affine_transform is None and self.invert_scan_direction.value
         for image in self.img_layer.value:
             #we do not inverse transform as napari goes from input to output space
@@ -427,10 +432,20 @@ class DeskewFields(NapariFieldGroup):
                 layer_affine = np.eye(4)
                 layer_affine[0, 0] = -1
                 layer_affine[0, 3] = nz - 1
-                image.affine = layer_affine
+                new_affine = layer_affine
             else:
-                image.affine = affine_transform
-            image.scale = scale
+                new_affine = affine_transform
+            if quick_deskew:
+                # Quick Deskew on: this handler owns both the deskewed scale and
+                # the deskew affine for the layer.
+                apply_layer_transform(image, scale=scale, affine=new_affine)
+            else:
+                # Quick Deskew off: _rescale_image owns the raw-view scale, so only
+                # touch the affine here — apply the invert-scan flip, or reset it to
+                # identity when invert is turned off. This stops the redundant scale
+                # re-apply (both handlers fire on the same change) that cost seconds
+                # per parameter tweak. No-op affine assignments are skipped.
+                apply_layer_transform(image, affine=new_affine)
         
         try:
             from napari_lattice.utils import get_viewer
@@ -440,13 +455,35 @@ class DeskewFields(NapariFieldGroup):
         except: 
             pass
 
+    def _image_params_key(self):
+        """
+        The inputs that the reader output (`lattice_params_from_napari`) actually
+        depends on. Deliberately excludes the deskew scalars (angle/skew/invert/
+        coverslip), which do NOT change the concatenated image — so tweaking them
+        can reuse a cached reader result instead of re-running the concat. Layers
+        are keyed by identity (`id`) since they are unhashable and we only care
+        about the exact selection.
+        """
+        return (
+            tuple(id(layer) for layer in self.img_layer.value),
+            self.dimension_order.value,
+            self.pixel_sizes_source.value,
+            tuple(self.pixel_sizes.value),
+            self.stack_along.value,
+        )
+
     def _get_kwargs(self) -> DeskewKwargs:
         """
         Returns the LatticeData fields that the Deskew tab can provide
         """
         from bioio import PhysicalPixelSizes
         DeskewParams.update_forward_refs()
-        params = lattice_params_from_napari(
+        # Cache the reader output keyed on the image-side inputs. Validation runs
+        # on every field change and used to re-concat the image each time; reuse
+        # the cached result whenever only the deskew scalars changed.
+        key = self._image_params_key()
+        if getattr(self, "_img_params_key", None) != key:
+            self._img_params = lattice_params_from_napari(
                 imgs=self.img_layer.value,
                 dimension_order=None if self.dimension_order.value == "Get from Metadata" else self.dimension_order.value,
                 physical_pixel_sizes= None if self.pixel_sizes_source.value == PixelSizeSource.Metadata else PhysicalPixelSizes(
@@ -456,6 +493,8 @@ class DeskewFields(NapariFieldGroup):
                 ),
                 stack_along="C" if self.stack_along.value == StackAlong.CHANNEL else "T"
             )
+            self._img_params_key = key
+        params = self._img_params
         return DeskewKwargs(
             **params,
             angle=self.angle.value,
