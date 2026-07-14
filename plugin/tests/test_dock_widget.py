@@ -6,6 +6,7 @@ from typing import Callable, TYPE_CHECKING
 from magicclass.testing import check_function_gui_buildable, FunctionGuiTester
 from magicclass import MagicTemplate
 from magicclass.widgets import Widget
+from magicclass.utils import thread_worker
 from magicclass._gui._gui_modes import ErrorMode
 import pytest
 from lls_core.sample import resources
@@ -69,16 +70,20 @@ def test_dock_widget(make_napari_viewer: Callable[[], Viewer], image_data: BioIm
         fields.dimension_order.value = image_data.dims.order
         fields.pixel_sizes_source.value = PixelSizeSource.Manual
 
-        # Test previewing
-        tester = FunctionGuiTester(ui.preview)
-        tester.call("", 0, 0)
+        # thread_worker methods run async on a QThread when called via the GUI;
+        # under test there is no spinning event loop, so force blocking mode so
+        # the worker bodies and their returned/yielded callbacks run synchronously.
+        with thread_worker.blocking_mode():
+            # Test previewing
+            tester = FunctionGuiTester(ui.preview)
+            tester.call("", 0, 0)
 
-        # Add the save path which shouldn't be needed for previewing
-        ui.LlszMenu.WidgetContainer.output_fields.save_path.value = tmpdir
-        
-        # Test saving
-        tester = FunctionGuiTester(ui.save)
-        tester.call()
+            # Add the save path which shouldn't be needed for previewing
+            ui.LlszMenu.WidgetContainer.output_fields.save_path.value = tmpdir
+
+            # Test saving
+            tester = FunctionGuiTester(ui.save)
+            tester.call()
 
 
 def test_get_kwargs_caches_reader(make_napari_viewer: Callable[[], Viewer], monkeypatch):

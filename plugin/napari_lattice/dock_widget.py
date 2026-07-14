@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from lls_core.models.lattice_data import LatticeData
 from magicclass import MagicTemplate, field, magicclass, set_options, vfield
+from magicclass.utils import thread_worker
 from magicclass.wrappers import set_design
 from napari_lattice.fields import (
     CroppingFields,
@@ -27,6 +28,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
+# Show background-worker progress in napari's activity dock rather than a
+# separate popup window. This is a process-global default for magicclass
+# thread workers; napari-lattice is the only in-process consumer.
+thread_worker.set_default("napari")
+
 @magicclass(widget_type="split")
 class LLSZWidget(MagicTemplate):
     def __post_init__(self):
@@ -43,6 +49,15 @@ class LLSZWidget(MagicTemplate):
             return True
         except:
             return False
+
+    def _set_run_buttons_enabled(self, enabled: bool) -> None:
+        """
+        Enable/disable the Save and Preview call buttons so a second run cannot be
+        launched while one is already active. Called from worker started/finished
+        callbacks (main thread).
+        """
+        self["save"].enabled = enabled
+        self["preview"].enabled = enabled
 
     def _make_model(self, validate: bool = True) -> LatticeData:
         from rich import print
@@ -174,11 +189,27 @@ class LLSZWidget(MagicTemplate):
 
 
     @set_design(text="Save")
+    @thread_worker(progress={"desc": "Deskewing…"})
     def save(self):
-        from napari.utils.notifications import show_info
+        # Runs on a background thread. _make_model() snapshots the current GUI
+        # state into a LatticeData; lattice.save() runs the (untouched) serial or
+        # parallel-ROI save path. No napari calls here.
         lattice = self._make_model()
         lattice.save()
-        show_info(f"Deskewing successfuly completed. Results are located in {lattice.save_dir}")
+        return lattice.save_dir
+
+    @save.started.connect
+    def _save_started(self):
+        self._set_run_buttons_enabled(False)
+
+    @save.returned.connect
+    def _save_returned(self, save_dir):
+        from napari.utils.notifications import show_info
+        show_info(f"Deskewing successfuly completed. Results are located in {save_dir}")
+
+    @save.finished.connect
+    def _save_finished(self):
+        self._set_run_buttons_enabled(True)
 
     def _get_fields(self) -> Iterable[NapariFieldGroup]:
         """Yields all the child Field classes which inherit from NapariFieldGroup"""
