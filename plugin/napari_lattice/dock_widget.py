@@ -154,11 +154,13 @@ class LLSZWidget(MagicTemplate):
                 call_button="Preview"
                 )
     @set_design(text="Preview")
+    @thread_worker
     def preview(self, header: str, time: int, channel: int):
         from pathlib import Path
 
-        # We only need to process one time point for the preview, 
-        # so we made a copy using a subset of the times
+        # Runs on a background thread. Compute previews here; add them to the
+        # viewer in the yielded callback (main thread). We only need one time
+        # point for the preview, so we copy a subset of the times.
         lattice = self._make_model(validate=False).copy_validate(update=dict(
             time_range = range(time, time+1),
             channel_range = range(channel, channel+1),
@@ -182,10 +184,25 @@ class LLSZWidget(MagicTemplate):
         else:
             previews = lattice.process_workflow().roi_previews()
 
+        # Yield each ROI as it is computed so images appear incrementally.
         for preview in previews:
-            self.parent_viewer.add_image(preview, scale=scale, name="Napari Lattice Preview")
-            max_z = np.argmax(np.sum(preview, axis=(1, 2)))
-            self.parent_viewer.dims.set_current_step(0, max_z)
+            yield (preview, scale)
+
+    @preview.started.connect
+    def _preview_started(self):
+        self._set_run_buttons_enabled(False)
+
+    @preview.yielded.connect
+    def _preview_yielded(self, result):
+        # Main thread: safe to touch the viewer here.
+        preview, scale = result
+        self.parent_viewer.add_image(preview, scale=scale, name="Napari Lattice Preview")
+        max_z = np.argmax(np.sum(preview, axis=(1, 2)))
+        self.parent_viewer.dims.set_current_step(0, max_z)
+
+    @preview.finished.connect
+    def _preview_finished(self):
+        self._set_run_buttons_enabled(True)
 
 
     @set_design(text="Save")
