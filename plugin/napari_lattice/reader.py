@@ -211,23 +211,20 @@ def bdv_h5_reader(path):
 
 def _czi_fast_dask_data(path: str, image: BioImage):
     """
-    Build a lazily-read dask array for a (non-mosaic) CZI, chunked per T,C via
-    single bulk ``aicspylibczi`` reads. Multi-scene CZIs are supported: the
-    caller iterates scenes and calls this once per scene, so we read the scene
-    bioio currently has selected (``image.current_scene_index``) via the S index.
+    Build a lazily-read dask array for a (non-mosaic, single-scene) CZI, chunked
+    per ``(T, C)`` via single bulk ``aicspylibczi`` reads.
 
     Why: bioio's ``dask_data`` chunks the volume per Z-plane, producing tens of
     thousands of tiny chunks. Slicing a single plane in napari then pays dask
     graph overhead proportional to the whole chunk count (~9 s on a 20 GB CZI),
-    even though the underlying CZI read is ~40 ms on an SSD. Reading a whole T,C
-    ZYX stack in one single call collapses the graph (T*C chunks) and reads in
-    ~130 ms. Keeps it fully lazy: only displayed time,channel is read.
-    Key point: Rechunking bioio's dask_data was not helping, as
-    coarse chunk still assembled from the same slow per-plane reads.
+    even though the underlying CZI read is ~40 ms. Reading a whole ``(T, C)``
+    ZYX stack in one bulk call collapses the graph (T*C chunks) and reads in
+    ~130 ms. Still fully lazy: only the ``(T, C)`` actually displayed is read,
+    never the whole image. Rechunking bioio's ``dask_data`` does NOT help — the
+    coarse chunk is still assembled from the same slow per-plane reads.
 
-    For multi-scene files (untested in CI) the result is checked one plane
-    against bioio before being trusted; on any mismatch we return ``None`` so the
-    caller falls back to bioio's (slow but correct) ``dask_data``.
+    Returns a dask array matching ``image.dims.order``/shape, or ``None`` to fall
+    back to ``image.dask_data`` (non-CZI, mosaic, multi-scene, or any error).
     """
     if not str(path).lower().endswith(".czi"):
         return None
@@ -242,10 +239,10 @@ def _czi_fast_dask_data(path: str, image: BioImage):
         czi = CziFile(str(path))
         if czi.is_mosaic():
             return None
+        # Multi-scene CZIs need an S index we don't thread through here.
         dims_shape = czi.get_dims_shape()[0]
-        n_scenes = dims_shape.get("S", (0, 1))[1]
-        # The scene bioio currently has selected (0 for single-scene files).
-        scene_idx = int(getattr(image, "current_scene_index", 0) or 0)
+        if dims_shape.get("S", (0, 1))[1] > 1:
+            return None
     except Exception:
         return None
 
@@ -262,11 +259,8 @@ def _czi_fast_dask_data(path: str, image: BioImage):
     # worker threads, so serialise reads. Each read is fast (~130 ms).
     lock = threading.Lock()
     def read_stack(t: int, c: int) -> np.ndarray:
-        kwargs = {"T": int(t), "C": int(c)}
-        if n_scenes > 1:
-            kwargs["S"] = scene_idx
         with lock:
-            arr, _ = czi.read_image(**kwargs)
+            arr, _ = czi.read_image(T=int(t), C=int(c))
         return np.asarray(arr).reshape(Z, Y, X)
 
     try:
@@ -295,20 +289,6 @@ def _czi_fast_dask_data(path: str, image: BioImage):
 
     if arr.shape != image.dask_data.shape:
         return None
-
-    # Multi-scene is untested in CI: verify one plane matches bioio before
-    # trusting the S-index alignment; fall back to bioio on any mismatch.
-    if n_scenes > 1:
-        try:
-            probe = tuple(slice(None) if d in ("Y", "X") else 0 for d in order)
-            if not np.array_equal(
-                np.asarray(arr[probe].compute()),
-                np.asarray(image.dask_data[probe].compute()),
-            ):
-                return None
-        except Exception:
-            return None
-
     return arr
 
 
