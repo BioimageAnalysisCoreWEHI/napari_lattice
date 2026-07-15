@@ -387,6 +387,11 @@ class DeskewFields(NapariFieldGroup):
     def _quick_deskew(self):
         image: Image
         import numpy as np
+        # Nothing to transform if no image layers are selected (e.g. the user
+        # deleted the layer(s) mid-save). Exit before building the model,
+        # otehrwise an error is raised on an empty layer
+        if not self.img_layer.value:
+            return
         #Apply quick deskew where image is displayed in canvas as deskewed.
         #get value of quick deskew
         quick_deskew = self.quick_deskew.value
