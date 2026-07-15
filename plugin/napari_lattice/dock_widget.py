@@ -7,7 +7,9 @@ import numpy as np
 from lls_core.models.lattice_data import LatticeData
 from magicclass import MagicTemplate, field, magicclass, set_options, vfield
 from magicclass.utils import thread_worker
+from magicclass.widgets import Label
 from magicclass.wrappers import set_design
+from magicgui.widgets import ProgressBar
 from napari_lattice.fields import (
     CroppingFields,
     DeconvolutionFields,
@@ -28,16 +30,12 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
-# Show background-worker progress in napari's activity dock rather than a
-# separate popup window. This is a process-global default for magicclass
-# thread workers; napari-lattice is the only in-process consumer.
-thread_worker.set_default("napari")
-
 @magicclass(widget_type="split")
 class LLSZWidget(MagicTemplate):
     def __post_init__(self):
         # aligning collapsible widgets at the top instead of having them centered vertically
         self._widget._layout.setAlignment(Qt.AlignTop)
+        self.save_progress_hint.value = "See the terminal for detailed progress."
 
 
     def _check_validity(self) -> bool:
@@ -205,18 +203,40 @@ class LLSZWidget(MagicTemplate):
         self._set_run_buttons_enabled(True)
 
 
+    # Indeterminate "Processing…" bar shown inside this panel (not the napari
+    # activity dock) while a save runs. max=0 makes Qt render a self-animating
+    # busy bar that needs no per-step updates; the save worker never touches it,
+    # so there is nothing to marshal across threads. Hidden until a save starts.
+    save_progress = field(ProgressBar).with_options(
+        label="Processing…",
+        visible=False,
+        max=0,
+    )
+    # Sits under the busy bar and points the user to the terminal, where lls_core
+    # prints the detailed per-timepoint/channel tqdm progress. Shown/hidden with it.
+    # Text is set in __post_init__ (Label ignores an initial value via with_options).
+    save_progress_hint = field(Label).with_options(
+        label="",
+        visible=False,
+    )
+
     @set_design(text="Save")
-    @thread_worker(progress={"desc": "Deskewing…"})
+    @thread_worker
     def save(self):
         # Runs on a background thread. _make_model() snapshots the current GUI
-        # state into a LatticeData; lattice.save() runs the (untouched) serial or
-        # parallel-ROI save path. No napari calls here.
+        # state into a LatticeData; lattice.save() runs the serial or parallel-ROI
+        # save path. The GUI "still working" cue is the in-panel save_progress
+        # bar (toggled in _save_started/_save_finished); the detailed per-timepoint
+        # progress is the tqdm bars lls_core prints to the terminal. No napari
+        # calls here.
         lattice = self._make_model()
         lattice.save()
         return lattice.save_dir
 
     @save.started.connect
     def _save_started(self):
+        self.save_progress.visible = True
+        self.save_progress_hint.visible = True
         self._set_run_buttons_enabled(False)
 
     @save.returned.connect
@@ -226,6 +246,8 @@ class LLSZWidget(MagicTemplate):
 
     @save.finished.connect
     def _save_finished(self):
+        self.save_progress.visible = False
+        self.save_progress_hint.visible = False
         self._set_run_buttons_enabled(True)
 
     def _get_fields(self) -> Iterable[NapariFieldGroup]:
