@@ -6,7 +6,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 from lls_core.models.lattice_data import LatticeData
 from magicclass import MagicTemplate, field, magicclass, set_options, vfield
+from magicclass.utils import thread_worker
+from magicclass.widgets import Label
 from magicclass.wrappers import set_design
+from magicgui.widgets import ProgressBar
 from napari_lattice.fields import (
     CroppingFields,
     DeconvolutionFields,
@@ -32,6 +35,7 @@ class LLSZWidget(MagicTemplate):
     def __post_init__(self):
         # aligning collapsible widgets at the top instead of having them centered vertically
         self._widget._layout.setAlignment(Qt.AlignTop)
+        self.save_progress_hint.value = "See the terminal for detailed progress."
 
 
     def _check_validity(self) -> bool:
@@ -43,6 +47,15 @@ class LLSZWidget(MagicTemplate):
             return True
         except:
             return False
+
+    def _set_run_buttons_enabled(self, enabled: bool) -> None:
+        """
+        Enable/disable the Save and Preview call buttons so a second run cannot be
+        launched while one is already active. Called from worker started/finished
+        callbacks (main thread).
+        """
+        self["save"].enabled = enabled
+        self["preview"].enabled = enabled
 
     def _make_model(self, validate: bool = True) -> LatticeData:
         from rich import print
@@ -139,11 +152,13 @@ class LLSZWidget(MagicTemplate):
                 call_button="Preview"
                 )
     @set_design(text="Preview")
+    @thread_worker
     def preview(self, header: str, time: int, channel: int):
         from pathlib import Path
 
-        # We only need to process one time point for the preview, 
-        # so we made a copy using a subset of the times
+        # Runs on a background thread. Compute previews here; add them to the
+        # viewer in the yielded callback (main thread). We only need one time
+        # point for the preview, so we copy a subset of the times.
         lattice = self._make_model(validate=False).copy_validate(update=dict(
             time_range = range(time, time+1),
             channel_range = range(channel, channel+1),
@@ -167,18 +182,73 @@ class LLSZWidget(MagicTemplate):
         else:
             previews = lattice.process_workflow().roi_previews()
 
+        # Yield each ROI as it is computed so images appear incrementally.
         for preview in previews:
-            self.parent_viewer.add_image(preview, scale=scale, name="Napari Lattice Preview")
-            max_z = np.argmax(np.sum(preview, axis=(1, 2)))
-            self.parent_viewer.dims.set_current_step(0, max_z)
+            yield (preview, scale)
 
+    @preview.started.connect
+    def _preview_started(self):
+        self._set_run_buttons_enabled(False)
+
+    @preview.yielded.connect
+    def _preview_yielded(self, result):
+        # Main thread: safe to touch the viewer here.
+        preview, scale = result
+        self.parent_viewer.add_image(preview, scale=scale, name="Napari Lattice Preview")
+        max_z = np.argmax(np.sum(preview, axis=(1, 2)))
+        self.parent_viewer.dims.set_current_step(0, max_z)
+
+    @preview.finished.connect
+    def _preview_finished(self):
+        self._set_run_buttons_enabled(True)
+
+
+    # Indeterminate "Processing…" bar shown inside this panel (not the napari
+    # activity dock) while a save runs. max=0 makes Qt render a self-animating
+    # busy bar that needs no per-step updates; the save worker never touches it,
+    # so there is nothing to marshal across threads. Hidden until a save starts.
+    save_progress = field(ProgressBar).with_options(
+        label="Processing…",
+        visible=False,
+        max=0,
+    )
+    # Sits under the busy bar and points the user to the terminal, where lls_core
+    # prints the detailed per-timepoint/channel tqdm progress. Shown/hidden with it.
+    # Text is set in __post_init__ (Label ignores an initial value via with_options).
+    save_progress_hint = field(Label).with_options(
+        label="",
+        visible=False,
+    )
 
     @set_design(text="Save")
+    @thread_worker
     def save(self):
-        from napari.utils.notifications import show_info
+        # Runs on a background thread. _make_model() snapshots the current GUI
+        # state into a LatticeData; lattice.save() runs the serial or parallel-ROI
+        # save path. The GUI "still working" cue is the in-panel save_progress
+        # bar (toggled in _save_started/_save_finished); the detailed per-timepoint
+        # progress is the tqdm bars lls_core prints to the terminal. No napari
+        # calls here.
         lattice = self._make_model()
         lattice.save()
-        show_info(f"Deskewing successfuly completed. Results are located in {lattice.save_dir}")
+        return lattice.save_dir
+
+    @save.started.connect
+    def _save_started(self):
+        self.save_progress.visible = True
+        self.save_progress_hint.visible = True
+        self._set_run_buttons_enabled(False)
+
+    @save.returned.connect
+    def _save_returned(self, save_dir):
+        from napari.utils.notifications import show_info
+        show_info(f"Deskewing successfuly completed. Results are located in {save_dir}")
+
+    @save.finished.connect
+    def _save_finished(self):
+        self.save_progress.visible = False
+        self.save_progress_hint.visible = False
+        self._set_run_buttons_enabled(True)
 
     def _get_fields(self) -> Iterable[NapariFieldGroup]:
         """Yields all the child Field classes which inherit from NapariFieldGroup"""

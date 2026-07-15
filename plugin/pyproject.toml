@@ -39,6 +39,9 @@ dependencies = [
     "bioio>=3.0.0",
     "bioio-tifffile==1.3.0",
     "bioio-czi>=2.4.0",
+    # Imported directly in reader.py for fast CZI reads
+    # (also pulled in by bioio-czi).
+    "aicspylibczi",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version
     "fsspec>=2022.8.2",
