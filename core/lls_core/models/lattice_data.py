@@ -419,6 +419,24 @@ class LatticeData(OutputParams, DeskewParams):
         from dask.array import zeros
         return zeros(self.derived.deskew_vol_shape)
 
+    def _restore_input_dtype(self, data: ArrayLike) -> ArrayLike:
+        """
+        Return deskewed data to the dtype of the input image.
+
+        As Deskewing is on GPU, data is in float 32. 
+        Convert image back into input image type. 
+        Deconvolved data is kept as float 32. 
+        
+        Workflow outputs keep whatever dtype workflow produced.
+        """
+        import numpy as np
+        from lls_core.writers import resolve_output_dtype, to_output_dtype
+        if self.deconv_enabled:
+            return data
+        return to_output_dtype(
+            np.asarray(data), resolve_output_dtype(self.input_image.dtype)
+        )
+
     def _process_crop(self) -> Iterable[ImageSlice]:
         """
         Yields processed image slices with cropping enabled
@@ -438,7 +456,7 @@ class LatticeData(OutputParams, DeskewParams):
                 )
 
             yield slice.copy(update={
-                "data": crop_volume_deskew(
+                "data": self._restore_input_dtype(crop_volume_deskew(
                     original_volume=slice.data,
                     deconvolution=self.deconv_enabled,
                     get_deskew_and_decon=False,
@@ -455,7 +473,7 @@ class LatticeData(OutputParams, DeskewParams):
                     skew_dir=self.skew_dir,
                     coverslip_rotation=self.coverslip_rotation,
                     **deconv_args
-                ),
+                )),
                 "roi_index": roi_index
             })
             
@@ -492,14 +510,14 @@ class LatticeData(OutputParams, DeskewParams):
                     )
 
             yield slice.copy_with_data(
-                cle.pull_zyx(self.deskew_func(
+                self._restore_input_dtype(cle.pull_zyx(self.deskew_func(
                     input_image=data,
                     angle_in_degrees=self.angle,
                     linear_interpolation=True,
                     voxel_size_x=self.dx,
                     voxel_size_y=self.dy,
                     voxel_size_z=self.dz
-                ))
+                )))
             )
 
     def process_workflow(self) -> WorkflowSlices:
