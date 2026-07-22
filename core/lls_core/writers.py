@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Iterable, List, Optional
+import logging
 
 from lls_core.types import ArrayLike
 
@@ -16,23 +17,69 @@ import numpy as np
 import zarr
 
 from lls_core.utils import make_filename_suffix, get_zarr_compression, ZARR_MAJOR_VERSION
+
+logger = logging.getLogger(__name__)
+
 RoiIndex = Optional[NonNegativeInt]
 
+#: Dtypes OME-TIFF has no equivalent for (it supports (u)int8/16/32, float and
+#: double), mapped to the narrowest type that round-trips their values.
+_OME_DTYPE_FALLBACK = {
+    np.dtype(bool): np.dtype(np.uint8),
+    np.dtype(np.int64): np.dtype(np.int32),
+    np.dtype(np.uint64): np.dtype(np.uint32),
+    np.dtype(np.float16): np.dtype(np.float32),
+}
+
+
 def resolve_output_dtype(dtype: np.dtype) -> np.dtype:
-    """Pick the output dtype: keep float and small ints, cast larger ints (int32, int64) to uint16."""
+    """Preserve the input dtype wherever the format can represent it, so an
+    8-bit mask stays 8-bit and a 32-bit label image keeps IDs above 65535."""
     dtype = np.dtype(dtype)
-    if np.issubdtype(dtype, np.integer):
-        return dtype if np.iinfo(dtype).max < np.iinfo(np.uint16).max else np.dtype(np.uint16)
-    if np.issubdtype(dtype, np.floating):
+    if dtype in _OME_DTYPE_FALLBACK:
+        return _OME_DTYPE_FALLBACK[dtype]
+    if np.issubdtype(dtype, np.integer) or np.issubdtype(dtype, np.floating):
         return dtype
     raise TypeError(f"Unsupported data dtype: {dtype}")
 
 
+def _representable_bounds(info: np.iinfo, float_dtype: np.dtype):
+    """The limits in ``info``, nudged inward until exactly representable in
+    ``float_dtype``. float32 rounds iinfo(int32).max *up*, so clipping to it
+    leaves values above the maximum and the cast then overflows."""
+    hi = np.array(info.max, dtype=float_dtype)
+    lo = np.array(info.min, dtype=float_dtype)
+    while float(hi) > info.max:
+        hi = np.nextafter(hi, np.array(0, dtype=float_dtype))
+    while float(lo) < info.min:
+        lo = np.nextafter(lo, np.array(0, dtype=float_dtype))
+    return lo, hi
+
+
 def to_output_dtype(array: np.ndarray, out_dtype: np.dtype) -> np.ndarray:
-    """Cast to ``out_dtype``, clipping to range only when casting to uint16."""
+    """Cast to ``out_dtype``, rounding and clipping for integer targets.
+    Deskew output is fractional: a plain ``.astype`` truncates toward zero,
+    pulling magnitudes down by about half a count, so round to nearest."""
     out_dtype = np.dtype(out_dtype)
-    if out_dtype == np.uint16 and array.dtype != np.uint16:
-        return np.clip(array, 0.0, 65535.0).astype(np.uint16)
+    array = np.asarray(array)
+    if array.dtype == out_dtype:
+        return array
+    if np.issubdtype(out_dtype, np.integer):
+        info = np.iinfo(out_dtype)
+        if np.issubdtype(array.dtype, np.floating):
+            # NaN casts to 0, indistinguishable from background, so say so.
+            nan_count = int(np.count_nonzero(np.isnan(array)))
+            if nan_count:
+                logger.warning(
+                    "%d voxel(s) were NaN and have been written as 0. This "
+                    "usually means deconvolution diverged.", nan_count
+                )
+                array = np.nan_to_num(array, nan=0.0, posinf=info.max, neginf=info.min)
+            array = np.rint(array)
+            lo, hi = _representable_bounds(info, array.dtype)
+        else:
+            lo, hi = info.min, info.max
+        return np.clip(array, lo, hi).astype(out_dtype, copy=False)
     return array.astype(out_dtype, copy=False)
 
 if TYPE_CHECKING:
