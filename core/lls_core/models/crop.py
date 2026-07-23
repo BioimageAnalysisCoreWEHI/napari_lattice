@@ -60,6 +60,26 @@ class CropParams(FieldAccessModel):
 
         return rois
 
+    @validator("roi_subset", pre=True)
+    def parse_roi_subset(cls, v: Any):
+        # Accept comma-separated string ("2,5,7"), or a list with comma-separated
+        # strings (CLI). Convert everything to int type indices
+        # Bad input raises Value Error
+        if v is None:
+            return v
+        if isinstance(v, str):
+            v = [v]
+        result: List[int] = []
+        for item in v:
+            if isinstance(item, str):
+                for piece in item.split(","):
+                    piece = piece.strip()
+                    if piece:
+                        result.append(int(piece))
+            else:
+                result.append(int(item))
+        return result
+    
     @validator("roi_subset", pre=True, always=True)
     def default_roi_range(cls, v: Any, values: dict):
         # If the roi range isn't provided, assume all rois should be processed

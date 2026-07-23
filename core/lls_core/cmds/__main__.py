@@ -16,8 +16,9 @@ from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.output import OutputParams
 from lls_core.models.crop import CropParams
 from lls_core.deconvolution import DeconvolutionChoice
-from typer import Typer, Argument, Option, Context, Exit
+from typer import Typer, Argument, Option, Context, Exit, BadParameter
 from typer.main import get_command
+import click
 
 from lls_core.models.output import SaveFileType, MipInterpolation
 from pydantic.v1 import ValidationError
@@ -81,6 +82,27 @@ def field_from_model(model: Type[FieldAccessModel], field_name: str, extra_descr
         **kwargs
     )
 
+def parse_roi_subset(value: Optional[List[str]]) -> Optional[List[int]]:
+    """
+    Typer callback  normalises ``--roi-subset`` into a flat list of integer
+    indices. Accepts repeated flags (``--roi-subset 2 --roi-subset 5``) and/or a
+    comma-separated list (``--roi-subset 2,5,7``), with surrounding whitespace
+    tolerated. A non-integer piece fails fast as a CLI usage error.
+    """
+    if not value:
+        return value
+    result: List[int] = []
+    for item in value:
+        for piece in str(item).split(","):
+            piece = piece.strip()
+            if not piece:
+                continue
+            try:
+                result.append(int(piece))
+            except ValueError:
+                raise BadParameter(f"ROI subset indices must be integers; got {piece!r}")
+    return result
+
 def handle_merge(values: list):
     if len(values) > 1:
         if all(isinstance(param, dict) for param in values):
@@ -141,7 +163,7 @@ def update_nested_data(data: Union[dict, list], keys: list, new_value: Any):
         raise ValueError(f"Unknown data type {type(current)}. Cannot traverse.")
 
 # Example usage:
-@app.command()
+@app.command(epilog="Run [bold]lls-pipeline estimate[/bold] with these same options to print a VRAM/RAM memory estimate and exit without processing (useful for sizing SLURM jobs or picking a value for [bold]--process-parallel[/bold]).")
 def process(
     ctx: Context,
     input_image: Path = Argument(None, help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi", show_default=False),
@@ -156,7 +178,7 @@ def process(
     )),
 
     roi_list: List[Path] = field_from_model(CropParams, "roi_list"),
-    roi_subset: List[str] = field_from_model(CropParams, "roi_subset", extra_description="Accepts either repeated flags (--roi-subset 2 --roi-subset 5) or a comma-separated list (--roi-subset 2,5,7)."),
+    roi_subset: List[str] = field_from_model(CropParams, "roi_subset", extra_description="Accepts either repeated flags (--roi-subset 2 --roi-subset 5) or a comma-separated list (--roi-subset 2,5,7).", default=[], callback=parse_roi_subset),
     z_range: Optional[Tuple[int,int]] = field_from_model(CropParams, "z_range", show_default=False),
     
     enable_deconvolution: bool = Option(False, "--deconvolution/--disable-deconvolution", rich_help_panel="Deconvolution"),
@@ -180,7 +202,6 @@ def process(
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 
-    estimate: bool = Option(default=False, help="If provided, print a VRAM/RAM memory estimate for the configured pipeline and exit without processing. Useful for sizing SLURM jobs or picking a value for --process-parallel."),
     show_schema: bool = Option(default=False, help="If provided, image processing will not be performed, and instead a JSON document outlining the JSON/YAML options will be printed to stdout. This can be used to assist with writing a config file for use with the --json-config and --yaml-config options.")
 ) -> None:
     from click.core import ParameterSource
@@ -208,24 +229,6 @@ def process(
     if all(src != ParameterSource.COMMANDLINE for src in ctx._parameter_source.values()):
         print(ctx.get_help())
         raise Exit()
-
-    # Allow `--roi-subset 2,5,7` as well as repeated `--roi-subset 2 ...` flags.
-    # Each element may itself be a comma-separated string; flatten and coerce to int.
-    if roi_subset:
-        flat: List[int] = []
-        for item in roi_subset:
-            for piece in str(item).split(","):
-                piece = piece.strip()
-                if not piece:
-                    continue
-                try:
-                    flat.append(int(piece))
-                except ValueError:
-                    console.print(
-                        f"[red]Invalid --roi-subset value '{piece}': expected an integer index.[/red]"
-                    )
-                    raise Exit(code=1) from None
-        ctx.params["roi_subset"] = flat
 
     from toolz.dicttoolz import merge_with
     cli_args = {}
@@ -259,7 +262,12 @@ def process(
         console.print(rich_validation(e))
         raise Exit(code=1)
 
-    if estimate:
+    # `estimate` and `process` are the same underlying command registered under
+    # two names (see build_cli); the invoked subcommand name selects the mode.
+    # `lls estimate ...` prints a VRAM/RAM memory estimate for the configured
+    # pipeline and exits without processing (useful for sizing SLURM jobs or
+    # picking a value for --process-parallel).
+    if ctx.info_name == "estimate":
         from lls_core.estimate import estimate_pipeline
         try:
             report = estimate_pipeline(
@@ -280,11 +288,54 @@ def process(
         raise Exit(code=1)
     console.print(f"Processing successful. Results can be found in {lattice.save_dir.resolve()}")
 
-# Used by the docs
-click_app = get_command(app)
+class DefaultCommandGroup(click.Group):
+    """
+    A Click group that falls back to a default subcommand when the first CLI
+    token is not a recognised command. This keeps the pre-subcommand invocation
+    style working after ``process``/``estimate`` were split into subcommands:
+    ``lls <image> <options>`` and ``lls <options> <image>`` still route to
+    ``process``, while ``lls estimate ...`` opts into the estimate path.
+
+    The injection happens in ``parse_args`` (before group-level option parsing)
+    so a *leading option* (e.g. ``lls --angle 30 img.tif``) is also routed to
+    the default command rather than being rejected as an unknown group option.
+
+    ``--help`` / bare invocation are routed to the default command too, so
+    ``lls --help`` shows the full ``process`` option list rather than the sparse
+    group help (which would list only the two subcommand names). ``estimate``
+    stays discoverable via the ``process`` command's epilog.
+    """
+    default_cmd_name = "process"
+
+    def parse_args(self, ctx, args):
+        if not (args and args[0] in self.commands):
+            args = [self.default_cmd_name, *args]
+        return super().parse_args(ctx, args)
+
+def build_cli() -> click.Group:
+    """
+    Assemble CLI as a group exposing ``process`` and ``estimate``.
+
+    ``estimate`` reuses the exact same Click command object as ``process`` (same
+    full option signature, no duplication); the two are distinguished at runtime
+    via ``ctx.info_name`` inside :func:`process`. ``process`` is the default
+    subcommand for backwards compatibility.
+    """
+    process_cmd = get_command(app)
+    # A single-command Typer app returns the command itself; a multi-command app
+    # returns a Group. Normalise to the bare `process` command either way.
+    if isinstance(process_cmd, click.Group):
+        process_cmd = process_cmd.commands["process"]
+    group = DefaultCommandGroup(name="lls_core", no_args_is_help=True)
+    group.add_command(process_cmd, name="process")
+    group.add_command(process_cmd, name="estimate")
+    return group
+
+# Used by the docs and the console-script entry point
+click_app = build_cli()
 
 def main():
-    app()
+    click_app()
 
 if __name__ == '__main__':
     main()

@@ -575,6 +575,67 @@ def test_cli_roi_subset_rejects_non_integer():
     assert result.exit_code != 0
 
 
+class _FakeReport:
+    def format_report(self) -> str:
+        return "Memory estimate: fake"
+
+
+class _FakeLattice:
+    process_parallel = 2
+    memory_safety_factor = 1.5
+
+
+def test_cli_estimate_subcommand_routes_to_estimate(monkeypatch):
+    """`lls estimate ...` must take the estimate path, not process/save."""
+    # click_app is a click.Group, so use click's CliRunner (not typer's).
+    from click.testing import CliRunner
+    import lls_core.cmds.__main__ as m
+    from lls_core import estimate as est_mod
+
+    monkeypatch.setattr(m.LatticeData, "parse_obj", staticmethod(lambda d: _FakeLattice()))
+    saved = {"called": False}
+    monkeypatch.setattr(_FakeLattice, "save", lambda self: saved.__setitem__("called", True), raising=False)
+
+    got = {}
+    def fake_estimate(lattice, n_workers, safety_factor):
+        got["n_workers"] = n_workers
+        got["safety_factor"] = safety_factor
+        return _FakeReport()
+    monkeypatch.setattr(est_mod, "estimate_pipeline", fake_estimate)
+
+    result = CliRunner().invoke(
+        m.click_app,
+        ["estimate", "dummy.tif", "--save-dir", "/tmp", "--save-name", "x"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0
+    assert got == {"n_workers": 2, "safety_factor": 1.5}  # estimate path ran
+    assert saved["called"] is False                        # save() must NOT run
+
+
+def test_cli_default_subcommand_is_process_option_first(monkeypatch):
+    """Bare `lls <args>` with no subcommand must default to `process`, even when
+    the first token is an *option* (`lls --save-dir ... img.tif`). This is the
+    non-obvious case that motivated injecting the default in `parse_args` rather
+    than `resolve_command` (the latter rejects leading options)."""
+    from click.testing import CliRunner
+    import lls_core.cmds.__main__ as m
+
+    captured: dict = {}
+    def fake_parse_obj(d):
+        captured.update(d)
+        raise SystemExit(0)
+    monkeypatch.setattr(m.LatticeData, "parse_obj", staticmethod(fake_parse_obj))
+
+    result = CliRunner().invoke(
+        m.click_app,
+        ["--save-dir", "/tmp", "--save-name", "x", "dummy.tif"],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0
+    assert captured.get("process_parallel") == 0  # reached the process path
+
+
 def test_use_parallel_disabled_when_cropping_off():
     raw = np.zeros((10, 10, 10), dtype=np.uint16)
     with tempfile.TemporaryDirectory() as tmpdir:
