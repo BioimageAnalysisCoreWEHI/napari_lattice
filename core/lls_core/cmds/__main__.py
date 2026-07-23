@@ -18,6 +18,7 @@ from lls_core.models.crop import CropParams
 from lls_core.deconvolution import DeconvolutionChoice
 from typer import Typer, Argument, Option, Context, Exit, BadParameter
 from typer.main import get_command
+import click
 
 from lls_core.models.output import SaveFileType, MipInterpolation
 from pydantic.v1 import ValidationError
@@ -201,7 +202,6 @@ def process(
     json_config: Optional[Path] = Option(None, show_default=False, help="Path to a JSON file from which parameters will be read."),
     yaml_config: Optional[Path] = Option(None, show_default=False, help="Path to a YAML file from which parameters will be read."),
 
-    estimate: bool = Option(default=False, help="If provided, print a VRAM/RAM memory estimate for the configured pipeline and exit without processing. Useful for sizing SLURM jobs or picking a value for --process-parallel."),
     show_schema: bool = Option(default=False, help="If provided, image processing will not be performed, and instead a JSON document outlining the JSON/YAML options will be printed to stdout. This can be used to assist with writing a config file for use with the --json-config and --yaml-config options.")
 ) -> None:
     from click.core import ParameterSource
@@ -262,7 +262,12 @@ def process(
         console.print(rich_validation(e))
         raise Exit(code=1)
 
-    if estimate:
+    # `estimate` and `process` are the same underlying command registered under
+    # two names (see build_cli); the invoked subcommand name selects the mode.
+    # `lls estimate ...` prints a VRAM/RAM memory estimate for the configured
+    # pipeline and exits without processing (useful for sizing SLURM jobs or
+    # picking a value for --process-parallel).
+    if ctx.info_name == "estimate":
         from lls_core.estimate import estimate_pipeline
         try:
             report = estimate_pipeline(
@@ -283,11 +288,49 @@ def process(
         raise Exit(code=1)
     console.print(f"Processing successful. Results can be found in {lattice.save_dir.resolve()}")
 
-# Used by the docs
-click_app = get_command(app)
+class DefaultCommandGroup(click.Group):
+    """
+    A Click group that falls back to a default subcommand when the first CLI
+    token is not a recognised command. This keeps the pre-subcommand invocation
+    style working after ``process``/``estimate`` were split into subcommands:
+    ``lls <image> <options>`` and ``lls <options> <image>`` still route to
+    ``process``, while ``lls estimate ...`` opts into the estimate path.
+
+    The injection happens in ``parse_args`` (before group-level option parsing)
+    so a *leading option* (e.g. ``lls --angle 30 img.tif``) is also routed to
+    the default command rather than being rejected as an unknown group option.
+    """
+    default_cmd_name = "process"
+
+    def parse_args(self, ctx, args):
+        if not (args and (args[0] in self.commands or args[0] in ("--help", "-h"))):
+            args = [self.default_cmd_name, *args]
+        return super().parse_args(ctx, args)
+
+def build_cli() -> click.Group:
+    """
+    Assemble CLI as a group exposing ``process`` and ``estimate``.
+
+    ``estimate`` reuses the exact same Click command object as ``process`` (same
+    full option signature, no duplication); the two are distinguished at runtime
+    via ``ctx.info_name`` inside :func:`process`. ``process`` is the default
+    subcommand for backwards compatibility.
+    """
+    process_cmd = get_command(app)
+    # A single-command Typer app returns the command itself; a multi-command app
+    # returns a Group. Normalise to the bare `process` command either way.
+    if isinstance(process_cmd, click.Group):
+        process_cmd = process_cmd.commands["process"]
+    group = DefaultCommandGroup(name="lls_core", no_args_is_help=True)
+    group.add_command(process_cmd, name="process")
+    group.add_command(process_cmd, name="estimate")
+    return group
+
+# Used by the docs and the console-script entry point
+click_app = build_cli()
 
 def main():
-    app()
+    click_app()
 
 if __name__ == '__main__':
     main()
