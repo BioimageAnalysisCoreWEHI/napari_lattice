@@ -51,13 +51,13 @@ Click on the tabs below to view the corresponding functionality.
 
     Load and select your image in the `Deskew` tab, switch napari to **3D view** (the cube icon, bottom-left), then tick `Quick Deskew` at the bottom of the `Deskew` tab.
 
-    Before enabling it, the raw volume is shown skewed — tilted at the light-sheet angle:
+    Before enabling it, the raw volume is shown skewed — tilted at the light-sheet angle (note `Quick Deskew` is unticked in the `Deskew` tab):
 
-    ![Raw skewed volume, Quick Deskew off](../images/quick_deskew_off.png){ width="400" }
+    ![Raw skewed volume, Quick Deskew off](../images/quick_deskew_off.png){ width="700" }
 
     With `Quick Deskew` ticked, the same layer is transformed in-canvas to its deskewed shape, without generating a new image:
 
-    ![Deskewed volume, Quick Deskew on](../images/quick_deskew_on.png){ width="400" }
+    ![Deskewed volume, Quick Deskew on](../images/quick_deskew_on.png){ width="700" }
 
     You may get the following warning: `Non-orthogonal slicing is being requested, but is not fully supported. Data is displayed without applying an out-of-slice rotation or shear component.!`
     This is absolutely fine. It just means the image won't be displayed as deskewed in 2D mode. Hence, why we enable 3D mode.
