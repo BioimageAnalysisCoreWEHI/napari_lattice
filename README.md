@@ -22,13 +22,16 @@ Check the [Docs website](https://bioimageanalysiscorewehi.github.io/napari_latti
 **Functions**
 
 * Deskewing and deconvolution of Lattice Lightsheet data with a focus on the Zeiss LLS7
+* Configurable, parameter-driven deskewing that also handles other skewed geometries, including oblique plane microscopy (OPM), via skew direction, skew angle and coverslip rotation options
+* Flip the scan direction (`Invert Scan Direction`) for microscopes that scan opposite to the Zeiss LLS
+* Generate a deskewed maximum-intensity projection (MIP) on the fly, computed directly from the raw data without building the full deskewed volume (fast and memory-light for large datasets)
 * Ability to preview deskewed image at channel or timepoint of interest
 * Crop and process only a small portion of the image 
 * Import ImageJ ROIs for cropping
 * Create image processing workflows using napari-workflows
 * Run deskewing, deconvolution and custom image processing workflows from the terminal
 * Files can be saved as ome zarr, h5 (BigDataViewer/BigStitcher) or tiff files
-* COmmand Line Interface (CLI) `lls-core` to run napari-lattice workflows on the HPC at scale
+* Command Line Interface (CLI) `lls-pipeline` (from `lls-core`) to run napari-lattice workflows on the HPC at scale
 
 **Key Features**
 

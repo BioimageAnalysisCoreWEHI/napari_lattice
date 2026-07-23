@@ -114,6 +114,48 @@ Notes:
     defaults to `0` (auto) when you don't set a value, so an unconfigured CLI run
     picks a memory-safe worker count automatically.
 
+## Maximum Intensity Projections (MIPs)
+
+Instead of writing the full deskewed volume, you can ask for a deskewed **2D
+maximum-intensity projection** (a top-down, coverslip-view MIP). This is computed directly
+from the raw data without ever materialising the deskewed volume, so it is memory-light and
+fast — ideal for very large acquisitions or for generating an image to define cropping ROIs
+against.
+
+```python
+from lls_core import LatticeData
+
+params = LatticeData(
+  input_image="/path/to/some/file.tiff",
+  save_dir="/path/to/output",
+  save_mip=True,
+)
+params.save()
+```
+
+- One MIP is written per timepoint and channel, using the configured `save_type`.
+- Set `mip_interpolation="linear"` for a smoother projection (the default is `"nearest"`,
+  which is fastest but blocky).
+- Cropping and deconvolution are ignored for MIP output — it is a fast whole-frame
+  projection.
+
+## Flipping the scan direction
+
+For microscopes whose stage/galvo scans run opposite to the Zeiss LLS (common on some OPM
+systems), set `invert_scan_direction=True` to reverse the plane order along the scan axis
+before deskewing:
+
+```python
+params = LatticeData(
+  input_image="/path/to/some/file.tiff",
+  save_dir="/path/to/output",
+  invert_scan_direction=True,
+)
+```
+
+This can be combined with `skew="X"`/`skew="Y"` and `coverslip_rotation=False` to match a
+range of OPM acquisition geometries.
+
 ## Type Checking
 
 Because of Pydantic idiosyncrasies, the `LatticeData` constructor can accept more data types than the type system realises. 

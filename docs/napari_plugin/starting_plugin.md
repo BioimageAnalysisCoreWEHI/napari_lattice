@@ -6,9 +6,9 @@ The plugin is under `Lattice Lightsheet Analysis`
 
 ![Activate plugin](../images/001_start_plugin.png){ width="600" }
 
-The plugin should appear on the right side. You may have to resize the window.
+The plugin should appear on the right side. You may have to resize the window. Before an image is loaded, the `1. Deskew` and `5. Output` tabs show a red cross and the message *"At least one image must be provided"* — this is expected.
 
-![llsz_plugin](../images/002_plugin.png){ width="600" }
+![llsz_plugin](../images/plugin_panel.png){ width="450" }
 
 The functionalities with napari-lattice have been separated out into tabs:
 
@@ -29,8 +29,8 @@ To load an image, drag and drop it into napari. You can get some sample data [he
 
 ## Configuration
 
-To configure any parameters, you can change the settings here:
+To configure any parameters, you can change the settings in the `Deskew` tab. Once an image is selected and its metadata is read, you should see a green tick on the `1. Deskew` tab:
 
-![settings](../images/004_configure.png)
+![settings](../images/deskew_tab.png){ width="500" }
 
 For information on how to use the plugin, click on [`Using the Plugin`](./plugin_usage.md) on the left menu of this page.
