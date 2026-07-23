@@ -2,7 +2,7 @@
 _tasks:
   gaussian: !!python/tuple
   - !!python/name:pyclesperanto_prototype.gaussian_blur ''
-  - input_img
+  - deskewed_image
   - null
   - 1
   - 1
