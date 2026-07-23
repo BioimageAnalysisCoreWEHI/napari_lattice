@@ -163,7 +163,7 @@ def update_nested_data(data: Union[dict, list], keys: list, new_value: Any):
         raise ValueError(f"Unknown data type {type(current)}. Cannot traverse.")
 
 # Example usage:
-@app.command()
+@app.command(epilog="Run [bold]lls-pipeline estimate[/bold] with these same options to print a VRAM/RAM memory estimate and exit without processing (useful for sizing SLURM jobs or picking a value for [bold]--process-parallel[/bold]).")
 def process(
     ctx: Context,
     input_image: Path = Argument(None, help="Path to the image file to read, in a format readable by AICSImageIO, for example .tiff or .czi", show_default=False),
@@ -299,11 +299,16 @@ class DefaultCommandGroup(click.Group):
     The injection happens in ``parse_args`` (before group-level option parsing)
     so a *leading option* (e.g. ``lls --angle 30 img.tif``) is also routed to
     the default command rather than being rejected as an unknown group option.
+
+    ``--help`` / bare invocation are routed to the default command too, so
+    ``lls --help`` shows the full ``process`` option list rather than the sparse
+    group help (which would list only the two subcommand names). ``estimate``
+    stays discoverable via the ``process`` command's epilog.
     """
     default_cmd_name = "process"
 
     def parse_args(self, ctx, args):
-        if not (args and (args[0] in self.commands or args[0] in ("--help", "-h"))):
+        if not (args and args[0] in self.commands):
             args = [self.default_cmd_name, *args]
         return super().parse_args(ctx, args)
 
