@@ -17,23 +17,29 @@ markdown_extensions:
     emoji_generator: !!python/name:material.extensions.emoji.to_svg
 
 nav:
-- index.md
-- installation.md
+- "Home": index.md
+- "Installation": installation.md
 - "Napari Plugin":
-  - "Napari Plugin": napari_plugin/index.md
+  - "Overview": napari_plugin/index.md
   - "Initializing the Plugin": napari_plugin/starting_plugin.md
   - "Using the Plugin": napari_plugin/plugin_usage.md
-- cli.md
-- api.md
+- "Command Line": cli.md
+- "Python API": api.md
 - "Workflows":
-  - "Workflows": workflows/index.md
-  - "Programmatic": workflows/programmatic_workflow.md
-  - "Interactive Workflow": workflows/interactive_workflow.md
-  - "Programmatic Workflow": 'workflows/notebooks/Image_analysis_workflow_simple.ipynb'
-  
-- development.md
+  - "Overview": workflows/index.md
+  - "Running a Workflow": workflows/programmatic_workflow.md
+  - "Interactive (napari-assistant)": workflows/interactive_workflow.md
+  - "Notebook: Simple": 'workflows/notebooks/Image_analysis_workflow_simple.ipynb'
+  - "Notebook: Advanced": 'workflows/notebooks/Image_analysis_workflow_advanced.ipynb'
+- "Examples":
+  - "Overview": examples/index.md
+  - "Oblique Plane Microscopy (OPM)": examples/opm.md
+  - "MIPs and defining ROIs": examples/mips.md
+  - "Neutrophil (end-to-end)": examples/neutrophil.md
+  - "HPC with SLURM": examples/hpc_slurm.md
+- "Development": development.md
 - "Supporting Resources":
-  - "Supporting Resources": miscellaneous/index.md
+  - "Overview": miscellaneous/index.md
   - "Defining ROIs for cropping": miscellaneous/rois_cropping.md
 plugins:
 - search

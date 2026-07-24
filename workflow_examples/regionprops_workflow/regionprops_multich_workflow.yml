@@ -2,13 +2,14 @@
 _tasks:
   binarise_multich: !!python/tuple
   - !!python/name:measure_regionprops_multich.segment_multich ''
-  - gaussian
+  - median
+  - channel_index
   label: !!python/tuple
   - !!python/name:pyclesperanto_prototype.connected_components_labeling_box ''
   - binarise_multich
   median: !!python/tuple
   - !!python/name:pyclesperanto_prototype.median_sphere ''
-  - input_img
+  - deskewed_image
   - null
   - 1
   - 1

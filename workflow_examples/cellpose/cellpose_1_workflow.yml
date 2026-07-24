@@ -2,5 +2,5 @@
 _tasks:
   cellpose: !!python/tuple
   - !!python/name:cellpose_1.predict_cellpose ''
-  - input
+  - deskewed_image
   - cyto

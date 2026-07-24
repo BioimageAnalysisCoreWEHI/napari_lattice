@@ -2,6 +2,7 @@
 _tasks:
   cellpose_multich: !!python/tuple
   - !!python/name:cellpose_2.predict_cellpose_multich ''
-  - input
+  - deskewed_image
+  - channel_index
   - nuclei
   - cyto2

@@ -2,6 +2,10 @@
 
 When using the Zeiss LLS7, at the end of every acquisition a maximum intensity projection (MIP) image is created. This can be used for defining the ROIs for cropping. However, the ROIs need to be rotated by 90 degrees before it can be used in napari-lattice. 
 
+!!! tip "No LLS7 MIP? Generate one yourself"
+
+    You are not limited to the Zeiss-generated MIP. You can produce a deskewed MIP from any supported dataset with `lls-pipeline --save-mip` and draw ROIs on that. See the [MIP walkthrough](../examples/mips.md) for the end-to-end procedure.
+
 There are two ways around this in Fiji:
 - Rotate the image and then define ROI
 - If ROIs have already been defined, rotate the ROIs using a Fiji macro

@@ -37,7 +37,7 @@ The CLI is defined using Typer: <https://typer.tiangolo.com/.>
 These packages are used to define the GUI, which you can find in `plugin/napari_lattice`.
 [`magicclass`](https://hanjinliu.github.io/magic-class/) builds on [`magicgui`](https://pyapp-kit.github.io/magicgui/) by providing the `@magicclass` decorator which turns a Python class into a GUI.
 
-### Dev Workflows
+## Dev Workflows
 
 ### Adding a new parameter
 
