@@ -77,3 +77,6 @@ Key properties:
     Generating MIP files is available through the command line (`--save-mip`) and the
     [Python API](api.md#maximum-intensity-projections-mips). It is not currently exposed
     as a checkbox in the napari plugin.
+
+For a worked, end-to-end walkthrough — generating a MIP, drawing ROIs on it in Fiji, and
+feeding them back into a crop run — see the [MIP walkthrough](examples/mips.md).

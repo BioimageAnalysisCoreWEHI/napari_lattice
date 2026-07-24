@@ -4,6 +4,22 @@ End-to-end walkthroughs that combine the individual features into a complete ana
 
 <div class="grid cards" markdown>
 
+-   :octicons-broadcast-24:{ .lg .middle } __Oblique plane microscopy (OPM)__
+
+    ---
+
+    Deskew non-Zeiss OPM/SOPi datasets by matching the acquisition geometry — coverslip rotation and scan-direction inversion — on two published example datasets.
+
+    [:octicons-arrow-right-24: OPM example](opm.md)
+
+-   :octicons-image-24:{ .lg .middle } __MIPs and defining ROIs__
+
+    ---
+
+    Generate a deskewed MIP straight from raw data with `--save-mip`, draw cropping ROIs on it in Fiji, and feed them back into a crop run.
+
+    [:octicons-arrow-right-24: MIP walkthrough](mips.md)
+
 -   :octicons-beaker-24:{ .lg .middle } __Neutrophil NETosis (end-to-end)__
 
     ---

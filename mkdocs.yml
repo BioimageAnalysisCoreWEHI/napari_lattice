@@ -33,6 +33,8 @@ nav:
   - "Notebook: Advanced": 'workflows/notebooks/Image_analysis_workflow_advanced.ipynb'
 - "Examples":
   - "Overview": examples/index.md
+  - "Oblique Plane Microscopy (OPM)": examples/opm.md
+  - "MIPs and defining ROIs": examples/mips.md
   - "Neutrophil (end-to-end)": examples/neutrophil.md
   - "HPC with SLURM": examples/hpc_slurm.md
 - "Development": development.md
