@@ -72,8 +72,17 @@ Both are Y-skew, 45° acquisitions with coverslip rotation **off** and scan dire
 
 ## Option A — in the napari plugin
 
-1. Drag the raw `.tif` into napari and select it in the `Deskew` tab.
-2. Enter the acquisition metadata for the dataset:
+1. Drag the raw `.tif` into napari. It loads as an image layer — here the `thy1_eGFP`
+   SOPi dataset, shown in green. Open the **Lattice Lightsheet Analysis** plugin
+   (`Plugins → napari-lattice`) and, on the **1. Deskew** tab, select the layer under
+   `Image Layer(s) to Deskew`.
+
+    ![OPM dataset loaded in napari with the napari-lattice Deskew tab](../images/opm/opm_deskew_loaded.png)
+
+2. Enter the acquisition metadata for the dataset. Set `Pixel Size Source` to **Manual**,
+   fill in the pixel sizes and skew angle, choose the skew direction, and — the two
+   settings that make this an OPM run — **tick `Invert Scan Direction`** and **leave
+   `Coverslip Rotation` unticked**.
 
     | Parameter | `brain_organoid` | `thy1_eGFP` |
     |---|---|---|
@@ -81,13 +90,26 @@ Both are Y-skew, 45° acquisitions with coverslip rotation **off** and scan dire
     | dy (µm) | 1.04 | 1 |
     | dz (µm) | 2.0 | 1 |
     | Deskew angle | 45 | 45 |
+    | Skew Direction | Y | Y |
     | **Coverslip Rotation** | **off** | **off** |
     | **Invert Scan Direction** | **on** | **on** |
 
-3. Run **Quick Deskew** (or `Preview`) to check the orientation, then process.
+    The Deskew tab for the `thy1_eGFP` dataset should look like this — note the ticked
+    `Invert Scan Direction` and the unticked `Coverslip Rotation`:
 
-    <!-- SCREENSHOT PLACEHOLDER: Deskew tab with an OPM dataset loaded, Coverslip Rotation unticked and Invert Scan Direction ticked -->
-    <!-- SCREENSHOT PLACEHOLDER: Quick Deskew preview of the deskewed OPM volume -->
+    ![napari-lattice Deskew tab configured for OPM: Manual pixel sizes, skew Y, 45°, Invert Scan Direction ticked, Coverslip Rotation unticked](../images/opm/opm_deskew_settings.png)
+
+3. Tick **Quick Deskew** for a fast preview of the orientation before committing to a full
+   run.
+
+    ![Quick Deskew preview of the deskewed OPM volume](../images/opm/opm_quick_deskew.png)
+
+4. When the preview looks right, switch to the **5. Output** tab to save. Choose a
+   `Save Format` (`tiff` writes a compressed OME-TIFF), pick a `Save Directory`, and adjust
+   the `Save Suffix`, channel and time ranges if needed. Click **Save** to run the deskew
+   and write the result. The tab turns green once a valid output directory is set:
+
+    ![napari-lattice Output tab configured to save the deskewed thy1_eGFP dataset as OME-TIFF](../images/opm/opm_output_settings.png)
 
 ## Option B — on the command line
 
@@ -140,3 +162,22 @@ lls-pipeline process --yaml-config brain_organoid_config.yml
     `--no-coverslip-rotation`, and `--invert-scan-direction`. If your first deskew looks
     wrong, work through them in that order: skew axis, then coverslip rotation, then scan
     direction.
+
+## Data availability and citations
+
+The two example datasets are redistributed with the napari-lattice manuscript on Zenodo
+(`Supplementary_opm_data.zip`), each with its raw image, deskewed output, and
+`lls-pipeline` config. They originate from the following publications — please cite the
+original sources if you use them:
+
+- **`brain_organoid`** — 4×-expanded brain organoid, direct-view oblique plane microscopy.
+  Lamb, J. R., Cardoso Mestre, M., Lancaster, M., & Manton, J. D. (2025). Direct-view
+  oblique plane microscopy. *Optica*, **12**(4), 469–472.
+  <https://doi.org/10.1364/OPTICA.558420>. Raw data:
+  [figshare 10.6084/m9.figshare.28324301](https://doi.org/10.6084/m9.figshare.28324301).
+
+- **`thy1_eGFP`** — uncleared coronal Thy1-GFP mouse brain section, scanned oblique plane
+  illumination (SOPi). Kumar, M., & Kozorovitskiy, Y. (2019). Tilt-invariant scanned
+  oblique plane illumination microscopy for large-scale volumetric imaging. *Optics
+  Letters*, **44**(7), 1706–1709. <https://doi.org/10.1364/OL.44.001706>. Raw data:
+  [zenodo.org/records/5088089](https://zenodo.org/records/5088089).

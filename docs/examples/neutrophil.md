@@ -55,16 +55,27 @@ _tasks:
 
 Good for setting up and checking the analysis on a few ROIs before scaling out.
 
-1. **Deskew** — drag the `.czi` into napari, select it in the `Deskew` tab, confirm the
-   green tick. Run `Preview` once to get a deskewed volume to draw/checked ROIs against.
+1. **Deskew** — drag the `.czi` into napari and select it under `Image Layer(s) to Deskew`
+   on the `Deskew` tab. Because this is Zeiss LLS7 data, leave the defaults: `Pixel Size
+   Source` stays on **Image Metadata** (the pixel sizes are read from the czi), with skew
+   `Y`, a 30° angle and `Coverslip Rotation` on. A green tick on the tab confirms the
+   parameters are valid. Run `Preview` once to get a deskewed volume to draw/check ROIs
+   against.
 
-    <!-- SCREENSHOT PLACEHOLDER: napari-lattice Deskew tab with the neutrophil timelapse loaded -->
+    ![napari-lattice Deskew tab with the neutrophil LLS7 timelapse loaded, using metadata-derived pixel sizes and default LLS7 deskew settings](../images/neutrophil/neutrophil_deskew_tab.png)
 
 2. **Crop** — in the `Crop` tab, tick `Enabled`, click `Import ROI` and select
-   `cell_rois.zip`. The ROIs appear as a yellow `Shapes` layer. (See
+   `cell_rois.zip`. The ROIs appear as a yellow `Shapes` layer, each rectangle enclosing
+   one cell, overlaid on the deskewed image. (See
    [Using the plugin → Cropping](../napari_plugin/plugin_usage.md).)
 
-    <!-- SCREENSHOT PLACEHOLDER: Crop tab with the imported cell ROIs overlaid on the MIP/deskewed image -->
+    ![Deskewed neutrophil nuclei (single-timepoint max projection) with the imported cell ROIs overlaid as yellow rectangles](../images/neutrophil/neutrophil_roi_overlay.png)
+
+    /// caption
+    Deskewed nuclei from one timepoint of the timelapse (maximum-intensity projection),
+    with the 17 imported cell ROIs overlaid — each yellow rectangle bounds a single cell
+    for cropping.
+    ///
 
 3. **Workflow** — in the `Workflow` tab, tick `Enabled`, set `Workflow Source` to
    `Custom Path`, and select `netosis_seg_measure.yml`. A green tick confirms it loaded.
