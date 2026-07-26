@@ -11,7 +11,7 @@ line_length = 79
 
 [project]
 name = "napari-lattice"
-version = "1.2.1"
+version = "2.0.0"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
@@ -22,7 +22,7 @@ license = {text = "GPL-3.0-only"}
 description = "Napari plugin for analysing and visualizing lattice lightsheet and Oblique Plane Microscopy data."
 readme = { file = "README.md", content-type = "text/markdown" }
 classifiers = [
-    "Development Status :: 2 - Pre-Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Developers",
     "Framework :: napari",
     "Topic :: Software Development :: Testing",
