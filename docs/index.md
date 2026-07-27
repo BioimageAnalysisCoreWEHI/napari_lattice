@@ -10,8 +10,9 @@ on the desktop or headless on an HPC at scale. The processing pipeline is **modu
 parameter-driven** — every step (deskew, deconvolution, cropping, workflows, output) is
 configurable, which is what lets napari-lattice adapt to different acquisition geometries.
 
-![Deskewing lattice lightsheet data](deskew.png)
-
+<p align="center">
+<img src="https://raw.githubusercontent.com/BioimageAnalysisCoreWEHI/napari_lattice/refs/heads/master/docs/images/napari_lattice.png" width="50%" alt="Deskewing lattice lightsheet data">
+</p>
 !!! tip "Beyond the Zeiss LLS7"
 
     Because the deskew is parameter-driven — you set the skew direction (X or Y), skew
