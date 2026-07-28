@@ -233,13 +233,34 @@ Everything else that matched (`img.dims` in `deconvolution.py`/`deskew.py`, `.dt
 
   One incidental positive: on that malformed file the reader caught bioio's exception,
   declined, and logged the reason — the fallback contract working as intended.
-- **`channel_names` may not be covered by #104.** Its scope is `dims`/`shape`/`dtype`.
-  `channel_names` also routes through `xarray_dask_data`. If it stays out of scope, our
-  metadata half survives #104 and cannot be deleted. To be asked on the issue.
+- **`czi_metadata` survives #104 — settled, not open.** Measured against the installed
+  bioio 3.4.0 / bioio-czi 2.8.0 by making `xarray_dask_data` raise and reading each
+  property:
+
+  | | `dims` | `shape` | `dtype` | `channel_names` |
+  |---|---|---|---|---|
+  | `reader.*` | cheap | cheap | expensive | expensive |
+  | `BioImage.*` | expensive | expensive | expensive | expensive |
+
+  Three findings. `channel_names` is not covered at either level, so the metadata half
+  cannot be deleted when #104 closes. `dtype` is not covered either, despite being in
+  the issue's stated scope. And the part #104 *did* fix does not reach us: bioio-czi
+  already overrides `dims` and `shape` on the Reader and they are genuinely cheap there,
+  but `BioImage` does not delegate to the reader — it builds `xarray_dask_data` itself.
+  That is bioio#197's half and it has not landed.
+
+- **Possible follow-up, not scheduled.** Because `reader.dims`/`reader.shape` are cheap
+  and `reader.czi_scene_index` is public, geometry could come from bioio instead of
+  being derived here — deleting our scene-mapping code, which is where the scene-index
+  defect lived. It trades tested code of ours for a wider dependency on bioio-czi's
+  surface and removes neither the `channel_names` nor the `dtype` bypass, so
+  `czi_metadata` survives either way.
 
 ## Side actions
 
-- Comment on bioio-czi#104 asking whether `channel_names` is in scope.
+- Comment on bioio-czi#104 with the measurement table above: `channel_names` and `dtype`
+  are uncovered, and the `dims`/`shape` fix does not reach `BioImage` because the facade
+  does not delegate to the reader.
 - File the read-side issue (draft exists: eager `from_delayed` per plane, and chunk
   count driving per-slice cost). Confirmed a genuine gap in bioio#197's tracker, not a
   duplicate.
