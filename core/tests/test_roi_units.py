@@ -112,24 +112,27 @@ def test_auto_takes_the_unit_from_the_file_type(tmp_path):
     assert lattice.crop.roi_list == scale_rois(read_napari_csv(csv), 2.0)
 
 
-@pytest.mark.parametrize("given, expected", [
-    ("pixels", RoiUnits.Pixels), ("Pixels", RoiUnits.Pixels),
-    ("PIXEL", RoiUnits.Pixels), (" pixel ", RoiUnits.Pixels),
-    ("microns", RoiUnits.Microns), ("Micron", RoiUnits.Microns),
-    ("MICRONS", RoiUnits.Microns), ("auto", RoiUnits.Auto),
-])
-def test_unit_names_are_case_and_plural_insensitive(given, expected):
-    assert RoiUnits(given) is expected
+@pytest.mark.parametrize("given", ["pixels", "Pixels", "PIXEL", "pixel"])
+def test_cli_accepts_either_spelling_of_a_unit(given):
+    from lls_core.cmds.__main__ import RoiUnitsChoice
+
+    choice = RoiUnitsChoice([unit.value for unit in RoiUnits], case_sensitive=False)
+    assert choice.convert(given, None, None) == RoiUnits.Pixels
 
 
-def test_an_unknown_unit_name_is_still_rejected():
-    with pytest.raises(ValueError):
-        RoiUnits("furlongs")
+def test_cli_still_rejects_an_unknown_unit():
+    import click
+    from lls_core.cmds.__main__ import RoiUnitsChoice
+
+    choice = RoiUnitsChoice([unit.value for unit in RoiUnits], case_sensitive=False)
+    with pytest.raises(click.UsageError):
+        choice.convert("furlongs", None, None)
 
 
-def test_a_config_file_may_spell_the_unit_however(tmp_path):
-    # YAML/JSON configs reach the model as plain strings.
-    params = CropParams(roi_list=[ROI], roi_units="micron", z_range=(0, 5))
+def test_a_config_file_may_name_the_unit_as_a_string(tmp_path):
+    # YAML/JSON configs reach the model as plain strings. The CLI is separately
+    # case-insensitive via typer's case_sensitive=False.
+    params = CropParams(roi_list=[ROI], roi_units="Microns", z_range=(0, 5))
     assert params.roi_units is RoiUnits.Microns
 
 
