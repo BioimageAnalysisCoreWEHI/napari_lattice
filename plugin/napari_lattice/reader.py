@@ -54,10 +54,6 @@ def _has_real_channel_names(names: Optional[Collection[Any]]) -> bool:
     return not all(_AUTO_CHANNEL_NAME.match(str(name)) for name in names)
 
 
-def _has_real_channel_metadata(image: BioImage) -> bool:
-    """`_has_real_channel_names` for a BioImage whose graph is already built."""
-    return _has_real_channel_names(image.channel_names)
-
 class NapariImageParams(TypedDict):
     data: DataArray
     physical_pixel_sizes: DefinedPixelSizes
@@ -119,6 +115,11 @@ def lattice_params_from_napari(
             if "dimensions" in img.metadata:
                 calculated_order = img.metadata["dimensions"]
             else:
+                # `bioio_reader` always sets "dimensions", so our own layers never
+                # reach here. A layer carrying "bioio_image" without it - from another
+                # plugin, a hand-built layer, or an older version of this reader - pays
+                # for bioio's full per-plane dask graph on the next two lines (~188 s
+                # on a 300k-plane CZI). Keep the two metadata keys set together.
                 metadata_order = list(img_data_bioio.dims.order)
                 metadata_shape = list(img_data_bioio.dims.shape)
                 
