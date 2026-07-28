@@ -61,3 +61,29 @@ def test_drift_czi_matches_bioio(drift_czi, czi_stub_image):
     assert arr.shape == ref.shape
     assert arr.dtype == ref.dtype
     assert np.array_equal(np.asarray(arr.compute()), np.asarray(ref.compute()))
+
+
+@pytest.mark.parametrize("scene_index", [0, 1])
+def test_multi_scene_czi_reads_the_selected_scene(
+    multi_scene_czi, czi_stub_image, scene_index
+):
+    """
+    Each scene must yield its own pixels from its own bounding rectangle.
+
+    Before the runtime probe was removed this declined - the probe compared a plane
+    against `image.dask_data`, so multi-scene files paid for bioio's full per-plane
+    graph on every open, and declined outright when bioio could not supply one.
+    """
+    path, planes = multi_scene_czi
+    stub = czi_stub_image(path, n_scenes=2, scene_index=scene_index)
+
+    meta = czi_metadata(str(path), stub)
+    assert meta is not None
+    assert meta["shape"] == (1, 1, 3, 10, 14), "each scene has its own rectangle"
+    assert meta["scene"] == scene_index
+
+    arr = czi_dask_array(str(path), stub, meta)
+    assert arr is not None, "multi-scene CZIs must take the fast path"
+
+    expected = np.stack([planes[(scene_index, z)] for z in range(3)])[None, None]
+    assert np.array_equal(np.asarray(arr.compute()), expected)

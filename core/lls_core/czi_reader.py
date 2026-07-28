@@ -149,7 +149,8 @@ def czi_metadata(path: str, image: BioImage) -> Optional[dict]:
     ``BioImage`` normalises to TCZYX, padding absent axes to length 1; the shape below
     reproduces that. The tests pin all of this against bioio for the bundled CZIs.
 
-    Returns ``None`` for non-CZIs, mosaics or anything unexpected.
+    Returns ``None`` for non-CZIs, mosaics, files carrying dimensions outside TCZYX,
+    or anything unexpected.
     """
     if not str(path).lower().endswith(".czi"):
         return None
@@ -191,12 +192,15 @@ def czi_metadata(path: str, image: BioImage) -> Optional[dict]:
             int(rect.h),
             int(rect.w),
         )
-        # CZI dimensions outside TCZYX. pylibCZIrw defaults them to 0, but their
-        # presence forces the validation probe in czi_dask_array.
-        extra_dims = sorted(d for d in bbox if d not in ("X", "Y", "Z", "T", "C", "M"))
     except Exception:
         logger.debug("CZI metadata unavailable for %s", path, exc_info=True)
         return None
+
+    # CZI dimensions outside TCZYX (H, V, B, ...). We have never seen one, so we
+    # decline rather than guess how it folds into the TCZYX bioio normalises to.
+    extra_dims = sorted(d for d in bbox if d not in ("X", "Y", "Z", "T", "C", "M"))
+    if extra_dims:
+        return _decline(path, f"unsupported dimensions {extra_dims}")
 
     return {
         "order": "TCZYX",
@@ -206,7 +210,6 @@ def czi_metadata(path: str, image: BioImage) -> Optional[dict]:
         "scene": scene_idx if n_scenes > 1 else None,
         "scene_index": scene_idx,
         "n_scenes": n_scenes,
-        "extra_dims": extra_dims,
     }
 
 
@@ -216,7 +219,7 @@ def czi_dask_array(path: str, image: BioImage, meta: Optional[dict] = None):
     Multi-scene files are supported: the caller iterates scenes and calls this once
     per scene, reading whichever one bioio has selected.
 
-    Returns ``None`` for non-CZIs, mosaics, or any read error.
+    Returns ``None`` whenever ``czi_metadata`` declines, or on any construction error.
     """
     if meta is None:
         meta = czi_metadata(path, image)
@@ -231,7 +234,6 @@ def czi_dask_array(path: str, image: BioImage, meta: Optional[dict] = None):
     order = meta["order"]
     dtype = meta["dtype"]
     scene = meta["scene"]
-    extra_dims = meta["extra_dims"]
     shape = meta["shape"]
     sizes = dict(zip(order, shape))
 
@@ -250,28 +252,6 @@ def czi_dask_array(path: str, image: BioImage, meta: Optional[dict] = None):
     except Exception:
         logger.debug("could not build CZI array for %s", path, exc_info=True)
         return None
-
-    if arr.shape != tuple(shape) or arr.dtype != dtype:
-        return _decline(path, f"built {arr.shape}/{arr.dtype}, expected {tuple(shape)}/{dtype}")
-
-    # Multi-scene and exotic-dimension files are not covered by the tests, so check one
-    # mid-stack plane against bioio before trusting them (Z=0 is often near-black and
-    # would false-pass a scene misalignment). This touches image.dask_data, so those
-    # files do pay for bioio's graph: correctness over open time.
-    if meta["n_scenes"] > 1 or extra_dims:
-        try:
-            probe = tuple(
-                slice(None) if d in ("Y", "X") else (sizes[d] // 2 if d == "Z" else 0)
-                for d in order
-            )
-            if not np.array_equal(
-                np.asarray(arr[probe].compute()),
-                np.asarray(image.dask_data[probe].compute()),
-            ):
-                return _decline(path, "probe plane differs from bioio")
-        except Exception:
-            logger.debug("could not validate CZI array for %s", path, exc_info=True)
-            return None
 
     return arr
 
