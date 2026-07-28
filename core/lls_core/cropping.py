@@ -25,6 +25,22 @@ class RoiUnits(StrEnum):
     Pixels = "Pixels"
     Microns = "Microns"
 
+    @classmethod
+    def _missing_(cls, value: object) -> "RoiUnits | None":
+        # Accept the spellings people actually type: any case, singular or plural.
+        if isinstance(value, str):
+            return _ROI_UNIT_ALIASES.get(value.strip().lower())
+        return None
+
+
+_ROI_UNIT_ALIASES = {
+    "auto": RoiUnits.Auto,
+    "pixel": RoiUnits.Pixels,
+    "pixels": RoiUnits.Pixels,
+    "micron": RoiUnits.Microns,
+    "microns": RoiUnits.Microns,
+}
+
 
 def units_for_path(roi_path: PathLike) -> RoiUnits:
     """

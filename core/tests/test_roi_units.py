@@ -112,6 +112,27 @@ def test_auto_takes_the_unit_from_the_file_type(tmp_path):
     assert lattice.crop.roi_list == scale_rois(read_napari_csv(csv), 2.0)
 
 
+@pytest.mark.parametrize("given, expected", [
+    ("pixels", RoiUnits.Pixels), ("Pixels", RoiUnits.Pixels),
+    ("PIXEL", RoiUnits.Pixels), (" pixel ", RoiUnits.Pixels),
+    ("microns", RoiUnits.Microns), ("Micron", RoiUnits.Microns),
+    ("MICRONS", RoiUnits.Microns), ("auto", RoiUnits.Auto),
+])
+def test_unit_names_are_case_and_plural_insensitive(given, expected):
+    assert RoiUnits(given) is expected
+
+
+def test_an_unknown_unit_name_is_still_rejected():
+    with pytest.raises(ValueError):
+        RoiUnits("furlongs")
+
+
+def test_a_config_file_may_spell_the_unit_however(tmp_path):
+    # YAML/JSON configs reach the model as plain strings.
+    params = CropParams(roi_list=[ROI], roi_units="micron", z_range=(0, 5))
+    assert params.roi_units is RoiUnits.Microns
+
+
 def test_auto_with_no_files_means_pixels(tmp_path):
     # Coordinates passed directly by an API caller are pixels by convention.
     lattice = _lattice(tmp_path, [ROI], RoiUnits.Auto)
@@ -124,6 +145,19 @@ def test_auto_refuses_to_guess_across_mixed_file_types(tmp_path):
     imagej.write_bytes(b"")
     with pytest.raises(ValueError, match="set roi_units explicitly"):
         CropParams(roi_list=[_write(tmp_path, CSV), imagej], z_range=(0, 5))
+
+
+def test_rois_outside_the_image_are_called_out(tmp_path, caplog):
+    """
+    The usual cause is the wrong unit. Without this the run dies later inside the
+    writer with 'truncate can only be used with imagej or shaped formats'.
+    """
+    import logging
+
+    far = scale_rois([ROI], 100.0)
+    with caplog.at_level(logging.WARNING, logger="lls_core.models.lattice_data"):
+        _lattice(tmp_path, far, RoiUnits.Pixels)
+    assert any("roi_units" in r.getMessage() for r in caplog.records), caplog.records
 
 
 def test_conversion_does_not_repeat_when_the_model_is_revalidated(tmp_path):

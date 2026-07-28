@@ -199,6 +199,29 @@ class LatticeData(OutputParams, DeskewParams):
         return v
 
     @validator("crop")
+    def warn_rois_outside_image(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
+        """
+        Say so when an ROI lies outside the deskewed image. Usually it means the units
+        were wrong, and the alternative is a crop failing later inside the writer with
+        an unrelated-looking message.
+        """
+        from lls_core.models.utils import ignore_keyerror
+
+        if v is None or not v.roi_list:
+            return v
+        with ignore_keyerror():
+            height, width = values["derived"].deskew_vol_shape[1:]
+            worst_y = max(y for roi in v.roi_list for y, _ in roi)
+            worst_x = max(x for roi in v.roi_list for _, x in roi)
+            if worst_y > height or worst_x > width:
+                logger.warning(
+                    "ROIs extend to (%.0f, %.0f) but the deskewed image is only "
+                    "(%d, %d) pixels. Check roi_units: coordinates in the wrong unit "
+                    "are out by the pixel size.", worst_y, worst_x, height, width
+                )
+        return v
+
+    @validator("crop")
     def default_z_range(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
         from lls_core.models.utils import ignore_keyerror
         if v is None:
