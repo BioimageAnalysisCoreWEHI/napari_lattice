@@ -54,8 +54,9 @@ lls-pipeline estimate --yaml-config nap_lattice_config.yml
 
 From napari-lattice **v2.0** onward, ROI-level parallelism is built in via
 `--process-parallel`, which distributes the ROIs across worker processes that share the one
-GPU. If you don't set it, it defaults to `0` (**auto**) — a memory-safe worker count is
-derived from a memory estimate:
+GPU. If you don't set it, it defaults to `0` (**auto**) — the largest worker count that fits
+the GPU and host memory estimate, the number of ROIs, the CPU count and, in a SLURM
+allocation, `SLURM_CPUS_PER_TASK`:
 
 ```bash
 # Auto: let napari-lattice choose a memory-safe worker count

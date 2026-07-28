@@ -53,6 +53,26 @@ Alternatively, you can rotate the image, draw ROIs and save the ROI Manager file
 - This will process the ROI Manager file and save it in the specified directory with `_corrected` suffix.
 - This ROI file can be used in the napari-lattice workflows.
 
+## Saving ROIs from napari
+
+ROIs drawn in the plugin can be saved and reloaded later, so a set of crops does not have
+to be redrawn each session.
+
+- Select the `Napari Lattice Crop` layer in the layer list.
+- Go to `File -> Save Selected Layers` and save it as a `.csv`.
+
+That file can be given back to `Import ROI` in the plugin, or to `--roi-list` on the
+command line. Both accept Fiji `.roi`/`.zip` and napari `.csv`.
+
+!!! note "Pixels or microns?"
+
+    An ROI file does not record its units. Fiji writes **pixels**; a napari shapes layer
+    saved from the plugin's crop layer is in **microns**, because that layer is unscaled
+    while the image layer carries the pixel size. Both the plugin and the CLI default to
+    `Auto`, which picks the right one from the file extension, so ordinarily there is
+    nothing to set. Override it (`units` in the plugin, `--roi-units` on the command line)
+    only for a `.csv` produced by something other than napari.
+
 ## Processing a subset of ROIs
 
 A ROI file may contain many regions. By default all of them are processed. To
