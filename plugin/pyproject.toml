@@ -111,7 +111,8 @@ ignore_unused = [
     "bioio-czi",
     "bioio-ome-tiff",
     "bioio-tifffile",
-    "tifffile"
+    "tifffile",
+    "pylibczirw"
 ]
 output_format = "human_detailed"  
 
