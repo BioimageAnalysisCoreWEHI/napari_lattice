@@ -14,8 +14,20 @@ silently misregisters files that record stage drift between timepoints.
 
 Every entry point returns ``None`` rather than raising, so callers fall back to bioio.
 
-This is a temporary workaround for an upstream bioio-czi issue. Once bioio-czi builds
-its array lazily, delete this module and revert its call sites in ``lls_core.types``,
+The two halves have different lifetimes, so delete them separately:
+
+* ``czi_metadata`` is temporary. bioio-czi#104 (via bioio#197) tracks fast metadata
+  access - dims, shape, dtype - upstream. When that ships, measure it, then delete this
+  half along with its three ``bioio_czi`` internal imports.
+* ``CziPlanes`` and ``czi_dask_array`` are maintained. Nothing upstream plans lazy
+  array construction, per-plane reads or chunking, which is where the per-slice and
+  per-volume speedups come from. Revisit only if bioio-czi ships its own lazy reader
+  and measures faster.
+
+Note what is *not* maintained here: no CZI is parsed. Reads go through pylibCZIrw, so
+what this module owns is the dask graph over one, not the reader itself.
+
+Call sites to revert if the whole module ever goes: ``lls_core.types``,
 ``lls_core.models.deskew`` and ``napari_lattice.reader``.
 """
 from __future__ import annotations
