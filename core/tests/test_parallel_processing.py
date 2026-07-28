@@ -163,6 +163,18 @@ def test_slurm_cpu_cap_respected_in_recommendation(monkeypatch):
     assert est.recommended_workers <= 2
 
 
+def test_local_cpu_cap_respected_in_recommendation(monkeypatch):
+    # Memory alone allows one worker per ROI, which on a machine with fewer cores is
+    # just contention: each worker is a whole process doing GPU work.
+    from lls_core import estimate as est_mod
+    monkeypatch.setattr(est_mod, "_local_cpu_cap", lambda: 2)
+    raw = np.zeros((30, 50, 50), dtype=np.uint16)
+    rois = [[[0, 0], [0, 20], [20, 20], [20, 0]]] * 6
+    with tempfile.TemporaryDirectory() as tmpdir:
+        est = estimate_pipeline(_make_lattice(raw, rois, tmpdir), n_workers=8)
+    assert est.recommended_workers == 2
+
+
 def test_estimate_pipeline_safety_factor_scales_working_set():
     raw = np.zeros((30, 50, 50), dtype=np.uint16)
     roi = [[[0, 0], [0, 40], [40, 40], [40, 0]]]
@@ -315,17 +327,16 @@ def _assert_same_output_images(ser_dir: str, par_dir: str) -> None:
 
 
 @pytest.mark.parametrize("make_kwargs", [
-    pytest.param(_numpy_kwargs, id="numpy_materialize"),
+    pytest.param(_numpy_kwargs, id="numpy_pickled"),
     pytest.param(_file_path_kwargs, id="file_path_lazy_reload"),
-    pytest.param(_dask_no_path_kwargs, id="dask_no_path_materialize"),
+    pytest.param(_dask_no_path_kwargs, id="dask_no_path_serial_fallback"),
 ])
 def test_parallel_save_matches_serial(make_kwargs, rbc_tiny):
     """
-    Parallel ROI save must match serial across input variants:
-    in-memory numpy (materialize passthrough), a file path (lazy per-crop reload),
-    and an in-memory dask array with no path (materialize). The numpy-only case
-    would pickle fine and hide the unpicklable lazy-reader bugs, hence the file
-    and dask variants.
+    Parallel ROI save must match serial across input variants: in-memory numpy
+    (pickled to workers), a file path (lazy per-crop reload), and a lazy array with
+    no path (which falls back to serial). The numpy-only case would pickle fine and
+    hide the unpicklable lazy-reader bugs, hence the other two.
     """
     def build(save_dir: str, parallel: int) -> LatticeData:
         return LatticeData(
@@ -382,6 +393,97 @@ def test_use_parallel_falls_back_when_single_roi():
         lattice = _make_lattice(raw, roi, tmpdir, process_parallel=4)
         # With only one ROI we should not bother spinning up workers
         assert lattice._use_parallel_roi_processing() is False
+
+
+# --- dispatching a lazy input to workers ------------------------------------
+
+def _lazy_like(reference, fill):
+    """A lazy DataArray with `reference`'s dims, shape and dtype, holding `fill`."""
+    import dask.array as da
+    raw = np.asarray(fill, dtype=reference.dtype)
+    if raw.ndim == 0:
+        raw = np.full(reference.shape, raw, dtype=reference.dtype)
+    return DataArray(da.from_array(raw), dims=list(reference.dims))
+
+
+def _lattice_over(image, path, tmpdir, parallel=2):
+    return LatticeData(
+        input_image=image, input_image_path=path,
+        physical_pixel_sizes=(1, 1, 1),
+        save_name="v", save_dir=tmpdir, save_type="tiff",
+        crop=CropParams(roi_list=[_roi(0, 0, 60, 60), _roi(20, 20, 100, 100)], z_range=(0, 5)),
+        process_parallel=parallel,
+    )
+
+
+def test_lazy_input_without_a_path_is_never_materialized(rbc_tiny, monkeypatch):
+    """
+    Regression for the GUI hang: with no re-openable path, the dispatcher called
+    .compute() on the whole lazy volume before starting any worker - on a 300 GB file
+    that never returns, at 100% CPU, with nothing saved. Materializing is now never how
+    the input reaches workers, so the run completes even when doing so is an error.
+    """
+    from lls_core.models import lattice_data as ld
+
+    def explode(image):
+        raise AssertionError("the input image was materialized")
+
+    monkeypatch.setattr(ld, "_materialized_image", explode)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        lattice = LatticeData(**_dask_no_path_kwargs(rbc_tiny), save_name="v",
+                              save_dir=tmpdir, save_type="tiff", process_parallel=2)
+        assert lattice.input_image_path is None
+        assert lattice._use_parallel_roi_processing() is False
+        lattice.save()
+        assert sorted(p.name for p in Path(tmpdir).iterdir())
+
+
+def test_reload_check_accepts_the_source_file(rbc_tiny):
+    """The ordinary case: workers re-opening the file do get the parent's array."""
+    with tempfile.TemporaryDirectory() as tmpdir:
+        lattice = LatticeData(**_file_path_kwargs(rbc_tiny), save_name="v",
+                              save_dir=tmpdir, save_type="tiff", process_parallel=2)
+        assert lattice._reload_reproduces_input() is True
+        assert lattice._use_parallel_roi_processing() is True
+
+
+def test_reload_check_rejects_different_pixels(rbc_tiny):
+    """
+    Matching axes and dtype are not enough: the plugin concatenates one layer per
+    channel in layer-list order, so a reload can be the same shape with its channels
+    in a different order - right shape, wrong image, saved without any error.
+    """
+    from lls_core.models.deskew import load_image_lazy
+
+    reference = load_image_lazy(Path(str(rbc_tiny)))
+    varied = np.zeros(reference.shape, dtype=reference.dtype)
+    varied[..., ::2] = 3          # differs from the file, but not a flat plane
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        lattice = _lattice_over(_lazy_like(reference, varied), Path(str(rbc_tiny)), tmpdir)
+        assert lattice._reload_reproduces_input() is False
+        assert lattice._use_parallel_roi_processing() is False
+
+
+def test_reload_check_declines_when_sampled_planes_are_uniform(tmp_path, caplog):
+    """A flat plane matches any other, so matching ones prove nothing. Decline."""
+    import logging
+
+    import tifffile
+
+    from lls_core.models.deskew import load_image_lazy
+
+    blank = tmp_path / "blank.tif"
+    tifffile.imwrite(str(blank), np.zeros((30, 120, 120), dtype=np.uint16))
+    reference = load_image_lazy(blank)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        # Identical pixels to the file, so only the uniformity check can reject it.
+        lattice = _lattice_over(_lazy_like(reference, 0), blank, tmpdir)
+        with caplog.at_level(logging.INFO, logger="lls_core.models.lattice_data"):
+            assert lattice._reload_reproduces_input() is False
+    assert any("uniform" in r.getMessage() for r in caplog.records), caplog.records
 
 
 def test_dispatch_payload_materializes_lazy_psf():

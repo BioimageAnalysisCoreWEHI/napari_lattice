@@ -58,9 +58,9 @@ class NapariImageParams(TypedDict):
     data: DataArray
     physical_pixel_sizes: DefinedPixelSizes
     save_name: str
-    # Source file path, set only for a single unmodified file-backed layer, so that
-    # parallel workers can re-open the file and lazily read only their ROI crops
-    # (instead of materializing the whole volume). None for stacked/derived/in-memory.
+    # Source file shared by every selected layer, so that parallel workers can re-open
+    # it and lazily read only their ROI crops. None when the layers came from more than
+    # one file, from no file at all, or were reinterpreted with a manual dimension order.
     input_image_path: Optional[Path]
 
 def lattice_params_from_napari(
@@ -150,14 +150,18 @@ def lattice_params_from_napari(
 
     final_img = concat(final_imgs, dim=stack_along)
 
-    # Only a single, unmodified file-backed layer can be safely re-opened from its
-    # path in a worker and reproduce the same array. Skip stacked layers (no single
-    # source) and any layer with a user-overridden dimension order (the reload uses
-    # metadata dims, which may then differ). Otherwise -> materialize.
+    # Record the source file so parallel workers can re-open it and read only their own
+    # crops. A multi-channel file arrives as one layer per channel, so several layers
+    # sharing one path still count; layers from different files, or a user-overridden
+    # dimension order (the reload uses metadata dims), do not. Necessary but not
+    # sufficient - `LatticeData` verifies the reload before any worker relies on it.
     imgs_seq = list(imgs)
     input_image_path: Optional[Path] = None
-    if len(imgs_seq) == 1 and dimension_order is None and imgs_seq[0].source.path is not None:
-        input_image_path = Path(imgs_seq[0].source.path)
+    source_paths = {img.source.path for img in imgs_seq}
+    if dimension_order is None and len(source_paths) == 1:
+        only_path = source_paths.pop()
+        if only_path is not None:
+            input_image_path = Path(only_path)
 
     return NapariImageParams(save_name=save_names[0], physical_pixel_sizes=final_pixel_size, data=final_img, dims=final_img.shape, input_image_path=input_image_path)
 
