@@ -39,9 +39,10 @@ dependencies = [
     "bioio>=3.0.0",
     "bioio-tifffile==1.3.0",
     "bioio-czi>=2.4.0",
-    # Imported directly in reader.py for fast CZI reads
-    # (also pulled in by bioio-czi).
-    "aicspylibczi",
+    # Imported directly in reader.py for fast CZI reads. This is the same library
+    # bioio-czi uses by default, which is what keeps the fast path byte-identical
+    # to bioio's dask_data (also pulled in by bioio-czi).
+    "pylibczirw",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version
     "fsspec>=2022.8.2",
@@ -110,7 +111,8 @@ ignore_unused = [
     "bioio-czi",
     "bioio-ome-tiff",
     "bioio-tifffile",
-    "tifffile"
+    "tifffile",
+    "pylibczirw"
 ]
 output_format = "human_detailed"  
 

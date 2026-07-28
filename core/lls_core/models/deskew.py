@@ -33,7 +33,13 @@ def load_image_lazy(path: Path) -> DataArray:
     """
     from bioio import BioImage
     from os import fspath
-    return BioImage(fspath(path)).xarray_dask_data
+    from lls_core.czi_reader import czi_xarray
+    resolved = fspath(path)
+    image = BioImage(resolved)
+    # The facade czi_xarray builds is created here, inside the worker, so the
+    # non-picklable reader it holds never has to cross a process boundary.
+    fast = czi_xarray(resolved, image)
+    return fast if fast is not None else image.xarray_dask_data
 
 class DefinedPixelSizes(FieldAccessModel):
     """
@@ -285,7 +291,10 @@ class DeskewParams(FieldAccessModel):
 
         # If the image was convertible to BioImage, we should use the metadata from there
         if aics:
-            values["input_image"] = aics.xarray_dask_data 
+            from lls_core.czi_reader import czi_path_of, czi_xarray
+            czi_path = fspath(img) if is_pathlike(img) else czi_path_of(aics)
+            fast = czi_xarray(czi_path, aics) if czi_path is not None else None
+            values["input_image"] = fast if fast is not None else aics.xarray_dask_data
             # Take pixel sizes from the image metadata, but only if they're defined
             # and only if we don't already have them
             if all(size is not None for size in aics.physical_pixel_sizes) and values.get("physical_pixel_sizes") is None:
