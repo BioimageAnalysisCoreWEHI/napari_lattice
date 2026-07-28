@@ -91,13 +91,24 @@ class CziPlanes:
     re-open the file instead (see lls_core.models.lattice_data._dispatch_payload).
     """
 
-    def __init__(self, path: str, shape, dtype, plane_dims, scene: Optional[int]):
+    def __init__(
+        self,
+        path: str,
+        shape,
+        dtype,
+        plane_dims,
+        scene: Optional[int],
+        roi: Optional[tuple] = None,
+    ):
         self.path = str(path)
         self.shape = tuple(int(s) for s in shape)
         self.dtype = np.dtype(dtype)
         self.ndim = len(self.shape)
         self._plane_dims = tuple(plane_dims)
         self._scene = scene
+        # ``(x, y, w, h)`` of the scene at zoom 1, or None when the file has no scenes.
+        # A plain tuple rather than a pylibCZIrw Rectangle so this stays picklable.
+        self._roi = tuple(roi) if roi is not None else None
         self._local = threading.local()
 
     def _reader(self):
@@ -113,7 +124,9 @@ class CziPlanes:
         return held[1]
 
     def _plane(self, coords, y_key, x_key) -> np.ndarray:
-        raw = np.asarray(self._reader().read(plane=coords, scene=self._scene))
+        raw = np.asarray(
+            self._reader().read(plane=coords, scene=self._scene, roi=self._roi)
+        )
         # pylibCZIrw returns (Y, X, samples); drop the trailing axis explicitly
         # rather than squeezing, which would also eat a genuine length-1 Y or X.
         if raw.ndim == 3 and raw.shape[-1] == 1:
@@ -184,30 +197,56 @@ def czi_metadata(path: str, image: BioImage) -> Optional[dict]:
         return _decline(path, "bioio-czi internals unavailable", exc_info=True)
 
     try:
-        n_scenes = max(len(getattr(image, "scenes", None) or [None]), 1)
-        scene_idx = int(getattr(image, "current_scene_index", 0) or 0)
+        bioio_idx = int(getattr(image, "current_scene_index", 0) or 0)
 
         with pyczi.open_czi(str(path)) as czi:
-            bbox = dict(czi.total_bounding_box)
+            # The ``_no_pyramid`` variants throughout, as bioio uses: the rectangle
+            # across all zoom levels can be a pixel larger in Y and X than the one at
+            # zoom 1, which would hand back an array with a background edge row.
+            bbox = dict(czi.total_bounding_box_no_pyramid)
             m_lo, m_hi = bbox.get("M", (0, 1))
             if int(m_hi) - int(m_lo) > 1:
                 return _decline(path, "mosaic")
-            # bioio prefers the scene rectangle for X/Y when one exists; it is what
-            # carries the drift margin on offset CZIs.
-            rect = czi.scenes_bounding_rectangle.get(scene_idx)
-            if rect is None:
-                rect = czi.total_bounding_rectangle
+            # A CZI's own scene keys need not be zero-based or contiguous - a plate can
+            # hold scenes {1, 2}. bioio maps its 0..N-1 index through the sorted keys
+            # before touching pylibCZIrw; passing the BioIO index straight through would
+            # read a different scene's pixels at the right shape and dtype.
+            scene_rects = czi.scenes_bounding_rectangle_no_pyramid
+            czi_indices = sorted(scene_rects)
+            if czi_indices:
+                if not 0 <= bioio_idx < len(czi_indices):
+                    return _decline(
+                        path,
+                        f"scene index {bioio_idx} out of range for "
+                        f"{len(czi_indices)} scenes",
+                    )
+                scene_idx = czi_indices[bioio_idx]
+                # bioio reads the scene rectangle explicitly rather than relying on
+                # pylibCZIrw's default ROI, for the pyramid reason above. It is also
+                # what carries the drift margin on offset CZIs.
+                rect = scene_rects[scene_idx]
+                roi = (int(rect.x), int(rect.y), int(rect.w), int(rect.h))
+                height, width = int(rect.h), int(rect.w)
+            else:
+                # No scenes at all: pylibCZIrw's defaults, and the total bounds.
+                scene_idx, roi = None, None
+                height = max(_bbox_size(bbox, "Y"), 1)
+                width = max(_bbox_size(bbox, "X"), 1)
             pixel_type = czi.get_channel_pixel_type(0)
 
         dtype = np.dtype(PIXEL_DICT[str(pixel_type).lower()])
-        names = get_channel_names(image.reader.metadata, scene_idx, bbox)
+        # ``get_channel_names`` indexes the CZI's own scene metadata, so it takes the
+        # mapped index - 0 when the file has no scenes, as bioio does.
+        names = get_channel_names(
+            image.reader.metadata, 0 if scene_idx is None else scene_idx, bbox
+        )
         n_channels = len(names) if names else max(_bbox_size(bbox, "C"), 1)
         shape = (
             max(_bbox_size(bbox, "T"), 1),
             int(n_channels),
             max(_bbox_size(bbox, "Z"), 1),
-            int(rect.h),
-            int(rect.w),
+            height,
+            width,
         )
     except Exception:
         return _decline(path, "metadata unreadable", exc_info=True)
@@ -223,9 +262,11 @@ def czi_metadata(path: str, image: BioImage) -> Optional[dict]:
         "shape": shape,
         "dtype": dtype,
         "channel_names": list(names) if names else [],
-        "scene": scene_idx if n_scenes > 1 else None,
-        "scene_index": scene_idx,
-        "n_scenes": n_scenes,
+        "scene": scene_idx,
+        "roi": roi,
+        # The BioIO index, which is what distinguishes one call from the next; it only
+        # names the dask graph.
+        "scene_index": bioio_idx,
     }
 
 
@@ -249,12 +290,13 @@ def czi_dask_array(path: str, image: BioImage, meta: Optional[dict] = None):
     order = meta["order"]
     dtype = meta["dtype"]
     scene = meta["scene"]
+    roi = meta.get("roi")
     shape = meta["shape"]
     sizes = dict(zip(order, shape))
 
     plane_dims = tuple(order[:-2])
     try:
-        source = CziPlanes(str(path), shape, dtype, plane_dims, scene)
+        source = CziPlanes(str(path), shape, dtype, plane_dims, scene, roi)
         arr = da.from_array(
             source,
             # Coarse along Z (see _Z_CHUNK), one index along every other leading axis.

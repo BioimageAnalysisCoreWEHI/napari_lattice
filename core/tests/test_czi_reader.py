@@ -89,6 +89,44 @@ def test_multi_scene_czi_reads_the_selected_scene(
     assert np.array_equal(np.asarray(arr.compute()), expected)
 
 
+@pytest.mark.parametrize("bioio_index", [0, 1])
+def test_noncontiguous_scene_keys_map_to_the_czi_scene(
+    noncontiguous_scene_czi, czi_stub_image, bioio_index
+):
+    """
+    A CZI's own scene keys need not be zero-based or contiguous; here they are 1 and 2.
+
+    bioio maps its 0..N-1 index through the sorted rectangle keys before handing it to
+    pylibCZIrw. Passing the BioIO index straight through instead reads the wrong scene:
+    index 0 finds no rectangle at all (so the shape becomes the whole canvas and the
+    read raises), and index 1 silently returns CZI scene 1's pixels - right shape, right
+    dtype, wrong image, which is the worst failure mode for scientific imaging.
+    """
+    path, planes = noncontiguous_scene_czi
+    stub = czi_stub_image(path, n_scenes=2, scene_index=bioio_index)
+
+    meta = czi_metadata(str(path), stub)
+    assert meta is not None
+    assert meta["shape"] == (1, 1, 3, 10, 14), "each scene has its own rectangle"
+    assert meta["scene"] == bioio_index + 1, "BioIO index must map to the CZI key"
+
+    arr = czi_dask_array(str(path), stub, meta)
+    assert arr is not None
+
+    expected = np.stack([planes[(bioio_index + 1, z)] for z in range(3)])[None, None]
+    assert np.array_equal(np.asarray(arr.compute()), expected)
+
+
+def test_bioio_scene_index_out_of_range_declines(
+    noncontiguous_scene_czi, czi_stub_image
+):
+    """The never-raise contract: an impossible scene index falls back, it does not throw."""
+    path, _planes = noncontiguous_scene_czi
+    stub = czi_stub_image(path, n_scenes=2, scene_index=5)
+
+    assert czi_metadata(str(path), stub) is None
+
+
 def test_two_dimensional_slice_reads_exactly_one_plane(
     drift_czi, czi_stub_image, czi_read_calls
 ):
