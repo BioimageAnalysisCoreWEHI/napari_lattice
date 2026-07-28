@@ -107,7 +107,8 @@ class CziPlanes:
         self._plane_dims = tuple(plane_dims)
         self._scene = scene
         # ``(x, y, w, h)`` of the scene at zoom 1, or None when the file has no scenes.
-        # A plain tuple rather than a pylibCZIrw Rectangle so this stays picklable.
+        # Zoom 1 rather than the default all-zoom-levels rectangle, which on a
+        # pyramidal CZI is up to a pixel wider and would break parity with bioio.
         self._roi = tuple(roi) if roi is not None else None
         self._local = threading.local()
 
@@ -290,7 +291,7 @@ def czi_dask_array(path: str, image: BioImage, meta: Optional[dict] = None):
     order = meta["order"]
     dtype = meta["dtype"]
     scene = meta["scene"]
-    roi = meta.get("roi")
+    roi = meta["roi"]
     shape = meta["shape"]
     sizes = dict(zip(order, shape))
 
