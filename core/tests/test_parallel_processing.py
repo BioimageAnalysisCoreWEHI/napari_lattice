@@ -163,6 +163,18 @@ def test_slurm_cpu_cap_respected_in_recommendation(monkeypatch):
     assert est.recommended_workers <= 2
 
 
+def test_local_cpu_cap_respected_in_recommendation(monkeypatch):
+    # Memory alone allows one worker per ROI, which on a machine with fewer cores is
+    # just contention: each worker is a whole process doing GPU work.
+    from lls_core import estimate as est_mod
+    monkeypatch.setattr(est_mod, "_local_cpu_cap", lambda: 2)
+    raw = np.zeros((30, 50, 50), dtype=np.uint16)
+    rois = [[[0, 0], [0, 20], [20, 20], [20, 0]]] * 6
+    with tempfile.TemporaryDirectory() as tmpdir:
+        est = estimate_pipeline(_make_lattice(raw, rois, tmpdir), n_workers=8)
+    assert est.recommended_workers == 2
+
+
 def test_estimate_pipeline_safety_factor_scales_working_set():
     raw = np.zeros((30, 50, 50), dtype=np.uint16)
     roi = [[[0, 0], [0, 40], [40, 40], [40, 0]]]
