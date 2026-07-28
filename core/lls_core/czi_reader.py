@@ -56,9 +56,15 @@ def _pool() -> ThreadPoolExecutor:
         return _pool_instance
 
 
-def _decline(path: Any, reason: str) -> None:
-    """Log why the fast path bowed out. Callers return this (None) to fall back."""
-    logger.debug("CZI fast path declined for %s: %s", path, reason)
+def _decline(path: Any, reason: str, exc_info: bool = False) -> None:
+    """
+    Log why the fast path bowed out and return None, so the caller falls back to bioio.
+
+    INFO rather than DEBUG: falling back silently turns a 1.2 s open back into a 195 s
+    one, so enabling ordinary logging has to be enough to say why. Callers must return
+    before reaching this for a non-CZI, or every TIFF opened would log too.
+    """
+    logger.info("CZI fast path declined for %s: %s", path, reason, exc_info=exc_info)
     return None
 
 
@@ -163,8 +169,7 @@ def czi_metadata(path: str, image: BioImage) -> Optional[dict]:
         from bioio_czi.channels import get_channel_names
         from bioio_czi.pylibczirw_reader.reader import PIXEL_DICT
     except Exception:
-        logger.debug("bioio-czi internals unavailable; using bioio", exc_info=True)
-        return None
+        return _decline(path, "bioio-czi internals unavailable", exc_info=True)
 
     try:
         n_scenes = max(len(getattr(image, "scenes", None) or [None]), 1)
@@ -193,8 +198,7 @@ def czi_metadata(path: str, image: BioImage) -> Optional[dict]:
             int(rect.w),
         )
     except Exception:
-        logger.debug("CZI metadata unavailable for %s", path, exc_info=True)
-        return None
+        return _decline(path, "metadata unreadable", exc_info=True)
 
     # CZI dimensions outside TCZYX (H, V, B, ...). We have never seen one, so we
     # decline rather than guess how it folds into the TCZYX bioio normalises to.
@@ -228,8 +232,7 @@ def czi_dask_array(path: str, image: BioImage, meta: Optional[dict] = None):
     try:
         from dask.base import tokenize
     except Exception:
-        logger.debug("dask.base.tokenize unavailable", exc_info=True)
-        return None
+        return _decline(path, "dask.base.tokenize unavailable", exc_info=True)
 
     order = meta["order"]
     dtype = meta["dtype"]
@@ -250,8 +253,7 @@ def czi_dask_array(path: str, image: BioImage, meta: Optional[dict] = None):
             meta=np.empty((0,) * len(order), dtype),
         )
     except Exception:
-        logger.debug("could not build CZI array for %s", path, exc_info=True)
-        return None
+        return _decline(path, "could not build the array", exc_info=True)
 
     return arr
 
@@ -280,5 +282,4 @@ def czi_xarray(path: str, image: BioImage, meta: Optional[dict] = None) -> Optio
     try:
         return DataArray(arr, dims=tuple(meta["order"]))
     except Exception:
-        logger.debug("could not wrap CZI array as DataArray for %s", path, exc_info=True)
-        return None
+        return _decline(path, "could not wrap the array as a DataArray", exc_info=True)

@@ -147,3 +147,26 @@ def test_arrays_share_one_thread_pool(drift_czi, multi_scene_czi, czi_stub_image
     assert czi_reader._pool() is pool
     live = [t for t in threading.enumerate() if t.name.startswith("lls-czi")]
     assert len(live) <= 8, [t.name for t in live]
+
+
+def test_declining_a_czi_says_why(tmp_path, caplog):
+    """
+    A silent fallback turns a 1.2 s open back into a 195 s one. Turning on ordinary
+    logging has to be enough to explain why a file went slow again.
+    """
+    broken = tmp_path / "broken.czi"
+    broken.write_bytes(b"this is not a CZI")
+
+    with caplog.at_level(logging.INFO, logger="lls_core.czi_reader"):
+        assert czi_dask_array(str(broken), None) is None
+
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("declined" in m for m in messages), messages
+
+
+def test_declining_a_non_czi_is_silent(caplog):
+    """Every TIFF and HDF5 open would otherwise log; only .czi bailouts are news."""
+    with caplog.at_level(logging.DEBUG, logger="lls_core.czi_reader"):
+        assert czi_dask_array("not_a_czi.tif", None) is None
+
+    assert caplog.records == [], [r.getMessage() for r in caplog.records]
