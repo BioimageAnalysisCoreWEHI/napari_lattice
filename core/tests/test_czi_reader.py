@@ -170,3 +170,47 @@ def test_declining_a_non_czi_is_silent(caplog):
         assert czi_dask_array("not_a_czi.tif", None) is None
 
     assert caplog.records == [], [r.getMessage() for r in caplog.records]
+
+
+def _array_name(image) -> str:
+    """Our arrays are named "lls-czi-<token>"; bioio's are "reshape-..." etc."""
+    data = getattr(image, "data", image)
+    return str(getattr(data, "name", ""))
+
+
+def test_image_like_to_image_takes_the_fast_path(rbc_tiny):
+    from lls_core.types import image_like_to_image
+
+    got = image_like_to_image(str(rbc_tiny))
+    assert _array_name(got).startswith("lls-czi-"), _array_name(got)
+
+    ref = BioImage(str(rbc_tiny)).xarray_dask_data
+    assert got.dims == ref.dims
+    assert np.array_equal(np.asarray(got), np.asarray(ref))
+
+
+def test_load_image_lazy_takes_the_fast_path(rbc_tiny):
+    """
+    This is the call a parallel ROI worker makes after `_dispatch_payload` strips the
+    unpicklable image and sends only the path.
+    """
+    from pathlib import Path
+
+    from lls_core.models.deskew import load_image_lazy
+
+    got = load_image_lazy(Path(str(rbc_tiny)))
+    assert _array_name(got).startswith("lls-czi-"), _array_name(got)
+
+    ref = BioImage(str(rbc_tiny)).xarray_dask_data
+    assert got.dims == ref.dims
+    assert np.array_equal(np.asarray(got), np.asarray(ref))
+
+
+def test_deskew_params_read_image_takes_the_fast_path(rbc_tiny):
+    """The path every `lls-pipeline` run with a CZI input takes."""
+    from lls_core.models.deskew import DeskewParams
+
+    params = DeskewParams(input_image=str(rbc_tiny))
+    assert _array_name(params.input_image).startswith("lls-czi-"), _array_name(
+        params.input_image
+    )
