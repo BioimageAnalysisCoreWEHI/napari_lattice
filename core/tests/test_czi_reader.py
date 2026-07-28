@@ -87,3 +87,63 @@ def test_multi_scene_czi_reads_the_selected_scene(
 
     expected = np.stack([planes[(scene_index, z)] for z in range(3)])[None, None]
     assert np.array_equal(np.asarray(arr.compute()), expected)
+
+
+def test_two_dimensional_slice_reads_exactly_one_plane(
+    drift_czi, czi_stub_image, czi_read_calls
+):
+    """
+    `_Z_CHUNK` is 32, so a Z chunk spans up to 32 planes. That is a dask-graph-size
+    knob, not a read-volume one, only because dask pushes single-plane indexing down
+    into `from_array`. If a dask change stops doing that, the chunk becomes a 32x read
+    amplifier and nothing else in the suite would notice.
+    """
+    path, _planes, _offsets = drift_czi
+    arr = czi_dask_array(str(path), czi_stub_image(path))
+    assert arr is not None
+
+    czi_read_calls.clear()          # discard anything the metadata pass did
+    plane = np.asarray(arr[1, 0, 2].compute())
+
+    assert plane.shape == (12, 25)
+    assert len(czi_read_calls) == 1, czi_read_calls
+    assert czi_read_calls[0] == {"T": 1, "C": 0, "Z": 2}
+
+
+def test_whole_block_reads_one_plane_per_index(drift_czi, czi_stub_image, czi_read_calls):
+    """A genuine whole-array request reads every plane exactly once - no more."""
+    path, _planes, _offsets = drift_czi
+    arr = czi_dask_array(str(path), czi_stub_image(path))
+    assert arr is not None
+
+    czi_read_calls.clear()
+    arr.compute()
+
+    assert len(czi_read_calls) == 3 * 4          # T x Z, one read each
+    assert len({tuple(sorted(c.items())) for c in czi_read_calls}) == 3 * 4
+
+
+def test_arrays_share_one_thread_pool(drift_czi, multi_scene_czi, czi_stub_image):
+    """
+    The executor is module-level, so opening many files does not accumulate a pool
+    each. A per-array pool would leak up to eight threads per file opened.
+    """
+    import threading
+
+    from lls_core import czi_reader
+
+    drift_path, _planes, _offsets = drift_czi
+    scene_path, _scene_planes = multi_scene_czi
+
+    pool = czi_reader._pool()
+    for path, stub in (
+        (drift_path, czi_stub_image(drift_path)),
+        (scene_path, czi_stub_image(scene_path, n_scenes=2)),
+    ):
+        arr = czi_dask_array(str(path), stub)
+        assert arr is not None
+        arr.compute()          # a whole-block read, which is what uses the pool
+
+    assert czi_reader._pool() is pool
+    live = [t for t in threading.enumerate() if t.name.startswith("lls-czi")]
+    assert len(live) <= 8, [t.name for t in live]

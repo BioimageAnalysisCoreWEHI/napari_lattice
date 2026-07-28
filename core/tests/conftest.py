@@ -210,3 +210,38 @@ def multi_scene_czi(tmp_path_factory):
                     scene=scene,
                 )
     return path, planes
+
+
+@pytest.fixture
+def czi_read_calls(monkeypatch):
+    """
+    Records the plane dict of every `pylibCZIrw` read for the duration of the test.
+
+    Wraps the library's reader rather than patching `lls_core.czi_reader`, so the test
+    pins the observable property - one read per plane - and not how the module happens
+    to be written.
+    """
+    from contextlib import contextmanager
+    from pylibCZIrw import czi as pyczi
+
+    calls: list = []
+    real_open_czi = pyczi.open_czi
+
+    class _CountingReader:
+        def __init__(self, inner):
+            self._inner = inner
+
+        def read(self, *args, **kwargs):
+            calls.append(kwargs.get("plane"))
+            return self._inner.read(*args, **kwargs)
+
+        def __getattr__(self, name):
+            return getattr(self._inner, name)
+
+    @contextmanager
+    def counting_open_czi(*args, **kwargs):
+        with real_open_czi(*args, **kwargs) as reader:
+            yield _CountingReader(reader)
+
+    monkeypatch.setattr(pyczi, "open_czi", counting_open_czi)
+    return calls
