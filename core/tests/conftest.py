@@ -8,6 +8,7 @@ import pyclesperanto_prototype as cle
 import tempfile
 from numpy.typing import NDArray
 from copy import copy
+from types import SimpleNamespace
 from lls_core.sample import resources
 
 from napari_workflows import Workflow
@@ -124,3 +125,61 @@ def workflow_config_cli(image_workflow: Workflow, test_image: NDArray):
                 "workflow": workflow_path,
             }.items()
         }
+
+# --- generated CZI fixtures --------------------------------------------------
+#
+# pylibCZIrw's writer never emits the <Scenes> element that bioio's `scene_name()`
+# requires, so `BioImage.scenes` raises UnsupportedMetadataError on every file it
+# produces - with or without `write_metadata`, with or without an explicit `scene=`.
+# `czi_metadata` only reads three attributes off the BioImage, so the tests stand a
+# stub in for those. That substitutes metadata the writer cannot produce; the geometry
+# under test still comes from pylibCZIrw.
+
+class _CziStubImage:
+    """Stand-in for a `BioImage` over a generated CZI."""
+
+    def __init__(self, metadata, n_scenes: int, scene_index: int):
+        self.scenes = tuple(f"Scene:{i}" for i in range(n_scenes))
+        self.current_scene_index = scene_index
+        self.reader = SimpleNamespace(metadata=metadata)
+
+
+@pytest.fixture
+def czi_stub_image():
+    """Factory: `czi_stub_image(path, n_scenes=1, scene_index=0)`."""
+    from xml.etree import ElementTree
+    from pylibCZIrw import czi as pyczi
+
+    def make(path, n_scenes: int = 1, scene_index: int = 0) -> _CziStubImage:
+        with pyczi.open_czi(str(path)) as czi:
+            metadata = ElementTree.fromstring(czi.raw_metadata)
+        return _CziStubImage(metadata, n_scenes, scene_index)
+
+    return make
+
+
+@pytest.fixture(scope="session")
+def drift_czi(tmp_path_factory):
+    """
+    A CZI whose subblocks are narrower than the canvas, because each timepoint records
+    a different stage offset. This is the file shape that crashed the old reader:
+    aicspylibczi reports the 20-wide subblock while pylibCZIrw and bioio report the
+    25-wide canvas, and reshaping one into the other raises.
+
+    Yields `(path, planes, offsets)`; `planes[(t, z)]` is the array as written.
+    """
+    from pylibCZIrw import czi as pyczi
+
+    path = tmp_path_factory.mktemp("czi") / "drift.czi"
+    rng = np.random.default_rng(0)
+    offsets = {0: 5, 1: 0, 2: 2}   # x position per timepoint; canvas is 5 + 20 wide
+    planes = {}
+    with pyczi.create_czi(str(path)) as writer:
+        for t in range(3):
+            for z in range(4):
+                plane = rng.integers(1, 500, size=(12, 20), dtype=np.uint16)
+                planes[(t, z)] = plane
+                writer.write(
+                    plane, location=(offsets[t], 0), plane={"T": t, "Z": z, "C": 0}
+                )
+    return path, planes, offsets
