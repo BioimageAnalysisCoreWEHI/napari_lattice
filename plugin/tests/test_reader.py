@@ -11,6 +11,8 @@ needs to correct the interpretation.
 """
 from __future__ import annotations
 
+from pathlib import Path
+
 import numpy as np
 import pytest
 import tifffile
@@ -53,6 +55,69 @@ def test_genuine_multichannel_is_split():
     assert add_kwargs["name"] == list(image.channel_names)
     # The channel axis is dropped from the per-channel dimension metadata.
     assert "C" not in add_kwargs["metadata"]["dimensions"]
+
+
+def _open_layers(viewer, path):
+    viewer.open(str(path), plugin="napari-lattice")
+    return list(viewer.layers)
+
+
+def test_channel_layers_of_one_file_keep_its_path(make_napari_viewer):
+    """
+    A multi-channel file arrives as one layer per channel. Selecting them all used to
+    drop the path, since only a lone layer counted as re-openable; the dispatcher then
+    computed the whole lazy volume, which on a large file never finishes.
+    """
+    from napari_lattice.reader import lattice_params_from_napari
+
+    viewer = make_napari_viewer()
+    with as_file(resources / "LLS7_t1_ch3.czi") as p:
+        layers = _open_layers(viewer, p)
+        assert len(layers) > 1, "expected this file to split into per-channel layers"
+        params = lattice_params_from_napari(imgs=layers, stack_along="C")
+        assert params["input_image_path"] == Path(str(p))
+
+
+def test_layers_from_different_files_have_no_single_path(make_napari_viewer, tmp_path):
+    # Two sources, so no one file can be re-opened to reproduce the stack. A copy of
+    # the same image keeps the layers stackable, isolating the path check.
+    import shutil
+
+    from napari_lattice.reader import lattice_params_from_napari
+
+    viewer = make_napari_viewer()
+    with as_file(resources / "LLS7_t1_ch1.czi") as original:
+        copy = tmp_path / "copy.czi"
+        shutil.copy(original, copy)
+        _open_layers(viewer, original)
+        layers = _open_layers(viewer, copy)
+        assert len({lyr.source.path for lyr in layers}) == 2
+        params = lattice_params_from_napari(imgs=layers, stack_along="C")
+    assert params["input_image_path"] is None
+
+
+@pytest.mark.parametrize("reverse", [False, True], ids=["file_order", "reversed"])
+def test_reload_verification_is_sensitive_to_layer_order(make_napari_viewer, tmp_path, reverse):
+    """
+    Channels are concatenated in layer-list order, which need not be the file's, so the
+    path alone cannot tell a worker how to rebuild the parent's array. Reordered layers
+    must be rejected, or workers save the right shape with the wrong channels, silently.
+    """
+    from lls_core.models.lattice_data import LatticeData
+    from napari_lattice.reader import lattice_params_from_napari
+
+    viewer = make_napari_viewer()
+    with as_file(resources / "LLS7_t1_ch3.czi") as p:
+        layers = _open_layers(viewer, p)
+        params = lattice_params_from_napari(
+            imgs=layers[::-1] if reverse else layers, stack_along="C"
+        )
+        lattice = LatticeData(
+            input_image=params["data"], input_image_path=params["input_image_path"],
+            physical_pixel_sizes=params["physical_pixel_sizes"],
+            save_name="v", save_dir=str(tmp_path), save_type="tiff",
+        )
+        assert lattice._reload_reproduces_input() is (not reverse)
 
 
 def test_single_channel_tiff_yields_5d_dimension_options(tmp_path):
