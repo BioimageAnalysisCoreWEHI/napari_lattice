@@ -186,33 +186,6 @@ def drift_czi(tmp_path_factory):
 
 
 @pytest.fixture(scope="session")
-def multi_scene_czi(tmp_path_factory):
-    """
-    Two scenes written at different x offsets, so reading the wrong scene's rectangle
-    gives visibly wrong pixels rather than a shifted copy of the right ones.
-
-    Yields `(path, planes)`; `planes[(scene, z)]` is the array as written.
-    """
-    from pylibCZIrw import czi as pyczi
-
-    path = tmp_path_factory.mktemp("czi") / "multi_scene.czi"
-    rng = np.random.default_rng(1)
-    planes = {}
-    with pyczi.create_czi(str(path)) as writer:
-        for scene in range(2):
-            for z in range(3):
-                plane = rng.integers(1, 500, size=(10, 14), dtype=np.uint16)
-                planes[(scene, z)] = plane
-                writer.write(
-                    plane,
-                    location=(scene * 20, 0),
-                    plane={"Z": z, "C": 0},
-                    scene=scene,
-                )
-    return path, planes
-
-
-@pytest.fixture(scope="session")
 def noncontiguous_scene_czi(tmp_path_factory):
     """
     Two scenes whose CZI scene keys are 1 and 2 - neither zero-based nor a range.

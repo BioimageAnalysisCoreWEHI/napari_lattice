@@ -63,44 +63,22 @@ def test_drift_czi_matches_bioio(drift_czi, czi_stub_image):
     assert np.array_equal(np.asarray(arr.compute()), np.asarray(ref.compute()))
 
 
-@pytest.mark.parametrize("scene_index", [0, 1])
-def test_multi_scene_czi_reads_the_selected_scene(
-    multi_scene_czi, czi_stub_image, scene_index
-):
-    """
-    Each scene must yield its own pixels from its own bounding rectangle.
-
-    Before the runtime probe was removed this declined - the probe compared a plane
-    against `image.dask_data`, so multi-scene files paid for bioio's full per-plane
-    graph on every open, and declined outright when bioio could not supply one.
-    """
-    path, planes = multi_scene_czi
-    stub = czi_stub_image(path, n_scenes=2, scene_index=scene_index)
-
-    meta = czi_metadata(str(path), stub)
-    assert meta is not None
-    assert meta["shape"] == (1, 1, 3, 10, 14), "each scene has its own rectangle"
-    assert meta["scene"] == scene_index
-
-    arr = czi_dask_array(str(path), stub, meta)
-    assert arr is not None, "multi-scene CZIs must take the fast path"
-
-    expected = np.stack([planes[(scene_index, z)] for z in range(3)])[None, None]
-    assert np.array_equal(np.asarray(arr.compute()), expected)
-
-
 @pytest.mark.parametrize("bioio_index", [0, 1])
 def test_noncontiguous_scene_keys_map_to_the_czi_scene(
     noncontiguous_scene_czi, czi_stub_image, bioio_index
 ):
     """
-    A CZI's own scene keys need not be zero-based or contiguous; here they are 1 and 2.
+    Multi-scene files must take the fast path, and each scene must yield its own pixels
+    from its own bounding rectangle. Before the runtime probe was removed they declined
+    outright, falling back to bioio's full per-plane graph on every open.
 
-    bioio maps its 0..N-1 index through the sorted rectangle keys before handing it to
-    pylibCZIrw. Passing the BioIO index straight through instead reads the wrong scene:
-    index 0 finds no rectangle at all (so the shape becomes the whole canvas and the
-    read raises), and index 1 silently returns CZI scene 1's pixels - right shape, right
-    dtype, wrong image, which is the worst failure mode for scientific imaging.
+    The scene keys here are 1 and 2, because a CZI's own keys need not be zero-based or
+    contiguous. bioio maps its 0..N-1 index through the sorted rectangle keys before
+    handing it to pylibCZIrw. Passing the BioIO index straight through instead reads the
+    wrong scene: index 0 finds no rectangle at all (so the shape becomes the whole canvas
+    and the read raises), and index 1 silently returns CZI scene 1's pixels - right
+    shape, right dtype, wrong image, the worst failure mode for scientific imaging. A
+    fixture keyed 0 and 1 cannot catch that, because there the mapping is the identity.
     """
     path, planes = noncontiguous_scene_czi
     stub = czi_stub_image(path, n_scenes=2, scene_index=bioio_index)
@@ -161,7 +139,7 @@ def test_whole_block_reads_one_plane_per_index(drift_czi, czi_stub_image, czi_re
     assert len({tuple(sorted(c.items())) for c in czi_read_calls}) == 3 * 4
 
 
-def test_arrays_share_one_thread_pool(drift_czi, multi_scene_czi, czi_stub_image):
+def test_arrays_share_one_thread_pool(drift_czi, noncontiguous_scene_czi, czi_stub_image):
     """
     The executor is module-level, so opening many files does not accumulate a pool
     each. A per-array pool would leak up to eight threads per file opened.
@@ -171,7 +149,7 @@ def test_arrays_share_one_thread_pool(drift_czi, multi_scene_czi, czi_stub_image
     from lls_core import czi_reader
 
     drift_path, _planes, _offsets = drift_czi
-    scene_path, _scene_planes = multi_scene_czi
+    scene_path, _scene_planes = noncontiguous_scene_czi
 
     pool = czi_reader._pool()
     for path, stub in (
@@ -216,39 +194,41 @@ def _array_name(image) -> str:
     return str(getattr(data, "name", ""))
 
 
-def test_image_like_to_image_takes_the_fast_path(rbc_tiny):
+def _via_image_like_to_image(path):
     from lls_core.types import image_like_to_image
 
-    got = image_like_to_image(str(rbc_tiny))
-    assert _array_name(got).startswith("lls-czi-"), _array_name(got)
-
-    ref = BioImage(str(rbc_tiny)).xarray_dask_data
-    assert got.dims == ref.dims
-    assert np.array_equal(np.asarray(got), np.asarray(ref))
+    return image_like_to_image(str(path))
 
 
-def test_load_image_lazy_takes_the_fast_path(rbc_tiny):
-    """
-    This is the call a parallel ROI worker makes after `_dispatch_payload` strips the
-    unpicklable image and sends only the path.
-    """
+def _via_load_image_lazy(path):
+    # What a parallel ROI worker calls after `_dispatch_payload` strips the
+    # unpicklable image and sends only the path.
     from pathlib import Path
 
     from lls_core.models.deskew import load_image_lazy
 
-    got = load_image_lazy(Path(str(rbc_tiny)))
-    assert _array_name(got).startswith("lls-czi-"), _array_name(got)
-
-    ref = BioImage(str(rbc_tiny)).xarray_dask_data
-    assert got.dims == ref.dims
-    assert np.array_equal(np.asarray(got), np.asarray(ref))
+    return load_image_lazy(Path(str(path)))
 
 
-def test_deskew_params_read_image_takes_the_fast_path(rbc_tiny):
-    """The path every `lls-pipeline` run with a CZI input takes."""
+def _via_deskew_params(path):
+    # The path every `lls-pipeline` run with a CZI input takes.
     from lls_core.models.deskew import DeskewParams
 
-    params = DeskewParams(input_image=str(rbc_tiny))
-    assert _array_name(params.input_image).startswith("lls-czi-"), _array_name(
-        params.input_image
-    )
+    return DeskewParams(input_image=str(path)).input_image
+
+
+@pytest.mark.parametrize(
+    "call_site",
+    [_via_image_like_to_image, _via_load_image_lazy, _via_deskew_params],
+    ids=["image_like_to_image", "load_image_lazy", "DeskewParams"],
+)
+def test_cli_call_sites_take_the_fast_path(rbc_tiny, call_site):
+    """
+    Each of these would still return correct pixels if it fell back to bioio - just
+    ~190 s slower, which looks like success. Only the array's name distinguishes them,
+    so that is what this asserts. Pixel parity against bioio is covered separately, on
+    this same file, by plugin/tests/test_czi_reader.py.
+    """
+    got = call_site(rbc_tiny)
+    assert _array_name(got).startswith("lls-czi-"), _array_name(got)
+    assert got.dims == ("T", "C", "Z", "Y", "X")
