@@ -20,6 +20,7 @@ from typing import Any, List, Optional, Tuple, Collection, TYPE_CHECKING, TypedD
 
 from bioio import PhysicalPixelSizes
 from lls_core.models.deskew import DefinedPixelSizes
+from lls_core.czi_reader import czi_dask_array, czi_metadata
 
 from logging import getLogger
 logger = getLogger(__name__)
@@ -36,18 +37,26 @@ import re
 # re-enabling channel splitting. Genuine acquisitions have descriptive names ("LLS1").
 _AUTO_CHANNEL_NAME = re.compile(r"^Channel:\d+:\d+$")
 
-def _has_real_channel_metadata(image: BioImage) -> bool:
+def _has_real_channel_names(names: Optional[Collection[Any]]) -> bool:
     """
-    Whether the image's channel axis is trustworthy enough to split a napari layer on.
+    Whether a channel axis is trustworthy enough to split a napari layer on.
 
     We trust it only when the channel names are descriptive, rather than bioio's
     "Channel:i:j" placeholders. This is best-effort: it cannot recognise a real channel
     axis that simply has no names, but it covers every observed file format.
+
+    Takes the names rather than the image so callers that already have them cheaply
+    (see `_czi_fast_metadata`) do not have to touch `image.channel_names`, which builds
+    bioio's entire dask graph.
     """
-    names = image.channel_names
     if not names:
         return False
     return not all(_AUTO_CHANNEL_NAME.match(str(name)) for name in names)
+
+
+def _has_real_channel_metadata(image: BioImage) -> bool:
+    """`_has_real_channel_names` for a BioImage whose graph is already built."""
+    return _has_real_channel_names(image.channel_names)
 
 class NapariImageParams(TypedDict):
     data: DataArray
@@ -230,166 +239,12 @@ def bdv_h5_reader(path):
     layer_type = "image"  # optional, default is "image"
     return [(images, add_kwargs, layer_type)]
 
-# Per-layer RAM budget (MB) for caching recently-viewed (T,C) ZYX stacks so that
-# re-slicing the same plane (scale/affine tweaks) and scrolling Z within a
-# timepoint are instant instead of ~130 ms. The number of stacks cached is
-# derived from this budget and the actual stack size, so memory stays bounded
-# regardless of file size (a fixed stack *count* would balloon on large volumes
-# and under-cache small ones). Override per session with
-# NAPARI_LATTICE_CZI_CACHE_MB (0 disables caching).
-_FAST_CZI_CACHE_MB_DEFAULT = 512.0
-# Hard cap so tiny volumes don't cache an absurd number of stacks.
-_FAST_CZI_CACHE_MAX_STACKS = 32
+# The CZI fast path lives in lls_core so the plugin and the CLI share one
+# implementation. These aliases keep the names callers and tests already use.
+_czi_fast_metadata = czi_metadata
+_czi_fast_dask_data = czi_dask_array
 
 
-def _fast_czi_cache_stacks(stack_bytes: int) -> int:
-    """Number of (T,C) stacks to cache for a given per-stack byte size."""
-    try:
-        budget_mb = float(os.environ.get("NAPARI_LATTICE_CZI_CACHE_MB", _FAST_CZI_CACHE_MB_DEFAULT))
-    except (TypeError, ValueError):
-        budget_mb = _FAST_CZI_CACHE_MB_DEFAULT
-    budget = int(max(0.0, budget_mb) * 1024 * 1024)
-    if budget <= 0:
-        return 0  # lru_cache(maxsize=0) -> caching disabled
-    return int(max(1, min(_FAST_CZI_CACHE_MAX_STACKS, budget // max(stack_bytes, 1))))
-
-
-def _czi_fast_dask_data(path: str, image: BioImage):
-    """
-    Build a lazily-read dask array for a (non-mosaic) CZI, chunked per (T, C) via
-    single bulk ``aicspylibczi`` reads. Multi-scene CZIs are supported: the
-    caller iterates scenes and calls this once per scene, so we read the scene
-    bioio currently has selected (``image.current_scene_index``) via the S index.
-
-    Why: bioio's ``dask_data`` chunks the volume per Z-plane, producing tens of
-    thousands of tiny chunks. Slicing a single plane in napari then pays dask
-    graph overhead proportional to the whole chunk count (~9 s on a 20 GB CZI),
-    even though the underlying CZI read is ~40 ms on an SSD. Reading a whole
-    (T, C) ZYX stack in one call collapses the graph (T*C chunks) and reads in
-    ~130 ms. Still fully lazy: only the displayed (time, channel) is read.
-    Rechunking bioio's ``dask_data`` does NOT help — the coarse chunk is still
-    assembled from the same slow per-plane reads.
-
-    Correctness safeguards: the plain single-scene, no-extra-dimension path is
-    verified byte-identical to bioio. Every other path (multi-scene S-index
-    alignment, exotic non-ZYX dimensions) is validated against bioio on a
-    mid-stack plane before being trusted; on any mismatch or read error we return
-    ``None`` so the caller falls back to bioio's slow-but-correct ``dask_data``.
-    """
-    if not str(path).lower().endswith(".czi"):
-        return None
-    try:
-        from aicspylibczi import CziFile
-        import threading
-        from functools import lru_cache
-        from dask import delayed as _delayed
-    except Exception:
-        return None
-
-    try:
-        czi = CziFile(str(path))
-        if czi.is_mosaic():
-            return None
-        present_dims = set(czi.get_dims_shape()[0].keys())
-        # Scene count from bioio (authoritative and matching the caller's scene
-        # loop). Deriving it from block 0's "S" entry undercounts *ragged*
-        # multi-scene CZIs (get_dims_shape returns one dict per scene), which
-        # would skip the S index and the self-check -> silently read scene 0.
-        n_scenes = max(len(getattr(image, "scenes", None) or [None]), 1)
-        scene_idx = int(getattr(image, "current_scene_index", 0) or 0)
-    except Exception:
-        return None
-
-    order = image.dims.order
-    if not all(d in order for d in ("Z", "Y", "X")):
-        return None
-
-    sizes = dict(zip(order, image.dask_data.shape))
-    dtype = image.dask_data.dtype
-    Z, Y, X = sizes["Z"], sizes["Y"], sizes["X"]
-    nT, nC = sizes.get("T", 1), sizes.get("C", 1)
-
-    # Any CZI dimension other than Z,Y,X (and the T,C,S we index explicitly) must
-    # be constrained, else aicspylibczi returns it at full size and reshape(Z,Y,X)
-    # would raise on a dask worker at slice time instead of falling back here.
-    has_T, has_C, has_S = "T" in present_dims, "C" in present_dims, "S" in present_dims
-    extra_dims = [d for d in present_dims if d not in ("X", "Y", "Z", "T", "C", "S")]
-
-    # aicspylibczi's reader is not guaranteed thread-safe; napari slices on worker
-    # threads, so serialise reads. The bounded LRU keeps the most-recently viewed
-    # (T,C) stacks resident so repeated slices of the same plane are instant;
-    # the stack count is derived from a RAM budget and this file's stack size.
-    #
-    # NOTE: this closure captures `lock` (and `czi`), which are not picklable, so
-    # the array must only be computed under dask's in-process THREADED scheduler
-    # (napari's default). It is never sent to another process here: parallel ROI
-    # processing re-opens the file from `input_image_path` in each worker (see
-    # lls_core.models.lattice_data._dispatch_payload) rather than pickling this
-    # array. Computing it under the `processes`/`distributed` scheduler would fail
-    # to pickle the lock.
-    lock = threading.Lock()
-    stack_bytes = int(Z) * int(Y) * int(X) * np.dtype(dtype).itemsize
-
-    @lru_cache(maxsize=_fast_czi_cache_stacks(stack_bytes))
-    def read_stack(t: int, c: int) -> np.ndarray:
-        kwargs = {}
-        if has_T:
-            kwargs["T"] = int(t)
-        if has_C:
-            kwargs["C"] = int(c)
-        if has_S and n_scenes > 1:
-            kwargs["S"] = scene_idx
-        for d in extra_dims:
-            kwargs[d] = 0
-        with lock:
-            arr, _ = czi.read_image(**kwargs)
-        return np.asarray(arr).reshape(Z, Y, X)
-
-    try:
-        # Assemble as TCZYX (singleton T/C when absent), then squeeze/transpose
-        # to match the image's actual dimension order.
-        t_blocks = []
-        for t in range(nT):
-            c_blocks = [
-                da.from_delayed(_delayed(read_stack)(t, c), shape=(Z, Y, X), dtype=dtype)
-                for c in range(nC)
-            ]
-            t_blocks.append(da.stack(c_blocks))   # (C, Z, Y, X)
-        arr = da.stack(t_blocks)                  # (T, C, Z, Y, X)
-
-        # Drop singleton T/C axes that aren't in the real order.
-        take = tuple(
-            slice(None) if d in order or d in ("Z", "Y", "X") else 0
-            for d in "TCZYX"
-        )
-        arr = arr[take]
-        present = [d for d in "TCZYX" if d in order]
-        if present != list(order):
-            arr = arr.transpose([present.index(d) for d in order])
-    except Exception:
-        return None
-
-    if arr.shape != image.dask_data.shape or arr.dtype != image.dask_data.dtype:
-        return None
-
-    # Verified path: single-scene with only standard dimensions. Anything else is
-    # validated against bioio on a MID-stack plane (Z=0 is frequently near-black
-    # and would false-pass a scene-misalignment); mismatch/error -> fall back.
-    if n_scenes > 1 or extra_dims:
-        try:
-            probe = tuple(
-                slice(None) if d in ("Y", "X") else (sizes[d] // 2 if d == "Z" else 0)
-                for d in order
-            )
-            if not np.array_equal(
-                np.asarray(arr[probe].compute()),
-                np.asarray(image.dask_data[probe].compute()),
-            ):
-                return None
-        except Exception:
-            return None
-
-    return arr
 
 
 def bioio_reader(path: str | list[str]) -> List[Tuple[Any, dict, str]]:
@@ -420,21 +275,29 @@ def bioio_reader(path: str | list[str]) -> List[Tuple[Any, dict, str]]:
         # optional kwargs for the corresponding viewer.add_* method
         add_kwargs = {}
 
-        # Get the dask data. For CZIs, prefer a per-(T,C) bulk-read dask array
-        # (fast slicing); fall back to bioio's per-plane dask_data otherwise.
-        data = _czi_fast_dask_data(path, image)
+        # For CZIs, take both the array and the metadata from the fast path: reading
+        # `image.dims` at all would build bioio's whole per-plane graph.
+        meta = _czi_fast_metadata(path, image)
+        data = _czi_fast_dask_data(path, image, meta) if meta is not None else None
         if data is None:
+            # Declined, so the layer is bioio's array and its metadata must be too.
+            meta = None
             data = image.dask_data
 
+        if meta is not None:
+            order, full_shape, channel_names = meta["order"], meta["shape"], meta["channel_names"]
+        else:
+            order, full_shape, channel_names = image.dims.order, image.dims.shape, image.channel_names
+
         # Get the dimensions
-        dim_order = list(image.dims.order)
+        dim_order = list(order)
 
         # Set the scale
         pixel_sizes = image.physical_pixel_sizes
         scale = [
-            getattr(pixel_sizes, dim, 1.0) or 1.0 for dim in image.dims.order
+            getattr(pixel_sizes, dim, 1.0) or 1.0 for dim in order
         ]
-        
+
         # Set the channel axis.
         # Only split the layer into one image per channel when the channel axis is
         # genuine: it must have more than one channel AND come with real channel
@@ -443,10 +306,10 @@ def bioio_reader(path: str | list[str]) -> List[Tuple[Any, dict, str]]:
         # single-channel stack to a lower dimensionality or carve a frame axis into
         # spurious channels - in both cases hiding the TCZYX/CTZYX dimension-order
         # options the user needs to correct the interpretation downstream.
-        c_idx = image.dims.order.index("C") if "C" in image.dims.order else None
-        channel_size = image.dims.shape[c_idx] if c_idx is not None else 1
+        c_idx = list(order).index("C") if "C" in order else None
+        channel_size = full_shape[c_idx] if c_idx is not None else 1
         split_channels = (
-            c_idx is not None and channel_size > 1 and _has_real_channel_metadata(image)
+            c_idx is not None and channel_size > 1 and _has_real_channel_names(channel_names)
         )
         if split_channels:
             add_kwargs["channel_axis"] = c_idx
@@ -454,9 +317,9 @@ def bioio_reader(path: str | list[str]) -> List[Tuple[Any, dict, str]]:
             scale.pop(c_idx)
             dim_order.pop(c_idx)
             if len(scenes) > 1 and scene is not None:
-                add_kwargs["name"] = [f"{scene} - {ch}" for ch in image.channel_names]
+                add_kwargs["name"] = [f"{scene} - {ch}" for ch in channel_names]
             else:
-                add_kwargs["name"] = image.channel_names
+                add_kwargs["name"] = list(channel_names)
         else:
             if c_idx is not None and channel_size > 1:
                 logger.info(

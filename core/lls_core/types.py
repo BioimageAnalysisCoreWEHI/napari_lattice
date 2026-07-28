@@ -25,11 +25,20 @@ def image_like_to_image(img: ImageLike) -> DataArray:
     Converts an image in one of many formats to a DataArray
     """
     # First try treating it as a path
+    path = None
     try:
-        img = BioImage(fspath(img))
+        path = fspath(img)
+        img = BioImage(path)
     except TypeError:
         pass
     if isinstance(img, BioImage):
+        # CZIs read far faster through czi_reader; identical pixels either way.
+        from lls_core.czi_reader import czi_path_of, czi_xarray
+        czi_path = path if path is not None else czi_path_of(img)
+        if czi_path is not None:
+            fast = czi_xarray(czi_path, img)
+            if fast is not None:
+                return fast
         return img.xarray_dask_data
     else:
         for required_key in ("shape", "dtype", "ndim", "__array__", "__array_ufunc__"):
