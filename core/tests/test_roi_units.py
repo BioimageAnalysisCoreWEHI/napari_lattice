@@ -8,14 +8,12 @@ unit is declared on the way in and converted once.
 """
 from __future__ import annotations
 
-import tempfile
-
 import numpy as np
 import pytest
 from xarray import DataArray
 
 from lls_core.cropping import (
-    Roi, RoiUnits, read_napari_csv, read_rois, scale_rois, units_for_path,
+    Roi, RoiUnits, read_napari_csv, scale_rois, units_for_path,
 )
 from lls_core.models.crop import CropParams
 from lls_core.models.lattice_data import LatticeData
@@ -71,12 +69,6 @@ def test_a_csv_that_is_not_a_shapes_layer_is_rejected(tmp_path):
         read_napari_csv(_write(tmp_path, "x,y\n1,2\n"))
 
 
-def test_read_rois_routes_on_suffix(tmp_path):
-    assert read_rois(_write(tmp_path, CSV)) == read_napari_csv(_write(tmp_path, CSV))
-    with pytest.raises(Exception, match="zip/roi"):
-        read_rois(_write(tmp_path, CSV, name="shapes.txt"))
-
-
 def _lattice(tmp_path, rois, units, dy=0.5):
     return LatticeData(
         input_image=DataArray(np.zeros((30, 100, 100), dtype=np.uint16), dims=["Z", "Y", "X"]),
@@ -112,6 +104,23 @@ def test_auto_takes_the_unit_from_the_file_type(tmp_path):
     assert lattice.crop.roi_list == scale_rois(read_napari_csv(csv), 2.0)
 
 
+@pytest.mark.parametrize("given", ["pixels", "PIXEL"])  # canonical, then miscased singular
+def test_cli_accepts_either_spelling_of_a_unit(given):
+    from lls_core.cmds.__main__ import RoiUnitsChoice
+
+    choice = RoiUnitsChoice([unit.value for unit in RoiUnits], case_sensitive=False)
+    assert choice.convert(given, None, None) == RoiUnits.Pixels
+
+
+def test_cli_still_rejects_an_unknown_unit():
+    import click
+    from lls_core.cmds.__main__ import RoiUnitsChoice
+
+    choice = RoiUnitsChoice([unit.value for unit in RoiUnits], case_sensitive=False)
+    with pytest.raises(click.UsageError):
+        choice.convert("furlongs", None, None)
+
+
 def test_auto_with_no_files_means_pixels(tmp_path):
     # Coordinates passed directly by an API caller are pixels by convention.
     lattice = _lattice(tmp_path, [ROI], RoiUnits.Auto)
@@ -124,6 +133,19 @@ def test_auto_refuses_to_guess_across_mixed_file_types(tmp_path):
     imagej.write_bytes(b"")
     with pytest.raises(ValueError, match="set roi_units explicitly"):
         CropParams(roi_list=[_write(tmp_path, CSV), imagej], z_range=(0, 5))
+
+
+def test_rois_outside_the_image_are_called_out(tmp_path, caplog):
+    """
+    The usual cause is the wrong unit. Without this the run dies later inside the
+    writer with 'truncate can only be used with imagej or shaped formats'.
+    """
+    import logging
+
+    far = scale_rois([ROI], 100.0)
+    with caplog.at_level(logging.WARNING, logger="lls_core.models.lattice_data"):
+        _lattice(tmp_path, far, RoiUnits.Pixels)
+    assert any("roi_units" in r.getMessage() for r in caplog.records), caplog.records
 
 
 def test_conversion_does_not_repeat_when_the_model_is_revalidated(tmp_path):

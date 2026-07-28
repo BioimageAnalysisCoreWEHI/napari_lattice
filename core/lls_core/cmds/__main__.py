@@ -84,6 +84,15 @@ def field_from_model(model: Type[FieldAccessModel], field_name: str, extra_descr
         **kwargs
     )
 
+class RoiUnitsChoice(click.Choice):
+    """`--roi-units pixel` as well as `pixels`, in any case."""
+
+    def normalize_choice(self, choice: Any, ctx: Any) -> str:
+        # Click runs this over the declared choices and the typed value alike, so
+        # folding away a trailing "s" makes the two spellings the same token.
+        return super().normalize_choice(choice, ctx).rstrip("s")
+
+
 def parse_roi_subset(value: Optional[List[str]]) -> Optional[List[int]]:
     """
     Typer callback  normalises ``--roi-subset`` into a flat list of integer
@@ -180,7 +189,10 @@ def process(
     )),
 
     roi_list: List[Path] = field_from_model(CropParams, "roi_list"),
-    roi_units: RoiUnits = field_from_model(CropParams, "roi_units"),
+    roi_units: RoiUnits = field_from_model(
+        CropParams, "roi_units",
+        click_type=RoiUnitsChoice([unit.value for unit in RoiUnits], case_sensitive=False),
+    ),
     roi_subset: List[str] = field_from_model(CropParams, "roi_subset", extra_description="Accepts either repeated flags (--roi-subset 2 --roi-subset 5) or a comma-separated list (--roi-subset 2,5,7).", default=[], callback=parse_roi_subset),
     z_range: Optional[Tuple[int,int]] = field_from_model(CropParams, "z_range", show_default=False),
     
