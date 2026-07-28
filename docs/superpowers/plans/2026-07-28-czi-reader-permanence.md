@@ -13,7 +13,8 @@
 ## Global Constraints
 
 - **Branch:** all work lands on `fix_reader`. **Never push.** The user has asked not to commit during exploration — confirm before the first commit step, then commit per task.
-- **Commit authorship is the user's alone.** Do not add a `Co-Authored-By` trailer, a "Generated with Claude Code" line, or any other AI attribution to a commit message or PR body. Commits carry the repo's configured identity (`git config user.name` / `user.email`) and nothing else — do not pass `--author` or otherwise override it. The commit messages quoted in each task are already in this form — use them verbatim.
+- **Commit authorship is the user's alone.** Do not add a `Co-Authored-By` trailer, a "Generated with Claude Code" line, or any other AI attribution to a commit message or PR body. Commits carry the repo's configured identity (`git config user.name` / `user.email`) and nothing else — do not pass `--author` or otherwise override it.
+- **Commit messages are a single concise subject line.** No body, no bullet list, no rationale paragraph — the spec and this plan carry the reasoning. Use the message quoted in each task verbatim; if you think one needs explaining, put the explanation in a code comment instead.
 - **Python:** `C:/Users/rajasekhar.p/.conda/envs/napari_lattice/python.exe`. Never use `conda run`.
 - **Reads go through pylibCZIrw only.** Do not introduce an `aicspylibczi` read anywhere in `czi_reader.py`: it returns subblocks without applying their logical offset, which is the original bug.
 - **Every entry point returns `None` rather than raising**, so callers fall back to bioio. Preserve this in every edit.
