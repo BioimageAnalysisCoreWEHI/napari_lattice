@@ -15,6 +15,7 @@ from lls_core.models.deskew import DeskewParams, DefinedPixelSizes
 from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.output import OutputParams
 from lls_core.models.crop import CropParams
+from lls_core.cropping import RoiUnits
 from lls_core.deconvolution import DeconvolutionChoice
 from typer import Typer, Argument, Option, Context, Exit, BadParameter
 from typer.main import get_command
@@ -41,6 +42,7 @@ CLI_PARAM_MAP = {
     "coverslip_rotation": ["coverslip_rotation"],
     "physical_pixel_sizes": ["physical_pixel_sizes"],
     "roi_list": ["crop", "roi_list"],
+    "roi_units": ["crop", "roi_units"],
     "roi_subset": ["crop", "roi_subset"],
     "z_range": ["crop", "z_range"],
     "decon_processing": ["deconvolution", "decon_processing"],
@@ -178,6 +180,7 @@ def process(
     )),
 
     roi_list: List[Path] = field_from_model(CropParams, "roi_list"),
+    roi_units: RoiUnits = field_from_model(CropParams, "roi_units"),
     roi_subset: List[str] = field_from_model(CropParams, "roi_subset", extra_description="Accepts either repeated flags (--roi-subset 2 --roi-subset 5) or a comma-separated list (--roi-subset 2,5,7).", default=[], callback=parse_roi_subset),
     z_range: Optional[Tuple[int,int]] = field_from_model(CropParams, "z_range", show_default=False),
     

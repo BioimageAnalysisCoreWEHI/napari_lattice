@@ -175,6 +175,25 @@ class LatticeData(OutputParams, DeskewParams):
         return v
 
     @validator("crop")
+    def convert_roi_units(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
+        """
+        Bring `roi_list` into deskewed-image pixels, the unit everything downstream
+        assumes. Only possible here, since the pixel size may come from the image
+        metadata and so is not known when `CropParams` alone is built.
+        """
+        from lls_core.cropping import RoiUnits, scale_rois
+        from lls_core.models.utils import ignore_keyerror
+
+        if v is None or v.roi_units == RoiUnits.Pixels:
+            return v
+        with ignore_keyerror():
+            # dy for both axes, matching the plugin's own shape-to-ROI conversion.
+            v.roi_list = scale_rois(v.roi_list, 1 / values["physical_pixel_sizes"].Y)
+            # Mark the conversion done, so re-validating a copy cannot repeat it.
+            v.roi_units = RoiUnits.Pixels
+        return v
+
+    @validator("crop")
     def default_z_range(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
         from lls_core.models.utils import ignore_keyerror
         if v is None:
