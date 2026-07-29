@@ -120,19 +120,18 @@ to `0` (**auto**), which derives a memory-safe worker count from a memory estima
 lls-pipeline process --yaml-config neutrophil_config.yml --process-parallel 0
 ```
 
-To take control, pass an explicit number of workers — for example `8` — to spread the
-selected ROIs across 8 worker processes that share one GPU:
+To take control, pass an explicit number of workers — for example `4` (if you have a small GPU) or `17` (large GPU and process all ROIs)  — to spread the selected ROIs across 17 worker processes that share one GPU:
 
 ```bash
-# Explicit: distribute the ROIs across 8 workers on the shared GPU
-lls-pipeline process --yaml-config neutrophil_config.yml --process-parallel 8
+# Explicit: distribute the ROIs across 17 workers on the shared GPU
+lls-pipeline process --yaml-config neutrophil_config.yml --process-parallel 17
 ```
 
 !!! warning "This pipeline needs an explicit worker count"
 
     Auto (`0`) is **disabled for workflow and deconvolution runs** (whose memory cannot be
     sized) and falls back to serial. Because this pipeline uses a workflow, `--process-parallel 0`
-    will run serially — pass an explicit number (e.g. `8`) to actually parallelise. Use
+    will run serially — pass an explicit number (e.g. `4`, `8` or `17`) to actually parallelise. Use
     [`lls-pipeline estimate`](hpc_slurm.md#sizing-the-job) to help pick a value.
 
 You can also restrict which ROIs run with `--roi-subset` (e.g. `--roi-subset 0,2,5`), which
