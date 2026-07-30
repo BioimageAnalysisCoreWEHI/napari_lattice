@@ -43,13 +43,13 @@ What you get and the knobs that matter:
 Open the MIP in Fiji and draw a rectangle around each region you want to process, adding
 each to the ROI Manager, then save the ROI Manager as a `.zip`.
 
-!!! warning "ROIs must be rotated 90°"
+!!! warning "ROIs for Zeiss LLS7"
 
-    napari-lattice interprets ROIs in the space of the **deskewed** image, so ROIs drawn
-    on the MIP need to be rotated 90° before use. You can either rotate the MIP image
+    For the Zeiss LLS7, the **ROIs need to be rotated 90° before use**. You can either rotate the MIP image
     first and then draw, or rotate an existing ROI set with the supplied Fiji macro. The
     full procedure, with screenshots and the macro, is in
     [Defining ROIs for cropping](../miscellaneous/rois_cropping.md).
+    This is only for the Zeiss lattice lightsheet 7 as of now (2026). 
 
 ## 3. Feed the ROIs back into a cropping run
 
