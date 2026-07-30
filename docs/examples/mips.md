@@ -38,10 +38,12 @@ What you get and the knobs that matter:
 - **Cropping and deconvolution are ignored** on the MIP path — it is a fast whole-frame
   projection, not a per-ROI product.
 
-## 2. Draw ROIs on the MIP in Fiji
+## 2. Draw ROIs on the MIP in Fiji or napari
 
+### Defining ROIs in Fiji
 Open the MIP in Fiji and draw a rectangle around each region you want to process, adding
-each to the ROI Manager, then save the ROI Manager as a `.zip`.
+each to the ROI Manager, then save the ROI Manager as a `.zip`. If it is only one ROI, 
+this will be saved as a .roi file
 
 !!! warning "ROIs for Zeiss LLS7"
 
@@ -50,6 +52,12 @@ each to the ROI Manager, then save the ROI Manager as a `.zip`.
     full procedure, with screenshots and the macro, is in
     [Defining ROIs for cropping](../miscellaneous/rois_cropping.md).
     This is only for the Zeiss lattice lightsheet 7 as of now (2026). 
+
+### Defining ROIs in napari
+Open the MIP in napari. Create a shapes layer and draw rectangular polygons around each object of interest. 
+Once you are done, you can save the layer as a `.csv` file which can be accessed by napari-lattice.
+
+Click here for more info on [napari shapes layer](https://napari.org/stable/howtos/layers/shapes.html).
 
 ## 3. Feed the ROIs back into a cropping run
 
@@ -65,6 +73,24 @@ crop:
   roi_list: "/path/to/rois.zip"
 ```
 
+If it is a napari shapes layer saved as a `csv`
+
+```yaml
+# crop_config.yml
+input_image: "/path/to/input.tiff"
+save_dir: "/path/to/output/cropped"
+save_type: "h5"
+crop:
+  roi_list: "/path/to/rois.csv"
+```
+
+!!! info "ROIs and pixel scaling"
+
+    napari-lattice expects the Fiji ROIs to be in pixel scaling and the napari shapes `csv` to be in microns. 
+    If you need to override this you can use the `roi_units` argument. You can specify `pixel` or `micron`.
+    Refer to ROI section in the [CLI page](../cli.md#roi-files-and-units---roi-list---roi-units).
+
+
 ```bash
 lls-pipeline process --yaml-config crop_config.yml
 ```
@@ -74,5 +100,5 @@ To process only some ROIs, or to run many in parallel, see
 
 ## Next
 
-The [Neutrophil NETosis example](neutrophil.md) picks up from here — it assumes a rotated
+The [Neutrophil NETosis example](neutrophil.md) picks up from here. As it is a Zeiss LLS7 file, it assumes a rotated
 ROI file already exists and runs a full crop → deskew → segmentation workflow over it.
