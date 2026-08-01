@@ -44,6 +44,9 @@ dependencies = [
     "dask",
     "dask[distributed]",
     "fsspec>=2022.8.2",
+    # Already pulled in by npy2bdv, but named explicitly because the Imaris
+    # (.ims) writer depends on it directly.
+    "h5py",
     "importlib_resources",
     "napari-workflows>=0.2.8",
     "npy2bdv",
