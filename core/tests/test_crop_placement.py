@@ -13,7 +13,7 @@ position is omitted because low/high are strictly more discriminating for the tr
 """
 import numpy as np
 import pytest
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core import DeskewDirection
@@ -41,7 +41,7 @@ def test_crop_placement_objective(skew, angle, pos):
     deskew = cle.deskew_y if skew == "Y" else cle.deskew_x
     raw = _raw_wide(skew)
     full = np.asarray(cle.pull(deskew(
-        raw, angle_in_degrees=angle, voxel_size_x=1, voxel_size_y=1, voxel_size_z=1)))
+        raw, angle=angle, voxel_size_x=1, voxel_size_y=1, voxel_size_z=1)))
 
     ax = 1 if skew == "Y" else 2          # sheared (wide) output axis
     other = 2 if skew == "Y" else 1

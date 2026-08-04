@@ -11,14 +11,14 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 
 from lls_core.mip import deskew_mip, deskew_mip_from_lattice
 
 
 def _ground_truth_mip(raw, func, theta, dz, dy, dx):
     full = np.asarray(cle.pull(func(
-        raw, angle_in_degrees=theta, voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz
+        raw, angle=theta, voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz
     )))
     return full.max(axis=0)
 

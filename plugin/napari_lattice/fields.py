@@ -4,7 +4,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING
 from typing_extensions import TypeVar
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 from lls_core.deconvolution import DeconvolutionChoice
 from lls_core import (
     DeskewDirection,

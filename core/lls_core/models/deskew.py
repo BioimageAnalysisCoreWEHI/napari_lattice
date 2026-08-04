@@ -7,9 +7,10 @@ from typing_extensions import Self, TYPE_CHECKING, Any, Optional, Tuple
 
 from pathlib import Path
 
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 
 from lls_core import DeskewDirection
+from lls_core.affine import AffineTransform3D
 from xarray import DataArray
 
 from lls_core.models.utils import FieldAccessModel, enum_choices
@@ -71,7 +72,7 @@ class DerivedDeskewFields(FieldAccessModel):
         description="Dimensions of the deskewed output. This is set automatically based on other input parameters, and doesn't need to be provided by the user."
     )
 
-    deskew_affine_transform: cle.AffineTransform3D = Field(init_var=False, default=None, description="Deskewing affine transformation matrix (in xyz order for OpenCL). This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
+    deskew_affine_transform: AffineTransform3D = Field(init_var=False, default=None, description="Deskewing affine transformation matrix (in xyz order for OpenCL). This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
     deskew_affine_transform_zyx: np.ndarray = Field(init_var=False, default=None, description="Deskewing affine transformation matrix (zyx order). This is set automatically based on other input parameters, and doesn't need to be provided by the user.")
 
 
@@ -135,10 +136,10 @@ class DeskewParams(FieldAccessModel):
             from lls_core.shear_only_deskew import shear_only_deskew
             skew_name = "Y" if self.skew == DeskewDirection.Y else "X"
             # Adapt to the deskew_func call convention used in _process_non_crop
-            def _cover(input_image, angle_in_degrees, linear_interpolation,
-                       voxel_size_x, voxel_size_y, voxel_size_z):
-                return shear_only_deskew(input_image, angle_in_degrees, voxel_size_z,
-                                        voxel_size_y, voxel_size_x, skew=skew_name)
+            def _cover(input_image, angle,
+                        voxel_size_x, voxel_size_y, voxel_size_z):
+                return shear_only_deskew(input_image, angle, voxel_size_z,
+                                            voxel_size_y, voxel_size_x, skew=skew_name)
             return _cover
         # Choose deskew function based on skew direction
         if self.skew == DeskewDirection.Y:

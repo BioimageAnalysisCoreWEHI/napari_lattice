@@ -4,7 +4,7 @@ import pytest
 from skimage.io import imsave
 import numpy as np
 from pathlib import Path
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 import tempfile
 from numpy.typing import NDArray
 from copy import copy
@@ -67,8 +67,8 @@ def image_workflow() -> Workflow:
     # Simple segmentation workflow that returns an image
     image_seg_workflow = Workflow()
     image_seg_workflow.set("gaussian", cle.gaussian_blur, "deskewed_image", sigma_x=1, sigma_y=1, sigma_z=1)
-    image_seg_workflow.set("binarisation", cle.threshold, "gaussian", constant=0.5)
-    image_seg_workflow.set("labeling", cle.connected_components_labeling_box, "binarisation")
+    image_seg_workflow.set("binarisation", cle.greater_constant, "gaussian", scalar=0.5)
+    image_seg_workflow.set("labeling", cle.connected_component_labeling, "binarisation", connectivity="box")
     return image_seg_workflow
 
 @pytest.fixture
