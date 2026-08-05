@@ -303,7 +303,7 @@ class DeskewParams(FieldAccessModel):
             # Take pixel sizes from the image metadata, but only if they're defined
             # and only if we don't already have them
             if all(size is not None for size in aics.physical_pixel_sizes) and values.get("physical_pixel_sizes") is None:
-                values["physical_pixel_sizes"] = aics.physical_pixel_sizes
+                values["physical_pixel_sizes"] = DefinedPixelSizes.from_physical(aics.physical_pixel_sizes)
 
         # In all cases, input_image will be a DataArray (XArray) at this point
 
