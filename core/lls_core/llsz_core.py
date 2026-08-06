@@ -204,6 +204,27 @@ def crop_volume_deskew(
         # tuple swap  #https://docs.python.org/3/reference/expressions.html#evaluation-order
         z_start_vol, z_end_vol = z_end_vol, z_start_vol
 
+    # Guard against a degenerate (zero- or one-voxel-wide) crop: if the projected
+    # ROI bounding box falls entirely outside the raw volume along an axis,
+    # clipping collapses both edges to the same boundary. A single-voxel extent
+    # is not enough either: pushing an array with a size-1 leading (Z) dimension
+    # makes some pyclesperanto backends generate 2D buffer-read macros instead of
+    # 3D ones, which the (always-3D, int4-indexed) vendored kernels can't compile
+    # against. Expand to at least 2 voxels so the GPU push below never receives a
+    # degenerate array; the crop_excess trimming/padding further down already
+    # handles the resulting short crop correctly. Mirrors the equivalent guard in
+    # _crop_volume_deskew_shear_only (which requires >=2 scan planes for the same
+    # reason).
+    if x_end - x_start < 2:
+        x_end = min(x_start + 2, orig_img_shape[0])
+        x_start = max(x_end - 2, 0)
+    if y_end - y_start < 2:
+        y_end = min(y_start + 2, orig_img_shape[1])
+        y_start = max(y_end - 2, 0)
+    if z_end_vol - z_start_vol < 2:
+        z_end_vol = min(z_start_vol + 2, orig_img_shape[2])
+        z_start_vol = max(z_end_vol - 2, 0)
+
     # After getting the coordinates, crop from original volume and deskew only the cropped volume
 
     if isinstance(original_volume, (
