@@ -17,12 +17,12 @@ This document lists everything delivered in Sprint 1: code changes, tests, noteb
 
 ---
 
-## Team split (Sprint 1)
+## Track split (Sprint 1)
 
-| Track | People | Main work |
-|-------|--------|-----------|
-| **Pydantic** | Tim, Kingsley, Anuj | Model/CLI/GUI migration, test fixes, pixel-size typing fix, migration documentation |
-| **pyclesperanto** | Brandon, Danny, Anuj | Code migration, vendored affine/kernels, notebook/docs renames, test fixes, migration documentation |
+| Track | Main work |
+|-------|-----------|
+| **Pydantic** | Model/CLI/GUI migration, test fixes, pixel-size typing fix, migration documentation |
+| **pyclesperanto** | Code migration, vendored affine/kernels, notebook/docs renames, test fixes, migration documentation |
 
 ---
 
@@ -30,11 +30,11 @@ This document lists everything delivered in Sprint 1: code changes, tests, noteb
 
 ### Commits
 
-| Commit | Author | Change |
-|--------|--------|--------|
-| `b25138e` | Tim | Initial Pydantic v2 migration across models, CLI, writers, GUI |
-| `c0669ba` | Tim | Test fixes for the migration (`parse_obj` → `model_validate`, etc.) |
-| `4c7a144` | Kingsley | Fix pixel-size typing so `DefinedPixelSizes` validates correctly |
+| Commit | Change |
+|--------|--------|
+| `b25138e` | Initial Pydantic v2 migration across models, CLI, writers, GUI |
+| `c0669ba` | Test fixes for the migration (`parse_obj` → `model_validate`, etc.) |
+| `4c7a144` | Fix pixel-size typing so `DefinedPixelSizes` validates correctly |
 
 ### Code changes
 
@@ -62,13 +62,13 @@ This document lists everything delivered in Sprint 1: code changes, tests, noteb
 
 ### Commits
 
-| Commit | Author | Change |
-|--------|--------|--------|
-| `407c5e2` | Brandon | Initial migration off `pyclesperanto_prototype` |
-| `e6ef1df` | Danny | Docs, notebooks, and workflow YAML updated to `pyclesperanto` |
-| `aaab22a` | Brandon | Test-driven fixes (crop guard, CleArray typing, DataFrame explode) |
-| `1a9b362` | Anuj | Migration documentation (Pydantic + pyclesperanto) |
-| `b5b927a` | Anuj | Development docs / nav updates for dependency upgrades |
+| Commit | Change |
+|--------|--------|
+| `407c5e2` | Initial migration off `pyclesperanto_prototype` |
+| `e6ef1df` | Docs, notebooks, and workflow YAML updated to `pyclesperanto` |
+| `aaab22a` | Test-driven fixes (crop guard, CleArray typing, DataFrame explode) |
+| `1a9b362` | Migration documentation (Pydantic + pyclesperanto) |
+| `b5b927a` | Development docs / nav updates for dependency upgrades |
 
 ### Code changes
 
