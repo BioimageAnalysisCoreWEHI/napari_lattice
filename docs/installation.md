@@ -47,6 +47,23 @@ mamba create -n napari-lattice -c conda-forge "python==3.11" uv pycudadecon
 uv pip install lls-core
 ```
 
+## Updating the software
+
+To update the software to latest release, try: 
+
+```bash
+uv pip install lls-core napari-lattice --upgrade
+```
+
+To check which version of napari-lattice you have installed currently: 
+
+```bash
+python -c "import lls_core; print(lls_core.__version__)"
+```
+
+The latest version releases can be seen [here](https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/releases).
+
+
 
 ## Development Installation
 
