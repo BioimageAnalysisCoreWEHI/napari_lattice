@@ -17,6 +17,7 @@ from lls_core.models import (
     LatticeData,
     OutputParams,
 )
+from lls_core.cropping import RoiUnits
 from lls_core.models.deskew import DefinedPixelSizes
 from lls_core.models.output import SaveFileType
 from lls_core.workflow import workflow_from_path
@@ -25,6 +26,7 @@ from magicclass.fields import MagicField
 from magicclass.widgets import ComboBox, Label, Widget
 from napari.layers import Image, Shapes
 from napari.types import ShapesData
+from napari.utils.notifications import show_warning
 from napari_lattice.icons import GREEN, GREY, RED
 from napari_lattice.reader import NapariImageParams, lattice_params_from_napari
 from napari_lattice.utils import get_layers
@@ -616,15 +618,34 @@ class CroppingFields(NapariFieldGroup):
     shapes= vfield(ShapeSelector)
 
     @set_design(text="Import ROI")
-    def import_roi(self, path: Path):
-        from lls_core.cropping import read_imagej_roi
+    def import_roi(self, path: Path, units: RoiUnits = RoiUnits.Auto):
+        """
+        Load ROIs from an ImageJ .roi/.zip or a napari shapes .csv into a new layer.
+
+        Shapes layers are in canvas microns, so pixel ROIs (what ImageJ writes) are
+        scaled by the pixel size from the Deskew tab - including a manual override.
+        `Auto` reads .csv as microns and everything else as pixels.
+        """
+        from lls_core.cropping import read_rois, units_for_path
         from napari_lattice.utils import get_viewer
         import numpy as np
-        roi_list = read_imagej_roi(path)
-        # convert to canvas coordinates
-        roi_list = (np.array(roi_list) * self._get_deskew().dy).tolist()
+        deskew = self._get_deskew()
+        if units == RoiUnits.Auto:
+            units = units_for_path(path)
+        roi_list = np.array(read_rois(path), dtype=float)
+        if units == RoiUnits.Pixels:
+            roi_list = roi_list * deskew.dy
+
+        # Wrong units put every ROI off by 1/dy, which at a 0.15 um pixel is ~6.7x.
+        # That can still land inside the image, so check rather than rely on it looking wrong.
+        height, width = (np.array(deskew.derived.deskew_vol_shape[1:]) * deskew.dy)
+        if roi_list[..., 0].max() > height or roi_list[..., 1].max() > width:
+            show_warning(
+                f"Imported ROIs fall outside the deskewed image; is '{units}' the right unit?"
+            )
+
         viewer = get_viewer()
-        viewer.add_shapes(roi_list, shape_type='polygon', edge_width=1, edge_color='yellow', face_color=[1, 1, 1, 0])
+        viewer.add_shapes(roi_list.tolist(), shape_type='polygon', edge_width=1, edge_color='yellow', face_color=[1, 1, 1, 0])
 
     @set_design(text="New Crop")
     def new_crop_layer(self):

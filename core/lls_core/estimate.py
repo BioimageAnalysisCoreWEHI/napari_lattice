@@ -104,16 +104,16 @@ class MemoryEstimate:
     @property
     def recommended_workers(self) -> int:
         """Largest worker count that fits all caps (VRAM, host RAM, ROI count,
-        SLURM CPUs). Returns 0 if any ROI violates the per-buffer cap, which no
-        worker count can fix."""
+        CPUs). Returns 0 if any ROI violates the per-buffer cap, which no worker
+        count can fix."""
         if not self.rois:
             return 1
         if self.per_buffer_violators:
             return 0
         ceiling = len(self.rois)  # never more workers than ROIs
-        slurm_cpus = _slurm_cpu_cap()
-        if slurm_cpus is not None:
-            ceiling = min(ceiling, slurm_cpus)
+        for cpus in (_slurm_cpu_cap(), _local_cpu_cap()):
+            if cpus is not None:
+                ceiling = min(ceiling, cpus)
         gpu_budget = self.gpu_budget_bytes
         host_budget = self.host_available_bytes
         n = 1
@@ -273,6 +273,15 @@ def _slurm_cpu_cap() -> Optional[int]:
         return int(val)
     except ValueError:
         return None
+
+
+def _local_cpu_cap() -> Optional[int]:
+    """
+    Bound the recommended worker count by the machine's cores. Each worker is a whole
+    process doing GPU work, so more of them than cores just adds contention - and
+    memory alone permits one per ROI, which on many small ROIs is far too many.
+    """
+    return os.cpu_count()
 
 
 # -- Per-ROI bbox math (pixel-free) ------------------------------------------

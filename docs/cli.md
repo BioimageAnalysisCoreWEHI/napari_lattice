@@ -5,6 +5,33 @@
     :command: click_app
     :prog_name: lls-pipeline
 
+## ROI files and units (`--roi-list`, `--roi-units`)
+
+`--roi-list` accepts Fiji ROI Manager files (`.roi`, `.zip`) and napari shapes files
+(`.csv`, as written by `File -> Save Selected Layers`).
+
+Neither format records whether its coordinates are pixels or microns, so
+`--roi-units` declares it. The default, `Auto`, takes it from the file type — Fiji
+files are pixels, a napari `.csv` saved from the plugin's crop layer is microns:
+
+```bash
+# Auto: .zip read as pixels, .csv read as microns
+lls-pipeline process input.czi --roi-list rois.zip --save-dir out
+
+# Override, for a CSV written by something other than napari
+lls-pipeline process input.czi --roi-list rois.csv --roi-units pixels --save-dir out
+```
+
+The value is case-insensitive and accepts either singular or plural (`pixel`,
+`pixels`, `micron`, `microns`).
+
+!!! warning "A wrong unit is not always obvious"
+
+    The two interpretations differ by the pixel size, so ROIs read in the wrong unit
+    can still land inside the image and be processed without error. A warning is
+    logged if any ROI falls outside the deskewed image, but the reliable check is to
+    leave `--roi-units` on `Auto`.
+
 ## Coverslip-frame deskew (`--no-coverslip-rotation`)
 
 By default, `lls-pipeline` performs the standard deskew (`cle.deskew_y` /

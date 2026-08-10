@@ -130,18 +130,29 @@ Click on the tabs below to view the corresponding functionality.
 
     <u>**Import ROIs**</u>
 
-    We have added support to import ROIs from a Fiji ROI Manager file. This workflow exists because the Zeiss lattice lightsheet produces a 2D maximum intensity projection at the end of the acquisition. This image can be used to select ROIs of interest in Fiji. Refer to this page [for instructions on how to generate and rotate these ROIs](../miscellaneous/rois_cropping.md). If you do not have an LLS7 MIP, the [MIP walkthrough](../examples/mips.md) shows how to generate one and turn it into ROIs end to end.
+    ROIs can be imported from two file types:
 
-    Once you have a Fiji ROI Manager file (a `.zip`, or a single `.roi`):
+    * **Fiji ROI Manager** files (a `.zip`, or a single `.roi`). This workflow exists because the Zeiss lattice lightsheet produces a 2D maximum intensity projection at the end of the acquisition, which can be used to select ROIs of interest in Fiji. Refer to this page [for instructions on how to generate and rotate these ROIs](../miscellaneous/rois_cropping.md). If you do not have an LLS7 MIP, the [MIP walkthrough](../examples/mips.md) shows how to generate one and turn it into ROIs end to end.
+    * **napari shapes** files (`.csv`), as written by `File -> Save Selected Layers`. This lets you draw crops now, save them, and reload them in a later session — see [Saving ROIs from napari](../miscellaneous/rois_cropping.md#saving-rois-from-napari).
+
+    To import:
 
     - Configure your image in the `Deskew` tab (green tick) and go to the `Crop` tab with `Enabled` ticked.
     - Click `Import ROI` at the bottom of the plugin and select your ROI file.
+
+    ![import_roi](../images/016_import_roi_units.png){ width="450" }
+
+    - Leave `units` on `Auto` unless you know otherwise (see below).
     - The imported regions are added to the canvas as a new `Shapes` layer with yellow outlines. They are converted into the deskewed image space automatically.
     - Select an ROI and click `Preview` to check the cropped region, exactly as with ROIs drawn by hand.
 
-    !!! info
+    !!! info "ROI coordinates and the `units` setting"
 
         ROIs are always interpreted in the space of the **deskewed** image, so make sure the ROIs were defined against the LLS7 MIP (and rotated as described in [Supporting Resources](../miscellaneous/rois_cropping.md)) before importing.
+
+        ROI files do not record whether their coordinates are pixels or microns, and the two differ by the pixel size — so `Auto` decides from the file type: Fiji `.roi`/`.zip` are **pixels**, and a napari `.csv` saved from a crop layer is **microns**. Change `units` only for a `.csv` written by something other than napari. Getting it wrong scales every ROI by the pixel size, which can still land inside the image, so nothing may look obviously wrong — check the crop `Preview` before saving.
+
+        The conversion uses the pixel size from the `Deskew` tab, so a manual pixel size set there is applied to imported ROIs too.
 
 === "Workflow"
 

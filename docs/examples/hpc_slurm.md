@@ -54,26 +54,27 @@ lls-pipeline estimate --yaml-config nap_lattice_config.yml
 
 From napari-lattice **v2.0** onward, ROI-level parallelism is built in via
 `--process-parallel`, which distributes the ROIs across worker processes that share the one
-GPU. If you don't set it, it defaults to `0` (**auto**) — a memory-safe worker count is
-derived from a memory estimate:
+GPU. If you don't set it, it defaults to `0` (**auto**) — the largest worker count that fits
+the GPU and host memory estimate, the number of ROIs, the CPU count and, in a SLURM
+allocation, `SLURM_CPUS_PER_TASK`:
 
 ```bash
 # Auto: let napari-lattice choose a memory-safe worker count
 lls-pipeline process --yaml-config nap_lattice_config.yml --process-parallel 0
 ```
 
-Or set the number of workers explicitly — for example `8`:
+Or set the number of workers explicitly — for example `17`:
 
 ```bash
-# Explicit: 8 workers sharing the one GPU
-lls-pipeline process --yaml-config nap_lattice_config.yml --process-parallel 8
+# Explicit: 17 workers sharing the one GPU
+lls-pipeline process --yaml-config nap_lattice_config.yml --process-parallel 17
 ```
 
 !!! warning "Workflow runs need an explicit worker count"
 
     `--process-parallel 0` (auto) sizes workers from a memory estimate, but auto is disabled
     for **workflow** and **deconvolution** runs (memory can't be sized) and falls back to
-    serial. This pipeline uses a workflow, so pass an explicit number (e.g. `8`).
+    serial. This pipeline uses a workflow, so pass an explicit number (e.g. `17`).
 
 ## Resources used in the manuscript
 
@@ -91,7 +92,7 @@ whereas full-FOV processing did not finish within the 48 h limit.
 
 !!! note "Peak usage"
 
-    Processing all **16 ROIs in parallel** on the shared A30 peaked at only **~4 GB GPU
+    Processing all **17 ROIs in parallel** on the shared A30 peaked at only **~4 GB GPU
     VRAM** and **~75.6 GB host RAM** — comfortably within the node's 24 GB VRAM and 300 GB
     RAM. By contrast, full field-of-view processing peaked at **~287 GB host RAM** (likely
     driven by ilastik operating on the whole volume), which is why the ROI-based approach
@@ -119,8 +120,8 @@ A minimal batch script requesting one GPU node and running the whole thing with
 module load miniconda3
 conda activate nap_lat_ilastik
 
-# All ROIs, distributed across 8 workers sharing the one A30 GPU
-lls-pipeline process --yaml-config nap_lattice_config.yml --process-parallel 8
+# All ROIs, distributed across 17 workers sharing the one A30 GPU
+lls-pipeline process --yaml-config nap_lattice_config.yml --process-parallel 17
 ```
 
 Submit it with `sbatch`:
@@ -152,7 +153,7 @@ GPU:
 
 ```bash
 # Current approach (napari-lattice v2.0+) — one command
-lls-pipeline process --yaml-config nap_lattice_config.yml --process-parallel 8
+lls-pipeline process --yaml-config nap_lattice_config.yml --process-parallel 17
 ```
 
 Use `--roi-subset` if you still want to split ROIs across *separate* SLURM jobs (for

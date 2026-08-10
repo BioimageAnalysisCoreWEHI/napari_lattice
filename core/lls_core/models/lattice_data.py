@@ -54,15 +54,20 @@ def _run_roi_chunk(lattice: "LatticeData", roi_indices: list) -> None:
     sub_lattice.save()
 
 
+def _is_lazy(image: Any) -> bool:
+    """Whether an image is dask-backed, i.e. its pixels have not been read yet."""
+    import dask.array as da
+    return isinstance(getattr(image, "data", None), da.Array)
+
+
 def _materialized_image(image: Any) -> Any:
     """
-    Return a picklable, in-memory version of an input image. A lazy/dask-backed
-    array (e.g. a napari layer holding a bioio reader) is not picklable and must be
-    computed once before being sent to worker processes. A numpy-backed array is
-    already picklable and is returned unchanged.
+    Compute a lazy image so it can be pickled to workers; pass numpy through.
+
+    Only for small images (PSFs) - the input image is never materialized, see
+    `_input_reaches_workers`.
     """
-    import dask.array as da
-    if isinstance(getattr(image, "data", None), da.Array):
+    if _is_lazy(image):
         return image.copy(data=image.data.compute())
     return image
 
@@ -172,6 +177,48 @@ class LatticeData(OutputParams, DeskewParams):
                 get_workflow_output_name(v)
             except:
                 raise ValueError("The workflow has multiple output tasks. Only one is currently supported.")
+        return v
+
+    @validator("crop")
+    def convert_roi_units(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
+        """
+        Bring `roi_list` into deskewed-image pixels, the unit everything downstream
+        assumes. Only possible here, since the pixel size may come from the image
+        metadata and so is not known when `CropParams` alone is built.
+        """
+        from lls_core.cropping import RoiUnits, scale_rois
+        from lls_core.models.utils import ignore_keyerror
+
+        if v is None or v.roi_units == RoiUnits.Pixels:
+            return v
+        with ignore_keyerror():
+            # dy for both axes, matching the plugin's own shape-to-ROI conversion.
+            v.roi_list = scale_rois(v.roi_list, 1 / values["physical_pixel_sizes"].Y)
+            # Mark the conversion done, so re-validating a copy cannot repeat it.
+            v.roi_units = RoiUnits.Pixels
+        return v
+
+    @validator("crop")
+    def warn_rois_outside_image(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
+        """
+        Say so when an ROI lies outside the deskewed image. Usually it means the units
+        were wrong, and the alternative is a crop failing later inside the writer with
+        an unrelated-looking message.
+        """
+        from lls_core.models.utils import ignore_keyerror
+
+        if v is None or not v.roi_list:
+            return v
+        with ignore_keyerror():
+            height, width = values["derived"].deskew_vol_shape[1:]
+            worst_y = max(y for roi in v.roi_list for y, _ in roi)
+            worst_x = max(x for roi in v.roi_list for _, x in roi)
+            if worst_y > height or worst_x > width:
+                logger.warning(
+                    "ROIs extend to (%.0f, %.0f) but the deskewed image is only "
+                    "(%d, %d) pixels. Check roi_units: coordinates in the wrong unit "
+                    "are out by the pixel size.", worst_y, worst_x, height, width
+                )
         return v
 
     @validator("crop")
@@ -651,16 +698,25 @@ class LatticeData(OutputParams, DeskewParams):
                 estimate = estimate_pipeline(self, n_workers=1, safety_factor=self.memory_safety_factor)
             return max(1, estimate.recommended_workers)
         except Exception:
-            logger.debug("Auto worker estimate failed; running serially", exc_info=True)
+            logger.warning(
+                "Could not estimate a memory-safe worker count; running serially. "
+                "Pass an explicit process_parallel to override.", exc_info=True
+            )
             return 1
 
     def _use_parallel_roi_processing(self) -> bool:
-        """Return True when the parallel-ROI save path should be used."""
+        """
+        Return True when the parallel-ROI save path should be used. Every route back
+        to serial logs why: silence reads as "parallel ran and didn't help".
+        """
         if not self.cropping_enabled or self.crop is None:
             return False
         if len(self.crop.roi_subset) <= 1:
             return False
         if self._resolve_worker_count() <= 1:
+            if self.process_parallel != 1:
+                # Not what was asked for: 'auto' sized itself down to one worker.
+                logger.info("Running ROIs serially: the resolved worker count is 1.")
             return False
         if self.workflow is not None and not self._workflow_is_picklable():
             # Workers run in spawned processes, so the workflow must pickle.
@@ -669,6 +725,105 @@ class LatticeData(OutputParams, DeskewParams):
                 "process_parallel was set but the attached workflow is not "
                 "picklable (e.g. lambdas or custom modules); falling back to "
                 "serial ROI processing."
+            )
+            return False
+        if not self._input_reaches_workers():
+            return False
+        return True
+
+    def _input_reaches_workers(self) -> bool:
+        """
+        Whether the input image can reach worker processes at all: in-memory images
+        are pickled, lazy ones are re-opened from their file.
+
+        Computing a lazy image to pickle it instead would read the whole volume into
+        the parent and copy it to every worker - on a 300 GB file that never finishes.
+        """
+        if not _is_lazy(self.input_image):
+            return True
+        if self._reload_reproduces_input():
+            return True
+        logger.warning(
+            "Parallel ROI processing needs each worker to re-open the source file, "
+            "which is not possible for this image - it has no single source file, or "
+            "re-opening it does not reproduce the loaded image. Falling back to serial "
+            "ROI processing."
+        )
+        return False
+
+    def _reload_reproduces_input(self) -> bool:
+        """
+        Whether re-opening `input_image_path` yields the array this lattice holds.
+        Workers get the path, not the pixels, so a reload that differs is silently
+        wrong data.
+
+        Matching axes and dtype are not enough: the plugin concatenates one layer per
+        channel in layer-list order, and multi-scene files give several layers the same
+        path. Both can match in shape and differ in content, so sample pixels too.
+        """
+        import numpy as np
+
+        from lls_core.models.deskew import load_image_lazy
+
+        if self.input_image_path is None:
+            return False
+        try:
+            reopened = load_image_lazy(self.input_image_path)
+        except Exception:
+            logger.warning(
+                "Could not re-open %s to check it against the loaded image",
+                self.input_image_path, exc_info=True
+            )
+            return False
+
+        mine = self.input_image
+        # By named axis, not position: the plugin builds CTZYX where a reload is TCZYX,
+        # and the pipeline addresses axes by name, so that is not a mismatch.
+        if dict(reopened.sizes) != dict(mine.sizes) or reopened.dtype != mine.dtype:
+            logger.info(
+                "Re-opening %s gives %s (%s), but the loaded image is %s (%s)",
+                self.input_image_path, dict(reopened.sizes), reopened.dtype,
+                dict(mine.sizes), mine.dtype
+            )
+            return False
+
+        index = {}
+        if "T" in mine.dims:
+            index["T"] = 0
+        if "Z" in mine.dims:
+            index["Z"] = mine.sizes["Z"] // 2
+        channels = range(mine.sizes["C"]) if "C" in mine.dims else [None]
+
+        def sampled(image, at: dict):
+            # Sorted dims, so both planes come out laid out the same way.
+            plane = image.isel(**at)
+            return np.asarray(plane.transpose(*sorted(plane.dims)))
+
+        varies = False
+        for channel in channels:
+            plane = index if channel is None else {**index, "C": channel}
+            try:
+                mine_plane = sampled(mine, plane)
+                reopened_plane = sampled(reopened, plane)
+            except Exception:
+                logger.warning(
+                    "Could not read a plane to compare %s against the loaded image",
+                    self.input_image_path, exc_info=True
+                )
+                return False
+            if not np.array_equal(mine_plane, reopened_plane):
+                logger.info(
+                    "Re-opening %s gives different pixels than the loaded image "
+                    "(channel %s)", self.input_image_path, channel
+                )
+                return False
+            varies = varies or bool(mine_plane.min() != mine_plane.max())
+
+        if not varies:
+            # Flat planes match anything, so their equality proves nothing.
+            logger.info(
+                "The planes sampled from %s are uniform, so they cannot confirm the "
+                "channels match", self.input_image_path
             )
             return False
         return True
@@ -685,17 +840,11 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Return a picklable copy of this lattice to hand to worker processes.
 
-        A file-backed `input_image` is a lazy bioio reader that cannot be pickled
-        (and would copy the whole volume to every worker even if it could). When the
-        source path is known, strip the image and let each worker re-open the file and
-        read only its own crops. Otherwise the input is in-memory (e.g. a napari
-        layer): materialize any lazy/dask array once so it can be pickled. A PSF loaded
-        from a path is a lazy reader too; PSFs are small, so materialize them as well.
+        A lazy `input_image` is stripped so each worker re-opens the file and reads
+        only its own crops; `_input_reaches_workers` has already verified that reload.
+        An in-memory image is pickled as-is. PSFs are small, so materialize those.
         """
-        if self.input_image_path is not None:
-            payload = self.copy(update={"input_image": None})
-        else:
-            payload = self.copy(update={"input_image": _materialized_image(self.input_image)})
+        payload = self.copy(update={"input_image": None}) if _is_lazy(self.input_image) else self.copy()
 
         if payload.deconvolution is not None:
             payload = payload.copy(update={

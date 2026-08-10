@@ -46,6 +46,33 @@ params = LatticeData(
 
 Other more advanced options [are listed below](#lls_core.CropParams).
 
+### ROI files and their units
+
+`roi_list` accepts Fiji ROI Manager files (`.roi`, `.zip`) and napari shapes files
+(`.csv`, as written by `File -> Save Selected Layers`), as well as coordinates given
+directly as arrays.
+
+Files do not record whether their coordinates are pixels or microns, and the two
+differ by the pixel size, so `roi_units` declares it. The default, `Auto`, takes it
+from the file type — Fiji files are pixels, a napari `.csv` saved from the plugin's
+crop layer is microns:
+
+```python
+from lls_core import CropParams
+from lls_core.cropping import RoiUnits
+
+# Auto (default): .zip -> pixels, .csv -> microns
+CropParams(roi_list=["/path/to/roi.zip"])
+
+# A CSV in pixel coordinates, written by something other than napari
+CropParams(roi_list=["/path/to/roi.csv"], roi_units=RoiUnits.Pixels)
+```
+
+Internally `roi_list` is always converted to deskewed-image **pixels**, using the
+image's pixel size. Coordinates passed directly as arrays are assumed to be pixels.
+Mixing file types that imply different units in one `roi_list` is an error — set
+`roi_units` explicitly in that case.
+
 ### Selecting which ROIs to process
 
 A ROI file (or `roi_list`) may contain many regions. By default **all** of them are
@@ -95,9 +122,11 @@ params = LatticeData(
 - **`N > 1`** — an explicit number of worker processes. The selected ROIs
   (see [ROI selection](#selecting-which-rois-to-process)) are split into roughly
   equal chunks, one per worker. Useful when a single ROI does not saturate the GPU.
-- **`0`** — *auto*: a memory-safe worker count is derived from a memory estimate.
-  This is disabled for deconvolution and workflow runs (whose memory cannot be
-  sized), which fall back to serial.
+- **`0`** — *auto*: a memory-safe worker count, the largest that fits every limit —
+  GPU memory, host memory, the number of ROIs, the machine's CPU count, and
+  `SLURM_CPUS_PER_TASK` when running under SLURM. This is disabled for
+  deconvolution and workflow runs (whose memory cannot be sized), which fall back
+  to serial.
 
 Notes:
 
@@ -106,6 +135,14 @@ Notes:
 - If only a single ROI is selected, processing always runs serially regardless
   of `process_parallel`, since there is nothing to distribute.
 - `process_parallel` is ignored when cropping is disabled.
+- Workers re-open the input file rather than being sent the pixels. If the input is
+  a lazily-loaded image with no single source file to re-open — for example napari
+  layers stacked from *several* files — processing falls back to serial and logs why.
+  Loading one file, including a multi-channel file split across per-channel layers,
+  uses workers as normal.
+
+Every fallback to serial is logged, so a run that was slower than expected can be
+explained from the log rather than guessed at.
 
 !!! note "Defaults differ by entry point"
 
