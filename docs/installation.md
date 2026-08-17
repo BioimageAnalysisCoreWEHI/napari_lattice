@@ -11,12 +11,15 @@ First, create a new conda environment. To do this, you can look for Miniforge Pr
 
 
 ```bash
-mamba create -n napari-lattice -c conda-forge "python==3.11" uv pycudadecon 
+mamba create -n napari-lattice -c conda-forge "python==3.11" uv pycudadecon "openssl!=3.6.3"
 ```
 
 !!! info
     Python 3.10, 3.11 or 3.12 are supported
     If you do not want deconvolution, you can omit `pycudadecon` from above.
+
+!!! note
+    The `openssl` version constraint above ensures that you do not get this error `SSLError: [ASN1: NOT_ENOUGH_DATA] not enough data (_ssl.c:4004)` when opening files.
 
 Activate that environment:
 
@@ -40,12 +43,13 @@ uv pip install lls-core napari-lattice
 If you do not need to use napari, then you can install just the command line interface only, which has all the features
 
 ```bash
-mamba create -n napari-lattice -c conda-forge "python==3.11" uv pycudadecon
+mamba create -n napari-lattice -c conda-forge "python==3.11" uv pycudadecon "openssl!=3.6.3"
 ```
 
 ```bash
 uv pip install lls-core
 ```
+
 
 ## Updating the software
 
