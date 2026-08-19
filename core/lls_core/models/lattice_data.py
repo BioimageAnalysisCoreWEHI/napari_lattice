@@ -5,6 +5,7 @@ from dask.array.core import Array as DaskArray
 
 from typing_extensions import Any, Iterable, Optional, TYPE_CHECKING, Type
 from lls_core.deconvolution import pycuda_decon, skimage_decon, DeconvolutionChoice
+from lls_core.estimate import DEFAULT_SAFETY_FACTOR, memory_errors_explained, warn_if_deskew_may_not_fit
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core.models.crop import CropParams
 from lls_core.models.deconvolution import DeconvolutionParams
@@ -140,6 +141,36 @@ class LatticeData(OutputParams, DeskewParams):
 
         # Use the Deskew version of this validator, to do the actual image loading
         return super().read_image(values)
+
+    @root_validator(skip_on_failure=True)
+    def warn_deskew_size(cls, values: dict) -> dict:
+        """
+        Report the deskewed volume size at construction, and warn if it looks too large
+        for this GPU.
+
+        Deskewing shears the volume, so the output is substantially larger than the input
+        along one axis: an image that loaded fine can still produce a buffer the device
+        cannot allocate, and the resulting OpenCL error names no dimensions. Warning here
+        means the user is told when they build the model, not partway through a long run.
+
+        Skipped for the two paths that never allocate the whole deskewed volume, where the
+        warning would be a false alarm: cropping deskews each ROI's bounding box, and MIP
+        output projects straight from the raw data.
+        """
+        if values.get("crop") is not None or values.get("save_mip"):
+            return values
+        data = values.get("input_image")
+        derived = values.get("derived")
+        if data is None or derived is None or derived.deskew_vol_shape is None:
+            return values
+        warn_if_deskew_may_not_fit(
+            input_shape_zyx=data.shape[-3:],
+            output_shape_zyx=derived.deskew_vol_shape[-3:],
+            input_dtype=data.dtype,
+            deconvolved=values.get("deconvolution") is not None,
+            safety_factor=values.get("memory_safety_factor", DEFAULT_SAFETY_FACTOR),
+        )
+        return values
 
     @validator("input_image", pre=True, always=True)
     def incomplete_final_frame(cls, v: DataArray) -> Any:
@@ -502,8 +533,8 @@ class LatticeData(OutputParams, DeskewParams):
                     decon_processing=self.deconvolution.decon_processing
                 )
 
-            yield slice.copy(update={
-                "data": self._restore_input_dtype(crop_volume_deskew(
+            with memory_errors_explained(self, f"Deskewing ROI {roi_index}", roi_index=roi_index):
+                cropped = self._restore_input_dtype(crop_volume_deskew(
                     original_volume=slice.data,
                     deconvolution=self.deconv_enabled,
                     get_deskew_and_decon=False,
@@ -520,10 +551,9 @@ class LatticeData(OutputParams, DeskewParams):
                     skew_dir=self.skew_dir,
                     coverslip_rotation=self.coverslip_rotation,
                     **deconv_args
-                )),
-                "roi_index": roi_index
-            })
-            
+                ))
+            yield slice.copy(update={"data": cropped, "roi_index": roi_index})
+
     def _process_non_crop(self) -> Iterable[ImageSlice]:
         """
         Yields processed image slices without cropping
@@ -556,8 +586,10 @@ class LatticeData(OutputParams, DeskewParams):
                         boundary='nearest'
                     )
 
-            yield slice.copy_with_data(
-                self._restore_input_dtype(cle.pull_zyx(self.deskew_func(
+            # The deskewed buffer and the pull back to the host are where an oversized
+            # volume actually fails, with an OpenCL error that names no dimensions.
+            with memory_errors_explained(self, "Deskewing this image"):
+                deskewed = self._restore_input_dtype(cle.pull_zyx(self.deskew_func(
                     input_image=data,
                     angle_in_degrees=self.angle,
                     linear_interpolation=True,
@@ -565,7 +597,7 @@ class LatticeData(OutputParams, DeskewParams):
                     voxel_size_y=self.dy,
                     voxel_size_z=self.dz
                 )))
-            )
+            yield slice.copy_with_data(deskewed)
 
     def process_workflow(self) -> WorkflowSlices:
         """
