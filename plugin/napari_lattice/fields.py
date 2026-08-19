@@ -184,6 +184,27 @@ class NapariFieldGroup(MagicTemplate):
             errors.setStyleSheet("color: red;")
             # errors.setWordWrap(True)
 
+        # Only the Deskew tab has this readout, and it is the one label long enough to
+        # wrap. A wrapping QLabel defaults to a Fixed policy, so it picks its own narrow
+        # width and stacks the text into a block instead of running the panel's width;
+        # `Ignored` lets the layout give it the full row instead.
+        #
+        # The height must be capped. A wrapping label that can grow freely reports an
+        # ever-larger minimum height as the dock narrows, and because that minimum
+        # propagates up through the tab stack and splitters it becomes a floor on the
+        # whole napari window - the user can no longer shrink it. Qt's heightForWidth is
+        # the "correct" answer here but makes it worse for the same reason, since
+        # QStackedLayout does not handle it. Three lines is enough for the longest
+        # message at the panel's minimum width, so nothing is clipped in practice.
+        estimate = getattr(self, "memory_estimate", None)
+        if estimate is not None and isinstance(estimate.native, QLabel):
+            from qtpy.QtWidgets import QSizePolicy
+            native = estimate.native
+            native.setWordWrap(True)
+            native.setMinimumWidth(1)
+            native.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Minimum)
+            native.setMaximumHeight(native.fontMetrics().lineSpacing() * 3)
+
         from qtpy.QtCore import Qt
         self._widget._layout.setAlignment(Qt.AlignmentFlag.AlignTop)
 
@@ -311,6 +332,12 @@ class DeskewFields(NapariFieldGroup):
         label="Quick Deskew",
         tooltip = "View the deskewed image. This does NOT generate a new image, but instead transforms\nthe current image in the viewer. Use `Preview` to generate a new image.")
     errors = field(Label).with_options(label="Errors")
+    # Live readout of how large the deskewed volume will be. Deskewing grows the image
+    # along the shear axis, so an input that loads fine can produce a buffer the GPU
+    # cannot allocate; without this the user only finds out when a long run dies on an
+    # OpenCL error that names no dimensions. Separate from `errors` because an oversized
+    # image is not a validation failure - the settings are legal, the hardware is small.
+    memory_estimate = field(Label).with_options(label="Deskewed Size", visible=False)
 
     def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
@@ -550,6 +577,42 @@ class DeskewFields(NapariFieldGroup):
             invert_scan_direction=kwargs["invert_scan_direction"],
             coverslip_rotation=kwargs["coverslip_rotation"],
         )
+
+    def _validate(self):
+        super()._validate()
+        self._update_memory_estimate()
+
+    def _update_memory_estimate(self) -> None:
+        """
+        Refresh the deskewed-size readout for the current settings.
+
+        Show a single line in plugin with rest of explanation in the terminal,
+        once per deskewed shape.
+
+        Runs on every field change, so it does only shape arithmetic and a cached device
+        query - no pixels. Hidden while the settings are invalid, which is common
+        mid-edit and is `errors`' job to report rather than this one's.
+        """
+        from lls_core.estimate import estimate_deskew_volume, warn_once
+
+        if self.errors.value:
+            self.memory_estimate.visible = False
+            return
+        try:
+            estimate = estimate_deskew_volume(self._make_model())
+            too_big = bool(estimate.warnings())
+            if too_big:
+                warn_once(estimate)
+        except Exception:
+            self.memory_estimate.visible = False
+            return
+
+        self.memory_estimate.value = estimate.summary_line()
+        self.memory_estimate.visible = True
+        from qtpy.QtWidgets import QLabel
+        native = self.memory_estimate.native
+        if isinstance(native, QLabel):
+            native.setStyleSheet("color: orange;" if too_big else "")
 
 @magicclass
 class DeconvolutionFields(NapariFieldGroup):
