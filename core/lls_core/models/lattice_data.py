@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pathlib import Path
 from typing import Tuple, cast
 from pydantic.v1 import Field, root_validator, validator
 from dask.array.core import Array as DaskArray
@@ -116,6 +117,15 @@ class LatticeData(OutputParams, DeskewParams):
         cli_description="Path to a JSON file specifying a napari_workflow-compatible workflow to add lightsheet processing onto"
     )
 
+    workflow_path: Optional[Path] = Field(
+        default=None,
+        cli_hide=True,
+        description="Internal: the filesystem path the workflow was loaded from, if any. "
+                    "A `Workflow` object cannot be serialised back to a path, so output "
+                    "metadata records this instead. Mirrors `input_image_path`; "
+                    "not a user-facing parameter."
+    )
+
     progress_bar: bool = Field(
         default = True,
         description = "If true, show progress bars"
@@ -124,7 +134,6 @@ class LatticeData(OutputParams, DeskewParams):
     @root_validator(pre=True)
     def read_image(cls, values: dict):
         from lls_core.types import is_pathlike
-        from pathlib import Path
         input_image = values.get("input_image")
         logger.info(f"Processing File {input_image}") # this is handy for debugging
         if is_pathlike(input_image):
@@ -138,6 +147,12 @@ class LatticeData(OutputParams, DeskewParams):
             elif is_pathlike(save_dir):
                 # Convert a string path to a Path object
                 values["save_dir"] = Path(save_dir)
+
+        # A Workflow object does not remember where it was read from, so capture the
+        # path now - it is the only chance - for output metadata to record.
+        workflow = values.get("workflow")
+        if is_pathlike(workflow):
+            values["workflow_path"] = Path(workflow)
 
         # Use the Deskew version of this validator, to do the actual image loading
         return super().read_image(values)

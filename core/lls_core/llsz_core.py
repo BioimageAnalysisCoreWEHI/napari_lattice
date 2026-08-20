@@ -5,14 +5,14 @@ import pyclesperanto_prototype as cle
 from dask.array.core import Array as DaskArray
 import dask.array as da
 from resource_backed_dask_array import ResourceBackedDaskArray
-from typing import Any, Optional, Union, TYPE_CHECKING, overload, Literal, Tuple
+from typing import Any, NamedTuple, Optional, Union, TYPE_CHECKING, overload, Literal, Tuple
 from typing_extensions import Unpack, TypedDict, Required
 from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
     affine_transform_deskew_3d,
 )
 from numpy.typing import NDArray
  
-from lls_core.utils import calculate_crop_bbox
+from lls_core.utils import calculate_crop_bbox, ShapeOnly
 from lls_core import config, DeskewDirection
 from lls_core.types import ArrayLike
 from lls_core.deconvolution import pycuda_decon, skimage_decon, DeconvolutionChoice
@@ -33,6 +33,152 @@ Psf = Union[
         ResourceBackedDaskArray,
         cle._tier0._pycl.OCLArray,
 ]
+
+class ObjectiveCropGeometry(NamedTuple):
+    """
+    Where an objective-frame (`coverslip_rotation=True`) deskewed crop sits, and which
+    raw sub-block produces it. Pure geometry: no pixels are read.
+
+    `origin_zyx` is the position of the crop's voxel `(0, 0, 0)` within the FULL
+    deskewed volume, in deskewed voxels. It is **not** simply the ROI origin:
+    `crop_volume_deskew` only trims the *skew* axis to the ROI (via `crop_excess`),
+    so on the other two axes the output keeps whatever bounds the clipped raw
+    sub-block happened to deskew into. In particular the Z origin is the sub-block's
+    minimum deskewed Z, **not** `z_start` - the output is never sliced on Z.
+
+    Deriving this anywhere other than here would drift from what the crop actually
+    does; `crop_volume_deskew`, `get_roi_bboxes` and the output metadata all read it
+    from this one function.
+    """
+    #: Raw-volume slice bounds, each `(start, stop)`.
+    raw_x: Tuple[int, int]
+    raw_y: Tuple[int, int]
+    raw_z: Tuple[int, int]
+    #: Offset along the skew axis from the sub-block's deskewed origin to the ROI's.
+    crop_excess: int
+    #: Final crop shape `(z, y, x)`, i.e. the ROI extent.
+    crop_vol_shape: Tuple[int, int, int]
+    #: Crop voxel (0,0,0) in full-deskewed-volume voxels, `(z, y, x)`.
+    origin_zyx: Tuple[float, float, float]
+    #: Raw -> deskewed affine for this acquisition.
+    deskew_transform: Any
+
+
+def objective_crop_transforms(
+    raw_shape_zyx: Tuple[int, ...],
+    angle_in_degrees: float,
+    voxel_size_x: float,
+    voxel_size_y: float,
+    voxel_size_z: float,
+    skew_dir: DeskewDirection = DeskewDirection.Y,
+) -> Tuple[Any, Any]:
+    """
+    The ROI-independent `(reverse_aff, deskew_transform)` pair, hoisted so a caller
+    looping over many ROIs computes the affine once rather than per ROI.
+    """
+    reverse_aff, _excess_bounds, deskew_transform = get_inverse_affine_transform(
+        ShapeOnly(tuple(int(s) for s in raw_shape_zyx)),
+        angle_in_degrees,
+        voxel_size_x,
+        voxel_size_y,
+        voxel_size_z,
+        skew_dir,
+    )
+    return reverse_aff, deskew_transform
+
+
+def objective_crop_geometry(
+    raw_shape_zyx: Tuple[int, ...],
+    roi_shape: Union[list, NDArray],
+    z_start: int,
+    z_end: int,
+    angle_in_degrees: float,
+    voxel_size_x: float,
+    voxel_size_y: float,
+    voxel_size_z: float,
+    skew_dir: DeskewDirection = DeskewDirection.Y,
+    transforms: Optional[Tuple[Any, Any]] = None,
+) -> ObjectiveCropGeometry:
+    """
+    Resolve one ROI into the raw sub-block to read and the deskewed position of the
+    resulting crop. See `ObjectiveCropGeometry` for what `origin_zyx` means.
+
+    Pass `transforms` from `objective_crop_transforms` to avoid recomputing the affine
+    once per ROI.
+    """
+    from itertools import product
+
+    crop_bounding_box, crop_vol_shape = calculate_crop_bbox(roi_shape, z_start, z_end)
+
+    if transforms is None:
+        transforms = objective_crop_transforms(
+            raw_shape_zyx, angle_in_degrees, voxel_size_x, voxel_size_y, voxel_size_z, skew_dir
+        )
+    reverse_aff, deskew_transform = transforms
+
+    # Apply the reverse transform to get the corresponding bounding box in the raw volume
+    crop_transform_bbox = np.asarray(
+        [reverse_aff._matrix @ corner for corner in crop_bounding_box]
+    )
+
+    # Raw shape in xyz, to match the transform's coordinate order
+    orig_img_shape = tuple(int(s) for s in raw_shape_zyx)[::-1]
+
+    # Take min and max of the transformed bounding box, clipped so we never index
+    # outside the raw volume
+    min_coordinate = np.around(crop_transform_bbox.min(axis=0))
+    max_coordinate = np.around(crop_transform_bbox.max(axis=0))
+
+    x_start = int(np.clip(min_coordinate[0].astype(int), 0, orig_img_shape[0]))
+    x_end = int(np.clip(max_coordinate[0].astype(int), 0, orig_img_shape[0]))
+    y_start = int(np.clip(min_coordinate[1].astype(int), 0, orig_img_shape[1]))
+    y_end = int(np.clip(max_coordinate[1].astype(int), 0, orig_img_shape[1]))
+    z_start_vol = int(np.clip(min_coordinate[2].astype(int), 0, orig_img_shape[2]))
+    z_end_vol = int(np.clip(max_coordinate[2].astype(int), 0, orig_img_shape[2]))
+
+    # make sure z_start < z_end
+    if z_start_vol > z_end_vol:
+        z_start_vol, z_end_vol = z_end_vol, z_start_vol
+
+    # The deskewed sub-block is larger than the crop (the shear adds empty wedges), and
+    # its row/col 0 is the MINIMUM deskewed coordinate of the clipped sub-block, so
+    # crop_excess = round(ROI_origin - that_minimum). Old code assumed the ROI was
+    # centred ((deskewed_dim - crop_dim) / 2 + an out-of-bounds fudge), which only holds
+    # at scan-centre and mis-placed off-centre ROIs. This was not the case with larger
+    # datasets where ROIs were far away from scan centre. Projecting the clipped corners
+    # through the raw->deskewed transform is exact.
+    full_deskew_matrix = np.linalg.inv(reverse_aff._matrix)  # raw->deskewed, incl. translation
+    sub_corners = np.asarray([
+        [x, y, z, 1]
+        for x, y, z in product((x_start, x_end), (y_start, y_end), (z_start_vol, z_end_vol))
+    ])
+    prelim_corners = (full_deskew_matrix @ sub_corners.T).T  # deskewed xyz of sub-block corners
+    roi_origin = np.asarray(crop_bounding_box).min(axis=0)   # [x, y, z, 1]
+
+    # Deskewed position of the sub-block's own voxel (0, 0, 0)
+    prelim_origin_x = float(prelim_corners[:, 0].min())
+    prelim_origin_y = float(prelim_corners[:, 1].min())
+    prelim_origin_z = float(prelim_corners[:, 2].min())
+
+    if skew_dir == DeskewDirection.Y:
+        crop_excess = max(int(round(float(roi_origin[1]) - prelim_origin_y)), 0)
+        origin_zyx = (prelim_origin_z, prelim_origin_y + crop_excess, prelim_origin_x)
+    elif skew_dir == DeskewDirection.X:
+        crop_excess = max(int(round(float(roi_origin[0]) - prelim_origin_x)), 0)
+        origin_zyx = (prelim_origin_z, prelim_origin_y, prelim_origin_x + crop_excess)
+    else:
+        raise ValueError(f"Unknown skew direction {skew_dir!r}")
+
+    return ObjectiveCropGeometry(
+        raw_x=(x_start, x_end),
+        raw_y=(y_start, y_end),
+        raw_z=(z_start_vol, z_end_vol),
+        crop_excess=crop_excess,
+        crop_vol_shape=(int(crop_vol_shape[0]), int(crop_vol_shape[1]), int(crop_vol_shape[2])),
+        origin_zyx=origin_zyx,
+        deskew_transform=deskew_transform,
+    )
+
 
 class CommonArgs(TypedDict, total=False):
     original_volume: Required[ArrayLike]
@@ -127,17 +273,14 @@ def crop_volume_deskew(
 
     assert len(shape) == 4, print("Shape must be an array of shape 4")
 
-    crop_bounding_box, crop_vol_shape = calculate_crop_bbox(
-        shape, z_start, z_end
-    )
-
     if not coverslip_rotation:
         # OPM/SOPi: ROI corners are in the coverslip frame → map to raw via the
         # frozen coverslip inverse map (shear_only_inverse_map), not the objective affine.
         return _crop_volume_deskew_shear_only(
             original_volume=original_volume,
-            crop_bounding_box=crop_bounding_box,
-            crop_vol_shape=crop_vol_shape,
+            roi_shape=shape,
+            z_start=z_start,
+            z_end=z_end,
             angle_in_degrees=angle_in_degrees,
             voxel_size_x=voxel_size_x,
             voxel_size_y=voxel_size_y,
@@ -151,59 +294,21 @@ def crop_volume_deskew(
             get_deskew_and_decon=get_deskew_and_decon,
         )
 
-    # get reverse transform by rotating around original volume
-    (
-        reverse_aff,
-        excess_bounds,
-        deskew_transform,
-    ) = get_inverse_affine_transform(
-        original_volume,
-        angle_in_degrees,
-        voxel_size_x,
-        voxel_size_y,
-        voxel_size_z,
-        skew_dir,
+    geometry = objective_crop_geometry(
+        raw_shape_zyx=original_volume.shape,
+        roi_shape=shape,
+        z_start=z_start,
+        z_end=z_end,
+        angle_in_degrees=angle_in_degrees,
+        voxel_size_x=voxel_size_x,
+        voxel_size_y=voxel_size_y,
+        voxel_size_z=voxel_size_z,
+        skew_dir=skew_dir,
     )
-
-    # apply the transform to get corresponding bounding boxes in original volume
-    crop_transform_bbox = np.asarray(
-        list(map(lambda x: reverse_aff._matrix @ x, crop_bounding_box))
-    )
-
-    # get shape of original volume in xyz
-    orig_img_shape = original_volume.shape[::-1]
-
-    # Take min and max of the cropped bounding boxes to define min and max coordinates
-    # crop_transform_bbox is in the form xyz
-
-    min_coordinate = np.around(crop_transform_bbox.min(axis=0))
-    max_coordinate = np.around(crop_transform_bbox.max(axis=0))
-
-    # get min and max in each position
-    # clip them to avoid negative values and any values outside the bounding box of original volume
-    x_start = min_coordinate[0].astype(int)
-    x_start = np.clip(x_start, 0, orig_img_shape[0])
-    x_end = max_coordinate[0].astype(int)
-    x_end = np.clip(x_end, 0, orig_img_shape[0])
-
-    y_start = min_coordinate[1].astype(int)
-    y_start = np.clip(y_start, 0, orig_img_shape[1])
-
-    y_end = max_coordinate[1].astype(int)
-    y_end = np.clip(y_end, 0, orig_img_shape[1])
-
-    z_start_vol_prelim = min_coordinate[2].astype(int)
-    # clip to z bounds of original volume
-    z_start_vol = np.clip(z_start_vol_prelim, 0, orig_img_shape[2])
-
-    z_end_vol_prelim = max_coordinate[2].astype(int)
-    # clip to z bounds of original volume
-    z_end_vol = np.clip(z_end_vol_prelim, 0, orig_img_shape[2])
-
-    # make sure z_start < z_end
-    if z_start_vol > z_end_vol:
-        # tuple swap  #https://docs.python.org/3/reference/expressions.html#evaluation-order
-        z_start_vol, z_end_vol = z_end_vol, z_start_vol
+    x_start, x_end = geometry.raw_x
+    y_start, y_end = geometry.raw_y
+    z_start_vol, z_end_vol = geometry.raw_z
+    deskew_transform = geometry.deskew_transform
 
     # After getting the coordinates, crop from original volume and deskew only the cropped volume
 
@@ -277,37 +382,19 @@ def crop_volume_deskew(
             deskew_direction=skew_dir,
         )
 
-    # deskewed_prelim is larger than the crop (the shear adds empty wedges), and
-    # its row/col 0 is the MINIMUM deskewed coordinate of the clipped sub-block,
-    # so crop_excess = round(ROI_origin - that_minimum). Old code assumed 
-    # ROI was centred ((deskewed_dim - crop_dim) / 2 + an out-of-bounds fudge),
-    # which only holds at scan-centre and mis-placed off-centre ROIs. 
-    # This was not the case with larger datasets where ROIs were far away from scan centre,
-    # Projecting the clipped corners through the raw->deskewed transform is exact.
+    # Only the skew axis is trimmed to the ROI; see `ObjectiveCropGeometry`.
     deskewed_prelim = np.asarray(deskewed_prelim)
-    full_deskew_matrix = np.linalg.inv(reverse_aff._matrix)  # get aff matrix for raw->deskewed, incl. translation
-    # get the 8 ROI box corners in raw space: same corners as calculate_crop_bbox
-    # but clipped to the volume, in xyz order with a homogeneous 1
-    from itertools import product
-
-    sub_corners = np.asarray([
-        [x, y, z, 1]
-        for x, y, z in product((x_start, x_end), (y_start, y_end), (z_start_vol, z_end_vol))
-    ])
-    prelim_corners = (full_deskew_matrix @ sub_corners.T).T  # deskewed xyz of sub-block corners
-    roi_origin = np.asarray(crop_bounding_box).min(axis=0)   # [x, y, z, 1]
+    crop_excess = geometry.crop_excess
 
     if skew_dir == DeskewDirection.Y:
-        crop_height = crop_vol_shape[1]
-        crop_excess: int = max(int(round(roi_origin[1] - prelim_corners[:, 1].min())), 0)
+        crop_height = geometry.crop_vol_shape[1]
         deskewed_crop = deskewed_prelim[:, crop_excess : crop_height + crop_excess, :]
         # Pad the skew axis if the prelim is short near the far field edge
         if deskewed_crop.shape[1] < crop_height:
             pad = crop_height - deskewed_crop.shape[1]
             deskewed_crop = np.pad(deskewed_crop, ((0, 0), (0, pad), (0, 0)))
     elif skew_dir == DeskewDirection.X:
-        crop_width = crop_vol_shape[2]
-        crop_excess = max(int(round(roi_origin[0] - prelim_corners[:, 0].min())), 0)
+        crop_width = geometry.crop_vol_shape[2]
         deskewed_crop = deskewed_prelim[:, :, crop_excess : crop_width + crop_excess]
         if deskewed_crop.shape[2] < crop_width:
             pad = crop_width - deskewed_crop.shape[2]
@@ -332,8 +419,9 @@ def crop_volume_deskew(
 
 def _crop_volume_deskew_shear_only(
     original_volume,
-    crop_bounding_box,
-    crop_vol_shape,
+    roi_shape,
+    z_start: int,
+    z_end: int,
     angle_in_degrees: float,
     voxel_size_x: float,
     voxel_size_y: float,
@@ -348,11 +436,11 @@ def _crop_volume_deskew_shear_only(
 ):
     """Crop + deskew for the coverslip frame (see caller for the rationale).
 
-    The crop ROI (``crop_bounding_box``, coverslip-frame corners as [x, y, z, 1])
-    is mapped to raw scan/Y/X via the frozen coverslip inverse map; the raw
-    sub-volume is extracted (with a 1px halo for interpolation), deskewed into the
-    shear-only (coverslip) frame with ``shear_only_deskew``, then trimmed to the ROI's
-    shear-only extent using the sub-block shear-only offset (a pure translation).
+    The crop ROI (coverslip-frame corners) is mapped to raw scan/Y/X via the frozen
+    coverslip inverse map; the raw sub-volume is extracted (with a 1px halo for
+    interpolation), deskewed into the shear-only (coverslip) frame with
+    ``shear_only_deskew``, then trimmed to the ROI's shear-only extent using the
+    sub-block shear-only offset (a pure translation).
     """
     from lls_core.shear_only_deskew import shear_only_deskew
     from lls_core.shear_only_geometry import (
@@ -361,6 +449,7 @@ def _crop_volume_deskew_shear_only(
     )
 
     skew_name = "Y" if skew_dir == DeskewDirection.Y else "X"
+    crop_bounding_box, crop_vol_shape = calculate_crop_bbox(roi_shape, z_start, z_end)
     Nz, Ny, Nx = (int(s) for s in original_volume.shape)
 
     # Map shear-only ROI corners -> raw (scan p, raw_y, raw_x) via the frozen inverse

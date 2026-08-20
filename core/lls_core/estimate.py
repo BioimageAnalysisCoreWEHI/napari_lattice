@@ -488,12 +488,6 @@ def _local_cpu_cap() -> Optional[int]:
 
 # -- Per-ROI bbox math (pixel-free) ------------------------------------------
 
-class _ShapeOnly:
-    """Lightweight stand-in for a volume; only `.shape` is read by the deskew helpers."""
-    def __init__(self, shape: Tuple[int, ...]) -> None:
-        self.shape = shape
-
-
 def _roi_to_shape_array(roi: Any) -> np.ndarray:
     """Coerce a Roi/np.ndarray/list-of-points into the ndarray shape that
     `calculate_crop_bbox` expects."""
@@ -506,18 +500,18 @@ def _roi_to_shape_array(roi: Any) -> np.ndarray:
 def _roi_context(lattice: "LatticeData") -> Tuple[Tuple[int, int, int], Any, "DeskewDirection"]:
     """
     Compute the ROI-independent inputs shared by every ROI's bbox: the raw 3D shape,
-    the reverse (deskewed->raw) affine, and the skew direction. Hoisting these out of
-    the per-ROI loop avoids recomputing the affine and re-slicing for each ROI.
+    the deskew transforms, and the skew direction. Hoisting these out of the per-ROI
+    loop avoids recomputing the affine and re-slicing for each ROI.
     """
-    from lls_core.llsz_core import get_inverse_affine_transform
+    from lls_core.llsz_core import objective_crop_transforms
 
     raw_3d = lattice.get_3d_slice()
     raw_shape_zyx = tuple(int(s) for s in raw_3d.shape[-3:])
     skew_dir = lattice.skew if isinstance(lattice.skew, DeskewDirection) else DeskewDirection[str(lattice.skew)]
-    reverse_aff, _excess, _deskew = get_inverse_affine_transform(
-        _ShapeOnly(raw_shape_zyx), lattice.angle, lattice.dx, lattice.dy, lattice.dz, skew_dir,
+    transforms = objective_crop_transforms(
+        raw_shape_zyx, lattice.angle, lattice.dx, lattice.dy, lattice.dz, skew_dir,
     )
-    return raw_shape_zyx, reverse_aff, skew_dir
+    return raw_shape_zyx, transforms, skew_dir
 
 
 def get_roi_bboxes(
@@ -535,30 +529,35 @@ def get_roi_bboxes(
     `context` is the ROI-independent `_roi_context(lattice)`; it is computed here when
     omitted, but `estimate_pipeline` passes it in once to avoid per-ROI recomputation.
     """
-    from lls_core.utils import calculate_crop_bbox, get_deskewed_shape
+    from lls_core.llsz_core import objective_crop_geometry
+    from lls_core.utils import ShapeOnly, get_deskewed_shape
 
     if lattice.crop is None:
         raise ValueError("get_roi_bboxes requires a LatticeData with cropping enabled")
 
-    raw_shape_zyx, reverse_aff, skew_dir = context if context is not None else _roi_context(lattice)
+    raw_shape_zyx, transforms, skew_dir = context if context is not None else _roi_context(lattice)
 
     roi_shape = _roi_to_shape_array(lattice.crop.roi_list[roi_index])
     z_start, z_end = lattice.crop.z_range
-    crop_bounding_box, crop_vol_shape = calculate_crop_bbox(roi_shape, z_start, z_end)
-    crop_vol_shape_zyx: Tuple[int, int, int] = (
-        int(crop_vol_shape[0]),
-        int(crop_vol_shape[1]),
-        int(crop_vol_shape[2]),
-    )
 
-    # Map ROI corners back to raw-volume xyz coordinates and take the clipped extents.
-    bbox = np.asarray([reverse_aff._matrix @ v for v in crop_bounding_box])
-    mn = np.around(bbox.min(axis=0)).astype(int)
-    mx = np.around(bbox.max(axis=0)).astype(int)
-    nx, ny, nz = raw_shape_zyx[2], raw_shape_zyx[1], raw_shape_zyx[0]
-    x0, x1 = np.clip([mn[0], mx[0]], 0, nx)
-    y0, y1 = np.clip([mn[1], mx[1]], 0, ny)
-    z0, z1 = np.clip([mn[2], mx[2]], 0, nz)
+    # Same helper `crop_volume_deskew` uses, so the estimate cannot describe a
+    # differently-sized sub-block than the one actually read.
+    geometry = objective_crop_geometry(
+        raw_shape_zyx=raw_shape_zyx,
+        roi_shape=roi_shape,
+        z_start=z_start,
+        z_end=z_end,
+        angle_in_degrees=lattice.angle,
+        voxel_size_x=lattice.dx,
+        voxel_size_y=lattice.dy,
+        voxel_size_z=lattice.dz,
+        skew_dir=skew_dir,
+        transforms=transforms,
+    )
+    crop_vol_shape_zyx: Tuple[int, int, int] = geometry.crop_vol_shape
+    x0, x1 = geometry.raw_x
+    y0, y1 = geometry.raw_y
+    z0, z1 = geometry.raw_z
     input_bbox_zyx: Tuple[int, int, int] = (
         int(max(0, z1 - z0)),
         int(max(0, y1 - y0)),
@@ -570,7 +569,7 @@ def get_roi_bboxes(
     # with the input on the GPU and is usually the largest single buffer.
     if all(d > 0 for d in input_bbox_zyx):
         intermediate_shape, _ = get_deskewed_shape(
-            _ShapeOnly(input_bbox_zyx),
+            ShapeOnly(input_bbox_zyx),
             lattice.angle,
             lattice.dx,
             lattice.dy,
