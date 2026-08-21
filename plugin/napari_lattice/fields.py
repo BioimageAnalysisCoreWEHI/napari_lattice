@@ -2,7 +2,7 @@
 import logging
 from pathlib import Path
 from textwrap import dedent
-from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING
+from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING, Union
 from typing_extensions import TypeVar
 import pyclesperanto_prototype as cle
 from lls_core.deconvolution import DeconvolutionChoice
@@ -20,7 +20,6 @@ from lls_core.models import (
 from lls_core.cropping import RoiUnits
 from lls_core.models.deskew import DefinedPixelSizes
 from lls_core.models.output import SaveFileType
-from lls_core.workflow import workflow_from_path
 from magicclass import FieldGroup, MagicTemplate, field, magicclass, set_design, vfield
 from magicclass.fields import MagicField
 from magicclass.widgets import ComboBox, Label, Widget
@@ -790,13 +789,17 @@ class WorkflowFields(NapariFieldGroup):
     def _workflow_path(self, workflow_source: WorkflowSource) -> bool:
         return workflow_source == WorkflowSource.CustomPath
 
-    def _make_model(self) -> Optional[Workflow]:
+    def _make_model(self) -> Optional[Union[Workflow, Path]]:
         if not self.fields_enabled.value:
             return None
         if self.workflow_source.value == WorkflowSource.ActiveWorkflow:
+            # Assembled live in the viewer, so there is no file for the sidecar to name.
             return WorkflowManager.install(self.parent_viewer).workflow
-        else:
-            return workflow_from_path(self.workflow_path.value)
+        # Hand LatticeData the path rather than a loaded Workflow. Its `parse_workflow`
+        # validator performs the same load, and its root validator captures the path for
+        # the output metadata sidecar. Loading here would discard it: a Workflow does not
+        # remember where it was read from, so this is the only chance to keep it.
+        return self.workflow_path.value
 
 @magicclass
 class OutputFields(NapariFieldGroup):
