@@ -145,7 +145,7 @@ jobs:
       - name: Register oclgrind OpenCL ICD
         shell: pwsh
         run: |
-          # Find oclgrind DLL
+          # Find oclgrind DLL 
           # $CONDA is exported by setup-miniconda and points at the installation
           # root. Do not hardcode C:\Miniconda: the Miniforge installer path differs.
           $dll = Get-ChildItem "$env:CONDA\envs\test\Library\bin" -Filter "*oclgrind*" | Select-Object -First 1
