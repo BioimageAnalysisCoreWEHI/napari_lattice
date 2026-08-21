@@ -85,6 +85,7 @@ def to_output_dtype(array: np.ndarray, out_dtype: np.dtype) -> np.ndarray:
 if TYPE_CHECKING:
     from lls_core.models.lattice_data import LatticeData
     import npy2bdv
+    from lls_core.imaris import ImsWriter
     from lls_core.models.results import ProcessedSlice, ImageSlice
     from pathlib import Path
 
@@ -340,6 +341,71 @@ class TiffWriter(Writer):
                 metadata=ome_metadata,
             )
         self.written_files.append(path)
+
+def _lls_core_version() -> str:
+    """Installed ``lls_core`` version, or an empty string if it cannot be found
+    (e.g. running from a source tree that was never installed)."""
+    from importlib.metadata import PackageNotFoundError, version
+    try:
+        return version("lls_core")
+    except PackageNotFoundError:
+        return ""
+
+@dataclass
+class ImarisWriter(Writer):
+    """
+    A writer for the Imaris 5.5 (``.ims``) format.
+
+    One file per ROI holding every timepoint and channel, with a
+    multi-resolution pyramid so that Imaris can navigate large deskewed volumes
+    without loading them whole. Written directly through ``h5py`` rather than
+    Bitplane's ``PyImarisWriter``, whose PyPI wheel only ships Windows binaries;
+    see :mod:`lls_core.imaris` for the format details.
+    """
+    #: HDF5 compression filter for the voxel data. ``'gzip'`` matches the
+    #: reference writer's default (Gzip level 2); ``None`` disables compression.
+    compression: Optional[str] = "gzip"
+    compression_level: int = 2
+    ims_writer: Optional["ImsWriter"] = field(default=None, init=False)
+
+    def write_slice(self, slice: ProcessedSlice[ArrayLike]):
+        import numpy as np
+
+        data = np.asarray(slice.data)
+        if data.ndim != 3:
+            raise ValueError(f"Expected a (Z, Y, X) slice, got shape {data.shape}")
+
+        if self.ims_writer is None:
+            from lls_core.imaris import ImsWriter
+
+            suffix = f"_{make_filename_suffix(roi_index=str(self.roi_index))}" if self.roi_index is not None else ""
+            path = self.lattice.make_filepath(suffix)
+            channel_range = list(self.lattice.channel_range)
+            self.ims_writer = ImsWriter(
+                path,
+                shape_tczyx=(len(self.lattice.time_range), len(channel_range), *data.shape),
+                dtype=data.dtype,
+                # Deskewing changes the Z step, so the output spacing is new_dz.
+                voxel_size_zyx=(self.lattice.new_dz, self.lattice.dy, self.lattice.dx),
+                channel_names=[f"Channel {channel}" for channel in channel_range],
+                compression=self.compression,
+                compression_opts=self.compression_level,
+                image_name=self.lattice.save_name,
+                # Recorded as Creator/Version under /DataSetInfo/ImarisDataSet,
+                # so a file carries the version that produced it.
+                application_name="napari-lattice",
+                application_version=_lls_core_version(),
+            )
+            self.written_files.append(path)
+
+        # Indices (rather than the labels in slice.time/slice.channel) so that a
+        # subset like --channel-range 2 4 still starts from 0 and is contiguous.
+        self.ims_writer.write_volume(slice.time_index, slice.channel_index, data)
+
+    def close(self):
+        if self.ims_writer is not None:
+            self.ims_writer.close()
+            self.ims_writer = None
 
 @dataclass
 class OMEZarrWriter(Writer):

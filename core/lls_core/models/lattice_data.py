@@ -974,11 +974,13 @@ class LatticeData(OutputParams, DeskewParams):
         raise Exception("No slices produced!")
 
     def get_writer(self) -> Type[Writer]:
-        from lls_core.writers import BdvWriter, TiffWriter, OMEZarrWriter
+        from lls_core.writers import BdvWriter, ImarisWriter, TiffWriter, OMEZarrWriter
         if self.save_type == SaveFileType.h5:
             return BdvWriter
         elif self.save_type == SaveFileType.tiff:
             return TiffWriter
         elif self.save_type == SaveFileType.omezarr:
             return OMEZarrWriter
+        elif self.save_type == SaveFileType.imaris:
+            return ImarisWriter
         raise Exception("Unknown output type")
