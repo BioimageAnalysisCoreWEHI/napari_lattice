@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 # When testing locally, need pytest-qt
 
 @pytest.fixture(params=[
-    "RBC_tiny.czi",
+    #"RBC_tiny.czi", Removing as it adds ~10 min to test being a bigger file. Other files are sufficient for this test
     "LLS7_t1_ch1.czi",
     "LLS7_t1_ch3.czi",
     "LLS7_t2_ch1.czi",
