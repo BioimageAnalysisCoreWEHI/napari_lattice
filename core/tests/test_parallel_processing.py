@@ -24,8 +24,8 @@ from lls_core.models.lattice_data import LatticeData
 
 # GPU detection for the deconvolution end-to-end test (mirrors test_deconvolution.py).
 try:
-    import pyclesperanto_prototype as _cle
-    _gpu_devices = _cle.available_device_names(dev_type="gpu")
+    import pyclesperanto as _cle
+    _gpu_devices = _cle.available_device_names(device_type="gpu")
 except Exception:
     _gpu_devices = []
 try:
@@ -432,7 +432,7 @@ def test_lazy_input_without_a_path_is_never_materialized(rbc_tiny, monkeypatch):
 
     with tempfile.TemporaryDirectory() as tmpdir:
         lattice = LatticeData(**_dask_no_path_kwargs(rbc_tiny), save_name="v",
-                              save_dir=tmpdir, save_type="tiff", process_parallel=2)
+                                save_dir=tmpdir, save_type="tiff", process_parallel=2)
         assert lattice.input_image_path is None
         assert lattice._use_parallel_roi_processing() is False
         lattice.save()
@@ -443,7 +443,7 @@ def test_reload_check_accepts_the_source_file(rbc_tiny):
     """The ordinary case: workers re-opening the file do get the parent's array."""
     with tempfile.TemporaryDirectory() as tmpdir:
         lattice = LatticeData(**_file_path_kwargs(rbc_tiny), save_name="v",
-                              save_dir=tmpdir, save_type="tiff", process_parallel=2)
+                                save_dir=tmpdir, save_type="tiff", process_parallel=2)
         assert lattice._reload_reproduces_input() is True
         assert lattice._use_parallel_roi_processing() is True
 
@@ -542,7 +542,7 @@ def test_parallel_decon_matches_serial(rbc_tiny):
         )
 
     with as_file(resources / "psfs/zeiss_simulated/488.tif") as psf, \
-         tempfile.TemporaryDirectory() as ser_dir, tempfile.TemporaryDirectory() as par_dir:
+        tempfile.TemporaryDirectory() as ser_dir, tempfile.TemporaryDirectory() as par_dir:
         build(psf, ser_dir, 1).save()
         build(psf, par_dir, 2).save()
         _assert_same_output_images(ser_dir, par_dir)

@@ -570,7 +570,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices without cropping
         """
-        import pyclesperanto_prototype as cle
+        import pyclesperanto as cle
 
         for slice in self.iter_slices():
             data: ArrayLike = slice.data
@@ -599,10 +599,9 @@ class LatticeData(OutputParams, DeskewParams):
                     )
 
             yield slice.copy_with_data(
-                self._restore_input_dtype(cle.pull_zyx(self.deskew_func(
+                self._restore_input_dtype(cle.pull(self.deskew_func(
                     input_image=data,
-                    angle_in_degrees=self.angle,
-                    linear_interpolation=True,
+                    angle=self.angle,
                     voxel_size_x=self.dx,
                     voxel_size_y=self.dy,
                     voxel_size_z=self.dz
