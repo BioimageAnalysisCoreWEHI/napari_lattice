@@ -6,7 +6,20 @@ from enum import Enum
 class DeskewDirection(Enum):
     X = 1
     Y = 2
-    
+
+class DeskewEngine(Enum):
+    """
+    Which backend performs the deskew computation. GPU uses pyclesperanto/OpenCL
+    (requires a working OpenCL device). CPU uses a Numba-jitted implementation of
+    the same orthogonal-interpolation algorithm, ported from the qi2lab
+    opm-processing-v2 project, and needs no GPU at all. CPU currently only
+    supports the standard (coverslip-rotation) deskew, not the shear-only OPM/SOPi
+    frame.
+    """
+    GPU = 1
+    CPU = 2
+
+
 from lls_core.models.lattice_data import LatticeData
 from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.lattice_data import CropParams

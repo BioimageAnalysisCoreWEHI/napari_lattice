@@ -74,6 +74,7 @@ class LLSZWidget(MagicTemplate):
             skew=deskew_args["skew"],
             invert_scan_direction=deskew_args["invert_scan_direction"],
             coverslip_rotation=deskew_args["coverslip_rotation"],
+            engine=deskew_args["engine"],
 
             # Output
             channel_range=output_args.channel_range,

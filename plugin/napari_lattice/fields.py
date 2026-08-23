@@ -8,6 +8,7 @@ import pyclesperanto as cle
 from lls_core.deconvolution import DeconvolutionChoice
 from lls_core import (
     DeskewDirection,
+    DeskewEngine,
     Log_Levels,
 )
 from lls_core.models import (
@@ -240,6 +241,7 @@ class DeskewKwargs(NapariImageParams):
     skew: DeskewDirection
     invert_scan_direction: bool
     coverslip_rotation: bool
+    engine: DeskewEngine
 
 @magicclass
 class DeskewFields(NapariFieldGroup):
@@ -299,6 +301,13 @@ class DeskewFields(NapariFieldGroup):
     coverslip_rotation = field(DeskewParams.get_default("coverslip_rotation")).with_options(
         label="Coverslip Rotation",
         tooltip="Apply the coverslip rotation (standard deskew; correct for Zeiss LLS). Uncheck for OPM/SOPi to deskew into the shear-only, coverslip-level frame."
+    )
+    engine = field(DeskewEngine.GPU, widget_type="RadioButtons").with_options(
+        label="Deskew Engine",
+        tooltip="GPU (pyclesperanto/OpenCL) is the default and fastest option. CPU uses a Numba-jitted\n"
+                "implementation of the same algorithm and needs no GPU, but is slower and currently only\n"
+                "supports the standard deskew (Coverslip Rotation enabled), with no ROI cropping support.",
+        orientation="horizontal"
     )
 
     # --- Processing / preview ---
@@ -382,6 +391,10 @@ class DeskewFields(NapariFieldGroup):
     def _on_coverslip_toggled(self):
         ticked = self.coverslip_rotation.value
         logger.info(f"Coverslip Rotation {'Enabled' if ticked else 'Disabled'}")
+
+    @engine.connect
+    def _on_engine_changed(self):
+        logger.info(f"Deskew Engine set to {self.engine.value}")
 
     @invert_scan_direction.connect
     def _on_invert_scan_direction_toggled(self):
@@ -538,6 +551,7 @@ class DeskewFields(NapariFieldGroup):
             skew = self.skew_dir.value,
             invert_scan_direction=self.invert_scan_direction.value,
             coverslip_rotation=self.coverslip_rotation.value,
+            engine=self.engine.value,
         )
 
     def _make_model(self) -> DeskewParams:
@@ -549,6 +563,7 @@ class DeskewFields(NapariFieldGroup):
             skew = kwargs["skew"],
             invert_scan_direction=kwargs["invert_scan_direction"],
             coverslip_rotation=kwargs["coverslip_rotation"],
+            engine=kwargs["engine"],
         )
 
 @magicclass

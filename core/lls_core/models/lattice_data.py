@@ -203,6 +203,27 @@ class LatticeData(OutputParams, DeskewParams):
 
     @field_validator("crop")
     @classmethod
+    def reject_cpu_engine_crop(cls, v: Optional[CropParams], info: ValidationInfo) -> Optional[CropParams]:
+        """
+        ROI cropping is only implemented for the GPU deskew engine (`crop_volume_deskew`
+        is a GPU/pyclesperanto code path with no CPU counterpart yet).
+        """
+        from lls_core.models.utils import ignore_keyerror
+        from lls_core import DeskewEngine
+        values = info.data
+
+        if v is None:
+            return v
+        with ignore_keyerror():
+            if values["engine"] == DeskewEngine.CPU:
+                raise ValueError(
+                    "ROI cropping is not supported with the CPU deskew engine. Switch the engine to GPU, "
+                    "or remove the crop/ROI configuration."
+                )
+        return v
+
+    @field_validator("crop")
+    @classmethod
     def convert_roi_units(cls, v: Optional[CropParams], info: ValidationInfo) -> Optional[CropParams]:
         """
         Bring `roi_list` into deskewed-image pixels, the unit everything downstream
