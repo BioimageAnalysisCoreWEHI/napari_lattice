@@ -1,5 +1,10 @@
 
-__version__ = "0.2.6"
+from importlib.metadata import PackageNotFoundError, version as _package_version
+
+try:
+    __version__ = _package_version("lls_core")
+except PackageNotFoundError:
+    __version__ = "unknown"
 
 from strenum import StrEnum
 from enum import Enum

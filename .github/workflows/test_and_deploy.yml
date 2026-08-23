@@ -32,8 +32,13 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - uses: conda-incubator/setup-miniconda@v3
+      # Miniforge + conda-forge only, matching the environment docs/installation.md
+      # tells users to build. Miniconda's `defaults` channel resolves different
+      # package versions, so CI was not testing what users actually install.
+      - uses: conda-incubator/setup-miniconda@v4
         with:
+          miniforge-version: latest
+          conda-remove-defaults: "true"
           auto-update-conda: true
           activate-environment: test
           python-version: ${{ matrix.python-version }}
@@ -53,10 +58,17 @@ jobs:
         run: |
           # Install dependencies
           # We include types-PyYAML here too for linux linting consistency
-          conda install -y pyqt pyopencl pocl pytest-qt 
+          # openssl 3.6.3 cannot parse DER certificates, which breaks
+          # ssl.create_default_context() and therefore every dask compute.
+          conda install -y pyqt pyopencl pocl pytest-qt "openssl!=3.6.3" 
           
           uv pip install --upgrade pip setuptools wheel
           uv pip install -e './core[testing]'
+
+      - name: Verify TLS stack
+        run: |
+          conda list openssl
+          python -c "import ssl; print(ssl.OPENSSL_VERSION); ssl.create_default_context(); import distributed; print('TLS OK')"
 
       - name: Lint core
         uses: ./.github/lint
@@ -88,11 +100,19 @@ jobs:
 
     env:
       QT_API: pyqt6
+      # pytest-qt reads PYTEST_QT_API, not QT_API. Without it, it guesses a backend
+      # and any import failure comes up as an unclear INTERNALERROR 
+      PYTEST_QT_API: pyqt6
     steps:
       - uses: actions/checkout@v6
 
-      - uses: conda-incubator/setup-miniconda@v2
+      # Miniforge + conda-forge only, matching the environment docs/installation.md
+      # tells users to build. Miniconda's `defaults` channel resolves different
+      # package versions, so CI was not testing what users actually install.
+      - uses: conda-incubator/setup-miniconda@v4
         with:
+          miniforge-version: latest
+          conda-remove-defaults: "true"
           auto-update-conda: true
           activate-environment: test
           python-version: ${{ matrix.python-version }}
@@ -109,17 +129,36 @@ jobs:
       - name: Install core & plugin
         timeout-minutes: 10
         run: |
-          conda install -y qtpy pyopencl oclgrind pytest-qt typing-extensions
+          # openssl 3.6.3 cannot parse DER certificates, which breaks
+          # ssl.create_default_context() and therefore every dask compute.
+          #
+          # Keep  list minimal: conda supplies only the OpenCL runtime. Taking
+          # pyopencl from conda drags in numpy -> mkl -> tbb -> libhwloc -> libxml2
+          # -> icu, and icu ships an unversioned icuuc.dll that shadows the System32
+          # one PyQt6's Qt6Core.dll is built against, breaking `import PyQt6.QtCore`
+          # with a DLL error before any test runs. pyopencl, qtpy, pytest-qt and
+          # typing-extensions all arrive via pip, so conda has no reason to hold them.
+          conda install -y oclgrind khronos-opencl-icd-loader "openssl!=3.6.3"
           uv pip install --upgrade pip setuptools wheel
           # Install core and plugin
           uv pip install -e './core[testing]'
           uv pip install -e './plugin[testing]'
 
+      # Fails loudly here rather than inside an unrelated napari traceback. Any
+      # dask compute imports `distributed`, which builds an SSL context at import
+      # time via tornado, which reads the Windows certificate store.
+      - name: Verify TLS stack
+        run: |
+          conda list openssl
+          python -c "import ssl; print(ssl.OPENSSL_VERSION); ssl.create_default_context(); import distributed; print('TLS OK')"
+
       - name: Register oclgrind OpenCL ICD
         shell: pwsh
         run: |
-          # Find oclgrind DLL
-          $dll = Get-ChildItem "C:\Miniconda\envs\test\Library\bin" -Filter "*oclgrind*" | Select-Object -First 1
+          # Find oclgrind DLL 
+          # $CONDA is exported by setup-miniconda and points at the installation
+          # root. Do not hardcode C:\Miniconda: the Miniforge installer path differs.
+          $dll = Get-ChildItem "$env:CONDA\envs\test\Library\bin" -Filter "*oclgrind*" | Select-Object -First 1
           Write-Host "Found: $($dll.FullName)"
           $regPath = "HKLM:\SOFTWARE\Khronos\OpenCL\Vendors"
           if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }

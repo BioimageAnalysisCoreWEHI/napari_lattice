@@ -109,9 +109,21 @@ class Writer(ABC):
 
     def close(self):
         """
-        Called when no more image slices are available, and the writer should finalise its output files
+        Called when no more image slices are available, and the writer should finalise
+        its output files, then describe each one with a metadata sidecar.
+
+        Sidecar paths come from `written_files` rather than being recomputed:
+        `get_unique_filepath` renames on collision, so a recomputed name would drift off
+        the real file. A sidecar failure is logged, not raised - it must not lose the
+        pixels that were just written.
         """
-        pass
+        from lls_core.metadata import write_sidecar
+
+        for path in self.written_files:
+            try:
+                write_sidecar(self.lattice, path, roi_index=self.roi_index)
+            except Exception:
+                logger.warning("Could not write metadata sidecar for %s", path, exc_info=True)
 
     def write_all(self, slices: Iterable[ProcessedSlice[ArrayLike]]) -> None:
         """
@@ -166,6 +178,7 @@ class BdvWriter(Writer):
     def close(self):
         self.bdv_writer.write_xml()
         self.bdv_writer.close()
+        super().close()
 
 @dataclass
 class TiffWriter(Writer):
@@ -263,6 +276,7 @@ class TiffWriter(Writer):
 
     def close(self):
         self.flush()
+        super().close()
 
     def write_all(self, slices: Iterable[ProcessedSlice[ArrayLike]]) -> None:
         """
@@ -340,6 +354,9 @@ class TiffWriter(Writer):
                 metadata=ome_metadata,
             )
         self.written_files.append(path)
+        # This path returns without going through the base `write_all`, so `close()`
+        # would never fire and the output would get no sidecar.
+        self.close()
 
 @dataclass
 class OMEZarrWriter(Writer):
@@ -405,6 +422,9 @@ class OMEZarrWriter(Writer):
         # If it's the first slice - initialize the full zarr array size
         if self._arr is None:
             self._root_group, self._arr = self._create_store(t_len, c_len, self._zyx, self._dtype)
+            # Record the store so it is reported like the other formats' outputs, and
+            # so `close()` writes it a metadata sidecar.
+            self.written_files.append(self._root_path)
 
         self._arr[t_idx, c_idx, :, :, :] = to_output_dtype(data3d, self._arr.dtype)
         return self._root_path
