@@ -5,7 +5,7 @@ from dask.array.core import Array as DaskArray
 
 from typing_extensions import Any, Iterable, Optional, TYPE_CHECKING, Type
 from lls_core.deconvolution import pycuda_decon, skimage_decon, DeconvolutionChoice
-from lls_core.estimate import DEFAULT_SAFETY_FACTOR, memory_errors_explained, warn_if_deskew_may_not_fit
+from lls_core.estimate import memory_errors_explained, warn_if_deskew_may_not_fit
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core.models.crop import CropParams
 from lls_core.models.deconvolution import DeconvolutionParams
@@ -178,8 +178,21 @@ class LatticeData(OutputParams, DeskewParams):
 
     @field_validator("input_image")
     @classmethod
-    @root_validator(skip_on_failure=True)
-    def warn_deskew_size(cls, values: dict) -> dict:
+    def incomplete_final_frame(cls, v: DataArray) -> Any:
+        """
+        Check final frame, if acquisition is stopped halfway through it causes failures
+        This validator will remove a bad final frame
+        """
+        final_frame = v.isel(T=-1,C=-1, drop=True)
+        try:
+            final_frame.compute()
+        except (ValueError,RuntimeError):
+            logger.warning("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
+            v = v.drop_isel(T=-1)
+        return v
+
+    @model_validator(mode="after")
+    def warn_deskew_size(self) -> "LatticeData":
         """
         Report the deskewed volume size at construction, and warn if it looks too large
         for this GPU.
@@ -193,35 +206,21 @@ class LatticeData(OutputParams, DeskewParams):
         warning would be a false alarm: cropping deskews each ROI's bounding box, and MIP
         output projects straight from the raw data.
         """
-        if values.get("crop") is not None or values.get("save_mip"):
-            return values
-        data = values.get("input_image")
-        derived = values.get("derived")
+        if self.crop is not None or self.save_mip:
+            return self
+        data = self.input_image
+        derived = self.derived
         if data is None or derived is None or derived.deskew_vol_shape is None:
-            return values
+            return self
         warn_if_deskew_may_not_fit(
             input_shape_zyx=data.shape[-3:],
             output_shape_zyx=derived.deskew_vol_shape[-3:],
             input_dtype=data.dtype,
-            deconvolved=values.get("deconvolution") is not None,
-            safety_factor=values.get("memory_safety_factor", DEFAULT_SAFETY_FACTOR),
+            deconvolved=self.deconvolution is not None,
+            safety_factor=self.memory_safety_factor,
         )
-        return values
+        return self
 
-    @validator("input_image", pre=True, always=True)
-    def incomplete_final_frame(cls, v: DataArray) -> Any:
-        """
-        Check final frame, if acquisition is stopped halfway through it causes failures
-        This validator will remove a bad final frame
-        """
-        final_frame = v.isel(T=-1,C=-1, drop=True)
-        try:
-            final_frame.compute()
-        except (ValueError,RuntimeError):
-            logger.warning("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
-            v = v.drop_isel(T=-1)
-        return v
-        
 
     @field_validator("workflow", mode="before")
     @classmethod
@@ -647,7 +646,7 @@ class LatticeData(OutputParams, DeskewParams):
             # The deskewed buffer and the pull back to the host are where an oversized
             # volume actually fails, with an OpenCL error that names no dimensions.
             with memory_errors_explained(self, "Deskewing this image"):
-                deskewed = self._restore_input_dtype(cle.pull_zyx(self.deskew_func(
+                deskewed = self._restore_input_dtype(cle.pull(self.deskew_func(
                     input_image=data,
                     angle=self.angle,
                     voxel_size_x=self.dx,
