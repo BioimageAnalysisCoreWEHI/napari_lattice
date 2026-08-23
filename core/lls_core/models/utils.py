@@ -1,9 +1,9 @@
 
-from typing import Any, Tuple, Type, TypeVar, Union
+from typing import Any, Tuple, Type, TypeVar, Union, get_args, get_origin
 from typing_extensions import Self
 from enum import Enum
-from pydantic.v1 import BaseModel, Extra
 from contextlib import contextmanager
+from pydantic import BaseModel, ConfigDict
 
 T = TypeVar("T")
 def as_tuple(x: Union[Tuple[T], T]) -> Tuple[T]:
@@ -34,24 +34,21 @@ class FieldAccessModel(BaseModel):
     """
     Adds methods to a BaseModel for accessing useful field information
     """
-    class Config:
-        extra = Extra.forbid
-        arbitrary_types_allowed = True
-        validate_assignment = True
+    model_config = ConfigDict(extra="forbid", arbitrary_types_allowed=True, validate_assignment=True)
 
     @classmethod
     def get_default(cls, field_name: str) -> Any:
         """
         Shortcut method for returning the default value of a given field
         """
-        return cls.__fields__[field_name].get_default()
+        return cls.model_fields[field_name].get_default()
 
     @classmethod
     def get_description(cls, field_name: str) -> str:
         """
         Shortcut method for returning the description of a given field
         """
-        return cls.__fields__[field_name].field_info.description
+        return cls.model_fields[field_name].description
 
     @classmethod
     def to_definition_dict(cls) -> dict:
@@ -60,20 +57,27 @@ class FieldAccessModel(BaseModel):
         values are field descriptions. This is used to document the model to users
         """
         ret = {}
-        for key, value in cls.__fields__.items():
-            if value.field_info.extra.get("cli_hide"):
+        for key, value in cls.model_fields.items():
+            extra = value.json_schema_extra or {}
+            if extra.get("cli_hide"):
                 # Hide any fields that have cli_hide = True
                 continue
 
-            if isinstance(value.outer_type_, type) and issubclass(value.outer_type_, FieldAccessModel):
-                rhs = value.outer_type_.to_definition_dict()
+            annotation = value.annotation
+            if get_origin(annotation) is Union:
+                non_none = [a for a in get_args(annotation) if a is not type(None)]
+                if len(non_none) == 1:
+                    annotation = non_none[0]
+
+            if isinstance(annotation, type) and issubclass(annotation, FieldAccessModel):
+                rhs = annotation.to_definition_dict()
             else:
                 rhs: str
-                if "cli_description" in value.field_info.extra:
+                if "cli_description" in extra:
                     # cli_description can be used to configure the help text that appears for fields for the CLI only
-                    rhs = value.field_info.extra["cli_description"]
+                    rhs = extra["cli_description"]
                 else:
-                    rhs = value.field_info.description
+                    rhs = value.description
                 rhs += f" Default: {value.get_default()}."
             ret[key] = rhs
         return ret
@@ -83,8 +87,8 @@ class FieldAccessModel(BaseModel):
         Like `.copy()`, but validates the results.
         See https://github.com/pydantic/pydantic/issues/418 for more information
         """
-        updated = self.copy(**kwargs)
-        return updated.validate(updated.dict())
+        updated = self.model_copy(**kwargs)
+        return type(self).model_validate(updated.model_dump())
 
     @classmethod
     def make(cls, validate: bool = True, **kwargs: Any):
@@ -94,4 +98,4 @@ class FieldAccessModel(BaseModel):
         if validate:
             return cls(**kwargs)
         else:
-            return cls.construct(**kwargs)
+            return cls.model_construct(**kwargs)

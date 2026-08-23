@@ -7,7 +7,7 @@ import logging
 
 from lls_core.types import ArrayLike
 
-from pydantic.v1 import NonNegativeInt
+from pydantic import NonNegativeInt
 
 from numcodecs import Blosc
 from pathlib import Path

@@ -585,13 +585,13 @@ def test_cli_defaults_process_parallel_to_auto():
 
     captured: dict = {}
 
-    def fake_parse_obj(d):
+    def fake_model_validate(d):
         captured.update(d)
         raise SystemExit(0)
 
     runner = CliRunner()
-    original = m.LatticeData.parse_obj
-    m.LatticeData.parse_obj = staticmethod(fake_parse_obj)  # type: ignore[assignment]
+    original = m.LatticeData.model_validate
+    m.LatticeData.model_validate = staticmethod(fake_model_validate)  # type: ignore[assignment]
     try:
         runner.invoke(
             m.app,
@@ -599,7 +599,7 @@ def test_cli_defaults_process_parallel_to_auto():
             catch_exceptions=False,
         )
     finally:
-        m.LatticeData.parse_obj = original  # type: ignore[assignment]
+        m.LatticeData.model_validate = original  # type: ignore[assignment]
     assert captured.get("process_parallel") == 0
 
 
@@ -610,13 +610,13 @@ def test_cli_explicit_process_parallel_respected():
 
     captured: dict = {}
 
-    def fake_parse_obj(d):
+    def fake_model_validate(d):
         captured.update(d)
         raise SystemExit(0)
 
     runner = CliRunner()
-    original = m.LatticeData.parse_obj
-    m.LatticeData.parse_obj = staticmethod(fake_parse_obj)  # type: ignore[assignment]
+    original = m.LatticeData.model_validate
+    m.LatticeData.model_validate = staticmethod(fake_model_validate)  # type: ignore[assignment]
     try:
         runner.invoke(
             m.app,
@@ -624,7 +624,7 @@ def test_cli_explicit_process_parallel_respected():
             catch_exceptions=False,
         )
     finally:
-        m.LatticeData.parse_obj = original  # type: ignore[assignment]
+        m.LatticeData.model_validate = original  # type: ignore[assignment]
     assert captured.get("process_parallel") == 3
 
 
@@ -644,13 +644,13 @@ def test_cli_roi_subset_accepts_commas_and_repeated(cli_args):
 
     captured: dict = {}
 
-    def fake_parse_obj(d):
+    def fake_model_validate(d):
         captured.update(d)
         raise SystemExit(0)
 
     runner = CliRunner()
-    original = m.LatticeData.parse_obj
-    m.LatticeData.parse_obj = staticmethod(fake_parse_obj)  # type: ignore[assignment]
+    original = m.LatticeData.model_validate
+    m.LatticeData.model_validate = staticmethod(fake_model_validate)  # type: ignore[assignment]
     try:
         result = runner.invoke(
             m.app,
@@ -658,7 +658,7 @@ def test_cli_roi_subset_accepts_commas_and_repeated(cli_args):
             catch_exceptions=False,
         )
     finally:
-        m.LatticeData.parse_obj = original  # type: ignore[assignment]
+        m.LatticeData.model_validate = original  # type: ignore[assignment]
     assert result.exit_code == 0
     assert captured["crop"]["roi_subset"] == [0, 1, 2]
 
@@ -694,7 +694,7 @@ def test_cli_estimate_subcommand_routes_to_estimate(monkeypatch):
     import lls_core.cmds.__main__ as m
     from lls_core import estimate as est_mod
 
-    monkeypatch.setattr(m.LatticeData, "parse_obj", staticmethod(lambda d: _FakeLattice()))
+    monkeypatch.setattr(m.LatticeData, "model_validate", staticmethod(lambda d: _FakeLattice()))
     saved = {"called": False}
     monkeypatch.setattr(_FakeLattice, "save", lambda self: saved.__setitem__("called", True), raising=False)
 
@@ -724,10 +724,10 @@ def test_cli_default_subcommand_is_process_option_first(monkeypatch):
     import lls_core.cmds.__main__ as m
 
     captured: dict = {}
-    def fake_parse_obj(d):
+    def fake_model_validate(d):
         captured.update(d)
         raise SystemExit(0)
-    monkeypatch.setattr(m.LatticeData, "parse_obj", staticmethod(fake_parse_obj))
+    monkeypatch.setattr(m.LatticeData, "model_validate", staticmethod(fake_model_validate))
 
     result = CliRunner().invoke(
         m.click_app,
