@@ -4,7 +4,7 @@ from pathlib import Path
 from textwrap import dedent
 from typing import Any, Callable, List, Optional, Tuple, TYPE_CHECKING, Union
 from typing_extensions import TypeVar
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 from lls_core.deconvolution import DeconvolutionChoice
 from lls_core import (
     DeskewDirection,
@@ -55,7 +55,7 @@ def exception_to_html(e: BaseException) -> str:
     """
     Converts an exception to HTML for reporting back to the user
     """
-    from pydantic.v1 import ValidationError
+    from pydantic import ValidationError
     if isinstance(e, ValidationError):
         message = []
         for error in e.errors():
@@ -433,7 +433,7 @@ class DeskewFields(NapariFieldGroup):
         #get value of quick deskew
         quick_deskew = self.quick_deskew.value
         #If quick deskew is True
-        from pydantic.v1 import ValidationError
+        from pydantic import ValidationError
         if quick_deskew:
             try:
                 #initialize lattice model
@@ -540,7 +540,7 @@ class DeskewFields(NapariFieldGroup):
         Returns the LatticeData fields that the Deskew tab can provide
         """
         from bioio import PhysicalPixelSizes
-        DeskewParams.update_forward_refs()
+        DeskewParams.model_rebuild(force=True, _types_namespace={"PhysicalPixelSizes": PhysicalPixelSizes})
         # Cache the reader output keyed on the image-side inputs. Validation runs
         # on every field change and used to re-concat the image each time; reuse
         # the cached result whenever only the deskew scalars changed.

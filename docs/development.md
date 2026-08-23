@@ -20,8 +20,13 @@ pip install -e core -e plugin
 ### Pydantic
 
 Used for defining the parameter sets, performing parameter validation and conversion. These models live in `core/lls_core/models`.
-Note, `lls_core` uses Pydantic 1.X, which has a different API to Pydantic 2.X.
-You can find relevant documentation here: <https://docs.pydantic.dev/1.10/>
+`lls_core` uses **Pydantic 2.X** (`model_validate`, `field_validator`, `model_config`, etc.).
+You can find relevant documentation here: <https://docs.pydantic.dev/2.0/>.
+
+### pyclesperanto
+
+Used for GPU-accelerated image operations (filters, deskew-related OpenCL execution, push/pull).
+Import as `import pyclesperanto as cle`. Deskew affine helpers that used to live in private `pyclesperanto_prototype` APIs are vendored in `lls_core` (see `affine.py` and `affine_transform_deskew.py`).
 
 ### Xarray
 
@@ -36,6 +41,8 @@ The CLI is defined using Typer: <https://typer.tiangolo.com/.>
 
 These packages are used to define the GUI, which you can find in `plugin/napari_lattice`.
 [`magicclass`](https://hanjinliu.github.io/magic-class/) builds on [`magicgui`](https://pyapp-kit.github.io/magicgui/) by providing the `@magicclass` decorator which turns a Python class into a GUI.
+
+For a full write-up of the Pydantic v2 and pyclesperanto migrations (what changed, why, tests), see [Dependency Updates](dependency_updates.md).
 
 ## Dev Workflows
 

@@ -16,7 +16,7 @@ For example:
 !!python/object:napari_workflows._workflow.Workflow
 _tasks:
   median: !!python/tuple
-  - !!python/name:pyclesperanto_prototype.median_sphere ''
+  - !!python/name:pyclesperanto.median_sphere ''
   - deskewed_image
   - null
   - 2

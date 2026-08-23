@@ -27,7 +27,7 @@ def open_psf(name: str):
 def test_process(minimal_image_path: str, args: dict):
     # Processes a minimal set of images, with multiple parameter combinations
     for slice in (
-        LatticeData.parse_obj({"input_image": minimal_image_path, **args})
+        LatticeData.model_validate({"input_image": minimal_image_path, **args})
         .process()
         .slices
     ):
@@ -37,7 +37,7 @@ def test_process(minimal_image_path: str, args: dict):
 def test_process_all(image_path: str):
     # Processes all input images, but without parameter combinations
     for slice in (
-        LatticeData.parse_obj({"input_image": image_path}).process().slices
+        LatticeData.model_validate({"input_image": image_path}).process().slices
     ):
         assert slice.data.ndim == 3
 
@@ -45,7 +45,7 @@ def test_process_all(image_path: str):
 @parameterized
 def test_save(minimal_image_path: str, args: dict):
     with tempfile.TemporaryDirectory() as tempdir:
-        LatticeData.parse_obj(
+        LatticeData.model_validate(
             {"input_image": minimal_image_path, "save_dir": tempdir, **args}
         ).process().save_image()
         results = list(Path(tempdir).iterdir())
@@ -55,7 +55,7 @@ def test_save(minimal_image_path: str, args: dict):
 def test_process_deconv_crop():
     with tempfile.TemporaryDirectory() as tempdir:
         for slice in (
-            LatticeData.parse_obj(
+            LatticeData.model_validate(
                 {
                     # use BioImage rather than just Path to ensure tifffile
                     # is used instead of bioformats, which prevents dask use
@@ -83,7 +83,7 @@ def test_process_time_range(multi_channel_time: Path):
     from lls_core.models.output import SaveFileType
 
     with tempfile.TemporaryDirectory() as outdir:
-        LatticeData.parse_obj(
+        LatticeData.model_validate(
             {
                 "input_image": multi_channel_time,
                 # Channels 2 & 3
@@ -101,7 +101,7 @@ def test_process_deconvolution(background: Any):
     import numpy as np
     with tempfile.TemporaryDirectory() as outdir:
         for slice in (
-            LatticeData.parse_obj(
+            LatticeData.model_validate(
                 {
                     # Use random sample data here, since we're not testing the correctness of the deconvolution
                     # but rather that all the code paths are functional
@@ -130,7 +130,7 @@ def test_process_workflow(
     workflow: Workflow = request.getfixturevalue(workflow_name)
     with tempfile.TemporaryDirectory() as tmpdir:
         for output in (
-            LatticeData.parse_obj(
+            LatticeData.model_validate(
                 {
                     "input_image": lls7_t1_ch1,
                     "workflow": workflow,
@@ -148,7 +148,7 @@ def test_table_workflow(
 ):
     with tempfile.TemporaryDirectory() as _tmpdir:
         tmpdir = Path(_tmpdir)
-        results = set(LatticeData.parse_obj(
+        results = set(LatticeData.model_validate(
             {
                 "input_image": lls7_t1_ch1,
                 "workflow": table_workflow,
@@ -172,7 +172,7 @@ def test_process_crop_roi_file(args: dict, roi_subset: Optional[List[int]]):
     with as_file(resources / "RBC_tiny.czi") as lattice_path:
         rois = root / "crop" / "two_rois.zip"
         slices = list(
-            LatticeData.parse_obj(
+            LatticeData.model_validate(
                 {
                     "input_image": lattice_path,
                     "crop": {"roi_list": [rois], "roi_subset": roi_subset},
@@ -195,7 +195,7 @@ def test_process_crop_workflow(table_workflow: Workflow):
     with as_file(
         resources / "RBC_tiny.czi"
     ) as lattice_path, tempfile.TemporaryDirectory() as outdir:
-        results = list(LatticeData.parse_obj(
+        results = list(LatticeData.model_validate(
             {
                 "input_image": lattice_path,
                 "workflow": table_workflow,
@@ -230,7 +230,7 @@ def test_process_crop_roi_manual(args: dict, roi: List):
     # Test manually provided ROIs, both with integer and float values
     with as_file(resources / "RBC_tiny.czi") as lattice_path:
         for slice in (
-            LatticeData.parse_obj(
+            LatticeData.model_validate(
                 {
                     "input_image": lattice_path,
                     "crop": {"roi_list": roi},

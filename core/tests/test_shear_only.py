@@ -6,13 +6,13 @@ shear-only geometry is correct for both the full 3D volume and the MIP, and that
 turning the feature off keeps the old behaviour exactly.
 
 Sections:
-  - GEOMETRY            pure-math unit tests (no GPU)
-  - KERNEL PARITY       numba reference vs cle / OpenCL kernel (GPU)
-  - MODEL               DeskewParams shape/new_dz/display-affine (no GPU)
-  - PIPELINE (non-crop) shear-only leveling through LatticeData (GPU)
-  - PIPELINE (crop)     crop ROI mapping, edge/zero-pad, decon, invert-scan (GPU)
-  - MIP                 fast shear-only MIP (numba)
-  - BACKCOMPAT          coverslip_rotation=True byte-identical to stock deskew (GPU)
+    - GEOMETRY            pure-math unit tests (no GPU)
+    - KERNEL PARITY       numba reference vs cle / OpenCL kernel (GPU)
+    - MODEL               DeskewParams shape/new_dz/display-affine (no GPU)
+    - PIPELINE (non-crop) shear-only leveling through LatticeData (GPU)
+    - PIPELINE (crop)     crop ROI mapping, edge/zero-pad, decon, invert-scan (GPU)
+    - MIP                 fast shear-only MIP (numba)
+    - BACKCOMPAT          coverslip_rotation=True byte-identical to stock deskew (GPU)
 
 What actually proves the geometry is correct:
   A "true oracle" is an independent source of truth that can catch a wrong geometry
@@ -38,7 +38,7 @@ import tempfile
 
 import numpy as np
 import pytest
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 from xarray import DataArray
 
 from lls_core import DeskewDirection
@@ -125,7 +125,7 @@ def test_numba_objective_matches_cle_deskew_y():
     raw = _feature_volume()
     ang, dz, dy, dx = 45.0, 2.0, 1.04, 1.04
     gt = np.asarray(cle.pull(cle.deskew_y(
-        raw, angle_in_degrees=ang, voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz)))
+        raw, angle=ang, voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz)))
     nb = numba_deskew(raw, ang, dz, dy, dx, skew="Y", frame="objective", out_shape_zyx=gt.shape)
     assert nb.shape == gt.shape
     denom = max(gt.max(), 1.0)
@@ -138,9 +138,9 @@ def test_numba_shear_only_matches_two_pass_ground_truth(ang):
     """The one true oracle for the frozen shear-only map: compare the single-pass numba
     gather against a two-pass ground truth (cle.deskew_y THEN cle.rotate-to-level -- a
     completely different code path). Two comparisons are made:
-      1. the tight-cropped CONTENT bounding box -- catches shear-magnitude / step / scale
-         errors that a normalised centroid would silently pass, and
-      2. the voxel correlation of the origin-aligned volumes -- catches structure errors.
+        1. the tight-cropped CONTENT bounding box -- catches shear-magnitude / step / scale
+            errors that a normalised centroid would silently pass, and
+        2. the voxel correlation of the origin-aligned volumes -- catches structure errors.
 
     Run at two angles so shallow-angle geometry is checked, not just 45 deg. Y-skew only:
     the X-skew two-pass rotates about a different axis, so its content can't be compared
@@ -150,7 +150,7 @@ def test_numba_shear_only_matches_two_pass_ground_truth(ang):
     gt = two_pass_shear_only(raw, ang, dz, dy, dx, skew="Y")
     shape = shear_only_output_shape(raw.shape, ang, dz, dy, dx, "Y")
     nb = _tight_crop(numba_deskew(raw, ang, dz, dy, dx, skew="Y",
-                                  frame="shear_only", out_shape_zyx=shape))
+                                    frame="shear_only", out_shape_zyx=shape))
 
     # (1) Content box within 3 vox. 45 deg matches the two-pass exactly; at 30 deg the
     #     two-pass double-resample + rotate erodes a few edge voxels (measured <=3).
@@ -195,7 +195,7 @@ def test_deskew_params_shear_only_shape_and_default():
     da = DataArray(raw, dims=["Z", "Y", "X"])
     default = DeskewParams(input_image=da, physical_pixel_sizes=(2.0, 1.04, 1.04), angle=45)
     cover = DeskewParams(input_image=da, physical_pixel_sizes=(2.0, 1.04, 1.04),
-                         angle=45, coverslip_rotation=False)
+                            angle=45, coverslip_rotation=False)
     # default is stock deskew (Zeiss LLS) and coverslip_rotation defaults True
     assert default.coverslip_rotation is True
     # shear-only derived shape equals shear_only_output_shape, and differs from the objective box
@@ -214,7 +214,7 @@ def test_deskew_params_shear_only_shape_and_default():
 def test_new_dz(skew, coverslip_rotation, expected_dz):
     da = DataArray(np.zeros((5, 10, 12), dtype=np.float32), dims=["Z", "Y", "X"])
     params = DeskewParams(input_image=da, physical_pixel_sizes=(2.0, 1.04, 0.9),
-                          angle=45, skew=skew, coverslip_rotation=coverslip_rotation)
+                            angle=45, skew=skew, coverslip_rotation=coverslip_rotation)
     assert params.new_dz == pytest.approx(expected_dz)
 
 
@@ -237,11 +237,11 @@ def test_display_affine_invert_scan_fold(skew, z, y, x):
     """With invert=True, mapping [z,y,x,1] equals invert=False applied to [nz-1-z, y, x, 1]."""
     angle_deg, dz, dy, dx, nz = 30.0, 0.3, 0.15, 0.15, 10
     M_normal = shear_only_display_affine_zyx((nz, 8, 6), angle_deg, dz, dy, dx, skew=skew,
-                                             invert_scan_direction=False)
+                                                invert_scan_direction=False)
     M_inv = shear_only_display_affine_zyx((nz, 8, 6), angle_deg, dz, dy, dx, skew=skew,
-                                          invert_scan_direction=True)
+                                            invert_scan_direction=True)
     np.testing.assert_allclose(M_inv @ np.array([z, y, x, 1.0]),
-                               M_normal @ np.array([nz - 1 - z, y, x, 1.0]), atol=1e-12)
+                                M_normal @ np.array([nz - 1 - z, y, x, 1.0]), atol=1e-12)
 
 
 def test_objective_display_transform_differs_under_coverslip_flag():
@@ -251,7 +251,7 @@ def test_objective_display_transform_differs_under_coverslip_flag():
     obj = DeskewParams(input_image=raw, physical_pixel_sizes=(1, 1, 1), coverslip_rotation=True)
     cover = DeskewParams(input_image=raw, physical_pixel_sizes=(1, 1, 1), coverslip_rotation=False)
     assert not np.allclose(np.asarray(obj.derived.deskew_affine_transform_zyx),
-                           np.asarray(cover.derived.deskew_affine_transform_zyx))
+                            np.asarray(cover.derived.deskew_affine_transform_zyx))
 
 
 # ===========================================================================
@@ -276,8 +276,8 @@ def test_shear_only_post_is_upright(skew, ang, dy, dx):
     def _pipeline(coverslip_rotation: bool):
         with tempfile.TemporaryDirectory() as d:
             lat = LatticeData(input_image=DataArray(raw, dims=["Z", "Y", "X"]),
-                              physical_pixel_sizes=(dz, dy, dx), angle=ang, skew=skew_dir,
-                              coverslip_rotation=coverslip_rotation, save_name="t", save_dir=d)
+                                physical_pixel_sizes=(dz, dy, dx), angle=ang, skew=skew_dir,
+                                coverslip_rotation=coverslip_rotation, save_name="t", save_dir=d)
             return np.asarray(next(iter(lat.process().slices)).data)
 
     level = _pipeline(False)
@@ -317,9 +317,9 @@ def test_shear_only_crop_roundtrip_places_feature(skew):
     def run(roi):
         with tempfile.TemporaryDirectory() as d:
             lat = LatticeData(input_image=DataArray(raw, dims=["Z", "Y", "X"]),
-                              physical_pixel_sizes=(dz, dy, dx), angle=ang, skew=skew_dir,
-                              coverslip_rotation=False, crop=CropParams(roi_list=roi, z_range=(z0, z1)),
-                              save_name="t", save_dir=d)
+                                physical_pixel_sizes=(dz, dy, dx), angle=ang, skew=skew_dir,
+                                coverslip_rotation=False, crop=CropParams(roi_list=roi, z_range=(z0, z1)),
+                                save_name="t", save_dir=d)
             return np.asarray(next(iter(lat.process().slices)).data)
 
     # (a) ROI centred on the blob's coverslip location: blob captured near centre
@@ -356,9 +356,9 @@ def test_shear_only_crop_edge_roi_aligned(skew):
     skew_dir = DeskewDirection.Y if skew == "Y" else DeskewDirection.X
     with tempfile.TemporaryDirectory() as d:
         lat = LatticeData(input_image=DataArray(raw, dims=["Z", "Y", "X"]),
-                          physical_pixel_sizes=(dz, dy, dx), angle=ang, skew=skew_dir,
-                          coverslip_rotation=False, crop=CropParams(roi_list=roi, z_range=(z0_roi, z1_roi)),
-                          save_name="t", save_dir=d)
+                            physical_pixel_sizes=(dz, dy, dx), angle=ang, skew=skew_dir,
+                            coverslip_rotation=False, crop=CropParams(roi_list=roi, z_range=(z0_roi, z1_roi)),
+                            save_name="t", save_dir=d)
         out = np.asarray(next(iter(lat.process().slices)).data)
 
     assert out.size > 0 and out.max() > 0, f"edge-ROI crop is empty (skew={skew})"
@@ -385,8 +385,8 @@ def test_shear_only_crop_deconvolution_cpu():
     psf = np.zeros((3, 3, 3), np.float32); psf[1, 1, 1] = 1.0; psf += 0.02; psf /= psf.sum()
 
     common = dict(original_volume=raw, roi_shape=roi, angle_in_degrees=ang,
-                  voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz, z_start=z0, z_end=z1,
-                  skew_dir=DeskewDirection.Y, coverslip_rotation=False)
+                    voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz, z_start=z0, z_end=z1,
+                    skew_dir=DeskewDirection.Y, coverslip_rotation=False)
     plain = np.asarray(crop_volume_deskew(**common)).astype(np.float32)
     decon = np.asarray(crop_volume_deskew(
         deconvolution=True, decon_processing=DeconvolutionChoice.cpu, psf=psf, num_iter=1,
@@ -425,9 +425,9 @@ def test_shear_only_invert_scan_matches_flipped_input(skew, use_crop):
     def proc(vol, invert):
         with tempfile.TemporaryDirectory() as d:
             lat = LatticeData(input_image=DataArray(vol, dims=["Z", "Y", "X"]),
-                              physical_pixel_sizes=(dz, dy, dx), angle=ang, skew=skew_dir,
-                              coverslip_rotation=False, invert_scan_direction=invert,
-                              crop=crop, save_name="t", save_dir=d)
+                                physical_pixel_sizes=(dz, dy, dx), angle=ang, skew=skew_dir,
+                                coverslip_rotation=False, invert_scan_direction=invert,
+                                crop=crop, save_name="t", save_dir=d)
             return np.asarray(next(iter(lat.process().slices)).data)
 
     out_inv = proc(raw, invert=True)
@@ -480,9 +480,9 @@ def test_non_crop_default_byte_identical(skew_dir, ref_func):
     raw[3:7, 15:45, 20:60] = 100
     with tempfile.TemporaryDirectory() as d:
         lat = LatticeData(input_image=DataArray(raw, dims=["Z", "Y", "X"]),
-                          physical_pixel_sizes=(2.0, 1.04, 0.9), angle=45,
-                          skew=skew_dir, coverslip_rotation=True, save_name="t", save_dir=d)
+                            physical_pixel_sizes=(2.0, 1.04, 0.9), angle=45,
+                            skew=skew_dir, coverslip_rotation=True, save_name="t", save_dir=d)
         out = np.asarray(next(iter(lat.process().slices)).data)
-    ref = np.asarray(cle.pull_zyx(ref_func(
-        raw, angle_in_degrees=45, voxel_size_x=0.9, voxel_size_y=1.04, voxel_size_z=2.0)))
+    ref = np.asarray(cle.pull(ref_func(
+        raw, angle=45, voxel_size_x=0.9, voxel_size_y=1.04, voxel_size_z=2.0)))
     np.testing.assert_array_equal(out, ref)

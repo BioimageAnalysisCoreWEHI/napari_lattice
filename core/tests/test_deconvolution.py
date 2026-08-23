@@ -4,7 +4,7 @@
 
 import numpy.testing as npt
 from skimage.io import imread
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 
 from os.path import dirname
 import os
@@ -18,7 +18,7 @@ ATOL = 0.015
 RTOL = 0.15
 
 try:
-    gpu_devices = cle.available_device_names(dev_type="gpu")
+    gpu_devices = cle.available_device_names(device_type="gpu")
 except:
     gpu_devices = []
 
