@@ -27,7 +27,7 @@ Click on the tabs below to view the corresponding functionality.
 
     | Option | What it does | How to set it |
     |--------|--------------|---------------|
-    | **Image Layer(s) to Deskew** | The napari layer(s) to process. | Select your image. Selecting more than one stacks them together. |
+    | **Image Layer(s) to Deskew** | The napari layer(s) to process. | Select your image. If you have multi-channel images, select them together using `Shift+Left Click` to process them together. |
     | **Stack Along** | The axis multiple selected layers are stacked along. | Only relevant when you select several layers (e.g. per-channel layers) — choose `Channel` or `Time`. |
     | **Dimension Order** | How the raw array's axes map to Z/C/T/Y/X. | `Get from Metadata` for a czi; otherwise set it explicitly (e.g. `CZYX`). |
     | **Pixel Size Source** | Whether pixel sizes come from the file or are entered by hand. | `Image Metadata` for a czi; `Manual` for formats without metadata (then fill **Pixel Sizes: XYZ (µm)**). |
@@ -37,6 +37,7 @@ Click on the tabs below to view the corresponding functionality.
     | **Coverslip Rotation** | Whether to rotate the deskewed volume by the skew angle (standard deskew). | **On** for the Zeiss LLS7 (coverslip-level output). **Off** for OPM/SOPi to deskew into the shear-only, coverslip-level frame. |
     | **Graphics Device** | The GPU used for processing. | Pick your GPU (a CPU OpenCL device also works, but slower). |
     | **Quick Deskew** | Live in-canvas preview of the deskew without processing. | See the **Quick Deskew** tab. |
+
 
     !!! tip "Choosing settings by geometry"
 
@@ -215,3 +216,15 @@ Click on the tabs below to view the corresponding functionality.
     - **Parallel ROI Processing**: when cropping with multiple ROIs, process them in parallel worker processes. Leave this off while testing a single ROI. When on, set `Workers` to the number of processes, or `0` to let a memory-safe count be chosen automatically. See [Parallel ROI Processing](../api.md#parallel-roi-processing) for details.
 
     Once configured, click `Save` to run the pipeline and write the results to the chosen directory.
+
+    **Multi-channel images**
+
+    If you have multi-channel images and they are loaded as separate image layers, you multi-select them using `Shift + Left Click`.
+
+    ![multichannel](../images/multichannel/001_multichannel_plugin.png){ width="500" }
+
+    Make sure you enter the range of channels to be exported. This will only work if you've selected more than one channel. 
+
+    ![Save multichannel](../images/multichannel/002_multichannel_plugin_save.png){ width="500" }
+
+
