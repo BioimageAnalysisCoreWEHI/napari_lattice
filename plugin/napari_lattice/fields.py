@@ -341,6 +341,10 @@ class DeskewFields(NapariFieldGroup):
                             DefinedPixelSizes.get_default("Z")
                         )
 
+        # `enable_if` starts the Graphics Device field hidden; sync it to the
+        # actual default engine value (GPU -> shown) now that the widget exists.
+        self._enable_device(self.engine.value)
+
     @img_layer.connect
     def _img_changed(self) -> None:
         # Recalculate the dimension options whenever the image changes
@@ -395,6 +399,14 @@ class DeskewFields(NapariFieldGroup):
     @engine.connect
     def _on_engine_changed(self):
         logger.info(f"Deskew Engine set to {self.engine.value}")
+
+    # The GPU device picker is meaningless when the CPU engine is selected, so
+    # show/hide it in step with the engine choice. `enable_if` starts the field
+    # hidden, so `__init__` below re-syncs it to the actual default (GPU -> shown).
+    @engine.connect
+    @enable_if([device])
+    def _enable_device(self, engine: DeskewEngine) -> bool:
+        return engine == DeskewEngine.GPU
 
     @invert_scan_direction.connect
     def _on_invert_scan_direction_toggled(self):
