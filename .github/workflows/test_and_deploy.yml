@@ -80,7 +80,7 @@ jobs:
         run: pytest --verbose --verbose core/
 
       - name: Coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           flags: core
   # ------------------------------------------------------------------
@@ -182,7 +182,7 @@ jobs:
         run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           flags: plugin
   # ------------------------------------------------------------------
@@ -200,7 +200,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.10"
       - name: Install uv
