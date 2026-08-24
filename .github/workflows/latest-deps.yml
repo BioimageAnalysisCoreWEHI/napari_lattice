@@ -13,6 +13,8 @@ on:
   schedule:
     - cron: "0 22 * * 0" # weekly, Sunday 22:00 UTC
   workflow_dispatch: {}
+  push:
+    branches: [ci_fix] # TEMPORARY, for testing on this branch - remove before merging to master.
 
 jobs:
   # ------------------------------------------------------------------
