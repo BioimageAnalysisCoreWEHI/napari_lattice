@@ -80,7 +80,7 @@ jobs:
         run: pytest --verbose --verbose core/
 
       - name: Coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           flags: core
   # ------------------------------------------------------------------
@@ -182,7 +182,7 @@ jobs:
         run: pytest -v --cov=plugin --cov-report=xml plugin
 
       - name: Coverage
-        uses: codecov/codecov-action@v5
+        uses: codecov/codecov-action@v7
         with:
           flags: plugin
   # ------------------------------------------------------------------
