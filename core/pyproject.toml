@@ -171,6 +171,9 @@ ignore_unused = [
     "bioio-czi",
     "bioio-ome-tiff",
 
+    #used in docs
+    "mako",
+
 ]
 output_format = "human_detailed"  
 
