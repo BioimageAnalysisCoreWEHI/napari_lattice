@@ -51,6 +51,7 @@ dependencies = [
     # The lower bound is because we need this Python 3.8 fix: https://github.com/hanjinliu/magic-class/pull/108
     "magic-class>=0.7.5",
     "magicgui<0.8.0",
+    "mako",
     "napari-workflow-inspector",
     "napari-workflows>=0.2.8",
     "napari[all]>=0.4.11",
@@ -112,7 +113,10 @@ ignore_unused = [
     "bioio-ome-tiff",
     "bioio-tifffile",
     "tifffile",
-    "pylibczirw"
+    "pylibczirw",
+
+    #used in docs
+    "mako",
 ]
 output_format = "human_detailed"  
 
