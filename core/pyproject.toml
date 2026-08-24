@@ -45,6 +45,8 @@ dependencies = [
     "dask[distributed]",
     "fsspec>=2022.8.2",
     "importlib_resources",
+    # Not imported by us, but pyopencl >=2026.1.3 imports it at module load
+    "mako", 
     "napari-workflows>=0.2.8",
     "npy2bdv",
     "numba",
@@ -55,9 +57,7 @@ dependencies = [
     # Imported directly in lls_core.czi_reader for fast CZI reads. Same library
     # bioio-czi uses by default, so output matches bioio (also pulled in by it).
     "pylibczirw",
-    # pyopencl 2026.1.3 error with windows
-    "pyopencl; sys_platform != 'win32'",
-    "pyopencl<=2026.1.2; sys_platform == 'win32'",
+    "pyopencl",
     # This is the first pydantic version that supports the "compatibility mode"
     # https://docs.pydantic.dev/latest/migration/#using-pydantic-v1-features-in-a-v1v2-environment
     "pydantic>=1.10.17,<3",
@@ -105,8 +105,7 @@ docs = [
     "mkdocs-jupyter",
     # Includes fixes for Pydantic 1.X
     "fieldz>=0.1.0",
-    "griffe-fieldz",
-    "mako"
+    "griffe-fieldz"
 ]
 deploy = [
     "build",
@@ -173,7 +172,7 @@ ignore_unused = [
     "bioio-czi",
     "bioio-ome-tiff",
 
-    #used in docs
+    #used in docs and imported by pyopencl >=2026.1.3
     "mako",
 
 ]
