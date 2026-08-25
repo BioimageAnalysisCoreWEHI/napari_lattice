@@ -13,8 +13,6 @@ on:
   schedule:
     - cron: "0 22 * * 0" # weekly, Sunday 22:00 UTC
   workflow_dispatch: {}
-  push:
-    branches: [ci_fix] # TEMPORARY, for testing on this branch - remove before merging to master.
 
 jobs:
   # ------------------------------------------------------------------
@@ -77,12 +75,26 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.create({
+            // Only file a new issue if one isn't already open for this job - otherwise
+            // a weekly red run would spam a fresh issue every time. Closing the issue
+            // is what re-arms it for the next failure.
+            const trackingLabel = "latest-deps:core";
+            const { data: existing } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `latest-deps: Core Tests (Ubuntu, py${{ matrix.python-version }}) failed - ${new Date().toISOString().slice(0,10)}`,
-              body: `A third-party dependency likely released a breaking change. See run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              labels: ["ci", "dependencies"]
+              state: "open",
+              labels: trackingLabel,
+            });
+            if (existing.length > 0) {
+              console.log(`Already tracked in #${existing[0].number} - not creating a duplicate.`);
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `latest-deps: Core Tests (Ubuntu) failing`,
+              body: `A third-party dependency likely released a breaking change. Latest failing run (py${{ matrix.python-version }}): ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nThis re-opens automatically on the next failure only after this issue is closed.`,
+              labels: ["ci", "dependencies", trackingLabel]
             })
 
   # ------------------------------------------------------------------
@@ -168,10 +180,24 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            github.rest.issues.create({
+            // Only file a new issue if one isn't already open for this job - otherwise
+            // a weekly red run would spam a fresh issue every time. Closing the issue
+            // is what re-arms it for the next failure.
+            const trackingLabel = "latest-deps:windows";
+            const { data: existing } = await github.rest.issues.listForRepo({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: `latest-deps: Plugin Tests (Windows) failed - ${new Date().toISOString().slice(0,10)}`,
-              body: `A third-party dependency likely released a breaking change. See run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
-              labels: ["ci", "dependencies"]
+              state: "open",
+              labels: trackingLabel,
+            });
+            if (existing.length > 0) {
+              console.log(`Already tracked in #${existing[0].number} - not creating a duplicate.`);
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `latest-deps: Plugin Tests (Windows) failing`,
+              body: `A third-party dependency likely released a breaking change. Latest failing run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nThis re-opens automatically on the next failure only after this issue is closed.`,
+              labels: ["ci", "dependencies", trackingLabel]
             })
