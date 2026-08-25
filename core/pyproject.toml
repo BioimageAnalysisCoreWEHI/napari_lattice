@@ -91,7 +91,6 @@ UserSupport = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice/issues
 
 [project.optional-dependencies]
 testing = [
-    "tox",
     "pytest",  # https://docs.pytest.org/en/latest/contents.html
     "pytest-cov",  # https://pytest-cov.readthedocs.io/en/latest/
     "napari" # We use napari for type checking only, and not at runtime
@@ -145,7 +144,6 @@ reportUnnecessaryComparison = false
 [tool.fawltydeps]
 ignore_unused = [
     # None of the testing packages are imported
-    "tox",
     "pytest",
     "pytest-cov",
     "pytest-qt",
