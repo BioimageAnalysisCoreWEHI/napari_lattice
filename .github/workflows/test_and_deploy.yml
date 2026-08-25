@@ -143,6 +143,8 @@ jobs:
           # Install core and plugin
           uv pip install -e './core[testing]'
           uv pip install -e './plugin[testing]'
+          # ci only as pyopencl 2026.1.3 fails on windows; drop in next pyopencl release
+          uv pip install "pyopencl<=2026.1.2"
 
       # Fails loudly here rather than inside an unrelated napari traceback. Any
       # dask compute imports `distributed`, which builds an SSL context at import
