@@ -1,23 +1,33 @@
 """
-Memory estimation for crop-deskew pipelines.
+Memory estimation for deskew pipelines.
 
-Computes per-ROI bounding boxes from the same affine math as `crop_volume_deskew`,
-without touching pixel data, to estimate whether a requested worker count fits in
-GPU and host memory before launching. Estimates are shape-and-dtype only, plus a
-safety factor for OpenCL scratch buffers and driver overhead.
+Computes output bounding boxes from the same affine math as the deskew itself,
+without touching pixel data, to estimate whether the work fits in GPU and host
+memory before launching. Estimates are shape-and-dtype only, plus a safety factor
+for OpenCL scratch buffers and driver overhead.
+
+Two shapes of estimate live here:
+
+* per-ROI (`estimate_roi`, `estimate_pipeline`), which sizes the crop-deskew path and
+  answers "how many workers fit in parallel?";
+* whole-volume (`estimate_deskew_volume`), which sizes the no-crop path, where the
+  deskewed buffer is a single allocation whose size the user never chose.
 """
 from __future__ import annotations
 
 import logging
+import math
 import os
+from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Iterable, List, Optional, Tuple
+from typing import TYPE_CHECKING, Any, Generator, Iterable, List, Optional, Tuple
 
 import numpy as np
 
 from lls_core import DeskewDirection
 
 if TYPE_CHECKING:
+    from lls_core.models.deskew import DeskewParams
     from lls_core.models.lattice_data import LatticeData
 
 logger = logging.getLogger(__name__)
@@ -29,6 +39,53 @@ GPU_DTYPE_ITEMSIZE: int = 4
 # With per-buffer accounting done explicitly, the safety factor only covers
 # driver scratch and fragmentation. 1.5x is a conservative default.
 DEFAULT_SAFETY_FACTOR: float = 1.5
+
+# Headroom subtracted from total VRAM for OpenCL runtime allocations the user can't see.
+DEFAULT_GPU_RESERVE_BYTES: int = 512 * 1024 * 1024
+
+# Upstream report of the failure mode this module predicts, for maintainers:
+# https://github.com/clEsperanto/pyclesperanto_prototype/issues/344
+
+
+def _fmt_bytes(n: Optional[float]) -> str:
+    """Format a byte count for a human-readable report; `None` renders as 'unknown'."""
+    if n is None:
+        return "unknown"
+    for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
+        if abs(n) < 1024:
+            return f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} PiB"
+
+
+@dataclass
+class DeviceLimits:
+    """The device caps every estimate is judged against, in bytes.
+
+    `gpu_max_alloc_bytes` is the per-buffer cap (CL_DEVICE_MAX_MEM_ALLOC_SIZE): a
+    single allocation above it fails however much total VRAM is free. `None` means
+    the device could not be queried, which is not evidence of a problem.
+    """
+
+    gpu_global_bytes: Optional[int]
+    gpu_max_alloc_bytes: Optional[int]
+    gpu_reserve_bytes: int
+    host_available_bytes: Optional[int]
+
+    @property
+    def gpu_budget_bytes(self) -> Optional[int]:
+        if self.gpu_global_bytes is None:
+            return None
+        return max(0, self.gpu_global_bytes - self.gpu_reserve_bytes)
+
+
+def _query_device_limits(gpu_reserve_bytes: int = DEFAULT_GPU_RESERVE_BYTES) -> DeviceLimits:
+    return DeviceLimits(
+        gpu_global_bytes=get_global_mem_size(),
+        gpu_max_alloc_bytes=get_max_allocation_size(),
+        gpu_reserve_bytes=gpu_reserve_bytes,
+        host_available_bytes=get_host_available_bytes(),
+    )
 
 
 @dataclass
@@ -67,6 +124,152 @@ class RoiEstimate:
 
 
 @dataclass
+class DeskewVolumeEstimate:
+    """Memory estimate for deskewing one whole 3D volume, in bytes.
+
+    This is the no-crop path, where the deskewed buffer is a single OpenCL
+    allocation whose size the user never picked: it grows along the shear axis,
+    so a modest raw stack can produce an output the GPU cannot allocate at all.
+    That failure surfaces as an opaque OpenCL `OUT_OF_RESOURCES` which is not very clear
+    (see `CLESPERANTO_MEMORY_ISSUE_URL`).
+    """
+
+    input_zyx: Tuple[int, int, int]
+    output_zyx: Tuple[int, int, int]
+    input_itemsize: int
+    output_itemsize: int
+    safety_factor: float
+    device: DeviceLimits
+
+    @property
+    def voxels(self) -> int:
+        return math.prod(self.output_zyx)
+
+    @property
+    def gpu_input_bytes(self) -> int:
+        return math.prod(self.input_zyx) * GPU_DTYPE_ITEMSIZE
+
+    @property
+    def gpu_output_bytes(self) -> int:
+        return self.voxels * GPU_DTYPE_ITEMSIZE
+
+    @property
+    def max_single_allocation(self) -> int:
+        """Largest single OpenCL buffer. If this exceeds CL_DEVICE_MAX_MEM_ALLOC_SIZE
+        the volume cannot be deskewed in one piece however much VRAM is free."""
+        return max(self.gpu_input_bytes, self.gpu_output_bytes)
+
+    @property
+    def gpu_working_set(self) -> int:
+        """Peak VRAM: the input and output buffers coexist for the duration of the kernel."""
+        return int((self.gpu_input_bytes + self.gpu_output_bytes) * self.safety_factor)
+
+    @property
+    def host_peak_bytes(self) -> int:
+        """Peak host RAM. The result is pulled back as float32 and then cast to the
+        output dtype, so the raw input, the pulled array and the cast copy are all
+        briefly alive at once."""
+        raw = math.prod(self.input_zyx) * self.input_itemsize
+        pulled = self.voxels * GPU_DTYPE_ITEMSIZE
+        restored = 0 if self.output_itemsize == GPU_DTYPE_ITEMSIZE else self.voxels * self.output_itemsize
+        return int((raw + pulled + restored) * self.safety_factor)
+
+    @property
+    def exceeds_max_alloc(self) -> Optional[bool]:
+        """Whether a single buffer breaks the per-allocation cap. `None` if unknown."""
+        if self.device.gpu_max_alloc_bytes is None:
+            return None
+        return self.max_single_allocation > self.device.gpu_max_alloc_bytes
+
+    @property
+    def fits_gpu(self) -> Optional[bool]:
+        budget = self.device.gpu_budget_bytes
+        if budget is None:
+            return None
+        if self.exceeds_max_alloc:
+            return False
+        return self.gpu_working_set <= budget
+
+    @property
+    def fits_host(self) -> Optional[bool]:
+        if self.device.host_available_bytes is None:
+            return None
+        return self.host_peak_bytes <= self.device.host_available_bytes
+
+    def describe_shape(self) -> str:
+        """One line naming the deskewed size, always worth printing even when it fits."""
+        z, y, x = self.output_zyx
+        return (
+            f"Deskewed volume is {z} x {y} x {x} (Z x Y x X), "
+            f"{_fmt_bytes(self.gpu_output_bytes)} as float32 on the GPU and "
+            f"{_fmt_bytes(self.voxels * self.output_itemsize)} once saved"
+        )
+
+    def summary_line(self) -> str:
+        """A one-line version of `warnings()`, for a GUI panel where the full text is
+        far too long to read. Says what is wrong and how big, and leaves the reasoning
+        and remedies to the logged messages."""
+        z, y, x = self.output_zyx
+        size = f"Whole deskewed image: {z} x {y} x {x}, {_fmt_bytes(self.gpu_output_bytes)} on the GPU"
+        # Cropping is the one fix reachable from here - it is the next tab along - and it
+        # helps in all three cases, since each ROI is deskewed and pulled back on its own.
+        may_fail = "Processing may fail; try cropping, or see terminal."
+        if self.exceeds_max_alloc:
+            return (f"{size} - larger than what this GPU can handle at once "
+                    f"({_fmt_bytes(self.device.gpu_max_alloc_bytes)}). {may_fail}")
+        if self.fits_gpu is False:
+            return (f"{size} - needs {_fmt_bytes(self.gpu_working_set)} of the "
+                    f"{_fmt_bytes(self.device.gpu_budget_bytes)} free. {may_fail}")
+        if self.fits_host is False:
+            return (f"{size} - needs {_fmt_bytes(self.host_peak_bytes)} of RAM, "
+                    f"{_fmt_bytes(self.device.host_available_bytes)} free. {may_fail}")
+        return f"{size}, {_fmt_bytes(self.voxels * self.output_itemsize)} once saved"
+
+    def warnings(self) -> List[str]:
+        """Reasons this deskew is expected to fail or thrash, most severe first.
+        Empty when it fits, or when the device could not be queried.
+
+        Each message names the deskewed size, because they are logged individually and
+        a bare "not enough memory" line tells the user nothing they can act on.
+        """
+        avoid = ("Cropping to a region of interest avoids this, since each ROI is "
+                 "deskewed on its own")
+        messages: List[str] = []
+        if self.exceeds_max_alloc:
+            messages.append(
+                f"{self.describe_shape()}. This GPU can only handle "
+                f"{_fmt_bytes(self.device.gpu_max_alloc_bytes)} at once, so deskewing the "
+                f"whole volume is likely to fail. {avoid}; otherwise use a GPU with more memory."
+            )
+        elif self.fits_gpu is False:
+            messages.append(
+                f"{self.describe_shape()}. With the input image that needs about "
+                f"{_fmt_bytes(self.gpu_working_set)} of GPU memory, but only "
+                f"{_fmt_bytes(self.device.gpu_budget_bytes)} is free. "
+                f"{avoid}; otherwise use a GPU with more memory."
+            )
+        if self.fits_host is False:
+            messages.append(
+                f"{self.describe_shape()}. Holding that result in RAM needs about "
+                f"{_fmt_bytes(self.host_peak_bytes)}, but only "
+                f"{_fmt_bytes(self.device.host_available_bytes)} is available. Processing may "
+                "swap heavily or be killed by the operating system."
+            )
+        return messages
+
+    def format_report(self) -> str:
+        """Return a short, human-readable estimate for a log/console."""
+        lines = [
+            f"Deskew estimate (no cropping): {self.input_zyx} -> {self.output_zyx}",
+            f"  Deskewed image: {_fmt_bytes(self.gpu_output_bytes)}, of the {_fmt_bytes(self.device.gpu_max_alloc_bytes)} this GPU can handle at once",
+            f"  GPU memory    : needs {_fmt_bytes(self.gpu_working_set)} of {_fmt_bytes(self.device.gpu_budget_bytes)} -> fits: {self.fits_gpu}",
+            f"  Host RAM      : needs {_fmt_bytes(self.host_peak_bytes)} of {_fmt_bytes(self.device.host_available_bytes)} -> fits: {self.fits_host}",
+        ]
+        lines.extend(f"  WARNING: {message}" for message in self.warnings())
+        return "\n".join(lines)
+
+
+@dataclass
 class MemoryEstimate:
     """Summary of a memory estimate across all ROIs."""
 
@@ -77,6 +280,9 @@ class MemoryEstimate:
     gpu_max_alloc_bytes: Optional[int]
     gpu_reserve_bytes: int
     host_available_bytes: Optional[int]
+    # Set instead of `rois` when cropping is disabled: there are no ROIs to size,
+    # but the whole-volume deskew still has to fit.
+    deskew_volume: Optional[DeskewVolumeEstimate] = None
 
     @property
     def worker_peak_bytes(self) -> int:
@@ -157,25 +363,21 @@ class MemoryEstimate:
 
     def format_report(self) -> str:
         """Return a short, human-readable memory estimate for a log/console."""
-        def fmt_bytes(n: Optional[int]) -> str:
-            if n is None:
-                return "unknown"
-            for unit in ("B", "KiB", "MiB", "GiB", "TiB"):
-                if abs(n) < 1024:
-                    return f"{n:.1f} {unit}"
-                n /= 1024
-            return f"{n:.1f} PiB"
+        if not self.rois and self.deskew_volume is not None:
+            # No cropping: the per-ROI/worker summary would be all zeroes and would
+            # read as "nothing to worry about" for exactly the volumes that fail.
+            return self.deskew_volume.format_report()
 
         lines = [
             f"Memory estimate: {len(self.rois)} ROI(s), {self.n_workers} worker(s) "
             f"(recommended: {self.recommended_workers})",
-            f"  VRAM (GPU)  : needs {fmt_bytes(self.total_gpu_bytes)} of {fmt_bytes(self.gpu_budget_bytes)} -> fits: {self.fits_gpu}",
-            f"  RAM (host)  : needs {fmt_bytes(self.total_host_bytes)} of {fmt_bytes(self.host_available_bytes)} -> fits: {self.fits_host}",
+            f"  VRAM (GPU)  : needs {_fmt_bytes(self.total_gpu_bytes)} of {_fmt_bytes(self.gpu_budget_bytes)} -> fits: {self.fits_gpu}",
+            f"  RAM (host)  : needs {_fmt_bytes(self.total_host_bytes)} of {_fmt_bytes(self.host_available_bytes)} -> fits: {self.fits_host}",
         ]
         if self.per_buffer_violators:
             lines.append(
                 f"  ERROR: {len(self.per_buffer_violators)} ROI(s) exceed the GPU's max single "
-                f"allocation ({fmt_bytes(self.gpu_max_alloc_bytes)}); no worker count can fix this."
+                f"allocation ({_fmt_bytes(self.gpu_max_alloc_bytes)}); no worker count can fix this."
             )
         return "\n".join(lines)
 
@@ -301,12 +503,6 @@ def _local_cpu_cap() -> Optional[int]:
 
 # -- Per-ROI bbox math (pixel-free) ------------------------------------------
 
-class _ShapeOnly:
-    """Lightweight stand-in for a volume; only `.shape` is read by the deskew helpers."""
-    def __init__(self, shape: Tuple[int, ...]) -> None:
-        self.shape = shape
-
-
 def _roi_to_shape_array(roi: Any) -> np.ndarray:
     """Coerce a Roi/np.ndarray/list-of-points into the ndarray shape that
     `calculate_crop_bbox` expects."""
@@ -319,18 +515,18 @@ def _roi_to_shape_array(roi: Any) -> np.ndarray:
 def _roi_context(lattice: "LatticeData") -> Tuple[Tuple[int, int, int], Any, "DeskewDirection"]:
     """
     Compute the ROI-independent inputs shared by every ROI's bbox: the raw 3D shape,
-    the reverse (deskewed->raw) affine, and the skew direction. Hoisting these out of
-    the per-ROI loop avoids recomputing the affine and re-slicing for each ROI.
+    the deskew transforms, and the skew direction. Hoisting these out of the per-ROI
+    loop avoids recomputing the affine and re-slicing for each ROI.
     """
-    from lls_core.llsz_core import get_inverse_affine_transform
+    from lls_core.llsz_core import objective_crop_transforms
 
     raw_3d = lattice.get_3d_slice()
     raw_shape_zyx = tuple(int(s) for s in raw_3d.shape[-3:])
     skew_dir = lattice.skew if isinstance(lattice.skew, DeskewDirection) else DeskewDirection[str(lattice.skew)]
-    reverse_aff, _excess, _deskew = get_inverse_affine_transform(
-        _ShapeOnly(raw_shape_zyx), lattice.angle, lattice.dx, lattice.dy, lattice.dz, skew_dir,
+    transforms = objective_crop_transforms(
+        raw_shape_zyx, lattice.angle, lattice.dx, lattice.dy, lattice.dz, skew_dir,
     )
-    return raw_shape_zyx, reverse_aff, skew_dir
+    return raw_shape_zyx, transforms, skew_dir
 
 
 def get_roi_bboxes(
@@ -348,30 +544,35 @@ def get_roi_bboxes(
     `context` is the ROI-independent `_roi_context(lattice)`; it is computed here when
     omitted, but `estimate_pipeline` passes it in once to avoid per-ROI recomputation.
     """
-    from lls_core.utils import calculate_crop_bbox, get_deskewed_shape
+    from lls_core.llsz_core import objective_crop_geometry
+    from lls_core.utils import ShapeOnly, get_deskewed_shape
 
     if lattice.crop is None:
         raise ValueError("get_roi_bboxes requires a LatticeData with cropping enabled")
 
-    raw_shape_zyx, reverse_aff, skew_dir = context if context is not None else _roi_context(lattice)
+    raw_shape_zyx, transforms, skew_dir = context if context is not None else _roi_context(lattice)
 
     roi_shape = _roi_to_shape_array(lattice.crop.roi_list[roi_index])
     z_start, z_end = lattice.crop.z_range
-    crop_bounding_box, crop_vol_shape = calculate_crop_bbox(roi_shape, z_start, z_end)
-    crop_vol_shape_zyx: Tuple[int, int, int] = (
-        int(crop_vol_shape[0]),
-        int(crop_vol_shape[1]),
-        int(crop_vol_shape[2]),
-    )
 
-    # Map ROI corners back to raw-volume xyz coordinates and take the clipped extents.
-    bbox = np.asarray([reverse_aff._matrix @ v for v in crop_bounding_box])
-    mn = np.around(bbox.min(axis=0)).astype(int)
-    mx = np.around(bbox.max(axis=0)).astype(int)
-    nx, ny, nz = raw_shape_zyx[2], raw_shape_zyx[1], raw_shape_zyx[0]
-    x0, x1 = np.clip([mn[0], mx[0]], 0, nx)
-    y0, y1 = np.clip([mn[1], mx[1]], 0, ny)
-    z0, z1 = np.clip([mn[2], mx[2]], 0, nz)
+    # Same helper `crop_volume_deskew` uses, so the estimate cannot describe a
+    # differently-sized sub-block than the one actually read.
+    geometry = objective_crop_geometry(
+        raw_shape_zyx=raw_shape_zyx,
+        roi_shape=roi_shape,
+        z_start=z_start,
+        z_end=z_end,
+        angle_in_degrees=lattice.angle,
+        voxel_size_x=lattice.dx,
+        voxel_size_y=lattice.dy,
+        voxel_size_z=lattice.dz,
+        skew_dir=skew_dir,
+        transforms=transforms,
+    )
+    crop_vol_shape_zyx: Tuple[int, int, int] = geometry.crop_vol_shape
+    x0, x1 = geometry.raw_x
+    y0, y1 = geometry.raw_y
+    z0, z1 = geometry.raw_z
     input_bbox_zyx: Tuple[int, int, int] = (
         int(max(0, z1 - z0)),
         int(max(0, y1 - y0)),
@@ -383,7 +584,7 @@ def get_roi_bboxes(
     # with the input on the GPU and is usually the largest single buffer.
     if all(d > 0 for d in input_bbox_zyx):
         intermediate_shape, _ = get_deskewed_shape(
-            _ShapeOnly(input_bbox_zyx),
+            ShapeOnly(input_bbox_zyx),
             lattice.angle,
             lattice.dx,
             lattice.dy,
@@ -421,9 +622,12 @@ def estimate_roi(
     """
     input_bbox, intermediate, _output_bbox = get_roi_bboxes(lattice, roi_index, context=context)
     host_itemsize = _input_dtype_itemsize(lattice)
-    host_input_bytes = int(np.prod(input_bbox)) * host_itemsize
-    gpu_input_bytes = int(np.prod(input_bbox)) * GPU_DTYPE_ITEMSIZE
-    gpu_intermediate_bytes = int(np.prod(intermediate)) * GPU_DTYPE_ITEMSIZE
+    # math.prod, not np.prod: numpy's default integer is 32-bit on Windows, so a
+    # volume past 2**31 voxels - exactly the size that motivates this estimate -
+    # silently overflows to a negative byte count.
+    host_input_bytes = math.prod(input_bbox) * host_itemsize
+    gpu_input_bytes = math.prod(input_bbox) * GPU_DTYPE_ITEMSIZE
+    gpu_intermediate_bytes = math.prod(intermediate) * GPU_DTYPE_ITEMSIZE
     return RoiEstimate(
         roi_index=roi_index,
         input_bbox_zyx=input_bbox,
@@ -435,11 +639,216 @@ def estimate_roi(
     )
 
 
+def estimate_deskew_shapes(
+    input_shape_zyx: Tuple[int, int, int],
+    output_shape_zyx: Tuple[int, int, int],
+    input_dtype: Any,
+    deconvolved: bool = False,
+    safety_factor: float = DEFAULT_SAFETY_FACTOR,
+) -> DeskewVolumeEstimate:
+    """
+    Build a whole-volume estimate from shapes alone, querying the device for its limits.
+
+    Kept separate from `estimate_deskew_volume` so it can be called from the
+    `LatticeData` root validator, which has a dict of values rather than a model.
+    """
+    from lls_core.writers import resolve_output_dtype
+
+    input_itemsize = int(np.dtype(input_dtype).itemsize)
+    if deconvolved:
+        # Deconvolved output is kept as float32 rather than cast back to the input dtype.
+        output_itemsize = GPU_DTYPE_ITEMSIZE
+    else:
+        try:
+            output_itemsize = int(resolve_output_dtype(input_dtype).itemsize)
+        except Exception:
+            output_itemsize = input_itemsize
+
+    return DeskewVolumeEstimate(
+        input_zyx=tuple(int(s) for s in input_shape_zyx),  # type: ignore[arg-type]
+        output_zyx=tuple(int(s) for s in output_shape_zyx),  # type: ignore[arg-type]
+        input_itemsize=input_itemsize,
+        output_itemsize=output_itemsize,
+        safety_factor=safety_factor,
+        device=_query_device_limits(),
+    )
+
+
+def estimate_deskew_volume(
+    deskew: "DeskewParams",
+    safety_factor: float = DEFAULT_SAFETY_FACTOR,
+) -> DeskewVolumeEstimate:
+    """
+    Estimate the memory needed to deskew one whole 3D volume (the no-crop path).
+
+    Takes a `DeskewParams` rather than a full `LatticeData` so the GUI can size the
+    deskew from the Deskew tab alone, before any output settings exist.
+
+    The deskewed shape is read from the already-derived `deskew_vol_shape` rather
+    than recomputed, so this reports the buffer the pipeline will actually allocate
+    for either geometry (standard deskew or shear-only).
+    """
+    return estimate_deskew_shapes(
+        input_shape_zyx=deskew.input_image.shape[-3:],
+        output_shape_zyx=deskew.derived.deskew_vol_shape[-3:],
+        input_dtype=deskew.input_image.dtype,
+        # `deconv_enabled` only exists on LatticeData; a bare DeskewParams never deconvolves.
+        deconvolved=bool(getattr(deskew, "deconv_enabled", False)),
+        safety_factor=safety_factor,
+    )
+
+
+# Deskewed shapes already warned about. Model construction repeats for every sublattice
+# and every ROI worker, all with the same geometry, so without this the same warning
+# would be printed once per timepoint. Keyed on the shape rather than the message text:
+# the host-RAM message quotes currently-available RAM, which drifts between timepoints
+# and would defeat the dedupe exactly when the log is longest.
+_warned_shapes: set = set()
+
+
+def reset_warning_history() -> None:
+    """Forget which sizes have been warned about, so they are reported again. For tests."""
+    _warned_shapes.clear()
+
+
+def warn_once(estimate: DeskewVolumeEstimate) -> List[str]:
+    """Log this estimate's warnings in full, at most once per deskewed shape. Returns
+    the messages logged, empty if this shape has already been reported."""
+    key = tuple(estimate.output_zyx)
+    if key in _warned_shapes:
+        return []
+    _warned_shapes.add(key)
+    messages = estimate.warnings()
+    for message in messages:
+        logger.warning(message)
+    return messages
+
+
+def warn_if_deskew_may_not_fit(
+    input_shape_zyx: Tuple[int, int, int],
+    output_shape_zyx: Tuple[int, int, int],
+    input_dtype: Any,
+    deconvolved: bool = False,
+    safety_factor: float = DEFAULT_SAFETY_FACTOR,
+) -> List[str]:
+    """
+    Warn, at most once per deskewed shape, when a deskew of this size is unlikely to
+    fit on the GPU. Returns the messages logged.
+
+    Advisory only: never raises and never blocks, because the estimate is a prediction,
+    the device query can be wrong or unavailable, and a user who knows their hardware
+    should still be able to try.
+    """
+    if tuple(int(s) for s in output_shape_zyx) in _warned_shapes:
+        return []
+    try:
+        estimate = estimate_deskew_shapes(
+            input_shape_zyx, output_shape_zyx, input_dtype,
+            deconvolved=deconvolved, safety_factor=safety_factor,
+        )
+    except Exception:
+        logger.debug("Could not estimate deskew memory usage", exc_info=True)
+        return []
+    return warn_once(estimate)
+
+
+# -- Translating opaque OpenCL failures --------------------------------------
+
+# Substrings pyopencl puts in the message when an allocation or transfer runs out of
+# room. They arrive as bare RuntimeErrors naming an API call ("clEnqueueWriteBuffer
+# failed: OUT_OF_RESOURCES") with nothing about image size, which is what makes the
+# real cause so hard to guess.
+_OPENCL_MEMORY_MARKERS: Tuple[str, ...] = (
+    "OUT_OF_RESOURCES",
+    "OUT_OF_HOST_MEMORY",
+    "MEM_OBJECT_ALLOCATION_FAILURE",
+    "INVALID_BUFFER_SIZE",
+    "INVALID_IMAGE_SIZE",
+)
+
+
+class DeskewMemoryError(RuntimeError):
+    """A deskew failed because the image did not fit in GPU or host memory.
+
+    Raised in place of the original OpenCL error, which it chains as `__cause__`,
+    so the traceback still shows the underlying call that failed.
+    """
+
+
+def is_memory_error(exc: BaseException) -> bool:
+    """Whether an exception is a GPU/host out-of-memory failure in disguise.
+
+    pyopencl's own `MemoryError` does not inherit the builtin, so OpenCL failures are
+    matched on the status name in the message; the builtin still catches host-side
+    allocation failures from numpy.
+    """
+    if isinstance(exc, (MemoryError, DeskewMemoryError)):
+        return True
+    text = f"{type(exc).__name__}: {exc}".upper()
+    return any(marker in text for marker in _OPENCL_MEMORY_MARKERS)
+
+
+def _failed_buffer_detail(lattice: "LatticeData", roi_index: Optional[int]) -> List[str]:
+    """Describe what just failed: the whole deskewed volume, or one ROI's deskewed
+    subvolume when cropping. Quoting the whole-volume size for a failed ROI would name
+    an image that was never actually created."""
+    device = _query_device_limits()
+    if roi_index is None:
+        estimate = estimate_deskew_volume(lattice)
+        shape, needed = estimate.output_zyx, estimate.gpu_working_set
+        what = "The deskewed volume"
+    else:
+        roi = estimate_roi(lattice, roi_index)
+        shape, needed = roi.intermediate_zyx, roi.gpu_working_set
+        what = f"Deskewed ROI {roi_index}"
+    z, y, x = shape
+    return [
+        f"  {what} is {z} x {y} x {x} (Z x Y x X) and needs about "
+        f"{_fmt_bytes(needed)} of GPU memory.",
+        f"  This GPU has {_fmt_bytes(device.gpu_global_bytes)} and can only handle "
+        f"{_fmt_bytes(device.gpu_max_alloc_bytes)} at once.",
+    ]
+
+
+@contextmanager
+def memory_errors_explained(
+    lattice: Optional["LatticeData"] = None,
+    operation: str = "Deskewing",
+    roi_index: Optional[int] = None,
+) -> Generator[None, None, None]:
+    """
+    Re-raise out-of-memory failures from the wrapped deskew as a `DeskewMemoryError`
+    naming the size of the buffer that failed, and let every other exception through
+    untouched.
+
+    The size is only computed once a failure has happened, so this costs nothing on the
+    successful path.
+    """
+    try:
+        yield
+    except Exception as exc:
+        if not is_memory_error(exc):
+            raise
+        lines = [f"{operation} ran out of GPU or host memory."]
+        if lattice is not None:
+            try:
+                lines.extend(_failed_buffer_detail(lattice, roi_index))
+            except Exception:
+                logger.debug("Could not size the image for the memory error report", exc_info=True)
+        lines.append(
+            "  Crop to a smaller region of interest, or use a GPU with more memory."
+            if roi_index is not None else
+            "  Crop to a region of interest, or use a GPU with more memory."
+        )
+        lines.append(f"  Underlying error: {exc}")
+        raise DeskewMemoryError("\n".join(lines)) from exc
+
+
 def estimate_pipeline(
     lattice: "LatticeData",
     n_workers: int,
     safety_factor: float = DEFAULT_SAFETY_FACTOR,
-    gpu_reserve_bytes: int = 512 * 1024 * 1024,
+    gpu_reserve_bytes: int = DEFAULT_GPU_RESERVE_BYTES,
 ) -> MemoryEstimate:
     """
     Build a complete memory estimate for the configured pipeline.
@@ -456,6 +865,7 @@ def estimate_pipeline(
             gpu_max_alloc_bytes=get_max_allocation_size(),
             gpu_reserve_bytes=gpu_reserve_bytes,
             host_available_bytes=get_host_available_bytes(),
+            deskew_volume=estimate_deskew_volume(lattice, safety_factor=safety_factor),
         )
     # Compute the ROI-independent context (raw shape + reverse affine) once, not per ROI.
     context = _roi_context(lattice)

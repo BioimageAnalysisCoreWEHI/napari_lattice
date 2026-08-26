@@ -1,10 +1,13 @@
 #filename and function name should start with "test_" when using pytest
 import pyclesperanto as cle
 import numpy as np
+import pytest
 from lls_core.models.lattice_data import LatticeData
 from xarray import DataArray
+from tests.utils import requires_real_gpu
 import tempfile
 
+@requires_real_gpu
 def test_deskew():
 
     raw = np.zeros((5,5,5))
@@ -43,6 +46,7 @@ def test_invert_scan_direction_slice_data():
     np.testing.assert_array_equal(np.asarray(inverted.get_3d_slice()), raw_np[::-1])
 
 
+@requires_real_gpu
 def test_invert_scan_direction_deskew_equivalence():
     # Use an off-centre voxel as an asymmetric feature so errors in
     # scan-direction inversion (wrong flip direction) are detectable.
@@ -160,6 +164,9 @@ def test_invert_scan_direction_workflow_path():
         via_workflow = np.asarray(next(iter(sublattice.data.process().slices)).data)
 
     np.testing.assert_allclose(via_workflow, direct)
+
+
+@pytest.mark.gpu_state_risk
 def test_invert_scan_direction_crop_workflow_path():
     # Crop + flip + workflow exercised together. The workflow path copies BOTH the crop
     # and the (reset) invert flag into each sub-lattice via `iter_sublattices`, so the scan

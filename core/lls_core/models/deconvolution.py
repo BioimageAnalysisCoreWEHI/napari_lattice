@@ -1,4 +1,8 @@
 
+from pathlib import Path
+
+from pydantic.v1 import Field, NonNegativeInt, root_validator, validator
+
 from typing_extensions import Any, List, Literal, Union
 
 from xarray import DataArray
@@ -21,6 +25,14 @@ class DeconvolutionParams(FieldAccessModel):
         default=[],
         description="List of Point Spread Functions to use for deconvolution. Each of which should be a 3D array. Each PSF can also be provided as a `str` path, in which case they will be loaded from disk as images."
     )
+    psf_paths: List[Path] = Field(
+        default=[],
+        cli_hide=True,
+        description="Internal: the filesystem paths the PSFs were loaded from, if any. "
+                    "The validated `psf` field holds arrays, which cannot be serialised "
+                    "back to paths, so output metadata records these instead. "
+                    "Not a user-facing parameter."
+    )
     decon_num_iter: NonNegativeInt = Field(
         default=10,
         description="Number of iterations to perform in deconvolution"
@@ -32,6 +44,22 @@ class DeconvolutionParams(FieldAccessModel):
 
     @field_validator("decon_processing", mode="before")
     @classmethod
+    @root_validator(pre=True)
+    def capture_psf_paths(cls, values: dict) -> dict:
+        "Record the PSF paths before `convert_image` replaces them with arrays."
+        from lls_core.types import is_pathlike
+
+        given = values.get("psf")
+        if given is None:
+            return values
+        if is_pathlike(given):
+            given = [given]
+        paths = [str(item) for item in given if is_pathlike(item)]
+        if paths:
+            values["psf_paths"] = paths
+        return values
+
+    @validator("decon_processing", pre=True)
     def convert_decon(cls, v: Any):
         if isinstance(v, str):
             return DeconvolutionChoice[v]

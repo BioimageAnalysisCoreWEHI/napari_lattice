@@ -11,7 +11,7 @@ line_length = 79
 
 [project]
 name = "napari-lattice"
-version = "2.1.0"
+version = "2.2.2"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
@@ -112,7 +112,7 @@ ignore_unused = [
     "bioio-ome-tiff",
     "bioio-tifffile",
     "tifffile",
-    "pylibczirw"
+    "pylibczirw",
 ]
 output_format = "human_detailed"  
 

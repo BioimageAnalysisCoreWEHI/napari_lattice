@@ -11,7 +11,7 @@ line_length = 79
 
 [project]
 name = "lls_core"
-version = "2.1.0"
+version = "2.2.2"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
@@ -45,6 +45,8 @@ dependencies = [
     "dask[distributed]",
     "fsspec>=2022.8.2",
     "importlib_resources",
+    # Not imported by us, but pyopencl >=2026.1.3 imports it at module load
+    "mako", 
     "napari-workflows>=0.2.8",
     "npy2bdv",
     "numba",
@@ -58,6 +60,7 @@ dependencies = [
     "pylibczirw",
     "pyopencl",
     "pydantic>=2,<3",
+    "pydantic-core",
     "pyyaml",
     "psutil",
     "ome-types<0.6.0",  #pydantic v1 support removed from 0.6 onwards
@@ -75,6 +78,9 @@ dependencies = [
     "zarr>=2.16",
     "numcodecs>=0.11",
 ]
+# ensures that kernels are included in package distribution
+[tool.setuptools.package-data]
+lls_core = ["kernels/*.cl"]
 
 [project.urls]
 Repository = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
@@ -111,6 +117,11 @@ deploy = [
 
 [project.scripts]
 lls-pipeline = "lls_core.cmds.__main__:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "gpu_state_risk: known to leave pyclesperanto's GPU state corrupted for later tests in the same process (see conftest.py); ordered to run last so it can't poison other tests' results",
+]
 
 [tool.mypy]
 plugins = [
@@ -168,6 +179,9 @@ ignore_unused = [
     #bioio packages are needed but not directly imported
     "bioio-czi",
     "bioio-ome-tiff",
+
+    #used in docs and imported by pyopencl >=2026.1.3
+    "mako",
 
 ]
 output_format = "human_detailed"  

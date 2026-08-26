@@ -1,0 +1,203 @@
+# Catch breaking releases from third-party dependencies (e.g. the pyopencl 2026.1.3
+# mako/Windows-loader regressions) before a user actually hits them via a fresh install.
+#
+# Deliberately NOT pinned: mirror docs/installation.md's real install
+# commands (`uv pip install -e '.[testing]'`, no version caps)
+# Does not blocks a push or PR, its just advisory
+#
+# Runs weekly
+
+name: latest-deps
+
+on:
+  schedule:
+    - cron: "0 22 * * 0" # weekly, Sunday 22:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  # ------------------------------------------------------------------
+  # JOB 1: Core, latest deps (Ubuntu)
+  # ------------------------------------------------------------------
+  test-core-latest:
+    name: Core Tests, latest deps (Ubuntu)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+          conda-remove-defaults: "true"
+          auto-update-conda: true
+          activate-environment: test
+          python-version: ${{ matrix.python-version }}
+          channels: conda-forge
+
+      - name: Save conda location
+        run: echo "python=$(which python)" >> "$GITHUB_ENV"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.6.17"
+
+      - name: Install core
+        timeout-minutes: 10
+        run: |
+          conda install -y pyqt pyopencl pocl pytest-qt "openssl!=3.6.3"
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e './core[testing]'
+
+      - name: Verify TLS stack
+        run: |
+          conda list openssl
+          python -c "import ssl; print(ssl.OPENSSL_VERSION); ssl.create_default_context(); import distributed; print('TLS OK')"
+
+      - name: Lint core
+        uses: ./.github/lint
+        with:
+          directory: core
+          python: ${{ env.python }}
+
+      - name: Test core
+        run: pytest --verbose --verbose core/
+
+      - name: Open issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Only file a new issue if one isn't already open for this job - otherwise
+            // a weekly red run would spam a fresh issue every time. Closing the issue
+            // is what re-arms it for the next failure.
+            const trackingLabel = "latest-deps:core";
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: trackingLabel,
+            });
+            if (existing.length > 0) {
+              console.log(`Already tracked in #${existing[0].number} - not creating a duplicate.`);
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `latest-deps: Core Tests (Ubuntu) failing`,
+              body: `A third-party dependency likely released a breaking change. Latest failing run (py${{ matrix.python-version }}): ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nThis re-opens automatically on the next failure only after this issue is closed.`,
+              labels: ["ci", "dependencies", trackingLabel]
+            })
+
+  # ------------------------------------------------------------------
+  # JOB 2: Plugin, latest deps (Windows)
+  # ------------------------------------------------------------------
+  test-plugin-latest:
+    name: Plugin Tests, latest deps (Windows)
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11"]
+        os: [windows-latest]
+
+    env:
+      QT_API: pyqt6
+      PYTEST_QT_API: pyqt6
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: conda-incubator/setup-miniconda@v4
+        with:
+          miniforge-version: latest
+          conda-remove-defaults: "true"
+          auto-update-conda: true
+          activate-environment: test
+          python-version: ${{ matrix.python-version }}
+          channels: conda-forge
+
+      - name: Save conda location
+        run: echo "python=$(which python)" >> "$GITHUB_ENV"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: "0.6.17"
+
+      - name: Install core & plugin
+        timeout-minutes: 10
+        run: |
+          conda install -y oclgrind khronos-opencl-icd-loader "openssl!=3.6.3"
+          uv pip install --upgrade pip setuptools wheel
+          uv pip install -e './core[testing]'
+          uv pip install -e './plugin[testing]'
+          # Deliberately no pyopencl cap here, unlike test_and_deploy.yml - this job
+          # exists to find out when the cap can be dropped, not to avoid the problem.
+
+      - name: Verify TLS stack
+        run: |
+          conda list openssl
+          python -c "import ssl; print(ssl.OPENSSL_VERSION); ssl.create_default_context(); import distributed; print('TLS OK')"
+
+      - name: Register oclgrind OpenCL ICD
+        shell: pwsh
+        run: |
+          $dll = Get-ChildItem "$env:CONDA\envs\test\Library\bin" -Filter "*oclgrind*" | Select-Object -First 1
+          Write-Host "Found: $($dll.FullName)"
+          $regPath = "HKLM:\SOFTWARE\Khronos\OpenCL\Vendors"
+          if (-not (Test-Path $regPath)) { New-Item -Path $regPath -Force | Out-Null }
+          New-ItemProperty -Path $regPath -Name $dll.FullName -Value 0 -PropertyType DWORD -Force | Out-Null
+          Write-Host "Registered oclgrind in OpenCL ICD registry"
+
+      - name: Install Windows OpenGL
+        run: |
+          git clone --depth 1 https://github.com/pyvista/gl-ci-helpers.git
+          powershell gl-ci-helpers/appveyor/install_opengl.ps1
+
+      - name: Lint plugin
+        uses: ./.github/lint
+        with:
+          directory: plugin
+          python: ${{ env.python }}
+
+      - name: Test plugin
+        timeout-minutes: 18
+        run: pytest -v plugin
+
+      - name: Open issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Only file a new issue if one isn't already open for this job - otherwise
+            // a weekly red run would spam a fresh issue every time. Closing the issue
+            // is what re-arms it for the next failure.
+            const trackingLabel = "latest-deps:windows";
+            const { data: existing } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: trackingLabel,
+            });
+            if (existing.length > 0) {
+              console.log(`Already tracked in #${existing[0].number} - not creating a duplicate.`);
+              return;
+            }
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `latest-deps: Plugin Tests (Windows) failing`,
+              body: `A third-party dependency likely released a breaking change. Latest failing run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\nThis re-opens automatically on the next failure only after this issue is closed.`,
+              labels: ["ci", "dependencies", trackingLabel]
+            })

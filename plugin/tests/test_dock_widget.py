@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 # When testing locally, need pytest-qt
 
 @pytest.fixture(params=[
-    "RBC_tiny.czi",
+    #"RBC_tiny.czi", Removing as it adds ~10 min to test being a bigger file. Other files are sufficient for this test
     "LLS7_t1_ch1.czi",
     "LLS7_t1_ch3.czi",
     "LLS7_t2_ch1.czi",
@@ -230,3 +230,35 @@ def test_parallel_roi_save_off_main_thread():
         produced = list(os.scandir(tmpdir))
         assert produced, "parallel ROI save produced no output files"
 
+
+def test_custom_workflow_is_handed_over_as_a_path(tmp_path):
+    """
+    The output metadata sidecar records the workflow by its source path, and a `Workflow`
+    object cannot say where it was read from. So these fields must hand `LatticeData` the
+    path and let its validators do the loading.
+
+    Regression: loading the workflow here instead threw the path away, and every run
+    configured through the GUI wrote `"workflow": null` into its sidecar.
+    """
+    from napari_lattice.fields import WorkflowSource
+
+    workflow_path = tmp_path / "flow.yml"
+    workflow_path.write_text("""!!python/object:napari_workflows._workflow.Workflow
+_tasks:
+  blurred: !!python/tuple
+  - !!python/name:pyclesperanto_prototype.gaussian_blur ''
+  - deskewed_image
+  - null
+  - 1
+  - 1
+  - 1
+""")
+
+    ui = LLSZWidget()
+    set_debug(ui)
+    fields = ui.LlszMenu.WidgetContainer.workflow_fields
+    fields.fields_enabled.value = True
+    fields.workflow_source.value = WorkflowSource.CustomPath
+    fields.workflow_path.value = workflow_path
+
+    assert fields._make_model() == workflow_path

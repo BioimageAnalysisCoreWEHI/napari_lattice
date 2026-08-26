@@ -317,10 +317,17 @@ def _assert_same_output_images(ser_dir: str, par_dir: str) -> None:
     byte-identical (only the plain ImageJ-TIFF ever was).
     """
     import tifffile
+
+    from lls_core.metadata import SIDECAR_SUFFIX
+
     ser_files = sorted(p.name for p in Path(ser_dir).iterdir())
     par_files = sorted(p.name for p in Path(par_dir).iterdir())
     assert ser_files == par_files, (ser_files, par_files)
     for name in ser_files:
+        # Metadata sidecars are not images, and their `config` block records the
+        # process_parallel each run used, so they are expected to differ here.
+        if name.endswith(SIDECAR_SUFFIX):
+            continue
         ser_img = tifffile.imread(Path(ser_dir) / name)
         par_img = tifffile.imread(Path(par_dir) / name)
         assert np.array_equal(ser_img, par_img), name

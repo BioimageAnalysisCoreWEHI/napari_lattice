@@ -43,6 +43,7 @@ nav:
 - "Supporting Resources":
   - "Overview": miscellaneous/index.md
   - "Defining ROIs for cropping": miscellaneous/rois_cropping.md
+  - "Output metadata": miscellaneous/output_metadata.md
 plugins:
 - search
 - mkdocs-video:

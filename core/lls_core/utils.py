@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from contextlib import contextmanager, redirect_stderr, redirect_stdout
 from os import devnull, path
-from typing import Collection, List, Optional, Tuple, TypeVar, Union
+from typing import Collection, List, NamedTuple, Optional, Tuple, TypeVar, Union
 from urllib import parse
 
 import numpy as np
@@ -45,6 +45,13 @@ def check_subclass(obj: Any, pkg_name: str, cls_name: str) -> bool:
 
 def is_napari_shape(obj: Any) -> TypeGuard[Shapes]:
     return check_subclass(obj, "napari.shapes", "Shapes")
+
+class ShapeOnly(NamedTuple):
+    """
+    Stand-in for a volume where only `.shape` is read, so the deskew shape and placement
+    math never has to allocate (or read) a volume that may be hundreds of gigabytes.
+    """
+    shape: Tuple[int, ...]
 
 def calculate_crop_bbox(shape: list, z_start: int, z_end: int) -> tuple[List[List[Any]], List[int]]:
     """Get bounding box as vertices in 3D in the form xyz

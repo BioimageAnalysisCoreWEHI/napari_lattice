@@ -1,9 +1,11 @@
 from __future__ import annotations
+from pathlib import Path
 from typing import Tuple, cast
 from dask.array.core import Array as DaskArray
 
 from typing_extensions import Any, Iterable, Optional, TYPE_CHECKING, Type
 from lls_core.deconvolution import pycuda_decon, skimage_decon, DeconvolutionChoice
+from lls_core.estimate import memory_errors_explained, warn_if_deskew_may_not_fit
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core.models.crop import CropParams
 from lls_core.models.deconvolution import DeconvolutionParams
@@ -115,6 +117,15 @@ class LatticeData(OutputParams, DeskewParams):
         cli_description="Path to a JSON file specifying a napari_workflow-compatible workflow to add lightsheet processing onto"
     )
 
+    workflow_path: Optional[Path] = Field(
+        default=None,
+        cli_hide=True,
+        description="Internal: the filesystem path the workflow was loaded from, if any. "
+                    "A `Workflow` object cannot be serialised back to a path, so output "
+                    "metadata records this instead. Mirrors `input_image_path`; "
+                    "not a user-facing parameter."
+    )
+
     progress_bar: bool = Field(
         default = True,
         description = "If true, show progress bars"
@@ -142,7 +153,6 @@ class LatticeData(OutputParams, DeskewParams):
     @classmethod
     def read_image(cls, values: dict):
         from lls_core.types import is_pathlike
-        from pathlib import Path
         input_image = values.get("input_image")
         logger.info(f"Processing File {input_image}") # this is handy for debugging
         if is_pathlike(input_image):
@@ -156,6 +166,12 @@ class LatticeData(OutputParams, DeskewParams):
             elif is_pathlike(save_dir):
                 # Convert a string path to a Path object
                 values["save_dir"] = Path(save_dir)
+
+        # A Workflow object does not remember where it was read from, so capture the
+        # path now - it is the only chance - for output metadata to record.
+        workflow = values.get("workflow")
+        if is_pathlike(workflow):
+            values["workflow_path"] = Path(workflow)
 
         # Use the Deskew version of this validator, to do the actual image loading
         return super().read_image(values)
@@ -174,7 +190,37 @@ class LatticeData(OutputParams, DeskewParams):
             logger.warning("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
             v = v.drop_isel(T=-1)
         return v
-        
+
+    @model_validator(mode="after")
+    def warn_deskew_size(self) -> "LatticeData":
+        """
+        Report the deskewed volume size at construction, and warn if it looks too large
+        for this GPU.
+
+        Deskewing shears the volume, so the output is substantially larger than the input
+        along one axis: an image that loaded fine can still produce a buffer the device
+        cannot allocate, and the resulting OpenCL error names no dimensions. Warning here
+        means the user is told when they build the model, not partway through a long run.
+
+        Skipped for the two paths that never allocate the whole deskewed volume, where the
+        warning would be a false alarm: cropping deskews each ROI's bounding box, and MIP
+        output projects straight from the raw data.
+        """
+        if self.crop is not None or self.save_mip:
+            return self
+        data = self.input_image
+        derived = self.derived
+        if data is None or derived is None or derived.deskew_vol_shape is None:
+            return self
+        warn_if_deskew_may_not_fit(
+            input_shape_zyx=data.shape[-3:],
+            output_shape_zyx=derived.deskew_vol_shape[-3:],
+            input_dtype=data.dtype,
+            deconvolved=self.deconvolution is not None,
+            safety_factor=self.memory_safety_factor,
+        )
+        return self
+
 
     @field_validator("workflow", mode="before")
     @classmethod
@@ -565,8 +611,8 @@ class LatticeData(OutputParams, DeskewParams):
                     decon_processing=self.deconvolution.decon_processing
                 )
 
-            yield slice.model_copy(update={
-                "data": self._restore_input_dtype(crop_volume_deskew(
+            with memory_errors_explained(self, f"Deskewing ROI {roi_index}", roi_index=roi_index):
+                cropped = self._restore_input_dtype(crop_volume_deskew(
                     original_volume=slice.data,
                     deconvolution=self.deconv_enabled,
                     get_deskew_and_decon=False,
@@ -583,10 +629,9 @@ class LatticeData(OutputParams, DeskewParams):
                     skew_dir=self.skew_dir,
                     coverslip_rotation=self.coverslip_rotation,
                     **deconv_args
-                )),
-                "roi_index": roi_index
-            })
-            
+                ))
+            yield slice.copy(update={"data": cropped, "roi_index": roi_index})
+
     def _process_non_crop(self) -> Iterable[ImageSlice]:
         """
         Yields processed image slices without cropping
@@ -619,20 +664,23 @@ class LatticeData(OutputParams, DeskewParams):
                         boundary='nearest'
                     )
 
-            yield slice.copy_with_data(
-                self._restore_input_dtype(cle.pull(self.deskew_func(
+            # The deskewed buffer and the pull back to the host are where an oversized
+            # volume actually fails, with an OpenCL error that names no dimensions.
+            with memory_errors_explained(self, "Deskewing this image"):
+                deskewed = self._restore_input_dtype(cle.pull(self.deskew_func(
                     input_image=data,
                     angle=self.angle,
                     voxel_size_x=self.dx,
                     voxel_size_y=self.dy,
                     voxel_size_z=self.dz
                 )))
-            )
+            yield slice.copy_with_data(deskewed)
 
     def process_workflow(self) -> WorkflowSlices:
         """
         Runs the workflow on each slice and returns the workflow results
         """
+        import dask
         from lls_core.workflow import get_workflow_output_name
         from lls_core.models.results import WorkflowSlices
         from lls_core.models.utils import as_tuple
@@ -641,8 +689,14 @@ class LatticeData(OutputParams, DeskewParams):
 
         def _generator() -> Iterable[ProcessedSlice[Tuple[RawWorkflowOutput, ...]]]:
             for workflow in self.generate_workflows():
-                # Evaluates the workflow here.
-                result = workflow.data.get(get_workflow_output_name(workflow.data))
+                # Evaluates the workflow here. `Workflow.get()` hard-codes dask's
+                # threaded scheduler, which runs GPU (pyclesperanto) steps on a
+                # worker thread. pyclesperanto's OpenCL context isn't safe to use
+                # across threads: once a workflow has run its GPU steps off-thread,
+                # later pyclesperanto calls on the main thread silently return
+                # zeroed/wrong data. Run the same task graph with dask's
+                # synchronous scheduler instead, which never leaves this thread.
+                result = dask.get(workflow.data._tasks, get_workflow_output_name(workflow.data))
                 yield workflow.copy_with_data(as_tuple(result))
 
         return WorkflowSlices(

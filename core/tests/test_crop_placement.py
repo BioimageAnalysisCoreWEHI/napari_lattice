@@ -17,6 +17,7 @@ import pyclesperanto as cle
 
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core import DeskewDirection
+from tests.utils import requires_real_gpu
 
 
 def _raw_wide(skew):
@@ -33,6 +34,7 @@ def _raw_wide(skew):
     return r
 
 
+@requires_real_gpu
 @pytest.mark.parametrize("skew", ["Y", "X"])
 @pytest.mark.parametrize("angle", [30.0, 45.0])
 @pytest.mark.parametrize("pos", ["low", "high"])   # off-centre: where the trim bug is largest
