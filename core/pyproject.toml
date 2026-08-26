@@ -60,6 +60,7 @@ dependencies = [
     "pylibczirw",
     "pyopencl",
     "pydantic>=2,<3",
+    "pydantic-core",
     "pyyaml",
     "psutil",
     "ome-types<0.6.0",  #pydantic v1 support removed from 0.6 onwards
