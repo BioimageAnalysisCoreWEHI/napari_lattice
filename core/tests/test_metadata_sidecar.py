@@ -11,7 +11,7 @@ import json
 
 import numpy as np
 import pytest
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 from xarray import DataArray
 
 from lls_core import DeskewDirection
@@ -198,7 +198,7 @@ def test_recorded_origin_matches_pixels(tmp_path, skew):
 
     deskew = cle.deskew_y if skew == "Y" else cle.deskew_x
     full = np.asarray(cle.pull(deskew(
-        raw, angle_in_degrees=angle, voxel_size_x=1, voxel_size_y=1, voxel_size_z=1)))
+        raw, angle=angle, voxel_size_x=1, voxel_size_y=1, voxel_size_z=1)))
 
     axis = 1 if skew == "Y" else 2          # sheared (wide) output axis
     other = 2 if skew == "Y" else 1
