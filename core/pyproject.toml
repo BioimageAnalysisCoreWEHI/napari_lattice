@@ -11,7 +11,7 @@ line_length = 79
 
 [project]
 name = "lls_core"
-version = "2.1.1"
+version = "2.2.2"
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
@@ -45,6 +45,8 @@ dependencies = [
     "dask[distributed]",
     "fsspec>=2022.8.2",
     "importlib_resources",
+    # Not imported by us, but pyopencl >=2026.1.3 imports it at module load
+    "mako", 
     "napari-workflows>=0.2.8",
     "npy2bdv",
     "numba",
@@ -75,6 +77,9 @@ dependencies = [
     "zarr>=2.16",
     "numcodecs>=0.11",
 ]
+# ensures that kernels are included in package distribution
+[tool.setuptools.package-data]
+lls_core = ["kernels/*.cl"]
 
 [project.urls]
 Repository = "https://github.com/BioimageAnalysisCoreWEHI/napari_lattice"
@@ -168,6 +173,9 @@ ignore_unused = [
     #bioio packages are needed but not directly imported
     "bioio-czi",
     "bioio-ome-tiff",
+
+    #used in docs and imported by pyopencl >=2026.1.3
+    "mako",
 
 ]
 output_format = "human_detailed"  
