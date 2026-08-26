@@ -60,6 +60,7 @@ dependencies = [
     "pylibczirw",
     "pyopencl",
     "pydantic>=2,<3",
+    "pydantic-core",
     "pyyaml",
     "psutil",
     "ome-types<0.6.0",  #pydantic v1 support removed from 0.6 onwards
@@ -116,6 +117,11 @@ deploy = [
 
 [project.scripts]
 lls-pipeline = "lls_core.cmds.__main__:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "gpu_state_risk: known to leave pyclesperanto's GPU state corrupted for later tests in the same process (see conftest.py); ordered to run last so it can't poison other tests' results",
+]
 
 [tool.mypy]
 plugins = [

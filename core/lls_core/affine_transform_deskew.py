@@ -38,13 +38,22 @@ def affine_transform_deskew_3d(
     assert len(source.shape) == 3, f"Image needs to be 3D, got shape of {len(source.shape)}"
 
     new_size, transform, _ = determine_translation_and_bounding_box(source, transform)
-    destination = create(new_size)
+    # `create()` defaults to float64 (Python's `float`) when no dtype is given, but
+    # `source` below and the kernel's float-typed parameters are float32. A float64
+    # destination against a kernel compiled for float32 is a real buffer/kernel
+    # mismatch - harmless on backends that silently reinterpret it, but on backends
+    # without double-precision support (e.g. CI's pocl CPU backend) it silently
+    # produces garbage/zeroed output instead of raising.
+    destination = create(new_size, dtype=np.float32)
     # Unlike the old backend, pyclesperanto.execute doesn't auto-push plain numpy
     # arrays passed in the parameters dict - push explicitly.
     source = push(np.ascontiguousarray(np.asarray(source, dtype=np.float32)))
 
     # we invert the transform because we go from the target image to the source image to read pixels
-    transform_matrix = np.asarray(transform.copy().inverse())
+    # The kernel's `mat` buffer is read as float (see the .cl file); numpy's affine inverse is
+    # float64 by default, so cast explicitly - an uncast float64 buffer being read back as
+    # float32 corrupts the GPU memory pool for later, unrelated pyclesperanto calls.
+    transform_matrix = np.ascontiguousarray(np.asarray(transform.copy().inverse()), dtype=np.float32)
 
     tantheta = float(np.tan(deskewing_angle_in_degrees * np.pi / 180))
     sintheta = float(np.sin(deskewing_angle_in_degrees * np.pi / 180))
