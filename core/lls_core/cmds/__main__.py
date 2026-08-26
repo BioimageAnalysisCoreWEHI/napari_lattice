@@ -144,8 +144,11 @@ def rich_validation(e: ValidationError) -> Table:
     table.add_column("Error")
 
     for error in e.errors():
+        # A whole-model validator (e.g. DeskewParams.validate_cpu_engine) reports an
+        # empty loc tuple, since it isn't tied to one field.
+        parameter = str(error["loc"][0]) if error["loc"] else "(general)"
         table.add_row(
-            str(error["loc"][0]),
+            parameter,
             str(error["msg"]),
         )
 
