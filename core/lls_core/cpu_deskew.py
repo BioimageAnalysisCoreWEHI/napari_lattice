@@ -78,17 +78,24 @@ def _orthogonal_deskew_y(data, out_nz, out_ny, out_nx, pixel_step, tantheta, sin
     num_images, ny, nx = data.shape
     ncols = out_nx if out_nx < nx else nx
     output = np.zeros((out_nz, out_ny, out_nx), dtype=np.float32)
+    one = np.float32(1.0)
 
     for z in prange(out_nz):
-        za = z / sintheta
+        # Every scalar here is kept in float32, matching the GPU kernel's `float`
+        # arithmetic bit-for-bit as closely as numba allows. A stray float64
+        # promotion (e.g. from a bare `1.0` literal or an un-cast loop index)
+        # can shift a floor() result by one grid cell right at a boundary,
+        # silently swapping in a different source voxel from the GPU engine.
+        zf = np.float32(z)
+        za = zf / sintheta
         for y in range(out_ny):
-            virtual_plane = y - z / tantheta
+            virtual_plane = np.float32(y) - zf / tantheta
             plane_before = int(math.floor(virtual_plane / pixel_step))
             plane_after = plane_before + 1
             if plane_before < 0 or plane_after >= num_images:
                 continue
 
-            l_before = virtual_plane - plane_before * pixel_step
+            l_before = virtual_plane - np.float32(plane_before) * pixel_step
             l_after = pixel_step - l_before
 
             virtual_pos_before = za + l_before * costheta
@@ -101,8 +108,8 @@ def _orthogonal_deskew_y(data, out_nz, out_ny, out_nx, pixel_step, tantheta, sin
                     pos_before + 1 >= ny or pos_after + 1 >= ny):
                 continue
 
-            dz_before = virtual_pos_before - pos_before
-            dz_after = virtual_pos_after - pos_after
+            dz_before = virtual_pos_before - np.float32(pos_before)
+            dz_after = virtual_pos_after - np.float32(pos_after)
 
             pix_1 = data[plane_after, pos_after + 1, :ncols]
             pix_2 = data[plane_after, pos_after, :ncols]
@@ -111,9 +118,9 @@ def _orthogonal_deskew_y(data, out_nz, out_ny, out_nx, pixel_step, tantheta, sin
 
             values = (
                 l_before * dz_after * pix_1
-                + l_before * (1.0 - dz_after) * pix_2
+                + l_before * (one - dz_after) * pix_2
                 + l_after * dz_before * pix_3
-                + l_after * (1.0 - dz_before) * pix_4
+                + l_after * (one - dz_before) * pix_4
             ) / pixel_step
 
             # Match the GPU kernel's unconditional Z flip (camera <-> stage orientation).
@@ -127,17 +134,19 @@ def _orthogonal_deskew_x(data, out_nz, out_ny, out_nx, pixel_step, tantheta, sin
     num_images, ny, nx = data.shape
     nrows = out_ny if out_ny < ny else ny
     output = np.zeros((out_nz, out_ny, out_nx), dtype=np.float32)
+    one = np.float32(1.0)
 
     for z in prange(out_nz):
-        za = z / sintheta
+        zf = np.float32(z)
+        za = zf / sintheta
         for x in range(out_nx):
-            virtual_plane = x - z / tantheta
+            virtual_plane = np.float32(x) - zf / tantheta
             plane_before = int(math.floor(virtual_plane / pixel_step))
             plane_after = plane_before + 1
             if plane_before < 0 or plane_after >= num_images:
                 continue
 
-            l_before = virtual_plane - plane_before * pixel_step
+            l_before = virtual_plane - np.float32(plane_before) * pixel_step
             l_after = pixel_step - l_before
 
             virtual_pos_before = za + l_before * costheta
@@ -150,8 +159,8 @@ def _orthogonal_deskew_x(data, out_nz, out_ny, out_nx, pixel_step, tantheta, sin
                     pos_before + 1 >= nx or pos_after + 1 >= nx):
                 continue
 
-            dz_before = virtual_pos_before - pos_before
-            dz_after = virtual_pos_after - pos_after
+            dz_before = virtual_pos_before - np.float32(pos_before)
+            dz_after = virtual_pos_after - np.float32(pos_after)
 
             pix_1 = data[plane_after, :nrows, pos_after + 1]
             pix_2 = data[plane_after, :nrows, pos_after]
@@ -160,9 +169,9 @@ def _orthogonal_deskew_x(data, out_nz, out_ny, out_nx, pixel_step, tantheta, sin
 
             values = (
                 l_before * dz_after * pix_1
-                + l_before * (1.0 - dz_after) * pix_2
+                + l_before * (one - dz_after) * pix_2
                 + l_after * dz_before * pix_3
-                + l_after * (1.0 - dz_before) * pix_4
+                + l_after * (one - dz_before) * pix_4
             ) / pixel_step
 
             output[out_nz - 1 - z, :nrows, x] = values
@@ -207,17 +216,21 @@ def cpu_deskew(
     assert source_arr.ndim == 3, f"Image needs to be 3D, got shape of {source_arr.shape}"
 
     theta_rad = math.radians(angle_in_degrees)
-    tantheta = math.tan(theta_rad)
-    sintheta = math.sin(theta_rad)
-    costheta = math.cos(theta_rad)
+    # Narrow to float32 once, here, the same way the GPU path computes these in
+    # float64 and then hands them to the OpenCL kernel's `float` parameters -
+    # so the two engines round to the same single-precision values before any
+    # boundary (floor()) decisions are made downstream.
+    tantheta = np.float32(math.tan(theta_rad))
+    sintheta = np.float32(math.sin(theta_rad))
+    costheta = np.float32(math.cos(theta_rad))
 
     out_nz, out_ny, out_nx = (int(s) for s in output_shape)
 
     if deskew_direction == DeskewDirection.Y:
-        pixel_step = voxel_size_z / voxel_size_y
+        pixel_step = np.float32(voxel_size_z / voxel_size_y)
         return _orthogonal_deskew_y(source_arr, out_nz, out_ny, out_nx, pixel_step, tantheta, sintheta, costheta)
     elif deskew_direction == DeskewDirection.X:
-        pixel_step = voxel_size_z / voxel_size_x
+        pixel_step = np.float32(voxel_size_z / voxel_size_x)
         return _orthogonal_deskew_x(source_arr, out_nz, out_ny, out_nx, pixel_step, tantheta, sintheta, costheta)
     else:
         raise ValueError(f"Unknown deskew_direction {deskew_direction!r}")
