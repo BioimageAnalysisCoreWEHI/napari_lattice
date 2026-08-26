@@ -4,8 +4,10 @@ import numpy as np
 import pytest
 from lls_core.models.lattice_data import LatticeData
 from xarray import DataArray
+from tests.utils import requires_real_gpu
 import tempfile
 
+@requires_real_gpu
 def test_deskew():
 
     raw = np.zeros((5,5,5))
@@ -44,6 +46,7 @@ def test_invert_scan_direction_slice_data():
     np.testing.assert_array_equal(np.asarray(inverted.get_3d_slice()), raw_np[::-1])
 
 
+@requires_real_gpu
 def test_invert_scan_direction_deskew_equivalence():
     # Use an off-centre voxel as an asymmetric feature so errors in
     # scan-direction inversion (wrong flip direction) are detectable.

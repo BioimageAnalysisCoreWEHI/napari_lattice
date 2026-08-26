@@ -18,6 +18,7 @@ from lls_core import DeskewDirection
 from lls_core.metadata import SIDECAR_SUFFIX, build_config, output_origin_zyx, sidecar_path
 from lls_core.models.lattice_data import LatticeData
 from lls_core.models.output import SaveFileType
+from tests.utils import requires_real_gpu
 
 
 def _image(shape=(1, 1, 30, 40, 35)):
@@ -173,6 +174,7 @@ def test_shear_only_origin_is_the_roi_origin(tmp_path):
     assert output_origin_zyx(lattice, roi_index=0) == pytest.approx((3.0, 12.0, 8.0))
 
 
+@requires_real_gpu
 @pytest.mark.gpu_state_risk
 @pytest.mark.parametrize("skew", ["Y", "X"])
 def test_recorded_origin_matches_pixels(tmp_path, skew):

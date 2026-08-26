@@ -2,8 +2,10 @@ import pyclesperanto as cle
 import numpy as np
 
 from lls_core.llsz_core import crop_volume_deskew
+from tests.utils import requires_real_gpu
 
 
+@requires_real_gpu
 def test_crop_deskew():
     raw = np.zeros((5,5,5))
     raw[2,4,2] = 10
