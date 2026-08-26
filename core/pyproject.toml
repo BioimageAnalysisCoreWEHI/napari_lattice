@@ -113,6 +113,11 @@ deploy = [
 [project.scripts]
 lls-pipeline = "lls_core.cmds.__main__:main"
 
+[tool.pytest.ini_options]
+markers = [
+    "gpu_state_risk: known to leave pyclesperanto's GPU state corrupted for later tests in the same process (see conftest.py); ordered to run last so it can't poison other tests' results",
+]
+
 [tool.mypy]
 plugins = [
   "pydantic.mypy"

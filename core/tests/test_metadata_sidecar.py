@@ -173,6 +173,7 @@ def test_shear_only_origin_is_the_roi_origin(tmp_path):
     assert output_origin_zyx(lattice, roi_index=0) == pytest.approx((3.0, 12.0, 8.0))
 
 
+@pytest.mark.gpu_state_risk
 @pytest.mark.parametrize("skew", ["Y", "X"])
 def test_recorded_origin_matches_pixels(tmp_path, skew):
     """

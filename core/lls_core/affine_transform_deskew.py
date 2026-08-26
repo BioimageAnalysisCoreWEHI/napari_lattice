@@ -44,7 +44,10 @@ def affine_transform_deskew_3d(
     source = push(np.ascontiguousarray(np.asarray(source, dtype=np.float32)))
 
     # we invert the transform because we go from the target image to the source image to read pixels
-    transform_matrix = np.asarray(transform.copy().inverse())
+    # The kernel's `mat` buffer is read as float (see the .cl file); numpy's affine inverse is
+    # float64 by default, so cast explicitly - an uncast float64 buffer being read back as
+    # float32 corrupts the GPU memory pool for later, unrelated pyclesperanto calls.
+    transform_matrix = np.ascontiguousarray(np.asarray(transform.copy().inverse()), dtype=np.float32)
 
     tantheta = float(np.tan(deskewing_angle_in_degrees * np.pi / 180))
     sintheta = float(np.sin(deskewing_angle_in_degrees * np.pi / 180))

@@ -1,6 +1,7 @@
 #filename and function name should start with "test_" when using pytest
 import pyclesperanto as cle
 import numpy as np
+import pytest
 from lls_core.models.lattice_data import LatticeData
 from xarray import DataArray
 import tempfile
@@ -160,6 +161,9 @@ def test_invert_scan_direction_workflow_path():
         via_workflow = np.asarray(next(iter(sublattice.data.process().slices)).data)
 
     np.testing.assert_allclose(via_workflow, direct)
+
+
+@pytest.mark.gpu_state_risk
 def test_invert_scan_direction_crop_workflow_path():
     # Crop + flip + workflow exercised together. The workflow path copies BOTH the crop
     # and the (reset) invert flag into each sub-lattice via `iter_sublattices`, so the scan

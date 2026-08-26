@@ -659,6 +659,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Runs the workflow on each slice and returns the workflow results
         """
+        import dask
         from lls_core.workflow import get_workflow_output_name
         from lls_core.models.results import WorkflowSlices
         from lls_core.models.utils import as_tuple
@@ -667,8 +668,14 @@ class LatticeData(OutputParams, DeskewParams):
 
         def _generator() -> Iterable[ProcessedSlice[Tuple[RawWorkflowOutput, ...]]]:
             for workflow in self.generate_workflows():
-                # Evaluates the workflow here.
-                result = workflow.data.get(get_workflow_output_name(workflow.data))
+                # Evaluates the workflow here. `Workflow.get()` hard-codes dask's
+                # threaded scheduler, which runs GPU (pyclesperanto) steps on a
+                # worker thread. pyclesperanto's OpenCL context isn't safe to use
+                # across threads: once a workflow has run its GPU steps off-thread,
+                # later pyclesperanto calls on the main thread silently return
+                # zeroed/wrong data. Run the same task graph with dask's
+                # synchronous scheduler instead, which never leaves this thread.
+                result = dask.get(workflow.data._tasks, get_workflow_output_name(workflow.data))
                 yield workflow.copy_with_data(as_tuple(result))
 
         return WorkflowSlices(
