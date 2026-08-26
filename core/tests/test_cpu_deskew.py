@@ -7,6 +7,7 @@ from lls_core.models.lattice_data import LatticeData
 from pydantic import ValidationError
 from xarray import DataArray
 import tempfile
+from tests.utils import requires_real_gpu
 
 
 def _feature_volume() -> np.ndarray:
@@ -32,6 +33,7 @@ def _deskew(raw: np.ndarray, engine: str, skew: DeskewDirection, tmpdir: str) ->
     return np.asarray(next(iter(lattice.process().slices)).data)
 
 
+@requires_real_gpu
 @pytest.mark.parametrize("skew", [DeskewDirection.Y, DeskewDirection.X])
 def test_cpu_engine_matches_gpu_engine(skew: DeskewDirection):
     raw = _feature_volume()
