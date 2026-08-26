@@ -17,7 +17,12 @@ affine_transform_deskew_3d(source, transform, deskewing_angle_in_degrees,
 from __future__ import annotations
 
 import numpy as np
-from pyclesperanto import create, execute, push
+# `import pyclesperanto as cle` and access `cle.create`/etc. at call time rather than
+# `from pyclesperanto import create, execute, push`: those names are only bound once a
+# GPU/OpenCL backend is available, so a `from`-import fails at module-import time in
+# backend-less environments (e.g. building the docs, which imports this module transitively
+# but never calls it).
+import pyclesperanto as cle
 
 from lls_core import DeskewDirection
 from lls_core.affine import AffineTransform3D, determine_translation_and_bounding_box
@@ -44,10 +49,10 @@ def affine_transform_deskew_3d(
     # mismatch - harmless on backends that silently reinterpret it, but on backends
     # without double-precision support (e.g. CI's pocl CPU backend) it silently
     # produces garbage/zeroed output instead of raising.
-    destination = create(new_size, dtype=np.float32)
+    destination = cle.create(new_size, dtype=np.float32)
     # Unlike the old backend, pyclesperanto.execute doesn't auto-push plain numpy
     # arrays passed in the parameters dict - push explicitly.
-    source = push(np.ascontiguousarray(np.asarray(source, dtype=np.float32)))
+    source = cle.push(np.ascontiguousarray(np.asarray(source, dtype=np.float32)))
 
     # we invert the transform because we go from the target image to the source image to read pixels
     # The kernel's `mat` buffer is read as float (see the .cl file); numpy's affine inverse is
@@ -59,7 +64,7 @@ def affine_transform_deskew_3d(
     sintheta = float(np.sin(deskewing_angle_in_degrees * np.pi / 180))
     costheta = float(np.cos(deskewing_angle_in_degrees * np.pi / 180))
 
-    gpu_transform_matrix = push(transform_matrix)
+    gpu_transform_matrix = cle.push(transform_matrix)
 
     if deskew_direction == DeskewDirection.Y:
         kernel_suffix = "deskew_y_"
@@ -78,7 +83,7 @@ def affine_transform_deskew_3d(
         "sintheta": sintheta,
     }
 
-    execute(
+    cle.execute(
         __file__,
         f"kernels/affine_transform_{kernel_suffix}{len(destination.shape)}d_x.cl",
         f"affine_transform_{kernel_suffix}{len(destination.shape)}d",
