@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=64", "setuptools-scm>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.black]
@@ -9,9 +9,16 @@ line-length = 79
 profile = "black"
 line_length = 79
 
+# This package sits in core/, below the git root, so setuptools-scm is pointed at
+# the repository root. Both distributions then derive versions from the same tags.
+[tool.setuptools_scm]
+root = ".."
+version_file = "lls_core/_version.py"
+fallback_version = "0.0.0"
+
 [project]
 name = "lls_core"
-version = "2.2.2"
+dynamic = ["version"]
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
