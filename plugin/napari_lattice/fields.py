@@ -822,7 +822,8 @@ class OutputFields(NapariFieldGroup):
     )
     save_type = field(SaveFileType).with_options(
         label = "Save Format",
-        tooltip="'tiff' is saved as a compressed OME-TIFF (.ome.tif).",
+        tooltip="'tiff' is saved as a compressed OME-TIFF (.ome.tif). "
+                "'imaris' is a multi-resolution Imaris-compatible file (.ims).",
     )
     save_path = field(Path).with_options(
         label = "Save Directory",
