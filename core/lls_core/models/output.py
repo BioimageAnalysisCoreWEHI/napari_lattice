@@ -1,9 +1,9 @@
-from pydantic.v1 import Field, DirectoryPath, validator
 from strenum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 from pandas import DataFrame
 from lls_core.models.utils import FieldAccessModel, enum_choices
+from pydantic import DirectoryPath, Field, ValidationInfo, field_validator
 
 if TYPE_CHECKING:
     pass
@@ -83,17 +83,19 @@ class OutputParams(FieldAccessModel):
                     "for a smoother MIP."
     )
 
-    @validator("save_dir", pre=True)
+    @field_validator("save_dir", mode="before")
+    @classmethod
     def validate_save_dir(cls, v: Path):
         if isinstance(v, Path) and not v.is_absolute():
             # This stops the empty path being considered a valid directory
             raise ValueError("The save directory must be an absolute path that exists")
         return v
 
-    @validator("save_name")
-    def add_save_suffix(cls, v: str, values: dict):
+    @field_validator("save_name")
+    @classmethod
+    def add_save_suffix(cls, v: str, info: ValidationInfo):
         # This is the only place that the save suffix is used.
-        return v + values["save_suffix"]
+        return v + info.data["save_suffix"]
 
     @property
     def file_extension(self):

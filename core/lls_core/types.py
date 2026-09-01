@@ -3,6 +3,7 @@ from typing_extensions import TypeGuard, Any, TypeAlias
 from dask.array.core import Array as DaskArray
 # from numpy.typing import NDArray
 from pyopencl.array import Array as OCLArray
+from pyclesperanto import Array as CleArray
 import numpy as np
 from numpy.typing import NDArray
 from xarray import DataArray
@@ -14,10 +15,13 @@ PathLike: TypeAlias = Union[str, bytes, OriginalPathLike]
 def is_pathlike(x: Any) -> TypeGuard[PathLike]:
     return isinstance(x, (str, bytes, OriginalPathLike))
 
-ArrayLike: TypeAlias = Union[DaskArray, NDArray, OCLArray, DataArray]
+# OCLArray (raw pyopencl) is kept for any code still producing plain pyopencl
+# buffers; CleArray is what pyclesperanto's own GPU calls (e.g. napari-workflows
+# steps using pyclesperanto functions) actually return.
+ArrayLike: TypeAlias = Union[DaskArray, NDArray, OCLArray, CleArray, DataArray]
 
 def is_arraylike(arr: Any) -> TypeGuard[ArrayLike]:
-    return isinstance(arr, (DaskArray, np.ndarray, OCLArray, DataArray))
+    return isinstance(arr, (DaskArray, np.ndarray, OCLArray, CleArray, DataArray))
 
 ImageLike: TypeAlias = Union[PathLike, BioImage, ArrayLike]
 def image_like_to_image(img: ImageLike) -> DataArray:
