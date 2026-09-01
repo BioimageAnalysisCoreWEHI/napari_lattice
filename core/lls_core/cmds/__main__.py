@@ -22,7 +22,8 @@ from typer.main import get_command
 import click
 
 from lls_core.models.output import SaveFileType, MipInterpolation
-from pydantic.v1 import ValidationError
+from pydantic import ValidationError
+from pydantic_core import PydanticUndefined
 from toolz.dicttoolz import merge_with
 
 if TYPE_CHECKING:
@@ -67,16 +68,20 @@ def field_from_model(model: Type[FieldAccessModel], field_name: str, extra_descr
     """
     Generates a type Field from a Pydantic model field
     """
-    field = model.__fields__[field_name]
+    field = model.model_fields[field_name]
 
     from enum import Enum
     if default is None:
         default = field.get_default()
+        if default is PydanticUndefined:
+            # A required field (no default at all). Pydantic v1's get_default()
+            # returned None for this case; v2 returns the PydanticUndefined instead.
+            default = None
     if isinstance(default, Enum):
         default = default.name
 
     if description is None:
-        description = f"{field.field_info.description} {extra_description}"
+        description = f"{field.description} {extra_description}"
 
     return Option(
         default = default,
@@ -272,7 +277,7 @@ def process(
     merged.setdefault("process_parallel", 0)
 
     try:
-        lattice = LatticeData.parse_obj(merged)
+        lattice = LatticeData.model_validate(merged)
     except ValidationError as e:
         console.print(rich_validation(e))
         raise Exit(code=1)

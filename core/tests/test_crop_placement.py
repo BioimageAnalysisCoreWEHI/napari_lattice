@@ -13,10 +13,11 @@ position is omitted because low/high are strictly more discriminating for the tr
 """
 import numpy as np
 import pytest
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core import DeskewDirection
+from tests.utils import requires_real_gpu
 
 
 def _raw_wide(skew):
@@ -33,6 +34,7 @@ def _raw_wide(skew):
     return r
 
 
+@requires_real_gpu
 @pytest.mark.parametrize("skew", ["Y", "X"])
 @pytest.mark.parametrize("angle", [30.0, 45.0])
 @pytest.mark.parametrize("pos", ["low", "high"])   # off-centre: where the trim bug is largest
@@ -41,7 +43,7 @@ def test_crop_placement_objective(skew, angle, pos):
     deskew = cle.deskew_y if skew == "Y" else cle.deskew_x
     raw = _raw_wide(skew)
     full = np.asarray(cle.pull(deskew(
-        raw, angle_in_degrees=angle, voxel_size_x=1, voxel_size_y=1, voxel_size_z=1)))
+        raw, angle=angle, voxel_size_x=1, voxel_size_y=1, voxel_size_z=1)))
 
     ax = 1 if skew == "Y" else 2          # sheared (wide) output axis
     other = 2 if skew == "Y" else 1

@@ -11,18 +11,20 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 
 from lls_core.mip import deskew_mip, deskew_mip_from_lattice
+from tests.utils import requires_real_gpu
 
 
 def _ground_truth_mip(raw, func, theta, dz, dy, dx):
     full = np.asarray(cle.pull(func(
-        raw, angle_in_degrees=theta, voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz
+        raw, angle=theta, voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz
     )))
     return full.max(axis=0)
 
 
+@requires_real_gpu
 @pytest.mark.parametrize("skew,func", [("Y", cle.deskew_y), ("X", cle.deskew_x)])
 def test_deskew_mip_matches_full_deskew(skew, func):
     theta, dz, dy, dx = 45.0, 2.0, 1.04, 1.04
@@ -85,6 +87,7 @@ def test_deskew_mip_no_striping_at_large_scan_scale(scan_scale_dz):
     assert (interior <= 50).sum() == 0  # no holes
 
 
+@requires_real_gpu
 def test_deskew_mip_linear_interpolation_matches_cle():
     theta, dz, dy, dx = 45.0, 2.0, 1.04, 1.04
     raw = np.zeros((24, 70, 80), dtype=np.float32)
@@ -116,6 +119,7 @@ def test_deskew_mip_no_holes_in_feature():
         assert (interior > 50).mean() > 0.95
 
 
+@requires_real_gpu
 def test_deskew_mip_from_lattice():
     import tempfile
     from xarray import DataArray
@@ -200,6 +204,7 @@ def test_save_mip_ignores_crop():
         assert img.shape == (yd, xd)  # whole-FOV, not the cropped ROI
 
 
+@requires_real_gpu
 @pytest.mark.parametrize("skew,func", [("Y", cle.deskew_y), ("X", cle.deskew_x)])
 def test_deskew_mip_target_shape_pins_grid_to_cle(skew, func):
     theta, dz, dy, dx = 45.0, 2.0, 1.04, 1.04
