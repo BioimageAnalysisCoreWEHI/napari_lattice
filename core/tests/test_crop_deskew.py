@@ -1,15 +1,17 @@
-import pyclesperanto_prototype as cle 
-import numpy as np 
+import pyclesperanto as cle
+import numpy as np
 
 from lls_core.llsz_core import crop_volume_deskew
+from tests.utils import requires_real_gpu
 
 
+@requires_real_gpu
 def test_crop_deskew():
     raw = np.zeros((5,5,5))
     raw[2,4,2] = 10
     deskew_angle = 60 
 
-    deskewed = cle.deskew_y(raw,angle_in_degrees=deskew_angle).astype(raw.dtype)
+    deskewed = cle.deskew_y(raw, angle=deskew_angle).astype(raw.dtype)
 
     #print(np.argwhere(deskewed>0))
 

@@ -30,7 +30,11 @@ jobs:
         python-version: ["3.10", "3.11", "3.12"]
 
     steps:
+      # Full history and tags, so setuptools-scm computes a real version on install
+      # instead of the fallback.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       # Miniforge + conda-forge only, matching the environment docs/installation.md
       # tells users to build. Miniconda's `defaults` channel resolves different
@@ -104,7 +108,11 @@ jobs:
       # and any import failure comes up as an unclear INTERNALERROR 
       PYTEST_QT_API: pyqt6
     steps:
+      # Full history and tags, so setuptools-scm computes a real version on install
+      # instead of the fallback.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       # Miniforge + conda-forge only, matching the environment docs/installation.md
       # tells users to build. Miniconda's `defaults` channel resolves different
@@ -200,7 +208,11 @@ jobs:
       id-token: write
       contents: write
     steps:
+      # Release builds must see the full tag history, otherwise setuptools-scm
+      # stamps the published artifacts with the fallback version, not the tag.
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
       - name: Set up Python
         uses: actions/setup-python@v7
         with:

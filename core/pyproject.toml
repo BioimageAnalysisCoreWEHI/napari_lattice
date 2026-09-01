@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=64", "setuptools-scm>=8", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.black]
@@ -9,9 +9,16 @@ line-length = 79
 profile = "black"
 line_length = 79
 
+# This package sits in core/, below the git root, so setuptools-scm is pointed at
+# the repository root. Both distributions then derive versions from the same tags.
+[tool.setuptools_scm]
+root = ".."
+version_file = "lls_core/_version.py"
+fallback_version = "0.0.0"
+
 [project]
 name = "lls_core"
-version = "2.2.2"
+dynamic = ["version"]
 authors = [
     {name = "Pradeep Rajasekhar"},
     {name = "Lachlan Whitehead"},
@@ -53,14 +60,14 @@ dependencies = [
     "numpy<2",
     "packaging",
     "pandas",
-    "pyclesperanto_prototype>=0.20.0",
+    "pyclesperanto",
+    "transforms3d",
     # Imported directly in lls_core.czi_reader for fast CZI reads. Same library
     # bioio-czi uses by default, so output matches bioio (also pulled in by it).
     "pylibczirw",
     "pyopencl",
-    # This is the first pydantic version that supports the "compatibility mode"
-    # https://docs.pydantic.dev/latest/migration/#using-pydantic-v1-features-in-a-v1v2-environment
-    "pydantic>=1.10.17,<3",
+    "pydantic>=2,<3",
+    "pydantic-core",
     "pyyaml",
     "psutil",
     "ome-types<0.6.0",  #pydantic v1 support removed from 0.6 onwards
@@ -117,6 +124,11 @@ deploy = [
 
 [project.scripts]
 lls-pipeline = "lls_core.cmds.__main__:main"
+
+[tool.pytest.ini_options]
+markers = [
+    "gpu_state_risk: known to leave pyclesperanto's GPU state corrupted for later tests in the same process (see conftest.py); ordered to run last so it can't poison other tests' results",
+]
 
 [tool.mypy]
 plugins = [

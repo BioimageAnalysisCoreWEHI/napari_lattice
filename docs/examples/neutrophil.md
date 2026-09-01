@@ -24,7 +24,7 @@ For each ROI (one per cell), napari-lattice runs:
 1. **Deskew** the cropped LLS volume.
 2. **Segment** the nuclei with a trained [ilastik](https://www.ilastik.org/) pixel
    classifier, threshold the probability map, and post-process (connected components, size
-   filtering, hole filling) with `pyclesperanto_prototype`.
+   filtering, hole filling) with `pyclesperanto`.
 3. **Measure** morphology and intensity per timepoint with scikit-image `regionprops`.
 
 The segmentation + measurement step is packaged as a

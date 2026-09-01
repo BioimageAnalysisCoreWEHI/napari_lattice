@@ -24,8 +24,8 @@ from lls_core.models.lattice_data import LatticeData
 
 # GPU detection for the deconvolution end-to-end test (mirrors test_deconvolution.py).
 try:
-    import pyclesperanto_prototype as _cle
-    _gpu_devices = _cle.available_device_names(dev_type="gpu")
+    import pyclesperanto as _cle
+    _gpu_devices = _cle.available_device_names(device_type="gpu")
 except Exception:
     _gpu_devices = []
 try:
@@ -439,7 +439,7 @@ def test_lazy_input_without_a_path_is_never_materialized(rbc_tiny, monkeypatch):
 
     with tempfile.TemporaryDirectory() as tmpdir:
         lattice = LatticeData(**_dask_no_path_kwargs(rbc_tiny), save_name="v",
-                              save_dir=tmpdir, save_type="tiff", process_parallel=2)
+                                save_dir=tmpdir, save_type="tiff", process_parallel=2)
         assert lattice.input_image_path is None
         assert lattice._use_parallel_roi_processing() is False
         lattice.save()
@@ -450,7 +450,7 @@ def test_reload_check_accepts_the_source_file(rbc_tiny):
     """The ordinary case: workers re-opening the file do get the parent's array."""
     with tempfile.TemporaryDirectory() as tmpdir:
         lattice = LatticeData(**_file_path_kwargs(rbc_tiny), save_name="v",
-                              save_dir=tmpdir, save_type="tiff", process_parallel=2)
+                                save_dir=tmpdir, save_type="tiff", process_parallel=2)
         assert lattice._reload_reproduces_input() is True
         assert lattice._use_parallel_roi_processing() is True
 
@@ -549,7 +549,7 @@ def test_parallel_decon_matches_serial(rbc_tiny):
         )
 
     with as_file(resources / "psfs/zeiss_simulated/488.tif") as psf, \
-         tempfile.TemporaryDirectory() as ser_dir, tempfile.TemporaryDirectory() as par_dir:
+        tempfile.TemporaryDirectory() as ser_dir, tempfile.TemporaryDirectory() as par_dir:
         build(psf, ser_dir, 1).save()
         build(psf, par_dir, 2).save()
         _assert_same_output_images(ser_dir, par_dir)
@@ -592,13 +592,13 @@ def test_cli_defaults_process_parallel_to_auto():
 
     captured: dict = {}
 
-    def fake_parse_obj(d):
+    def fake_model_validate(d):
         captured.update(d)
         raise SystemExit(0)
 
     runner = CliRunner()
-    original = m.LatticeData.parse_obj
-    m.LatticeData.parse_obj = staticmethod(fake_parse_obj)  # type: ignore[assignment]
+    original = m.LatticeData.model_validate
+    m.LatticeData.model_validate = staticmethod(fake_model_validate)  # type: ignore[assignment]
     try:
         runner.invoke(
             m.app,
@@ -606,7 +606,7 @@ def test_cli_defaults_process_parallel_to_auto():
             catch_exceptions=False,
         )
     finally:
-        m.LatticeData.parse_obj = original  # type: ignore[assignment]
+        m.LatticeData.model_validate = original  # type: ignore[assignment]
     assert captured.get("process_parallel") == 0
 
 
@@ -617,13 +617,13 @@ def test_cli_explicit_process_parallel_respected():
 
     captured: dict = {}
 
-    def fake_parse_obj(d):
+    def fake_model_validate(d):
         captured.update(d)
         raise SystemExit(0)
 
     runner = CliRunner()
-    original = m.LatticeData.parse_obj
-    m.LatticeData.parse_obj = staticmethod(fake_parse_obj)  # type: ignore[assignment]
+    original = m.LatticeData.model_validate
+    m.LatticeData.model_validate = staticmethod(fake_model_validate)  # type: ignore[assignment]
     try:
         runner.invoke(
             m.app,
@@ -631,7 +631,7 @@ def test_cli_explicit_process_parallel_respected():
             catch_exceptions=False,
         )
     finally:
-        m.LatticeData.parse_obj = original  # type: ignore[assignment]
+        m.LatticeData.model_validate = original  # type: ignore[assignment]
     assert captured.get("process_parallel") == 3
 
 
@@ -651,13 +651,13 @@ def test_cli_roi_subset_accepts_commas_and_repeated(cli_args):
 
     captured: dict = {}
 
-    def fake_parse_obj(d):
+    def fake_model_validate(d):
         captured.update(d)
         raise SystemExit(0)
 
     runner = CliRunner()
-    original = m.LatticeData.parse_obj
-    m.LatticeData.parse_obj = staticmethod(fake_parse_obj)  # type: ignore[assignment]
+    original = m.LatticeData.model_validate
+    m.LatticeData.model_validate = staticmethod(fake_model_validate)  # type: ignore[assignment]
     try:
         result = runner.invoke(
             m.app,
@@ -665,7 +665,7 @@ def test_cli_roi_subset_accepts_commas_and_repeated(cli_args):
             catch_exceptions=False,
         )
     finally:
-        m.LatticeData.parse_obj = original  # type: ignore[assignment]
+        m.LatticeData.model_validate = original  # type: ignore[assignment]
     assert result.exit_code == 0
     assert captured["crop"]["roi_subset"] == [0, 1, 2]
 
@@ -701,7 +701,7 @@ def test_cli_estimate_subcommand_routes_to_estimate(monkeypatch):
     import lls_core.cmds.__main__ as m
     from lls_core import estimate as est_mod
 
-    monkeypatch.setattr(m.LatticeData, "parse_obj", staticmethod(lambda d: _FakeLattice()))
+    monkeypatch.setattr(m.LatticeData, "model_validate", staticmethod(lambda d: _FakeLattice()))
     saved = {"called": False}
     monkeypatch.setattr(_FakeLattice, "save", lambda self: saved.__setitem__("called", True), raising=False)
 
@@ -731,10 +731,10 @@ def test_cli_default_subcommand_is_process_option_first(monkeypatch):
     import lls_core.cmds.__main__ as m
 
     captured: dict = {}
-    def fake_parse_obj(d):
+    def fake_model_validate(d):
         captured.update(d)
         raise SystemExit(0)
-    monkeypatch.setattr(m.LatticeData, "parse_obj", staticmethod(fake_parse_obj))
+    monkeypatch.setattr(m.LatticeData, "model_validate", staticmethod(fake_model_validate))
 
     result = CliRunner().invoke(
         m.click_app,

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from typing import Iterable, Optional, Tuple, Union, cast, TYPE_CHECKING, overload
 from typing_extensions import Generic, TypeVar, TypeAlias
-from pydantic.v1 import BaseModel, NonNegativeInt, Field
+from pydantic import BaseModel, NonNegativeInt, Field
 from lls_core.types import ArrayLike, is_arraylike
 from lls_core.utils import make_filename_suffix
 from lls_core.writers import Writer
@@ -37,7 +37,7 @@ class ProcessedSlice(BaseModel, Generic[T], arbitrary_types_allowed=True):
         from typing_extensions import cast
         return cast(
             ProcessedSlice[S],
-            self.copy(update={
+            self.model_copy(update={
                 "data": data
             })
         )
@@ -119,7 +119,7 @@ class ProcessedWorkflowOutput(BaseModel, arbitrary_types_allowed=True):
         """
         Puts this artifact on disk by saving any `DataFrame` to CSV, and returning the path to the image or CSV
         """
-        from pandas import Series
+        import pandas as pd
 
         if isinstance(self.data, DataFrame):
             path: Path = self.lattice_data.make_filepath_df(
@@ -129,7 +129,17 @@ class ProcessedWorkflowOutput(BaseModel, arbitrary_types_allowed=True):
                 ),
                 self.data
             )
-            result = self.data.apply(Series.explode)
+            # Explode each column independently (columns may hold list-valued cells of
+            # different lengths, e.g. from a workflow returning ragged lists), then
+            # reset each to a fresh index before recombining. `self.data`'s own row
+            # index isn't meaningful here (e.g. it can already contain repeated labels
+            # when results from multiple ROIs are combined upstream), and reusing it
+            # to realign the per-column explode results raises "cannot reindex on an
+            # axis with duplicate labels" on pandas versions that no longer tolerate it.
+            result = pd.concat(
+                {col: self.data[col].explode().reset_index(drop=True) for col in self.data.columns},
+                axis=1,
+            )
             result.to_csv(str(path))
             return path
         else:
@@ -153,7 +163,7 @@ class WorkflowSlices(ProcessedSlices[MaybeTupleRawWorkflowOutput]):
         """
         import pandas as pd
         from lls_core.models.lattice_data import LatticeData
-        ProcessedWorkflowOutput.update_forward_refs(LatticeData=LatticeData)
+        ProcessedWorkflowOutput.model_rebuild(force=True, _types_namespace={"LatticeData": LatticeData})
 
         # Handle each ROI separately
         for roi, roi_results in groupby(self.slices, key=lambda it: it.roi_index):
