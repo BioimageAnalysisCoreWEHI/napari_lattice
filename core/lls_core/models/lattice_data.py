@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from lls_core.types import ArrayLike
     from lls_core.models.results import WorkflowSlices
     from lls_core.estimate import MemoryEstimate
+    from pydantic.v1.fields import ModelField
 
 import logging
 
@@ -72,6 +73,32 @@ def _materialized_image(image: Any) -> Any:
     if _is_lazy(image):
         return image.copy(data=image.data.compute())
     return image
+
+
+def parse_two_item_range(v: Any, default_start: int, default_end: int, field_name: str) -> range:
+    """
+    Converts user-provided start/end input into a `range`, delegating the
+    actual int coercion and shape checking to pydantic.
+
+    Accepts a 2-item list/tuple (e.g. from YAML: `[150, 210]`), or a string
+    containing two numbers separated by a comma, space or hyphen (e.g. "150,210",
+    "150 210", "150-210"). Either endpoint may be `None` (or omitted from a
+    string) to fall back to `default_start`/`default_end`.
+    """
+    from pydantic.v1 import parse_obj_as, ValidationError
+    import re
+
+    if isinstance(v, str):
+        v = [piece for piece in re.split(r"[,\s-]+", v.strip()) if piece]
+
+    try:
+        start, end = parse_obj_as(Tuple[Optional[int], Optional[int]], v)
+    except ValidationError as e:
+        raise ValueError(
+            f"{field_name} must be a two-item list of [start, end], e.g. [150, 210], but got {v!r}"
+        ) from e
+
+    return range(default_start if start is None else start, default_end if end is None else end)
 
 
 def _run_chunk_isolated(lattice: "LatticeData", roi_indices: list) -> None:
@@ -294,41 +321,22 @@ class LatticeData(OutputParams, DeskewParams):
 
         return v
 
-    @validator("time_range", pre=True, always=True)
-    def parse_time_range(cls, v: Any, values: dict) -> Any:
+    @validator("time_range", "channel_range", pre=True, always=True)
+    def parse_ranges(cls, v: Any, values: dict, field: "ModelField") -> Any:
         """
-        Sets the default time range if undefined
+        Sets the default time/channel range if undefined, and parses flexible
+        user input (a 2-item list, or a delimited string) into a `range`.
         """
         from lls_core.models.utils import ignore_keyerror
-        # This skips the conversion if no image was provided, to ensure a more 
+        axis = "T" if field.name == "time_range" else "C"
+        # This skips the conversion if no image was provided, to ensure a more
         # user-friendly error is provided, namely "image was missing"
-        from collections.abc import Sequence
         with ignore_keyerror():
-            default_start = 0
-            default_end = values["input_image"].sizes["T"]
+            default_end = values["input_image"].sizes[axis]
             if v is None:
-                return range(default_start, default_end)
-            elif not isinstance(v, range) and isinstance(v, Sequence) and len(v) == 2:
-                # Allow 2-tuples to be used as input for this field
-                return range(v[0] or default_start, v[1] or default_end)
-        return v
-
-    @validator("channel_range", pre=True, always=True)
-    def parse_channel_range(cls, v: Any, values: dict) -> Any:
-        """
-        Sets the default channel range if undefined
-        """
-        from lls_core.models.utils import ignore_keyerror
-        from collections.abc import Sequence
-
-        with ignore_keyerror():
-            default_start = 0
-            default_end = values["input_image"].sizes["C"]
-            if v is None:
-                return range(default_start, default_end)
-            elif not isinstance(v, range) and isinstance(v, Sequence) and len(v) == 2:
-                # Allow 2-tuples to be used as input for this field
-                return range(v[0] or default_start, v[1] or default_end)
+                return range(0, default_end)
+            if not isinstance(v, range):
+                return parse_two_item_range(v, default_start=0, default_end=default_end, field_name=field.name)
         return v
 
     @validator("time_range")
