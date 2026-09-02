@@ -3,6 +3,22 @@ from pydantic.v1 import Field, NonNegativeInt, root_validator, validator
 from lls_core.models.utils import FieldAccessModel
 from lls_core.cropping import Roi, RoiUnits
 
+
+def parse_roi_index(item: Any) -> int:
+    """
+    Converts a single ROI index (int, or str/float representation of one) to `int`.
+    Rejects fractional values (e.g. `1.5`) instead of silently truncating them,
+    since a non-whole ROI index almost certainly indicates a mistake.
+    """
+    try:
+        value = float(item)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"ROI index must be a number, but got {item!r}") from e
+    if not value.is_integer():
+        raise ValueError(f"ROI index must be a whole number, but got {item!r}")
+    return int(value)
+
+
 class CropParams(FieldAccessModel):
     """
     Parameters for the optional cropping step.
@@ -95,22 +111,22 @@ class CropParams(FieldAccessModel):
 
     @validator("roi_subset", pre=True)
     def parse_roi_subset(cls, v: Any):
-        # Accept comma-separated string ("2,5,7"), or a list with comma-separated
-        # strings (CLI). Convert everything to int type indices
-        # Bad input raises Value Error
+        # Accept a comma/space-separated string ("2,5,7" or "2 5 7"), a single
+        # index (e.g. from `roi_subset: 0` in YAML), or a list of ints/strings
+        # (CLI). Convert everything to int type indices. Bad input raises ValueError
+        import re
         if v is None:
             return v
-        if isinstance(v, str):
+        if isinstance(v, str) or not isinstance(v, Iterable):
             v = [v]
         result: List[int] = []
         for item in v:
             if isinstance(item, str):
-                for piece in item.split(","):
-                    piece = piece.strip()
+                for piece in re.split(r"[,\s]+", item.strip()):
                     if piece:
-                        result.append(int(piece))
+                        result.append(parse_roi_index(piece))
             else:
-                result.append(int(item))
+                result.append(parse_roi_index(item))
         return result
     
     @validator("roi_subset", pre=True, always=True)
