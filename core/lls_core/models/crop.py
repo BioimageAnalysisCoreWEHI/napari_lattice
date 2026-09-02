@@ -10,7 +10,10 @@ def parse_roi_index(item: Any) -> int:
     Rejects fractional values (e.g. `1.5`) instead of silently truncating them,
     since a non-whole ROI index almost certainly indicates a mistake.
     """
-    value = float(item)
+    try:
+        value = float(item)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"ROI index must be a number, but got {item!r}") from e
     if not value.is_integer():
         raise ValueError(f"ROI index must be a whole number, but got {item!r}")
     return int(value)
