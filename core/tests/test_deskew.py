@@ -217,14 +217,22 @@ def test_invert_scan_direction_crop_workflow_path():
 
 
 @pytest.mark.parametrize("skew", [DeskewDirection.Y, DeskewDirection.X])
-@pytest.mark.parametrize("coverslip_rotation", [True, False])
+@pytest.mark.parametrize("coverslip_rotation", [
+    pytest.param(True, marks=requires_real_gpu),
+    False,
+])
 def test_deskew_produces_interpolated_data(skew, coverslip_rotation):
     """
     Guard against a backend silently returning zeros or a constant instead of
-    interpolated data. THis is to catch issues where deskewing using CPU-only 
-    OpenCL (pocl/oclgrind). Not marked as `requires_real_gpu` because we want to 
-    catch errors with CPU-only OpenCL backends. 
-    Most tests are comparing geometrys or two outputs against each other, but 
+    interpolated data. THis is to catch issues where deskewing using CPU-only
+    OpenCL (pocl/oclgrind). The coverslip_rotation=False (shear-only) case is not
+    marked `requires_real_gpu` because it goes through our own vendored kernel,
+    which is not affected by the cle.deskew_y/deskew_x pocl bug documented in
+    `_has_real_gpu` - so it's still exercised on CPU-only backends. The
+    coverslip_rotation=True case calls cle.deskew_y/deskew_x directly and hits
+    that same bug, so it is skipped there like every other test using them as a
+    ground-truth reference.
+    Most tests are comparing geometrys or two outputs against each other, but
     this will ensure outputs are not all zeroes or a constant value
 
     We use a large image block instead of lone voxel to avoid cases where deskewing with 
