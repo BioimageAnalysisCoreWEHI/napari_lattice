@@ -139,9 +139,8 @@ def rich_validation(e: ValidationError) -> Table:
     table.add_column("Error")
 
     for error in e.errors():
-        loc = error["loc"]
         table.add_row(
-            str(loc[0]) if loc else "(all fields)",
+            str(error["loc"][0]),
             str(error["msg"]),
         )
 
