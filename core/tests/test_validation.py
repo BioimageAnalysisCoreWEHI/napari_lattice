@@ -4,7 +4,7 @@ from lls_core.models.lattice_data import LatticeData
 from lls_core.models.deskew import DeskewParams
 from lls_core.models.output import OutputParams
 import pytest
-from pydantic import ValidationError
+from pydantic.v1 import ValidationError
 import tempfile
 from unittest.mock import patch, PropertyMock
 
