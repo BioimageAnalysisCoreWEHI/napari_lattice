@@ -5,10 +5,10 @@ _tasks:
   - median
   - channel_index
   label: !!python/tuple
-  - !!python/name:pyclesperanto.connected_component_labeling ''
+  - !!python/name:pyclesperanto.connected_components_labeling_box ''
   - binarise_multich
   median: !!python/tuple
-  - !!python/name:pyclesperanto.median ''
+  - !!python/name:pyclesperanto.median_sphere ''
   - deskewed_image
   - null
   - 1
