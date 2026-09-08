@@ -21,9 +21,9 @@ def _has_real_gpu() -> bool:
     Tests that use cle.deskew_y/deskew_x as a ground-truth reference can't be
     meaningfully evaluated on such a backend.
     """
-    import pyclesperanto as cle
+    import pyclesperanto_prototype as cle
     try:
-        return bool(cle.list_available_devices(device_type="gpu"))
+        return bool(cle.available_device_names(dev_type="gpu"))
     except Exception:
         return False
 
