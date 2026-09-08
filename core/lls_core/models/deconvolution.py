@@ -1,6 +1,8 @@
 
 from pathlib import Path
 
+from pydantic.v1 import Field, NonNegativeInt, root_validator, validator
+
 from typing_extensions import Any, List, Literal, Union
 
 from xarray import DataArray
@@ -8,7 +10,7 @@ from xarray import DataArray
 from lls_core.models.utils import enum_choices, FieldAccessModel
 from lls_core.deconvolution import DeconvolutionChoice
 from lls_core.types import image_like_to_image
-from pydantic import Field, NonNegativeInt, field_validator, model_validator
+from pydantic import Field, NonNegativeInt, field_validator
 
 Background = Union[float, Literal["auto", "second_last"]]
 class DeconvolutionParams(FieldAccessModel):
@@ -40,8 +42,9 @@ class DeconvolutionParams(FieldAccessModel):
         description='Background value to subtract for deconvolution. Only used when `decon_processing` is set to `GPU`. This can either be a literal number, "auto" which uses the median of the last slice, or "second_last" which uses the median of the last slice.'
     )
 
-    @model_validator(mode="before")
+    @field_validator("decon_processing", mode="before")
     @classmethod
+    @root_validator(pre=True)
     def capture_psf_paths(cls, values: dict) -> dict:
         "Record the PSF paths before `convert_image` replaces them with arrays."
         from lls_core.types import is_pathlike
@@ -56,8 +59,7 @@ class DeconvolutionParams(FieldAccessModel):
             values["psf_paths"] = paths
         return values
 
-    @field_validator("decon_processing", mode="before")
-    @classmethod
+    @validator("decon_processing", pre=True)
     def convert_decon(cls, v: Any):
         if isinstance(v, str):
             return DeconvolutionChoice[v]
