@@ -615,7 +615,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices without cropping
         """
-        import pyclesperanto as cle
+        import pyclesperanto_prototype as cle
 
         for slice in self.iter_slices():
             data: ArrayLike = slice.data
@@ -646,9 +646,10 @@ class LatticeData(OutputParams, DeskewParams):
             # The deskewed buffer and the pull back to the host are where an oversized
             # volume actually fails, with an OpenCL error that names no dimensions.
             with memory_errors_explained(self, "Deskewing this image"):
-                deskewed = self._restore_input_dtype(cle.pull(self.deskew_func(
+                deskewed = self._restore_input_dtype(cle.pull_zyx(self.deskew_func(
                     input_image=data,
-                    angle=self.angle,
+                    angle_in_degrees=self.angle,
+                    linear_interpolation=True,
                     voxel_size_x=self.dx,
                     voxel_size_y=self.dy,
                     voxel_size_z=self.dz

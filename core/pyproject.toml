@@ -53,8 +53,7 @@ dependencies = [
     "numpy<2",
     "packaging",
     "pandas",
-    "pyclesperanto",
-    "transforms3d",
+    "pyclesperanto_prototype>=0.20.0",
     # Imported directly in lls_core.czi_reader for fast CZI reads. Same library
     # bioio-czi uses by default, so output matches bioio (also pulled in by it).
     "pylibczirw",

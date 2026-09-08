@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import numpy as np
-import pyclesperanto as cle
+import pyclesperanto_prototype as cle
 from dask.array.core import Array as DaskArray
 import dask.array as da
 from resource_backed_dask_array import ResourceBackedDaskArray
 from typing import Any, NamedTuple, Optional, Union, TYPE_CHECKING, overload, Literal, Tuple
 from typing_extensions import Unpack, TypedDict, Required
-from lls_core.affine import AffineTransform3D, determine_translation_and_bounding_box
-from lls_core.affine_transform_deskew import affine_transform_deskew_3d
-from numpy.typing import NDArray 
+from pyclesperanto_prototype._tier8._affine_transform_deskew_3d import (
+    affine_transform_deskew_3d,
+)
+from numpy.typing import NDArray
+
 from lls_core.utils import calculate_crop_bbox, ShapeOnly
 from lls_core import config, DeskewDirection
 from lls_core.types import ArrayLike
@@ -29,7 +31,7 @@ Psf = Union[
         NDArray,
         DaskArray,
         ResourceBackedDaskArray,
-        cle.Array,
+        cle._tier0._pycl.OCLArray,
 ]
 
 class ObjectiveCropGeometry(NamedTuple):
@@ -227,7 +229,7 @@ def crop_volume_deskew(
 ):
     """Crop the volume from original data and deskew the cropped volume
     Args:
-        original_volume (Union[da.core.Array,np.ndarray,cle.Array,resource_backed_dask_array.ResourceBackedDaskArray]): Volume to deskew (zyx)
+        original_volume (Union[da.core.Array,np.ndarray,cle._tier0._pycl.OCLArray,resource_backed_dask_array.ResourceBackedDaskArray]): Volume to deskew (zyx)
         deskewed_volume:DEPRECATED
         roi_shape (Union[shapes.Shapes,list,np.array]): shapes layer or rois
         angle_in_degrees (float, optional): deskewing angle in degrees. Defaults to 30.
@@ -600,7 +602,7 @@ def get_inverse_affine_transform(
         skew_dir: Direction of skew
 
     Returns:
-        Inverse Affine transform (AffineTransform3D), int: Excess z slices, Deskew transform (AffineTransform3D)
+        Inverse Affine transform (cle.AffineTransform3D), int: Excess z slices, Deskew transform (cle.AffineTransform3D)
     """
     # calculate the deskew transform for specified volume
     if skew_dir == DeskewDirection.Y:
@@ -617,7 +619,7 @@ def get_inverse_affine_transform(
         deskewed_shape,
         new_deskew_transform,
         _,
-    ) = determine_translation_and_bounding_box(
+    ) = cle._tier8._affine_transform._determine_translation_and_bounding_box(
         original_volume, deskew_transform
     )
 
@@ -668,11 +670,11 @@ def _deskew_y_vol_transform(
         scale_factor (float, optional): [description]. Defaults to 1.
 
     Returns:
-        AffineTransform3D
+        cle.AffineTransform3D
     """
     import math
 
-    transform = AffineTransform3D()
+    transform = cle.AffineTransform3D()
 
     # shear factor for deskewing
     shear_factor = math.sin((90 - angle_in_degrees) * math.pi / 180.0) * (
@@ -717,11 +719,11 @@ def _deskew_x_vol_transform(
         scale_factor (float, optional): [description]. Defaults to 1.
 
     Returns:
-        AffineTransform3D
+        cle.AffineTransform3D
     """
     import math
 
-    transform = AffineTransform3D()
+    transform = cle.AffineTransform3D()
 
     # shear factor for deskewing
     shear_factor = math.sin((90 - angle_in_degrees) * math.pi / 180.0) * (
