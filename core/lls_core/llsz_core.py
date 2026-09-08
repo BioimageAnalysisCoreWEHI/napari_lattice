@@ -8,7 +8,6 @@ from resource_backed_dask_array import ResourceBackedDaskArray
 from typing import Any, NamedTuple, Optional, Union, TYPE_CHECKING, overload, Literal, Tuple
 from typing_extensions import Unpack, TypedDict, Required
 from lls_core.affine import AffineTransform3D, determine_translation_and_bounding_box
-from lls_core.affine_transform_deskew import affine_transform_deskew_3d
 from numpy.typing import NDArray 
 from lls_core.utils import calculate_crop_bbox, ShapeOnly
 from lls_core import config, DeskewDirection
@@ -196,30 +195,25 @@ class CommonArgs(TypedDict, total=False):
     skew_dir: DeskewDirection
     coverslip_rotation: bool
 
-# Disabled: the library deskew matches `geometry.deskew_transform` on real GPUs, but
-# CLIc copies inputs to images, causing incorrect sampling on CPU-only OpenCL backends.
-# Keep the vendored buffer-based kernel until that upstream issue is fixed.
-# https://github.com/clEsperanto/pyclesperanto/issues/422
-#
-# def deskew_crop_volume(
-#     vol,
-#     angle_in_degrees: float,
-#     voxel_size_x: float,
-#     voxel_size_y: float,
-#     voxel_size_z: float,
-#     skew_dir: DeskewDirection = DeskewDirection.Y,
-# ):
-#     """Deskew an already-cropped raw sub-block, in the objective frame."""
-#     deskew = cle.deskew_y if skew_dir == DeskewDirection.Y else cle.deskew_x
-#     # ascontiguousarray also materialises a dask crop, which cle won't do for us the
-#     # way an explicit cle.push did.
-#     return deskew(
-#         np.ascontiguousarray(vol),
-#         angle=angle_in_degrees,
-#         voxel_size_x=voxel_size_x,
-#         voxel_size_y=voxel_size_y,
-#         voxel_size_z=voxel_size_z,
-#     )
+def deskew_crop_volume(
+    vol,
+    angle_in_degrees: float,
+    voxel_size_x: float,
+    voxel_size_y: float,
+    voxel_size_z: float,
+    skew_dir: DeskewDirection = DeskewDirection.Y,
+):
+    """Deskew an already-cropped raw sub-block, in the objective frame."""
+    deskew = cle.deskew_y if skew_dir == DeskewDirection.Y else cle.deskew_x
+    # ascontiguousarray also materialises a dask crop, which cle won't do for us the
+    # way an explicit cle.push did.
+    return deskew(
+        np.ascontiguousarray(vol),
+        angle=angle_in_degrees,
+        voxel_size_x=voxel_size_x,
+        voxel_size_y=voxel_size_y,
+        voxel_size_z=voxel_size_z,
+    )
 
 
 @overload
@@ -332,7 +326,6 @@ def crop_volume_deskew(
     x_start, x_end = geometry.raw_x
     y_start, y_end = geometry.raw_y
     z_start_vol, z_end_vol = geometry.raw_z
-    deskew_transform = geometry.deskew_transform
 
     # Guard against a degenerate (zero- or one-voxel-wide) crop: if the projected
     # ROI bounding box falls entirely outside the raw volume along an axis,
@@ -397,34 +390,31 @@ def crop_volume_deskew(
                 boundary="nearest",
             )
 
-        deskewed_prelim = affine_transform_deskew_3d(
+        deskewed_prelim = deskew_crop_volume(
             crop_volume_processed,
-            transform=deskew_transform,
-            deskewing_angle_in_degrees=angle_in_degrees,
+            angle_in_degrees=angle_in_degrees,
             voxel_size_x=voxel_size_x,
             voxel_size_y=voxel_size_y,
             voxel_size_z=voxel_size_z,
-            deskew_direction=skew_dir,
+            skew_dir=skew_dir,
         )
         if get_deskew_and_decon:
-            deskewed_no_decon = affine_transform_deskew_3d(
+            deskewed_no_decon = deskew_crop_volume(
                 crop_volume,
-                transform=deskew_transform,
-                deskewing_angle_in_degrees=angle_in_degrees,
+                angle_in_degrees=angle_in_degrees,
                 voxel_size_x=voxel_size_x,
                 voxel_size_y=voxel_size_y,
                 voxel_size_z=voxel_size_z,
-                deskew_direction=skew_dir,
+                skew_dir=skew_dir,
             )
     else:
-        deskewed_prelim = affine_transform_deskew_3d(
+        deskewed_prelim = deskew_crop_volume(
             crop_volume,
-            transform=deskew_transform,
-            deskewing_angle_in_degrees=angle_in_degrees,
+            angle_in_degrees=angle_in_degrees,
             voxel_size_x=voxel_size_x,
             voxel_size_y=voxel_size_y,
             voxel_size_z=voxel_size_z,
-            deskew_direction=skew_dir,
+            skew_dir=skew_dir,
         )
 
     # Only the skew axis is trimmed to the ROI; see `ObjectiveCropGeometry`.
