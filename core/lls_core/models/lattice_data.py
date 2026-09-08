@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 from typing import Tuple, cast
+from pydantic.v1 import Field, root_validator, validator
 from dask.array.core import Array as DaskArray
 
 from typing_extensions import Any, Iterable, Optional, TYPE_CHECKING, Type
@@ -12,7 +13,6 @@ from lls_core.models.deconvolution import DeconvolutionParams
 from lls_core.models.deskew import DeskewParams
 from lls_core.models.output import OutputParams, SaveFileType
 from napari_workflows import Workflow
-from pydantic import Field, ValidationInfo, field_validator, model_validator
 
 if TYPE_CHECKING:
     from lls_core.models.results import ImageSlice, ImageSlices, ProcessedSlice
@@ -51,8 +51,8 @@ def _run_roi_chunk(lattice: "LatticeData", roi_indices: list) -> None:
                 "Parallel ROI worker received no input image and no path to re-open it from"
             )
         image = load_image_lazy(lattice.input_image_path)
-    sub_crop = lattice.crop.model_copy(update={"roi_subset": list(roi_indices)})
-    sub_lattice = lattice.model_copy(update={"crop": sub_crop, "process_parallel": 1, "input_image": image})
+    sub_crop = lattice.crop.copy(update={"roi_subset": list(roi_indices)})
+    sub_lattice = lattice.copy(update={"crop": sub_crop, "process_parallel": 1, "input_image": image})
     sub_lattice.save()
 
 
@@ -131,26 +131,7 @@ class LatticeData(OutputParams, DeskewParams):
         description = "If true, show progress bars"
     )
 
-    # Redeclared from OutputParams with validate_default=True added. Under pydantic v1,
-    # the parse_time_range/parse_channel_range validators below used always=True.
-    # Pydantic v2 has no per-validator equivalent, only a field-scoped one, so
-    # redeclaring the fields here keeps that forced validation scoped to LatticeData,
-    # matching the old v1 behaviour.
-    time_range: range = Field(
-        default=None,
-        description="The range of times to process. This defaults to all time points in the image array.",
-        cli_description="The range of times to process, as an array with two items: the first and last time index. This defaults to all time points in the image array.",
-        validate_default=True
-    )
-    channel_range: range = Field(
-        default=None,
-        description="The range of channels to process. This defaults to all time points in the image array.",
-        cli_description="The range of channels to process, as an array with two items: the first and last channel index. This defaults to all channels in the image array.",
-        validate_default=True
-    )
-
-    @model_validator(mode="before")
-    @classmethod
+    @root_validator(pre=True)
     def read_image(cls, values: dict):
         from lls_core.types import is_pathlike
         input_image = values.get("input_image")
@@ -176,8 +157,7 @@ class LatticeData(OutputParams, DeskewParams):
         # Use the Deskew version of this validator, to do the actual image loading
         return super().read_image(values)
 
-    @field_validator("input_image")
-    @classmethod
+    @validator("input_image", pre=True, always=True)
     def incomplete_final_frame(cls, v: DataArray) -> Any:
         """
         Check final frame, if acquisition is stopped halfway through it causes failures
@@ -191,8 +171,8 @@ class LatticeData(OutputParams, DeskewParams):
             v = v.drop_isel(T=-1)
         return v
 
-    @model_validator(mode="after")
-    def warn_deskew_size(self) -> "LatticeData":
+    @root_validator()
+    def warn_deskew_size(cls, values: dict) -> dict:
         """
         Report the deskewed volume size at construction, and warn if it looks too large
         for this GPU.
@@ -206,24 +186,23 @@ class LatticeData(OutputParams, DeskewParams):
         warning would be a false alarm: cropping deskews each ROI's bounding box, and MIP
         output projects straight from the raw data.
         """
-        if self.crop is not None or self.save_mip:
-            return self
-        data = self.input_image
-        derived = self.derived
+        if values.get("crop") is not None or values.get("save_mip"):
+            return values
+        data = values.get("input_image")
+        derived = values.get("derived")
         if data is None or derived is None or derived.deskew_vol_shape is None:
-            return self
+            return values
         warn_if_deskew_may_not_fit(
             input_shape_zyx=data.shape[-3:],
             output_shape_zyx=derived.deskew_vol_shape[-3:],
             input_dtype=data.dtype,
-            deconvolved=self.deconvolution is not None,
-            safety_factor=self.memory_safety_factor,
+            deconvolved=values.get("deconvolution") is not None,
+            safety_factor=values.get("memory_safety_factor"),
         )
-        return self
+        return values
 
 
-    @field_validator("workflow", mode="before")
-    @classmethod
+    @validator("workflow", pre=True)
     def parse_workflow(cls, v: Any):
         # Load the workflow from disk if it was provided as a path
         from lls_core.types import is_pathlike
@@ -234,8 +213,7 @@ class LatticeData(OutputParams, DeskewParams):
             return workflow_from_path(Path(v))
         return v
 
-    @field_validator("workflow")
-    @classmethod
+    @validator("workflow", pre=False)
     def validate_workflow(cls, v: Optional[Workflow]):
         from lls_core.workflow import get_workflow_output_name
         if v is not None:
@@ -247,9 +225,8 @@ class LatticeData(OutputParams, DeskewParams):
                 raise ValueError("The workflow has multiple output tasks. Only one is currently supported.")
         return v
 
-    @field_validator("crop")
-    @classmethod
-    def convert_roi_units(cls, v: Optional[CropParams], info: ValidationInfo) -> Optional[CropParams]:
+    @validator("crop")
+    def convert_roi_units(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
         """
         Bring `roi_list` into deskewed-image pixels, the unit everything downstream
         assumes. Only possible here, since the pixel size may come from the image
@@ -257,7 +234,6 @@ class LatticeData(OutputParams, DeskewParams):
         """
         from lls_core.cropping import RoiUnits, scale_rois
         from lls_core.models.utils import ignore_keyerror
-        values = info.data
 
         if v is None or v.roi_units == RoiUnits.Pixels:
             return v
@@ -268,16 +244,14 @@ class LatticeData(OutputParams, DeskewParams):
             v.roi_units = RoiUnits.Pixels
         return v
 
-    @field_validator("crop")
-    @classmethod
-    def warn_rois_outside_image(cls, v: Optional[CropParams], info: ValidationInfo) -> Optional[CropParams]:
+    @validator("crop")
+    def warn_rois_outside_image(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
         """
         Say so when an ROI lies outside the deskewed image. Usually it means the units
         were wrong, and the alternative is a crop failing later inside the writer with
         an unrelated-looking message.
         """
         from lls_core.models.utils import ignore_keyerror
-        values = info.data
 
         if v is None or not v.roi_list:
             return v
@@ -293,11 +267,9 @@ class LatticeData(OutputParams, DeskewParams):
                 )
         return v
 
-    @field_validator("crop")
-    @classmethod
-    def default_z_range(cls, v: Optional[CropParams], info: ValidationInfo) -> Optional[CropParams]:
+    @validator("crop")
+    def default_z_range(cls, v: Optional[CropParams], values: dict) -> Optional[CropParams]:
         from lls_core.models.utils import ignore_keyerror
-        values = info.data
         if v is None:
             return v
         with ignore_keyerror():
@@ -322,17 +294,15 @@ class LatticeData(OutputParams, DeskewParams):
 
         return v
 
-    @field_validator("time_range", mode="before")
-    @classmethod
-    def parse_time_range(cls, v: Any, info: ValidationInfo) -> Any:
+    @validator("time_range", pre=True, always=True)
+    def parse_time_range(cls, v: Any, values: dict) -> Any:
         """
         Sets the default time range if undefined
         """
         from lls_core.models.utils import ignore_keyerror
-        # This skips the conversion if no image was provided, to ensure a more
+        # This skips the conversion if no image was provided, to ensure a more 
         # user-friendly error is provided, namely "image was missing"
         from collections.abc import Sequence
-        values = info.data
         with ignore_keyerror():
             default_start = 0
             default_end = values["input_image"].sizes["T"]
@@ -343,15 +313,13 @@ class LatticeData(OutputParams, DeskewParams):
                 return range(v[0] or default_start, v[1] or default_end)
         return v
 
-    @field_validator("channel_range", mode="before")
-    @classmethod
-    def parse_channel_range(cls, v: Any, info: ValidationInfo) -> Any:
+    @validator("channel_range", pre=True, always=True)
+    def parse_channel_range(cls, v: Any, values: dict) -> Any:
         """
         Sets the default channel range if undefined
         """
         from lls_core.models.utils import ignore_keyerror
         from collections.abc import Sequence
-        values = info.data
 
         with ignore_keyerror():
             default_start = 0
@@ -363,14 +331,12 @@ class LatticeData(OutputParams, DeskewParams):
                 return range(v[0] or default_start, v[1] or default_end)
         return v
 
-    @field_validator("time_range")
-    @classmethod
-    def disjoint_time_range(cls, v: range, info: ValidationInfo):
+    @validator("time_range")
+    def disjoint_time_range(cls, v: range, values: dict):
         """
         Validates that the time range is within the range of channels in our array
         """
         from lls_core.models.utils import ignore_keyerror
-        values = info.data
         with ignore_keyerror():
             max_time = values["input_image"].sizes["T"]
             if v.start < 0:
@@ -380,14 +346,12 @@ class LatticeData(OutputParams, DeskewParams):
 
         return v
 
-    @field_validator("channel_range")
-    @classmethod
-    def disjoint_channel_range(cls, v: range, info: ValidationInfo):
+    @validator("channel_range")
+    def disjoint_channel_range(cls, v: range, values: dict):
         """
         Validates that the channel range is within the range of channels in our array
         """
         from lls_core.models.utils import ignore_keyerror
-        values = info.data
         with ignore_keyerror():
             max_channel = values["input_image"].sizes["C"]
             if v.start < 0:
@@ -396,29 +360,23 @@ class LatticeData(OutputParams, DeskewParams):
                 raise ValueError(f"The highest valid channel value is the length of the channel axis, which is {max_channel}")
         return v
 
-    @field_validator("channel_range")
-    @classmethod
-    def channel_range_subset(cls, v: Optional[range], info: ValidationInfo):
+    @validator("channel_range")
+    def channel_range_subset(cls, v: Optional[range], values: dict):
         from lls_core.models.utils import ignore_keyerror
-        values = info.data
         with ignore_keyerror():
             if v is not None and (min(v) < 0 or max(v) > values["input_image"].sizes["C"]):
                 raise ValueError("The output channel range must be a subset of the total available channels")
         return v
 
-    @field_validator("time_range")
-    @classmethod
-    def time_range_subset(cls, v: Optional[range], info: ValidationInfo):
-        values = info.data
+    @validator("time_range")
+    def time_range_subset(cls, v: Optional[range], values: dict):
         if v is not None and (min(v) < 0 or max(v) > values["input_image"].sizes["T"]):
             raise ValueError("The output time range must be a subset of the total available time points")
         return v
 
-    @field_validator("deconvolution")
-    @classmethod
-    def check_psfs(cls, v: Optional[DeconvolutionParams], info: ValidationInfo):
+    @validator("deconvolution")
+    def check_psfs(cls, v: Optional[DeconvolutionParams], values: dict):
         from lls_core.models.utils import ignore_keyerror
-        values = info.data
         if v is None:
             return v
         with ignore_keyerror():
@@ -664,7 +622,7 @@ class LatticeData(OutputParams, DeskewParams):
         from lls_core.models.results import WorkflowSlices
         from lls_core.models.utils import as_tuple
 
-        WorkflowSlices.model_rebuild(force=True, _types_namespace={"LatticeData": LatticeData})
+        WorkflowSlices.update_forward_refs(LatticeData=LatticeData)
 
         def _generator() -> Iterable[ProcessedSlice[Tuple[RawWorkflowOutput, ...]]]:
             for workflow in self.generate_workflows():
@@ -726,7 +684,7 @@ class LatticeData(OutputParams, DeskewParams):
         This will not execute the attached workflow.
         """
         from lls_core.models.results import ImageSlices
-        ImageSlices.model_rebuild(force=True, _types_namespace={"LatticeData": LatticeData})
+        ImageSlices.update_forward_refs(LatticeData=LatticeData)
 
         if self.save_mip:
             if self.deconvolution is not None or self.workflow is not None or self.cropping_enabled:
@@ -939,11 +897,11 @@ class LatticeData(OutputParams, DeskewParams):
         only its own crops; `_input_reaches_workers` has already verified that reload.
         An in-memory image is pickled as-is. PSFs are small, so materialize those.
         """
-        payload = self.model_copy(update={"input_image": None}) if _is_lazy(self.input_image) else self.model_copy()
+        payload = self.copy(update={"input_image": None}) if _is_lazy(self.input_image) else self.copy()
 
         if payload.deconvolution is not None:
-            payload = payload.model_copy(update={
-                "deconvolution": payload.deconvolution.model_copy(update={
+            payload = payload.copy(update={
+                "deconvolution": payload.deconvolution.copy(update={
                     "psf": [_materialized_image(p) for p in payload.deconvolution.psf]
                 })
             })

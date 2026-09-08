@@ -1,6 +1,7 @@
 from __future__ import annotations
 # class for initializing lattice data and setting metadata
 # TODO: handle scenes
+from pydantic.v1 import Field, NonNegativeFloat, validator, root_validator
 
 from typing_extensions import Self, TYPE_CHECKING, Any, Optional, Tuple
 
@@ -17,7 +18,6 @@ from lls_core.types import is_arraylike, is_pathlike
 from lls_core.utils import get_deskewed_shape,convert_xyz_to_zyx_order
 import numpy as np
 import logging
-from pydantic import Field, NonNegativeFloat, ValidationInfo, field_validator, model_validator
 
 logger = logging.getLogger(__name__)
 
@@ -99,8 +99,7 @@ class DeskewParams(FieldAccessModel):
     physical_pixel_sizes: DefinedPixelSizes = Field(
         # No default, because we need to distinguish between user provided arguments and defaults
         description="Pixel size of the microscope, in microns. This can alternatively be provided as a `tuple[float]` of `(Z, Y, X)`",
-        default=None,
-        validate_default=True
+        default=None
     )
     invert_scan_direction: bool = Field(
         default=False,
@@ -119,8 +118,7 @@ class DeskewParams(FieldAccessModel):
         init_var=False,
         default=None,
         description="Refer to the `DerivedDeskewFields` docstring",
-        cli_hide=True,
-        validate_default=True
+        cli_hide=True
     )
     # Hack to ensure that .skew_dir behaves identically to .skew
     @property
@@ -222,17 +220,15 @@ class DeskewParams(FieldAccessModel):
             return volume.isel(Z=slice(None, None, -1))
         return volume
 
-    @field_validator("skew", mode="before")
-    @classmethod
+    @validator("skew", pre=True)
     def convert_skew(cls, v: Any):
         # Allow skew to be provided as a string
         if isinstance(v, str):
             return DeskewDirection[v]
         return v
 
-    @field_validator("physical_pixel_sizes", mode="before")
-    @classmethod
-    def convert_pixels(cls, v: Any):
+    @validator("physical_pixel_sizes", pre=True, always=True)
+    def convert_pixels(cls, v: Any, values: dict[Any, Any]):
         from bioio import PhysicalPixelSizes
         if isinstance(v, PhysicalPixelSizes):
             v = DefinedPixelSizes.from_physical(v)
@@ -252,8 +248,7 @@ class DeskewParams(FieldAccessModel):
 
         return v
 
-    @model_validator(mode="before")
-    @classmethod
+    @root_validator(pre=True)
     def read_image(cls, values: dict):
         from bioio import BioImage
         from os import fspath
@@ -264,12 +259,12 @@ class DeskewParams(FieldAccessModel):
         # (Internal copies pass all fields explicitly, so they don't trigger this.)
         if "angle" not in values:
             logger.warning(
-                f"No deskew angle was provided; using the default of {cls.model_fields['angle'].default} degrees. "
+                f"No deskew angle was provided; using the default of {cls.__fields__['angle'].default} degrees. "
                 "Specify the angle if your microscope differs."
             )
         if "skew" not in values:
             logger.warning(
-                f"No skew direction was provided; using the default '{cls.model_fields['skew'].default.name}'."
+                f"No skew direction was provided; using the default '{cls.__fields__['skew'].default.name}'."
             )
 
         img = values["input_image"]
@@ -310,8 +305,7 @@ class DeskewParams(FieldAccessModel):
 
         return values
 
-    @field_validator("input_image", mode="before")
-    @classmethod
+    @validator("input_image", pre=True)
     def reshaping(cls, v: DataArray):
         # This allows a user to pass in any array-like object and have it
         # converted and reshaped appropriately
@@ -327,19 +321,14 @@ class DeskewParams(FieldAccessModel):
     def get_3d_slice(self) -> DataArray:
         return self.apply_scan_flip(self.input_image.isel(C=0, T=0))
 
-    @field_validator("derived", mode="before")
-    @classmethod
-    def calculate_derived(cls, v: Any, info: ValidationInfo) -> DerivedDeskewFields:
+    @validator("derived", always=True)
+    def calculate_derived(cls, v: Any, values: dict) -> DerivedDeskewFields:
         """
         Sets the default deskew shape values if the user has not provided them
         """
-        values = info.data
         data: DataArray = values["input_image"]
         if isinstance(v, DerivedDeskewFields):
             return v
-        elif isinstance(v, dict):
-            # Catches the edge case where a plain dict is passed, converting it to a DerivedDeskewFields object.
-            return DerivedDeskewFields(**v)
         elif v is None:
             if not values.get("coverslip_rotation", True):
                 # OPM/SOPi (shear-only) branch
