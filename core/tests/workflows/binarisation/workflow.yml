@@ -2,6 +2,7 @@
 _tasks:
   binarisation: !!python/tuple
   - !!python/name:pyclesperanto.greater_constant ''
+  - median
   - null
   - 100
   median: !!python/tuple
