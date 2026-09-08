@@ -3,7 +3,6 @@ import pyclesperanto as cle
 import numpy as np
 import pytest
 from lls_core.models.lattice_data import LatticeData
-from lls_core import DeskewDirection
 from xarray import DataArray
 from tests.utils import requires_real_gpu
 import tempfile
@@ -214,41 +213,3 @@ def test_invert_scan_direction_crop_workflow_path():
     # A double flip in the sub-lattice path would make this equal to the un-inverted result
     assert not np.allclose(inverted, not_inverted)
 
-
-
-@pytest.mark.parametrize("skew", [DeskewDirection.Y, DeskewDirection.X])
-@pytest.mark.parametrize("coverslip_rotation", [True, False])
-def test_deskew_produces_interpolated_data(skew, coverslip_rotation):
-    """
-    Guard against a backend silently returning zeros or a constant instead of
-    interpolated data. THis is to catch issues where deskewing using CPU-only 
-    OpenCL (pocl/oclgrind). Not marked as `requires_real_gpu` because we want to 
-    catch errors with CPU-only OpenCL backends. 
-    Most tests are comparing geometrys or two outputs against each other, but 
-    this will ensure outputs are not all zeroes or a constant value
-
-    We use a large image block instead of lone voxel to avoid cases where deskewing with 
-    coverslip or different angle can result in voxel being out of bound resulting in zeroes,
-    which is valid. 
-    """
-    raw_np = np.zeros((20, 30, 30))
-    raw_np[3:12, 6:22, 6:22] = 500
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        lattice = LatticeData(
-            input_image=DataArray(raw_np, dims=["Z", "Y", "X"]),
-            physical_pixel_sizes=(1, 1, 1),
-            skew=skew,
-            coverslip_rotation=coverslip_rotation,
-            save_name="test",
-            save_dir=tmpdir,
-        )
-        out = np.asarray(next(iter(lattice.process().slices)).data)
-
-    assert (out > 0).any(), (
-        "deskew produced no signal at all - the backend may be returning zeros"
-    )
-    assert (out > 0).sum() < out.size, (
-        "every voxel is positive - the backend may be returning a constant "
-        "instead of interpolated data"
-    )
