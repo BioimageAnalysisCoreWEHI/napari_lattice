@@ -119,7 +119,7 @@ class ProcessedWorkflowOutput(BaseModel, arbitrary_types_allowed=True):
         """
         Puts this artifact on disk by saving any `DataFrame` to CSV, and returning the path to the image or CSV
         """
-        from pandas import Series
+        import pandas as pd
 
         if isinstance(self.data, DataFrame):
             path: Path = self.lattice_data.make_filepath_df(
@@ -129,7 +129,17 @@ class ProcessedWorkflowOutput(BaseModel, arbitrary_types_allowed=True):
                 ),
                 self.data
             )
-            result = self.data.apply(Series.explode)
+            # Explode each column independently (columns may hold list-valued cells of
+            # different lengths, e.g. from a workflow returning ragged lists), then
+            # reset each to a fresh index before recombining. `self.data`'s own row
+            # index isn't meaningful here (e.g. it can already contain repeated labels
+            # when results from multiple ROIs are combined upstream), and reusing it
+            # to realign the per-column explode results raises "cannot reindex on an
+            # axis with duplicate labels" on pandas versions that no longer tolerate it.
+            result = pd.concat(
+                {col: self.data[col].explode().reset_index(drop=True) for col in self.data.columns},
+                axis=1,
+            )
             result.to_csv(str(path))
             return path
         else:
