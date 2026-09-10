@@ -3,6 +3,8 @@
 **napari-lattice** is a toolset for deskewing, deconvolving, cropping, visualising and
 building custom analysis pipelines for light-sheet microscopy data. It is optimized for **Zeiss Lattice Lightsheet 7 (LLS7)**, but can also handle oblique-plane microscopy data of different configurations.
 
+napari-lattice is now published in [Journal of Microscopy](https://doi.org/10.1111/jmi.70167)
+
 It works both as a [napari](https://napari.org) plugin (GUI) and as a command line
 interface (`lls-pipeline`, powered by `lls-core`), so you can process data interactively
 on the desktop or headless on an HPC at scale. The processing pipeline is **modular and
