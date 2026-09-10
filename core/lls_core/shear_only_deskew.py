@@ -7,15 +7,15 @@ implementing the frozen shear-only map (validated vs the two-pass oracle).
 Public API
 ----------
 shear_only_deskew(source, angle_in_degrees, voxel_size_z, voxel_size_y,
-                 voxel_size_x, skew="Y") -> OCLArray
+                    voxel_size_x, skew="Y") -> Array
     GPU array in the coverslip (level) frame; call cle.pull() to convert to numpy.
     Output shape comes from shear_only_geometry.shear_only_output_shape.
 """
 from __future__ import annotations
 
 import numpy as np
-import pyclesperanto_prototype as cle
-from pyclesperanto_prototype._tier0 import execute, create, push
+import pyclesperanto as cle
+from pyclesperanto import execute, create, push
 
 from lls_core.shear_only_geometry import shear_only_output_shape, deskew_trig, pixel_step
 
@@ -41,7 +41,10 @@ def shear_only_deskew(
     out_shape = shear_only_output_shape(
         raw_shape, angle_in_degrees, voxel_size_z, voxel_size_y, voxel_size_x, skew
     )
-    dest = create(out_shape)  # (nz, ny, nx)
+    # `create()` defaults to float64 (Python's `float`) when no dtype is given, but
+    # `src` above and the kernel's float-typed parameters are float32 - see the
+    # matching fix/comment in affine_transform_deskew.py.
+    dest = create(out_shape, dtype=np.float32)  # (nz, ny, nx)
 
     # Trig values from the deskew angle (cos not used in the frozen map)
     tan_t, sin_t, _ = deskew_trig(angle_in_degrees)
@@ -59,9 +62,9 @@ def shear_only_deskew(
     params = {
         "input": src,
         "output": dest,
-        "pixel_step": np.float32(step),
-        "tantheta": np.float32(tan_t),
-        "sintheta": np.float32(sin_t),
+        "pixel_step": float(step),
+        "tantheta": float(tan_t),
+        "sintheta": float(sin_t),
     }
 
     execute(
@@ -69,6 +72,6 @@ def shear_only_deskew(
         f"kernels/affine_transform_deskew_{suffix}_shear_only_3d_x.cl",
         f"affine_transform_deskew_{suffix}_shear_only_3d",
         dest.shape,
-        params,
+        parameters=params,
     )
     return dest

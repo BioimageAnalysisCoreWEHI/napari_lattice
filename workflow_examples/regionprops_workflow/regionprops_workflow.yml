@@ -1,7 +1,7 @@
 !!python/object:napari_workflows._workflow.Workflow
 _tasks:
   gaussian: !!python/tuple
-  - !!python/name:pyclesperanto_prototype.gaussian_blur ''
+  - !!python/name:pyclesperanto.gaussian_blur ''
   - deskewed_image
   - null
   - 1
@@ -11,7 +11,7 @@ _tasks:
   - !!python/name:measure_regionprops.measure_region_properties ''
   - voronoi-otsu
   voronoi-otsu: !!python/tuple
-  - !!python/name:pyclesperanto_prototype.voronoi_otsu_labeling ''
+  - !!python/name:pyclesperanto.voronoi_otsu_labeling ''
   - gaussian
   - null
   - 14
