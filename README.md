@@ -1,5 +1,6 @@
 # napari-lattice
 
+[![Journal Article](http://img.shields.io/badge/DOI-10.1111/jmi.70167-007EC6.svg?style=flat)](https://doi.org/10.1111/jmi.70167)
 [![License](https://img.shields.io/pypi/l/napari-lattice.svg?color=green)](https://github.com/githubuser/napari_lattice/raw/main/LICENSE)
 [![PyPI](https://img.shields.io/pypi/v/napari-lattice.svg?color=green)](https://pypi.org/project/napari_lattice)
 [![Python Version](https://img.shields.io/pypi/pyversions/napari-lattice.svg?color=green)](https://python.org)
