@@ -154,4 +154,4 @@ def test_conversion_does_not_repeat_when_the_model_is_revalidated(tmp_path):
     lattice = _lattice(tmp_path, [ROI], RoiUnits.Microns)
     converted = lattice.crop.roi_list
     assert lattice.copy().crop.roi_list == converted
-    assert LatticeData.parse_obj(dict(lattice)).crop.roi_list == converted
+    assert LatticeData.model_validate(dict(lattice)).crop.roi_list == converted

@@ -41,7 +41,10 @@ def shear_only_deskew(
     out_shape = shear_only_output_shape(
         raw_shape, angle_in_degrees, voxel_size_z, voxel_size_y, voxel_size_x, skew
     )
-    dest = create(out_shape)  # (nz, ny, nx)
+    # `create()` defaults to float64 (Python's `float`) when no dtype is given, but
+    # `src` above and the kernel's float-typed parameters are float32 - see the
+    # matching fix/comment in affine_transform_deskew.py.
+    dest = create(out_shape, dtype=np.float32)  # (nz, ny, nx)
 
     # Trig values from the deskew angle (cos not used in the frozen map)
     tan_t, sin_t, _ = deskew_trig(angle_in_degrees)

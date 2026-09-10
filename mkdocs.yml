@@ -37,7 +37,9 @@ nav:
   - "MIPs and defining ROIs": examples/mips.md
   - "Neutrophil (end-to-end)": examples/neutrophil.md
   - "HPC with SLURM": examples/hpc_slurm.md
-- "Development": development.md
+- "Development":
+  - "Overview": development.md
+  - "Dependency Updates (Pydantic & pyclesperanto)": dependency_updates.md
 - "Supporting Resources":
   - "Overview": miscellaneous/index.md
   - "Defining ROIs for cropping": miscellaneous/rois_cropping.md
