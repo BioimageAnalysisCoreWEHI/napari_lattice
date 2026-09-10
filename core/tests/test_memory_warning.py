@@ -251,12 +251,12 @@ def test_context_manager_passes_other_errors_through_unchanged():
 def test_processing_translates_the_opencl_error(monkeypatch):
     """End to end: the error a user actually sees names the image size instead of
     only an OpenCL status code."""
-    import pyclesperanto_prototype as cle
+    import pyclesperanto as cle
 
     def out_of_resources(*args, **kwargs):
         raise RuntimeError("clEnqueueReadBuffer failed: OUT_OF_RESOURCES")
 
-    monkeypatch.setattr(cle, "pull_zyx", out_of_resources)
+    monkeypatch.setattr(cle, "pull", out_of_resources)
 
     raw = np.zeros((30, 50, 50), dtype=np.uint16)
     with tempfile.TemporaryDirectory() as tmpdir:

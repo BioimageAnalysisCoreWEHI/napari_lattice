@@ -1,7 +1,7 @@
 from typing_extensions import Any, Iterable, List, Tuple
-from pydantic.v1 import Field, NonNegativeInt, root_validator, validator
 from lls_core.models.utils import FieldAccessModel
 from lls_core.cropping import Roi, RoiUnits
+from pydantic import Field, NonNegativeInt, ValidationInfo, field_validator, model_validator
 
 class CropParams(FieldAccessModel):
     """
@@ -25,7 +25,8 @@ class CropParams(FieldAccessModel):
     )
     roi_subset: List[int] = Field(
         description="A subset of all the ROIs to process. Each list item should be an index into the ROI list indicating an ROI to include. This allows you to process only a subset of the regions from a ROI file specified using the `roi_list` parameter. If `None`, it is assumed that you want to process all ROIs.",
-        default=None
+        default=None,
+        validate_default=True
     )
     z_range: Tuple[NonNegativeInt, NonNegativeInt] = Field(
         default=None,
@@ -39,7 +40,8 @@ class CropParams(FieldAccessModel):
         for i in self.roi_subset:
             yield self.roi_list[i]
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def resolve_roi_units(cls, values: dict) -> dict:
         """
         Settle `Auto` into a real unit while the source paths are still visible -
@@ -64,7 +66,8 @@ class CropParams(FieldAccessModel):
         values["roi_units"] = implied.pop() if implied else RoiUnits.Pixels
         return values
 
-    @validator("roi_list", pre=True)
+    @field_validator("roi_list", mode="before")
+    @classmethod
     def read_roi(cls, v: Any) -> List[Roi]:
         from lls_core.types import is_pathlike
         from lls_core.cropping import read_rois
@@ -93,7 +96,8 @@ class CropParams(FieldAccessModel):
 
         return rois
 
-    @validator("roi_subset", pre=True)
+    @field_validator("roi_subset", mode="before")
+    @classmethod
     def parse_roi_subset(cls, v: Any):
         # Accept comma-separated string ("2,5,7"), or a list with comma-separated
         # strings (CLI). Convert everything to int type indices
@@ -113,9 +117,10 @@ class CropParams(FieldAccessModel):
                 result.append(int(item))
         return result
     
-    @validator("roi_subset", pre=True, always=True)
-    def default_roi_range(cls, v: Any, values: dict):
+    @field_validator("roi_subset", mode="before")
+    @classmethod
+    def default_roi_range(cls, v: Any, info: ValidationInfo):
         # If the roi range isn't provided, assume all rois should be processed
-        if v is None and "roi_list" in values:
-            return list(range(len(values["roi_list"])))
+        if v is None and "roi_list" in info.data:
+            return list(range(len(info.data["roi_list"])))
         return v

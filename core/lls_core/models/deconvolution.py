@@ -1,8 +1,6 @@
 
 from pathlib import Path
 
-from pydantic.v1 import Field, NonNegativeInt, root_validator, validator
-
 from typing_extensions import Any, List, Literal, Union
 
 from xarray import DataArray
@@ -10,6 +8,7 @@ from xarray import DataArray
 from lls_core.models.utils import enum_choices, FieldAccessModel
 from lls_core.deconvolution import DeconvolutionChoice
 from lls_core.types import image_like_to_image
+from pydantic import Field, NonNegativeInt, field_validator, model_validator
 
 Background = Union[float, Literal["auto", "second_last"]]
 class DeconvolutionParams(FieldAccessModel):
@@ -41,7 +40,8 @@ class DeconvolutionParams(FieldAccessModel):
         description='Background value to subtract for deconvolution. Only used when `decon_processing` is set to `GPU`. This can either be a literal number, "auto" which uses the median of the last slice, or "second_last" which uses the median of the last slice.'
     )
 
-    @root_validator(pre=True)
+    @model_validator(mode="before")
+    @classmethod
     def capture_psf_paths(cls, values: dict) -> dict:
         "Record the PSF paths before `convert_image` replaces them with arrays."
         from lls_core.types import is_pathlike
@@ -56,20 +56,31 @@ class DeconvolutionParams(FieldAccessModel):
             values["psf_paths"] = paths
         return values
 
-    @validator("decon_processing", pre=True)
+    @field_validator("decon_processing", mode="before")
+    @classmethod
     def convert_decon(cls, v: Any):
         if isinstance(v, str):
             return DeconvolutionChoice[v]
         return v
 
-    @validator("psf", pre=True, each_item=True, allow_reuse=True)
+    @field_validator("psf", mode="before")
+    @classmethod
     def convert_image(cls, v):
-        img = image_like_to_image(v)
-        # Ensure the PSF is 3D
-        if "C" in img.dims:
-            img = img.isel(C=0)
-        if "T" in img.dims:
-            img = img.isel(T=0)
-        if len(img.dims) != 3:
-            raise ValueError("PSF is not a 3D array!")
-        return img
+        # each_item=True doesn't exist in Pydantic v2, so apply the per-item
+        # conversion manually. If v isn't list-like, leave it for the normal
+        # list-type validation to produce the right error.
+        if not isinstance(v, (list, tuple)):
+            return v
+
+        def _convert(item):
+            img = image_like_to_image(item)
+            # Ensure the PSF is 3D
+            if "C" in img.dims:
+                img = img.isel(C=0)
+            if "T" in img.dims:
+                img = img.isel(T=0)
+            if len(img.dims) != 3:
+                raise ValueError("PSF is not a 3D array!")
+            return img
+
+        return [_convert(item) for item in v]
