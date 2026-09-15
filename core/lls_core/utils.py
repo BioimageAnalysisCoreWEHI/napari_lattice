@@ -7,7 +7,7 @@ from typing import Collection, List, NamedTuple, Optional, Tuple, TypeVar, Union
 from urllib import parse
 
 import numpy as np
-import pyclesperanto_prototype as cle
+from lls_core.affine import AffineTransform3D, determine_translation_and_bounding_box
 from lls_core.types import ArrayLike
 from numpy.typing import NDArray
 from read_roi import read_roi_file, read_roi_zip
@@ -87,17 +87,17 @@ def calculate_crop_bbox(shape: list, z_start: int, z_end: int) -> tuple[List[Lis
     from itertools import product
 
     crop_bounding_box = [list(x)+[1]
-                         for x in product((x0, x1), (y0, y1), (z0, z1))]
+                            for x in product((x0, x1), (y0, y1), (z0, z1))]
     return crop_bounding_box, crop_shape
 
 def get_deskewed_shape(volume: ArrayLike,
-                       angle: float,
-                       voxel_size_x_in_microns: float,
-                       voxel_size_y_in_microns: float,
-                       voxel_size_z_in_microns: float,
-                       skew_dir: DeskewDirection=DeskewDirection.Y) -> Tuple[Tuple[int], cle.AffineTransform3D]:
+                        angle: float,
+                        voxel_size_x_in_microns: float,
+                        voxel_size_y_in_microns: float,
+                        voxel_size_z_in_microns: float,
+                        skew_dir: DeskewDirection=DeskewDirection.Y) -> Tuple[Tuple[int], AffineTransform3D]:
     """
-    Calculate shape of deskewed volume 
+    Calculate shape of deskewed volume
     Also, returns affine transform
 
     Args:
@@ -112,28 +112,24 @@ def get_deskewed_shape(volume: ArrayLike,
         tuple: Shape of deskewed volume in zyx
         np.array: Affine transform for deskewing
     """
-    from pyclesperanto_prototype._tier8._affine_transform import (
-        _determine_translation_and_bounding_box,
-    )
-
-    deskew_transform = cle.AffineTransform3D()
+    deskew_transform = AffineTransform3D()
 
     if skew_dir == DeskewDirection.Y:
         deskew_transform._deskew_y(angle_in_degrees=angle,
-                                   voxel_size_x=voxel_size_x_in_microns,
-                                   voxel_size_y=voxel_size_y_in_microns,
-                                   voxel_size_z=voxel_size_z_in_microns)
+                                    voxel_size_x=voxel_size_x_in_microns,
+                                    voxel_size_y=voxel_size_y_in_microns,
+                                    voxel_size_z=voxel_size_z_in_microns)
     elif skew_dir == DeskewDirection.X:
         deskew_transform._deskew_x(angle_in_degrees=angle,
-                                   voxel_size_x=voxel_size_x_in_microns,
-                                   voxel_size_y=voxel_size_y_in_microns,
-                                   voxel_size_z=voxel_size_z_in_microns)
+                                    voxel_size_x=voxel_size_x_in_microns,
+                                    voxel_size_y=voxel_size_y_in_microns,
+                                    voxel_size_z=voxel_size_z_in_microns)
 
     # TODO:need better handling of aics dask array
     if len(volume.shape) == 5:
         volume = volume[0, 0, ...]
 
-    new_shape, new_deskew_transform, _ = _determine_translation_and_bounding_box(
+    new_shape, new_deskew_transform, _ = determine_translation_and_bounding_box(
         volume, deskew_transform)
     return new_shape, new_deskew_transform
 
@@ -160,7 +156,7 @@ def etree_to_dict(t: Element) -> dict:
             for k, v in dc.items():
                 dd[k].append(v)
         d = {t.tag: {k: v[0] if len(v) == 1 else v
-                     for k, v in dd.items()}}
+                        for k, v in dd.items()}}
     if t.attrib:
         d[t.tag].update(('@' + k, v)
                         for k, v in t.attrib.items())
@@ -346,7 +342,7 @@ def make_filename_suffix(prefix: Optional[str] = None, roi_index: Optional[int] 
         components.append(f"T{time}")
     return "_".join(components)
 
-def convert_xyz_to_zyx_order(deskew_affine_transform:cle.AffineTransform3D):
+def convert_xyz_to_zyx_order(deskew_affine_transform: AffineTransform3D):
     """
     Swap X and Z axes in affine transform matrix from pyclesperanto
     swap from xyz to zyx order

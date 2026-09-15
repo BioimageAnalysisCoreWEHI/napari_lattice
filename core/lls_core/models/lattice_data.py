@@ -6,7 +6,7 @@ from dask.array.core import Array as DaskArray
 
 from typing_extensions import Any, Iterable, Optional, TYPE_CHECKING, Type
 from lls_core.deconvolution import pycuda_decon, skimage_decon, DeconvolutionChoice
-from lls_core.estimate import DEFAULT_SAFETY_FACTOR, memory_errors_explained, warn_if_deskew_may_not_fit
+from lls_core.estimate import memory_errors_explained, warn_if_deskew_may_not_fit
 from lls_core.llsz_core import crop_volume_deskew
 from lls_core.models.crop import CropParams
 from lls_core.models.deconvolution import DeconvolutionParams
@@ -157,7 +157,21 @@ class LatticeData(OutputParams, DeskewParams):
         # Use the Deskew version of this validator, to do the actual image loading
         return super().read_image(values)
 
-    @root_validator(skip_on_failure=True)
+    @validator("input_image", pre=True, always=True)
+    def incomplete_final_frame(cls, v: DataArray) -> Any:
+        """
+        Check final frame, if acquisition is stopped halfway through it causes failures
+        This validator will remove a bad final frame
+        """
+        final_frame = v.isel(T=-1,C=-1, drop=True)
+        try:
+            final_frame.compute()
+        except (ValueError,RuntimeError):
+            logger.warning("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
+            v = v.drop_isel(T=-1)
+        return v
+
+    @root_validator()
     def warn_deskew_size(cls, values: dict) -> dict:
         """
         Report the deskewed volume size at construction, and warn if it looks too large
@@ -183,24 +197,10 @@ class LatticeData(OutputParams, DeskewParams):
             output_shape_zyx=derived.deskew_vol_shape[-3:],
             input_dtype=data.dtype,
             deconvolved=values.get("deconvolution") is not None,
-            safety_factor=values.get("memory_safety_factor", DEFAULT_SAFETY_FACTOR),
+            safety_factor=values.get("memory_safety_factor"),
         )
         return values
 
-    @validator("input_image", pre=True, always=True)
-    def incomplete_final_frame(cls, v: DataArray) -> Any:
-        """
-        Check final frame, if acquisition is stopped halfway through it causes failures
-        This validator will remove a bad final frame
-        """
-        final_frame = v.isel(T=-1,C=-1, drop=True)
-        try:
-            final_frame.compute()
-        except (ValueError,RuntimeError):
-            logger.warning("Final frame is borked. Acquisition probably stopped prematurely. Removing final frame.")
-            v = v.drop_isel(T=-1)
-        return v
-        
 
     @validator("workflow", pre=True)
     def parse_workflow(cls, v: Any):
@@ -573,7 +573,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Yields processed image slices without cropping
         """
-        import pyclesperanto_prototype as cle
+        import pyclesperanto as cle
 
         for slice in self.iter_slices():
             data: ArrayLike = slice.data
@@ -604,10 +604,9 @@ class LatticeData(OutputParams, DeskewParams):
             # The deskewed buffer and the pull back to the host are where an oversized
             # volume actually fails, with an OpenCL error that names no dimensions.
             with memory_errors_explained(self, "Deskewing this image"):
-                deskewed = self._restore_input_dtype(cle.pull_zyx(self.deskew_func(
+                deskewed = self._restore_input_dtype(cle.pull(self.deskew_func(
                     input_image=data,
-                    angle_in_degrees=self.angle,
-                    linear_interpolation=True,
+                    angle=self.angle,
                     voxel_size_x=self.dx,
                     voxel_size_y=self.dy,
                     voxel_size_z=self.dz
@@ -618,6 +617,7 @@ class LatticeData(OutputParams, DeskewParams):
         """
         Runs the workflow on each slice and returns the workflow results
         """
+        import dask
         from lls_core.workflow import get_workflow_output_name
         from lls_core.models.results import WorkflowSlices
         from lls_core.models.utils import as_tuple
@@ -626,8 +626,14 @@ class LatticeData(OutputParams, DeskewParams):
 
         def _generator() -> Iterable[ProcessedSlice[Tuple[RawWorkflowOutput, ...]]]:
             for workflow in self.generate_workflows():
-                # Evaluates the workflow here.
-                result = workflow.data.get(get_workflow_output_name(workflow.data))
+                # Evaluates the workflow here. `Workflow.get()` hard-codes dask's
+                # threaded scheduler, which runs GPU (pyclesperanto) steps on a
+                # worker thread. pyclesperanto's OpenCL context isn't safe to use
+                # across threads: once a workflow has run its GPU steps off-thread,
+                # later pyclesperanto calls on the main thread silently return
+                # zeroed/wrong data. Run the same task graph with dask's
+                # synchronous scheduler instead, which never leaves this thread.
+                result = dask.get(workflow.data._tasks, get_workflow_output_name(workflow.data))
                 yield workflow.copy_with_data(as_tuple(result))
 
         return WorkflowSlices(

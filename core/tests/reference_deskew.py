@@ -97,7 +97,7 @@ def numba_deskew(raw_zyx, angle_deg, dz, dy, dx, skew="Y", frame="objective", ou
     if out_shape_zyx is None:
         raise ValueError("out_shape_zyx is required")
     nz, ny, nx = (out_shape_zyx if skew == "Y"
-                  else (out_shape_zyx[0], out_shape_zyx[2], out_shape_zyx[1]))
+                    else (out_shape_zyx[0], out_shape_zyx[2], out_shape_zyx[1]))
     kernel = _deskew_y_objective if frame == "objective" else _deskew_y_shear_only
     out = kernel(raw, int(nz), int(ny), int(nx), step, tan_t, sin_t, cos_t)
     if skew == "X":
@@ -111,20 +111,20 @@ def numba_deskew(raw_zyx, angle_deg, dz, dy, dx, skew="Y", frame="objective", ou
 
 def two_pass_shear_only(raw_zyx, angle_deg, dz, dy, dx, skew="Y"):
     """Ground truth: the current manual method (deskew then rotate-to-level)."""
-    import pyclesperanto_prototype as cle
+    import pyclesperanto as cle
     raw = raw_zyx.astype(np.float32)
     if skew == "Y":
-        desk = cle.deskew_y(raw, angle_in_degrees=angle_deg,
+        desk = cle.deskew_y(raw, angle=angle_deg,
                             voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz)
         leveled = cle.rotate(desk,
-                             angle_around_x_in_degrees=level_angle(angle_deg, "Y"),
-                             rotate_around_center=True, auto_size=True)
+                                angle_x=level_angle(angle_deg, "Y"),
+                                centered=True, resize=True)
     else:
-        desk = cle.deskew_x(raw, angle_in_degrees=angle_deg,
+        desk = cle.deskew_x(raw, angle=angle_deg,
                             voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz)
         leveled = cle.rotate(desk,
-                             angle_around_y_in_degrees=level_angle(angle_deg, "X"),
-                             rotate_around_center=True, auto_size=True)
+                                angle_y=level_angle(angle_deg, "X"),
+                                centered=True, resize=True)
     vol = np.asarray(cle.pull(leveled))
     nz = np.argwhere(vol > 0)
     if nz.size:

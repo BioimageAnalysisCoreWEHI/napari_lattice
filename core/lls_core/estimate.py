@@ -384,28 +384,43 @@ class MemoryEstimate:
 
 # -- GPU / host detection -----------------------------------------------------
 
+def _parse_device_info_mb(label: str) -> Optional[int]:
+    """
+    Extracts a `"<label>:  <N> MB"` field from `pyclesperanto.get_device().info` and
+    returns it in bytes. Unlike the old pyclesperanto_prototype, the new pyclesperanto
+    Device doesn't expose numeric byte counts directly (no `.device.max_mem_alloc_size`
+    / `.global_mem_size`) - only this human-readable text blob - so parsing it is the
+    only generic (backend-agnostic) way to get these figures. Returns None, MB-rounded,
+    on any parse failure.
+    """
+    import re
+    import pyclesperanto as cle
+    match = re.search(rf"{re.escape(label)}:\s*(\d+)\s*MB", cle.get_device().info)
+    if match is None:
+        return None
+    return int(match.group(1)) * 1024 * 1024
+
+
 def get_max_allocation_size() -> Optional[int]:
     """
-    Returns CL_DEVICE_MAX_MEM_ALLOC_SIZE for the currently-selected OpenCL
-    device, or None if unavailable. Any single OpenCL buffer larger than this
-    will fail to allocate even if total global memory has room.
+    Returns the current device's maximum single-buffer allocation size (in bytes),
+    or None if unavailable. Any single OpenCL buffer larger than this will fail to
+    allocate even if total global memory has room.
     """
     try:
-        import pyclesperanto_prototype as cle
-        return cle.get_device().device.max_mem_alloc_size
+        return _parse_device_info_mb("Maximum Buffer Size")
     except Exception:
-        logger.debug("Could not determine CL_DEVICE_MAX_MEM_ALLOC_SIZE", exc_info=True)
+        logger.debug("Could not determine max allocation size", exc_info=True)
         return None
 
 
 def get_global_mem_size() -> Optional[int]:
     """
-    Returns global memory size for the currently-selected OpenCL device in
-    bytes, or None if unavailable.
+    Returns global memory size for the currently-selected device in bytes, or None
+    if unavailable.
     """
     try:
-        import pyclesperanto_prototype as cle
-        return cle.get_device().device.global_mem_size
+        return _parse_device_info_mb("Global Memory Size")
     except Exception:
         logger.debug("Could not determine global memory size", exc_info=True)
         return None

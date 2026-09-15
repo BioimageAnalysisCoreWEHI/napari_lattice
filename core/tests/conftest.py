@@ -4,7 +4,7 @@ import pytest
 from skimage.io import imsave
 import numpy as np
 from pathlib import Path
-import pyclesperanto_prototype as cle
+import pyclesperanto as cle
 import tempfile
 from numpy.typing import NDArray
 from copy import copy
@@ -13,6 +13,21 @@ from lls_core.sample import resources
 
 from napari_workflows import Workflow
 from napari_workflows._io_yaml_v1 import save_workflow
+
+def pytest_collection_modifyitems(items: list) -> None:
+    """
+    Some tests (marked `gpu_state_risk`) trigger a pyclesperanto bug where certain
+    GPU op sequences leave the backend returning zeroed/wrong data for every later
+    pyclesperanto call in the process - with no error raised. Running them last means
+    a corruption they cause can only fail themselves, not unrelated tests earlier in
+    the file list. This doesn't fix the underlying pyclesperanto bug, just contains it.
+    """
+    risky = [item for item in items if item.get_closest_marker("gpu_state_risk")]
+    if not risky:
+        return
+    safe = [item for item in items if item not in risky]
+    items[:] = safe + risky
+
 
 @pytest.fixture
 def runner() -> CliRunner:
@@ -67,8 +82,8 @@ def image_workflow() -> Workflow:
     # Simple segmentation workflow that returns an image
     image_seg_workflow = Workflow()
     image_seg_workflow.set("gaussian", cle.gaussian_blur, "deskewed_image", sigma_x=1, sigma_y=1, sigma_z=1)
-    image_seg_workflow.set("binarisation", cle.threshold, "gaussian", constant=0.5)
-    image_seg_workflow.set("labeling", cle.connected_components_labeling_box, "binarisation")
+    image_seg_workflow.set("binarisation", cle.greater_constant, "gaussian", scalar=0.5)
+    image_seg_workflow.set("labeling", cle.connected_component_labeling, "binarisation", connectivity="box")
     return image_seg_workflow
 
 @pytest.fixture
