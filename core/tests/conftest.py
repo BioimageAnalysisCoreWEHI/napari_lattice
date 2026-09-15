@@ -14,6 +14,21 @@ from lls_core.sample import resources
 from napari_workflows import Workflow
 from napari_workflows._io_yaml_v1 import save_workflow
 
+def pytest_collection_modifyitems(items: list) -> None:
+    """
+    Some tests (marked `gpu_state_risk`) trigger a pyclesperanto bug where certain
+    GPU op sequences leave the backend returning zeroed/wrong data for every later
+    pyclesperanto call in the process - with no error raised. Running them last means
+    a corruption they cause can only fail themselves, not unrelated tests earlier in
+    the file list. This doesn't fix the underlying pyclesperanto bug, just contains it.
+    """
+    risky = [item for item in items if item.get_closest_marker("gpu_state_risk")]
+    if not risky:
+        return
+    safe = [item for item in items if item not in risky]
+    items[:] = safe + risky
+
+
 @pytest.fixture
 def runner() -> CliRunner:
     return CliRunner()

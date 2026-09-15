@@ -13,7 +13,7 @@ from lls_core.models.lattice_data import LatticeData
 from tests.utils import invoke
 from pathlib import Path
 from .params import config_types
-from .utils import invoke, valid_image_path
+from .utils import invoke, valid_image_path, requires_real_gpu
 
 
 def test_napari_workflow(image_workflow: Workflow, test_image: NDArray):
@@ -27,6 +27,7 @@ def test_napari_workflow(image_workflow: Workflow, test_image: NDArray):
     labeling = workflow.get("labeling")
     assert labeling[2, 2, 2] == 1
 
+@requires_real_gpu
 @config_types
 def test_workflow_cli(workflow_config_cli: dict, save_func: Callable, cli_param: str):
     """
