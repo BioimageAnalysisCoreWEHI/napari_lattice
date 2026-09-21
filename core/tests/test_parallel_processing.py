@@ -645,8 +645,14 @@ def test_cli_explicit_process_parallel_respected():
     ],
 )
 def test_cli_roi_subset_accepts_commas_and_repeated(cli_args):
-    """The CLI should accept --roi-subset as comma-separated, repeated, or mixed."""
+    """The CLI should accept --roi-subset as comma-separated, repeated, or mixed.
+
+    Parsing lives in `CropParams` (not a CLI-level callback), so the CLI merge
+    layer only needs to hand the raw string(s) through untouched; this checks
+    that they reach `CropParams` and are parsed correctly there.
+    """
     from typer.testing import CliRunner
+    from lls_core.models.crop import CropParams
     import lls_core.cmds.__main__ as m
 
     captured: dict = {}
@@ -667,21 +673,24 @@ def test_cli_roi_subset_accepts_commas_and_repeated(cli_args):
     finally:
         m.LatticeData.parse_obj = original  # type: ignore[assignment]
     assert result.exit_code == 0
-    assert captured["crop"]["roi_subset"] == [0, 1, 2]
+    roi = [[0, 0], [0, 10], [10, 10], [10, 0]]
+    crop = CropParams(roi_list=[roi, roi, roi], roi_subset=captured["crop"]["roi_subset"])
+    assert crop.roi_subset == [0, 1, 2]
 
 
-def test_cli_roi_subset_rejects_non_integer():
-    """A non-integer in the comma list should fail fast, not crash later."""
+def test_cli_roi_subset_rejects_non_integer(rbc_tiny, tmp_path):
+    """A non-integer in the comma list should fail validation cleanly, not crash."""
     from typer.testing import CliRunner
     import lls_core.cmds.__main__ as m
 
     runner = CliRunner()
     result = runner.invoke(
         m.app,
-        ["dummy.tif", "--save-dir", "/tmp", "--save-name", "x", "--roi-subset", "0,foo"],
+        [str(rbc_tiny), "--save-dir", str(tmp_path), "--save-name", "x", "--roi-subset", "0,foo"],
         catch_exceptions=False,
     )
     assert result.exit_code != 0
+    assert "foo" in result.output
 
 
 class _FakeReport:
