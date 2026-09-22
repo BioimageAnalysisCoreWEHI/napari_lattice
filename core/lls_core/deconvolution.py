@@ -16,6 +16,7 @@ import numpy as np
 from dask.array.core import Array as DaskArray
 
 from lls_core.utils import array_to_dask, pad_image_nearest_multiple
+from lls_core.czi_reader import bioimage_kwargs
 from lls_core.types import ArrayLike, is_arraylike
 
 if TYPE_CHECKING:
@@ -62,7 +63,9 @@ def read_psf(psf_paths: Collection[Path],
     for psf in psf_paths:
         if psf.exists() and psf.is_file():
             if psf.suffix == ".czi":
-                psf_czi = BioImage(psf.__str__(), reader=bioio_czi.Reader)
+                psf_czi = BioImage(
+                    psf.__str__(), reader=bioio_czi.Reader, **bioimage_kwargs(psf)
+                )
                 psf_aics = psf_czi.data
                 # make sure shape is 3D
                 psf_aics = psf_aics[0][0]  
@@ -78,7 +81,7 @@ def read_psf(psf_paths: Collection[Path],
                        raise ValueError(f"PSF should be a 3D image (shape of 3), but got {psf_aics.shape}")
                 else:
                     #Use BioIO
-                    psf_aics = BioImage(str(psf))
+                    psf_aics = BioImage(str(psf), **bioimage_kwargs(psf))
                     psf_aics_data = psf_aics.data[0][0]
                     psf_aics_data = pad_image_nearest_multiple(
                         img=psf_aics_data, nearest_multiple=16)           

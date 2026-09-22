@@ -8,14 +8,14 @@ import pytest
 from importlib_resources import as_file
 from bioio import BioImage
 from lls_core.sample import resources
-from lls_core.czi_reader import _Z_CHUNK
+from lls_core.czi_reader import _Z_CHUNK, bioimage_kwargs
 from napari_lattice.reader import _czi_fast_dask_data, _czi_fast_metadata, bioio_reader
 
 
 @pytest.mark.parametrize("name", ["RBC_tiny.czi", "LLS7_t2_ch3.czi"])
 def test_czi_fast_dask_data_matches_bioio_and_is_plane_chunked(name):
     with as_file(resources / name) as path:
-        image = BioImage(path)
+        image = BioImage(path, **bioimage_kwargs(path))
         order = image.dims.order
         ref = image.dask_data
 
@@ -47,7 +47,7 @@ def test_czi_fast_dask_data_matches_bioio_and_is_plane_chunked(name):
 def test_czi_fast_path_plane_slice_matches_bioio(name):
     """A single-plane slice - what napari actually requests - must match bioio."""
     with as_file(resources / name) as path:
-        image = BioImage(path)
+        image = BioImage(path, **bioimage_kwargs(path))
         order = image.dims.order
         ref = image.dask_data
 
@@ -60,6 +60,35 @@ def test_czi_fast_path_plane_slice_matches_bioio(name):
         got = np.asarray(fast[idx])
         assert got.shape == tuple(sizes[d] for d in ("Y", "X"))
         assert np.array_equal(got, np.asarray(ref[idx]))
+
+
+def test_bioio_reader_pins_pylibczirw(monkeypatch):
+    """
+    The napari entry point names the CZI library rather than inheriting bioio-czi's
+    default, which flipped to aicspylibczi in 3.0.0. Inherit it and a file recording
+    stage drift between timepoints opens as its subblock, misregistered - see
+    `core/tests/test_czi_reader.py::test_bioio_fallback_reads_the_canvas`.
+
+    Asserting on the argument rather than the reader that came back is deliberate: an
+    assertion about the resulting backend would also pass on a bioio-czi old enough to
+    default to pylibCZIrw, and pin nothing.
+    """
+    import bioio_czi
+
+    calls: list = []
+    real_init = bioio_czi.Reader.__init__
+
+    def spy(self, image, *args, **kwargs):
+        calls.append(kwargs.get("use_aicspylibczi", "inherited"))
+        return real_init(self, image, *args, **kwargs)
+
+    monkeypatch.setattr(bioio_czi.Reader, "__init__", spy)
+
+    with as_file(resources / "RBC_tiny.czi") as path:
+        assert bioio_reader(str(path))
+
+    assert calls, "no CZI reader was constructed"
+    assert set(calls) == {False}, calls
 
 
 def test_non_czi_falls_back_to_bioio():
@@ -82,7 +111,7 @@ def test_czi_fast_metadata_matches_bioio(name):
     If a bioio upgrade changes how it derives any of these, this fails loudly.
     """
     with as_file(resources / name) as path:
-        image = BioImage(path)
+        image = BioImage(path, **bioimage_kwargs(path))
         meta = _czi_fast_metadata(str(path), image)
         assert meta is not None
 

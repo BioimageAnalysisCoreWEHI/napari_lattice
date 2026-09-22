@@ -20,7 +20,7 @@ from typing import Any, List, Optional, Tuple, Collection, TYPE_CHECKING, TypedD
 
 from bioio import PhysicalPixelSizes
 from lls_core.models.deskew import DefinedPixelSizes
-from lls_core.czi_reader import czi_dask_array, czi_metadata
+from lls_core.czi_reader import bioimage_kwargs, czi_dask_array, czi_metadata
 
 from logging import getLogger
 logger = getLogger(__name__)
@@ -260,7 +260,7 @@ def bioio_reader(path: str | list[str]) -> List[Tuple[Any, dict, str]]:
         path = path[0]
     
     try:
-        image = BioImage(path)
+        image = BioImage(path, **bioimage_kwargs(path))
     except Exception as e:
         if str(path).endswith((".tif", ".tiff")):
             raise Exception("Error reading TIFF. Try upgrading tifffile library: pip install tifffile --upgrade.") from e

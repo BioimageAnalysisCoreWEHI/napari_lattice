@@ -163,8 +163,10 @@ def drift_czi(tmp_path_factory):
     """
     A CZI whose subblocks are narrower than the canvas, because each timepoint records
     a different stage offset. This is the file shape that crashed the old reader:
-    aicspylibczi reports the 20-wide subblock while pylibCZIrw and bioio report the
-    25-wide canvas, and reshaping one into the other raises.
+    aicspylibczi reports the 20-wide subblock while pylibCZIrw reports the 25-wide
+    canvas, and reshaping one into the other raises. bioio picks aicspylibczi unless
+    told otherwise from bioio-czi 3.0.0 on, and `czi_reader.bioimage_kwargs` is what
+    tells it otherwise.
 
     Yields `(path, planes, offsets)`; `planes[(t, z)]` is the array as written.
     """
@@ -213,6 +215,30 @@ def noncontiguous_scene_czi(tmp_path_factory):
                     scene=scene,
                 )
     return path, planes
+
+
+@pytest.fixture
+def czi_backend_calls(monkeypatch):
+    """
+    Records the `use_aicspylibczi` argument of every `bioio_czi.Reader` built during
+    the test - `"inherited"` when the call site passed none.
+
+    What is under test is that call sites name a library, so this records the argument
+    rather than the reader it produced: bioio-czi defaulted to pylibCZIrw until 3.0.0,
+    so a test of the resulting backend would pass on an older release while pinning
+    nothing.
+    """
+    import bioio_czi
+
+    calls: list = []
+    real_init = bioio_czi.Reader.__init__
+
+    def spy(self, image, *args, **kwargs):
+        calls.append(kwargs.get("use_aicspylibczi", "inherited"))
+        return real_init(self, image, *args, **kwargs)
+
+    monkeypatch.setattr(bioio_czi.Reader, "__init__", spy)
+    return calls
 
 
 @pytest.fixture

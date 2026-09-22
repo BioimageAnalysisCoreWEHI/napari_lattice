@@ -33,9 +33,9 @@ def load_image_lazy(path: Path) -> DataArray:
     """
     from bioio import BioImage
     from os import fspath
-    from lls_core.czi_reader import czi_xarray
+    from lls_core.czi_reader import bioimage_kwargs, czi_xarray
     resolved = fspath(path)
-    image = BioImage(resolved)
+    image = BioImage(resolved, **bioimage_kwargs(resolved))
     # The facade czi_xarray builds is created here, inside the worker, so the
     # non-picklable reader it holds never has to cross a process boundary.
     fast = czi_xarray(resolved, image)
@@ -270,7 +270,9 @@ class DeskewParams(FieldAccessModel):
 
         aics: BioImage | None = None
         if is_pathlike(img):
-            aics = BioImage(fspath(img))
+            from lls_core.czi_reader import bioimage_kwargs
+
+            aics = BioImage(fspath(img), **bioimage_kwargs(fspath(img)))
             # Remember the source path so parallel workers can re-open the file lazily
             values["input_image_path"] = Path(fspath(img)).resolve()
         elif isinstance(img, BioImage):
