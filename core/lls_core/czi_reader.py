@@ -42,7 +42,7 @@ from __future__ import annotations
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from itertools import product
-from logging import getLogger
+from logging import INFO, WARNING, getLogger
 from typing import Any, Optional
 
 import dask.array as da
@@ -75,15 +75,20 @@ def _pool() -> ThreadPoolExecutor:
         return _pool_instance
 
 
-def _decline(path: Any, reason: str, exc_info: bool = False) -> None:
+def _decline(
+    path: Any, reason: str, exc_info: bool = False, level: int = INFO
+) -> None:
     """
     Log why the fast path bowed out and return None, so the caller falls back to bioio.
 
     INFO rather than DEBUG: falling back silently turns a 1.2 s open back into a 195 s
     one, so enabling ordinary logging has to be enough to say why. Callers must return
     before reaching this for a non-CZI, or every TIFF opened would log too.
+
+    ``level`` is WARNING for a broken install: one file declining is routine, every
+    CZI declining is not.
     """
-    logger.info("CZI fast path declined for %s: %s", path, reason, exc_info=exc_info)
+    logger.log(level, "CZI fast path declined for %s: %s", path, reason, exc_info=exc_info)
     return None
 
 
@@ -221,7 +226,14 @@ def czi_metadata(path: str, image: BioImage) -> Optional[dict]:
         from bioio_czi.channels import get_channel_names
         from bioio_czi.pylibczirw_reader.reader import PIXEL_DICT
     except Exception:
-        return _decline(path, "bioio-czi internals unavailable", exc_info=True)
+        # The pyproject cap should make this unreachable; conda and --no-deps installs
+        # do not honour it.
+        return _decline(
+            path,
+            "bioio-czi internals unavailable (needs <4.0); every CZI takes the slow path",
+            exc_info=True,
+            level=WARNING,
+        )
 
     try:
         bioio_idx = int(getattr(image, "current_scene_index", 0) or 0)
