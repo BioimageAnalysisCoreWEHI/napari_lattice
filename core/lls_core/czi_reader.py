@@ -7,10 +7,15 @@ bioio-czi builds its dask array eagerly, so merely reading ``BioImage.dims`` (or
 work over the result. This module derives the dimensions from metadata and wraps a
 lazy facade in ``da.from_array`` instead.
 
-Reads go through pylibCZIrw, the library bioio-czi itself uses by default, so output
-is byte-identical to ``xarray_dask_data``. Do not substitute another CZI library
-here: aicspylibczi returns subblocks without applying their logical offset, which
-silently misregisters files that record stage drift between timepoints.
+Reads go through pylibCZIrw. Do not substitute another CZI library here:
+aicspylibczi returns subblocks without applying their logical offset, which silently
+misregisters files that record stage drift between timepoints, handing back the
+subblock where the canvas was asked for.
+
+bioio-czi 3.0.0 made aicspylibczi its own default, so bioio no longer agrees with this
+module out of the box. ``bioimage_kwargs`` pins CZI reads back to pylibCZIrw, and every
+``BioImage`` call site passes it; that is what keeps a file one geometry whether the
+fast path or the fallback serves it.
 
 Every entry point returns ``None`` rather than raising, so callers fall back to bioio.
 
@@ -28,14 +33,16 @@ Note what is *not* maintained here: no CZI is parsed. Reads go through pylibCZIr
 what this module owns is the dask graph over one, not the reader itself.
 
 Call sites to revert if the whole module ever goes: ``lls_core.types``,
-``lls_core.models.deskew`` and ``napari_lattice.reader``.
+``lls_core.models.deskew`` and ``napari_lattice.reader``. ``bioimage_kwargs`` outlives
+the rest of the module - it is about which library bioio itself reads with, not about
+speed - so those call sites and ``lls_core.deconvolution`` keep it.
 """
 from __future__ import annotations
 
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from itertools import product
-from logging import getLogger
+from logging import INFO, WARNING, getLogger
 from typing import Any, Optional
 
 import dask.array as da
@@ -68,16 +75,40 @@ def _pool() -> ThreadPoolExecutor:
         return _pool_instance
 
 
-def _decline(path: Any, reason: str, exc_info: bool = False) -> None:
+def _decline(
+    path: Any, reason: str, exc_info: bool = False, level: int = INFO
+) -> None:
     """
     Log why the fast path bowed out and return None, so the caller falls back to bioio.
 
     INFO rather than DEBUG: falling back silently turns a 1.2 s open back into a 195 s
     one, so enabling ordinary logging has to be enough to say why. Callers must return
     before reaching this for a non-CZI, or every TIFF opened would log too.
+
+    ``level`` is WARNING for a broken install: one file declining is routine, every
+    CZI declining is not.
     """
-    logger.info("CZI fast path declined for %s: %s", path, reason, exc_info=exc_info)
+    logger.log(level, "CZI fast path declined for %s: %s", path, reason, exc_info=exc_info)
     return None
+
+
+def bioimage_kwargs(path: Any) -> dict:
+    """
+    Extra ``BioImage`` keyword arguments for ``path``: pin CZIs to pylibCZIrw, and
+    pass nothing at all for any other format.
+
+    bioio-czi 3.0.0 flipped its default to aicspylibczi, which reads subblocks without
+    applying their logical offset. A file that records stage drift between timepoints
+    then comes back at the subblock size, misregistered - 20 px wide where the canvas
+    is 25. That is the geometry the fast path below deliberately avoids, so bioio has
+    to be held to the same library or the fallback disagrees with it on the same file.
+
+    The kwarg predates the flip (bioio-czi 2.4.0 took it, defaulting to False), so
+    passing it explicitly works across the whole supported range.
+    """
+    if not str(path).lower().endswith(".czi"):
+        return {}
+    return {"use_aicspylibczi": False}
 
 
 class CziPlanes:
@@ -195,7 +226,14 @@ def czi_metadata(path: str, image: BioImage) -> Optional[dict]:
         from bioio_czi.channels import get_channel_names
         from bioio_czi.pylibczirw_reader.reader import PIXEL_DICT
     except Exception:
-        return _decline(path, "bioio-czi internals unavailable", exc_info=True)
+        # The pyproject cap should make this unreachable; conda and --no-deps installs
+        # do not honour it.
+        return _decline(
+            path,
+            "bioio-czi internals unavailable (needs <4.0); every CZI takes the slow path",
+            exc_info=True,
+            level=WARNING,
+        )
 
     try:
         bioio_idx = int(getattr(image, "current_scene_index", 0) or 0)

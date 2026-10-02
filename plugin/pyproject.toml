@@ -38,10 +38,13 @@ requires-python = ">=3.10"
 dependencies = [
     "bioio>=3.0.0",
     "bioio-tifffile==1.3.0",
-    "bioio-czi>=2.4.0",
-    # Imported directly in reader.py for fast CZI reads. This is the same library
-    # bioio-czi uses by default, which is what keeps the fast path byte-identical
-    # to bioio's dask_data (also pulled in by bioio-czi).
+    # <4.0: bioio-czi deprecated pylibczirw mode in 3.0.1 and drops it, with the
+    # use_aicspylibczi parameter, in the next major. See lls_core.czi_reader.
+    "bioio-czi>=2.4.0,<4.0",
+    # Imported directly in reader.py for fast CZI reads. bioio-czi 3.0.0 made
+    # aicspylibczi its default, so czi_reader.bioimage_kwargs pins bioio back to this
+    # library, which is what keeps the fast path byte-identical to bioio's dask_data
+    # (also pulled in by bioio-czi).
     "pylibczirw",
     "dask[distributed]",
     # This isn't used directly, but we need to pin this version

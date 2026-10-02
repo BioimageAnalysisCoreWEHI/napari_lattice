@@ -15,7 +15,7 @@ import numpy as np
 import pytest
 from bioio import BioImage
 
-from lls_core.czi_reader import czi_dask_array, czi_metadata
+from lls_core.czi_reader import bioimage_kwargs, czi_dask_array, czi_metadata
 
 
 def test_drift_czi_reads_the_canvas_not_the_subblock(drift_czi, czi_stub_image):
@@ -51,16 +51,62 @@ def test_drift_czi_matches_bioio(drift_czi, czi_stub_image):
     """
     bioio cannot enumerate scenes on a generated CZI, but `.dask_data` works, so pixel
     parity is still available for the single-scene case.
+
+    The reference is opened the way production opens a CZI, through
+    `bioimage_kwargs`. Drop that and bioio-czi >= 3.0.0 reads with aicspylibczi, which
+    returns the 20-wide subblock rather than the 25-wide canvas - the divergence the
+    fast path exists to avoid, not a parity failure.
     """
     path, _planes, _offsets = drift_czi
 
     arr = czi_dask_array(str(path), czi_stub_image(path))
     assert arr is not None
 
-    ref = BioImage(str(path)).dask_data
+    ref = BioImage(str(path), **bioimage_kwargs(path)).dask_data
     assert arr.shape == ref.shape
     assert arr.dtype == ref.dtype
     assert np.array_equal(np.asarray(arr.compute()), np.asarray(ref.compute()))
+
+
+def test_bioimage_kwargs_pins_czis_only():
+    """
+    Every other format is read by a plugin that has never heard of the kwarg, so
+    passing it would raise on open.
+    """
+    assert bioimage_kwargs("a.czi") == {"use_aicspylibczi": False}
+    assert bioimage_kwargs("A.CZI") == {"use_aicspylibczi": False}
+    assert bioimage_kwargs("a.tif") == {}
+    assert bioimage_kwargs("a.ome.zarr") == {}
+
+
+def test_bioio_fallback_reads_the_canvas(drift_czi, monkeypatch):
+    """
+    The fast path and the fallback have to land on the same geometry, or a mosaic -
+    the common reason to decline in the field - silently changes what a file means.
+
+    Open this without `bioimage_kwargs` and bioio-czi >= 3.0.0 reads it with
+    aicspylibczi, which hands back the 20 px subblock rather than the 25 px canvas,
+    misregistered by each timepoint's stage offset. Nothing downstream would notice:
+    the shape is self-consistent and the pixels are real, just in the wrong place.
+
+    The decline is forced rather than incidental. This file declines on its own under
+    pylibCZIrw, because that writer emits no `<Scenes>` for `current_scene_index` to
+    read - but aicspylibczi does report a scene, so dropping the pin would make the
+    fast path engage and the test would pass without ever reaching the fallback.
+    """
+    from lls_core import czi_reader
+    from lls_core.types import image_like_to_image
+
+    path, planes, offsets = drift_czi
+    monkeypatch.setattr(czi_reader, "czi_xarray", lambda *args, **kwargs: None)
+
+    got = image_like_to_image(str(path))
+    assert got.shape == (3, 1, 4, 12, 25), "the fallback dropped the drift canvas"
+
+    expected = np.zeros((3, 1, 4, 12, 25), dtype=np.uint16)
+    for (t, z), plane in planes.items():
+        expected[t, 0, z][:, offsets[t]:offsets[t] + 20] = plane
+    assert np.array_equal(np.asarray(got.compute()), expected)
 
 
 @pytest.mark.parametrize("bioio_index", [0, 1])
@@ -232,3 +278,25 @@ def test_cli_call_sites_take_the_fast_path(rbc_tiny, call_site):
     got = call_site(rbc_tiny)
     assert _array_name(got).startswith("lls-czi-"), _array_name(got)
     assert got.dims == ("T", "C", "Z", "Y", "X")
+
+
+@pytest.mark.parametrize(
+    "call_site",
+    [_via_image_like_to_image, _via_load_image_lazy, _via_deskew_params],
+    ids=["image_like_to_image", "load_image_lazy", "DeskewParams"],
+)
+def test_cli_call_sites_pin_pylibczirw(rbc_tiny, call_site, czi_backend_calls):
+    """
+    Which library bioio-czi reads with is upstream's default to change, and it changed
+    in 3.0.0. Every call site has to name the library rather than inherit it, or the
+    fallback stops agreeing with the fast path on drift files - see
+    `test_bioio_fallback_reads_the_canvas` for what that costs.
+
+    Asserting on what was passed, not on the reader that came back, is deliberate: an
+    assertion about the resulting backend would also pass on a bioio-czi old enough to
+    default to pylibCZIrw, and pin nothing.
+    """
+    call_site(rbc_tiny)
+
+    assert czi_backend_calls, "no CZI reader was constructed"
+    assert set(czi_backend_calls) == {False}, czi_backend_calls
