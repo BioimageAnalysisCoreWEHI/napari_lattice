@@ -15,6 +15,7 @@ class SaveFileType(StrEnum):
     h5 = "h5"
     tiff = "tiff"
     omezarr = "omezarr"
+    imaris = "imaris"
 
 class MipInterpolation(StrEnum):
     """
@@ -38,7 +39,7 @@ class OutputParams(FieldAccessModel):
     )
     save_type: SaveFileType = Field(
         default=SaveFileType.h5,
-        description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: `{enum_choices(SaveFileType)}`. Choices can alternatively be specifed as `str`, for example `'tiff'`. Note: `tiff` is saved as a compressed OME-TIFF (`.ome.tif`)."
+        description=f"The data type to save the result as. This will also be used to determine the file extension of the output files. Choices: `{enum_choices(SaveFileType)}`. Choices can alternatively be specifed as `str`, for example `'tiff'`. Note: `tiff` is saved as a compressed OME-TIFF (`.ome.tif`), and `imaris` as a multi-resolution Imaris 5.5 file (`.ims`)."
     )
     time_range: range = Field(
         default=None,
@@ -101,6 +102,8 @@ class OutputParams(FieldAccessModel):
             return "h5"
         elif self.save_type == SaveFileType.omezarr:
             return "ome.zarr"
+        elif self.save_type == SaveFileType.imaris:
+            return "ims"
         else:
             # TIFF is written as a compressed OME-TIFF by default. The legacy
             # uncompressed path renames itself back to plain ".tif".
