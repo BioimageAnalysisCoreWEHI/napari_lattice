@@ -34,12 +34,17 @@ class CliDeskewDirection(StrEnum):
     X = auto()
     Y = auto()
 
+class CliDeskewEngine(StrEnum):
+    GPU = auto()
+    CPU = auto()
+
 CLI_PARAM_MAP = {
     "input_image": ["input_image"],
     "angle": ["angle"],
     "skew": ["skew"],
     "invert_scan_direction": ["invert_scan_direction"],
     "coverslip_rotation": ["coverslip_rotation"],
+    "engine": ["engine"],
     "physical_pixel_sizes": ["physical_pixel_sizes"],
     "roi_list": ["crop", "roi_list"],
     "roi_units": ["crop", "roi_units"],
@@ -134,8 +139,11 @@ def rich_validation(e: ValidationError) -> Table:
     table.add_column("Error")
 
     for error in e.errors():
+        # A whole-model validator (e.g. DeskewParams.validate_cpu_engine) reports an
+        # empty loc tuple, since it isn't tied to one field.
+        parameter = str(error["loc"][0]) if error["loc"] else "(general)"
         table.add_row(
-            str(error["loc"][0]),
+            parameter,
             str(error["msg"]),
         )
 
@@ -182,6 +190,7 @@ def process(
     angle: float = field_from_model(DeskewParams, "angle") ,
     invert_scan_direction: bool = field_from_model(DeskewParams, "invert_scan_direction"),
     coverslip_rotation: bool = field_from_model(DeskewParams, "coverslip_rotation"),
+    engine: CliDeskewEngine = field_from_model(DeskewParams, "engine"),
     physical_pixel_sizes: Tuple[float, float, float] = field_from_model(DeskewParams, "physical_pixel_sizes", extra_description="This takes three arguments, corresponding to the Z, Y and X pixel dimensions respectively", default=(
         DefinedPixelSizes.get_default("Z"),
         DefinedPixelSizes.get_default("Y"),
