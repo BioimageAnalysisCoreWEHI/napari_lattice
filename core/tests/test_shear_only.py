@@ -53,6 +53,7 @@ from lls_core.shear_only_geometry import (
     shear_only_display_affine_zyx,
 )
 from tests.reference_deskew import numba_deskew, two_pass_shear_only, _tight_crop, yz_slab_angle
+from tests.utils import requires_real_gpu
 
 
 # ---------------------------------------------------------------------------
@@ -120,6 +121,7 @@ def test_bad_skew_raises(bad):
 # ===========================================================================
 # KERNEL PARITY  (numba reference vs cle / OpenCL, GPU)
 # ===========================================================================
+@requires_real_gpu
 def test_numba_objective_matches_cle_deskew_y():
     # Numba objective output should match trusted cle.deskew_y.
     raw = _feature_volume()
@@ -133,6 +135,7 @@ def test_numba_objective_matches_cle_deskew_y():
     assert np.corrcoef(nb.ravel(), gt.ravel())[0, 1] > 0.98
 
 
+@requires_real_gpu
 @pytest.mark.parametrize("ang", [45.0, 30.0])
 def test_numba_shear_only_matches_two_pass_ground_truth(ang):
     """The one true oracle for the frozen shear-only map: compare the single-pass numba

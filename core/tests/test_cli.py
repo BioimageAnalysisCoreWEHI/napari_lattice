@@ -126,3 +126,28 @@ def test_cli_coverslip_rotation_flag(runner, lls7_t1_ch1):
         # A silent fallback (or a crash swallowed to exit 0) would write nothing:
         # require the shear-only path to actually produce a readable output file.
         assert_tiff(Path(d))
+
+def test_cli_engine_cpu_flag(runner, lls7_t1_ch1):
+    """`--engine CPU` should run end-to-end through the CLI, with no GPU involved."""
+    from lls_core.cmds.__main__ import app
+    with tempfile.TemporaryDirectory() as d:
+        res = runner.invoke(app, [str(lls7_t1_ch1),
+                                  "--engine", "CPU",
+                                  "--save-type", "tiff",
+                                  "--save-dir", d, "--save-name", "t"])
+        assert res.exit_code == 0, res.output
+        assert_tiff(Path(d))
+
+def test_cli_engine_cpu_rejects_shear_only(runner, lls7_t1_ch1):
+    """`--engine CPU` combined with `--no-coverslip-rotation` has no CPU implementation
+    (see DeskewParams.validate_cpu_engine); the CLI should fail fast with the friendly
+    validation-error table rather than crash or silently fall back to GPU."""
+    from lls_core.cmds.__main__ import app
+    with tempfile.TemporaryDirectory() as d:
+        res = runner.invoke(app, [str(lls7_t1_ch1),
+                                  "--engine", "CPU",
+                                  "--no-coverslip-rotation",
+                                  "--save-type", "tiff",
+                                  "--save-dir", d, "--save-name", "t"])
+        assert res.exit_code != 0
+        assert "CPU deskew engine" in res.output

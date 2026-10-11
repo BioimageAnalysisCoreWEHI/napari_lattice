@@ -8,6 +8,7 @@ import pyclesperanto_prototype as cle
 from lls_core.deconvolution import DeconvolutionChoice
 from lls_core import (
     DeskewDirection,
+    DeskewEngine,
     Log_Levels,
 )
 from lls_core.models import (
@@ -260,6 +261,7 @@ class DeskewKwargs(NapariImageParams):
     skew: DeskewDirection
     invert_scan_direction: bool
     coverslip_rotation: bool
+    engine: DeskewEngine
 
 @magicclass
 class DeskewFields(NapariFieldGroup):
@@ -320,6 +322,13 @@ class DeskewFields(NapariFieldGroup):
         label="Coverslip Rotation",
         tooltip="Apply the coverslip rotation (standard deskew; correct for Zeiss LLS). Uncheck for OPM/SOPi to deskew into the shear-only, coverslip-level frame."
     )
+    engine = field(DeskewEngine.GPU, widget_type="RadioButtons").with_options(
+        label="Deskew Engine",
+        tooltip="GPU (pyclesperanto/OpenCL) is the default and fastest option. CPU uses a Numba-jitted\n"
+                "implementation of the same algorithm and needs no GPU, but is slower and currently only\n"
+                "supports the standard deskew (Coverslip Rotation enabled), with no ROI cropping support.",
+        orientation="horizontal"
+    )
 
     # --- Processing / preview ---
     device = field(str).with_choices(cle.available_device_names()).with_options(
@@ -357,6 +366,10 @@ class DeskewFields(NapariFieldGroup):
                             DefinedPixelSizes.get_default("Y"),
                             DefinedPixelSizes.get_default("Z")
                         )
+
+        # `enable_if` starts the Graphics Device field hidden; sync it to the
+        # actual default engine value (GPU -> shown) now that the widget exists.
+        self._enable_device(self.engine.value)
 
     @img_layer.connect
     def _img_changed(self) -> None:
@@ -408,6 +421,18 @@ class DeskewFields(NapariFieldGroup):
     def _on_coverslip_toggled(self):
         ticked = self.coverslip_rotation.value
         logger.info(f"Coverslip Rotation {'Enabled' if ticked else 'Disabled'}")
+
+    @engine.connect
+    def _on_engine_changed(self):
+        logger.info(f"Deskew Engine set to {self.engine.value}")
+
+    # The GPU device picker is meaningless when the CPU engine is selected, so
+    # show/hide it in step with the engine choice. `enable_if` starts the field
+    # hidden, so `__init__` below re-syncs it to the actual default (GPU -> shown).
+    @engine.connect
+    @enable_if([device])
+    def _enable_device(self, engine: DeskewEngine) -> bool:
+        return engine == DeskewEngine.GPU
 
     @invert_scan_direction.connect
     def _on_invert_scan_direction_toggled(self):
@@ -564,6 +589,7 @@ class DeskewFields(NapariFieldGroup):
             skew = self.skew_dir.value,
             invert_scan_direction=self.invert_scan_direction.value,
             coverslip_rotation=self.coverslip_rotation.value,
+            engine=self.engine.value,
         )
 
     def _make_model(self) -> DeskewParams:
@@ -575,6 +601,7 @@ class DeskewFields(NapariFieldGroup):
             skew = kwargs["skew"],
             invert_scan_direction=kwargs["invert_scan_direction"],
             coverslip_rotation=kwargs["coverslip_rotation"],
+            engine=kwargs["engine"],
         )
 
     def _validate(self):

@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pyclesperanto_prototype as cle
 
-from lls_core import DeskewDirection
+from lls_core import DeskewDirection, DeskewEngine
 from xarray import DataArray
 
 from lls_core.models.utils import FieldAccessModel, enum_choices
@@ -113,6 +113,14 @@ class DeskewParams(FieldAccessModel):
                     "(cle.deskew_y/x) and is coverslip-level for Zeiss LLS7; False skips the rotation and "
                     "is coverslip-level for some OPM/SOPi."
     )
+    engine: DeskewEngine = Field(
+        default=DeskewEngine.GPU,
+        description="Which backend performs the deskew computation. `GPU` (default) uses pyclesperanto/OpenCL "
+                    "and requires a working GPU. `CPU` uses a Numba-jitted implementation of the same "
+                    "orthogonal-interpolation algorithm and needs no GPU, at the cost of being slower on large "
+                    "volumes. `CPU` currently only supports the standard deskew (`coverslip_rotation=True`), and "
+                    "is not compatible with ROI cropping."
+    )
     derived: DerivedDeskewFields = Field(
         init_var=False,
         default=None,
@@ -130,6 +138,25 @@ class DeskewParams(FieldAccessModel):
 
     @property
     def deskew_func(self):
+        if self.engine == DeskewEngine.CPU:
+            if not self.coverslip_rotation:
+                raise ValueError(
+                    "The CPU deskew engine currently only supports the standard deskew "
+                    "(coverslip_rotation=True). Either enable Coverslip Rotation, or switch "
+                    "the engine back to GPU for the shear-only OPM/SOPi frame."
+                )
+            from lls_core.cpu_deskew import cpu_deskew
+            skew_dir = self.skew
+            output_shape = self.derived.deskew_vol_shape
+            # Adapt to the deskew_func call convention used in _process_non_crop
+            def _cpu(input_image, angle_in_degrees, linear_interpolation,
+                     voxel_size_x, voxel_size_y, voxel_size_z):
+                return cpu_deskew(
+                    input_image, angle_in_degrees=angle_in_degrees,
+                    voxel_size_x=voxel_size_x, voxel_size_y=voxel_size_y, voxel_size_z=voxel_size_z,
+                    deskew_direction=skew_dir, output_shape=output_shape,
+                )
+            return _cpu
         if not self.coverslip_rotation:
             # OPM/SOPi (shear-only) branch
             from lls_core.shear_only_deskew import shear_only_deskew
@@ -225,6 +252,26 @@ class DeskewParams(FieldAccessModel):
         if isinstance(v, str):
             return DeskewDirection[v]
         return v
+
+    @validator("engine", pre=True)
+    def convert_engine(cls, v: Any):
+        # Allow engine to be provided as a string
+        if isinstance(v, str):
+            return DeskewEngine[v]
+        return v
+
+    @root_validator()
+    def validate_cpu_engine(cls, values: dict) -> dict:
+        # The CPU (Numba) engine only implements the standard orthogonal-interpolation
+        # deskew, matching what it's ported from; the shear-only OPM/SOPi frame has no
+        # CPU implementation yet.
+        if values.get("engine") == DeskewEngine.CPU and not values.get("coverslip_rotation"):
+            raise ValueError(
+                "The CPU deskew engine currently only supports the standard deskew "
+                "(Coverslip Rotation enabled). Either enable Coverslip Rotation, or switch "
+                "the engine back to GPU for the shear-only OPM/SOPi frame."
+            )
+        return values
 
     @validator("physical_pixel_sizes", pre=True, always=True)
     def convert_pixels(cls, v: Any, values: dict[Any, Any]):
