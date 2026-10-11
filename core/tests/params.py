@@ -12,6 +12,7 @@ parameterized = pytest.mark.parametrize("args", [
     {"save_type": SaveFileType.h5},
     {"save_type": SaveFileType.tiff},
     {"save_type": SaveFileType.omezarr},
+    {"save_type": SaveFileType.imaris},
 ])
 
 # Allows parameterisation over two serialization formats
