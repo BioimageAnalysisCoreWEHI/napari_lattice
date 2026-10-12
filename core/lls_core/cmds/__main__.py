@@ -17,7 +17,7 @@ from lls_core.models.output import OutputParams
 from lls_core.models.crop import CropParams
 from lls_core.cropping import RoiUnits
 from lls_core.deconvolution import DeconvolutionChoice
-from typer import Typer, Argument, Option, Context, Exit, BadParameter
+from typer import Typer, Argument, Option, Context, Exit
 from typer.main import get_command
 import click
 
@@ -92,27 +92,6 @@ class RoiUnitsChoice(click.Choice):
         # folding away a trailing "s" makes the two spellings the same token.
         return super().normalize_choice(choice, ctx).rstrip("s")
 
-
-def parse_roi_subset(value: Optional[List[str]]) -> Optional[List[int]]:
-    """
-    Typer callback  normalises ``--roi-subset`` into a flat list of integer
-    indices. Accepts repeated flags (``--roi-subset 2 --roi-subset 5``) and/or a
-    comma-separated list (``--roi-subset 2,5,7``), with surrounding whitespace
-    tolerated. A non-integer piece fails fast as a CLI usage error.
-    """
-    if not value:
-        return value
-    result: List[int] = []
-    for item in value:
-        for piece in str(item).split(","):
-            piece = piece.strip()
-            if not piece:
-                continue
-            try:
-                result.append(int(piece))
-            except ValueError:
-                raise BadParameter(f"ROI subset indices must be integers; got {piece!r}")
-    return result
 
 def handle_merge(values: list):
     if len(values) > 1:
@@ -193,7 +172,7 @@ def process(
         CropParams, "roi_units",
         click_type=RoiUnitsChoice([unit.value for unit in RoiUnits], case_sensitive=False),
     ),
-    roi_subset: List[str] = field_from_model(CropParams, "roi_subset", extra_description="Accepts either repeated flags (--roi-subset 2 --roi-subset 5) or a comma-separated list (--roi-subset 2,5,7).", default=[], callback=parse_roi_subset),
+    roi_subset: List[str] = field_from_model(CropParams, "roi_subset", extra_description="Accepts either repeated flags (--roi-subset 2 --roi-subset 5) or a comma/space-separated list (--roi-subset 2,5,7 or --roi-subset \"2 5 7\").", default=[]),
     z_range: Optional[Tuple[int,int]] = field_from_model(CropParams, "z_range", show_default=False),
     
     enable_deconvolution: bool = Option(False, "--deconvolution/--disable-deconvolution", rich_help_panel="Deconvolution"),
