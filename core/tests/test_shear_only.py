@@ -204,12 +204,13 @@ def test_deskew_params_shear_only_shape_and_default():
     assert tuple(cover.derived.deskew_vol_shape) != tuple(default.derived.deskew_vol_shape)
 
 
-# Shear-only new_dz is the sheared lateral pixel (dy for Y, dx for X); objective stays
-# sin(angle)*dz. dy != dx so a Y/X lateral swap would flip 1.04 <-> 0.9.
+# new_dz is the lateral pixel (dy for Y, dx for X) in both frames, since that's the grid
+# the output is resampled onto. dy != dx so a Y/X lateral swap would flip 1.04 <-> 0.9.
 @pytest.mark.parametrize("skew,coverslip_rotation,expected_dz", [
     ("Y", False, 1.04),                                # shear-only Y -> dy
     ("X", False, 0.9),                                 # shear-only X -> dx
-    ("Y", True, math.sin(math.radians(45.0)) * 2.0),   # objective -> sin*dz
+    ("Y", True, 1.04),                                 # objective Y -> dy
+    ("X", True, 0.9),                                  # objective X -> dx
 ])
 def test_new_dz(skew, coverslip_rotation, expected_dz):
     da = DataArray(np.zeros((5, 10, 12), dtype=np.float32), dims=["Z", "Y", "X"])

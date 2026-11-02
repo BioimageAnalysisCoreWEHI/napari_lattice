@@ -38,7 +38,7 @@ Pixel data carries voxel size and little else. Two things are otherwise lost at 
     "z_range": [64, 274]
   },
   "derived": {
-    "output_voxel_size_um": { "z": 0.15, "y": 0.1499, "x": 0.1499 },
+    "output_voxel_size_um": { "z": 0.1499, "y": 0.1499, "x": 0.1499 },
     "full_output_shape_zyx": [210, 3100, 2048],
     "raw_to_deskewed_affine_zyx": [[...], [...], [...], [0, 0, 0, 1]],
     "affine_convention": "4x4 row-major homogeneous matrix in ZYX order ..."

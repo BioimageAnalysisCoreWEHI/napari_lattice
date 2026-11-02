@@ -449,8 +449,8 @@ class DeskewFields(NapariFieldGroup):
                     lattice.dy,
                     lattice.dx
                 )
-            #use zyx deskew affine transform
-            affine_transform = lattice.derived.deskew_affine_transform_zyx
+            #use the affine that aligns this scale with the deskewed output
+            affine_transform = lattice.quick_deskew_affine
             ndim_display = 3
         else:
             try: 

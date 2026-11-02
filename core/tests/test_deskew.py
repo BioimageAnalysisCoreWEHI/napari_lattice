@@ -1,6 +1,7 @@
 #filename and function name should start with "test_" when using pytest
 import pyclesperanto_prototype as cle 
 import numpy as np 
+import pytest
 from lls_core.models.lattice_data import LatticeData
 from xarray import DataArray
 import tempfile
@@ -98,6 +99,101 @@ def test_invert_scan_direction_display_transform():
     # With the flag off, the display transform must be untouched
     np.testing.assert_allclose(
         m, np.asarray(DeskewParams(input_image=raw, physical_pixel_sizes=(1, 1, 1)).derived.deskew_affine_transform_zyx)
+    )
+
+
+@pytest.mark.parametrize("skew", ["Y", "X"])
+@pytest.mark.parametrize("angle,pixels,coverslip_rotation,invert", [
+    (30, (0.3, 0.15, 0.15), True, False),
+    (30, (0.4, 0.15, 0.15), True, False),
+    (45, (0.5, 0.2, 0.2), True, False),
+    (31.8, (0.2, 0.104, 0.104), True, False),
+    (30, (0.3, 0.15, 0.15), True, True),
+    (30, (0.3, 0.15, 0.15), False, False),
+    (45, (0.5, 0.2, 0.1), False, False),
+    (30, (0.3, 0.15, 0.15), False, True),
+])
+def test_quick_deskew_affine_matches_deskew_output(skew, angle, pixels, coverslip_rotation, invert):
+    # A bead must land in the same place in microns under the Quick Deskew display
+    # transform as it does in the real deskewed output shown at (new_dz, dy, dx).
+    # That's the shared space that the tracks and crop ROIs are displayed in.
+    from lls_core.models.deskew import DeskewParams
+    from scipy.ndimage import center_of_mass, gaussian_filter
+
+    bead = (15, 30, 25)
+    raw_np = np.zeros((30, 60, 50), dtype=np.float32)
+    raw_np[bead] = 1
+    raw_np = gaussian_filter(raw_np, 1.2)
+
+    params = DeskewParams(
+        input_image=DataArray(raw_np, dims=["Z", "Y", "X"]),
+        physical_pixel_sizes=pixels,
+        angle=angle,
+        skew=skew,
+        coverslip_rotation=coverslip_rotation,
+        invert_scan_direction=invert,
+    )
+    dz, dy, dx = pixels
+    deskewed = np.asarray(params.deskew_func(
+        input_image=params.get_3d_slice().values,
+        angle_in_degrees=angle, linear_interpolation=True,
+        voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz,
+    ))
+    scale = np.array([params.new_dz, dy, dx])
+    expected = center_of_mass(np.where(deskewed > deskewed.max() * 0.3, deskewed, 0)) * scale
+
+    # napari applies the layer's scale, then its affine
+    displayed = params.quick_deskew_affine @ np.array([*(bead * scale), 1.0])
+    # Allow for the interpolation shifting the centroid by a fraction of a voxel
+    np.testing.assert_allclose(displayed[:3], expected, atol=0.25 * scale.max())
+
+
+@pytest.mark.parametrize("skew", ["Y", "X"])
+@pytest.mark.parametrize("angle,pixels", [
+    (30, (0.3, 0.15, 0.15)),
+    (30, (0.4, 0.15, 0.15)),
+    (45, (0.5, 0.2, 0.2)),
+    (60, (0.25, 0.1, 0.1)),
+])
+def test_output_z_spacing_preserves_distances(skew, angle, pixels):
+    # The objective-frame deskew is a rigid rotation of the sample, so the distance
+    # between two beads in microns must be the same in the raw data and in the output
+    # at (new_dz, dy, dx). This would catch the output Z spacing being mislabelled.
+    from lls_core.models.deskew import DeskewParams
+    from scipy.ndimage import center_of_mass, gaussian_filter
+
+    dz, dy, dx = pixels
+    theta = np.radians(angle)
+
+    def raw_microns(bead):
+        plane, y, x = bead
+        shift = plane * dz * np.cos(theta)
+        return np.array([
+            plane * dz * np.sin(theta),
+            y * dy + (shift if skew == "Y" else 0),
+            x * dx + (shift if skew == "X" else 0),
+        ])
+
+    def output_index(bead):
+        raw_np = np.zeros((30, 60, 50), dtype=np.float32)
+        raw_np[bead] = 1
+        raw_np = gaussian_filter(raw_np, 1.2)
+        params = DeskewParams(
+            input_image=DataArray(raw_np, dims=["Z", "Y", "X"]),
+            physical_pixel_sizes=pixels, angle=angle, skew=skew,
+        )
+        deskewed = np.asarray(params.deskew_func(
+            input_image=raw_np, angle_in_degrees=angle,
+            voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz,
+        ))
+        peak = np.where(deskewed > deskewed.max() * 0.3, deskewed, 0)
+        return np.array(center_of_mass(peak)), params.new_dz
+
+    first, second = (8, 20, 15), (22, 45, 35)
+    (first_index, new_dz), (second_index, _) = output_index(first), output_index(second)
+    scale = np.array([new_dz, dy, dx])
+    assert np.linalg.norm((second_index - first_index) * scale) == pytest.approx(
+        np.linalg.norm(raw_microns(second) - raw_microns(first)), abs=0.05
     )
 
 
