@@ -41,9 +41,9 @@ jobs:
       # package versions, so CI was not testing what users actually install.
       - uses: conda-incubator/setup-miniconda@v4
         with:
-          miniforge-version: latest
+          miniforge-version: 26.7.2-1
           conda-remove-defaults: "true"
-          auto-update-conda: true
+          auto-update-conda: false
           activate-environment: test
           python-version: ${{ matrix.python-version }}
           channels: conda-forge
@@ -117,11 +117,14 @@ jobs:
       # Miniforge + conda-forge only, matching the environment docs/installation.md
       # tells users to build. Miniconda's `defaults` channel resolves different
       # package versions, so CI was not testing what users actually install.
+      # Pinned: Miniforge 26.9.4-0 (conda 26.9.4) makes `conda init --all` exit 1 on
+      # the Windows runner ("needs sudo ... Scripts\conda.exe"), which fails this
+      # step. Unpin once a fixed Miniforge release is out.
       - uses: conda-incubator/setup-miniconda@v4
         with:
-          miniforge-version: latest
+          miniforge-version: 26.7.2-1
           conda-remove-defaults: "true"
-          auto-update-conda: true
+          auto-update-conda: false
           activate-environment: test
           python-version: ${{ matrix.python-version }}
           channels: conda-forge

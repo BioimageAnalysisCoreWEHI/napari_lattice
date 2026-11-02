@@ -6,7 +6,7 @@ The plugin is under `Lattice Lightsheet Analysis`
 
 ![Activate plugin](../images/001_start_plugin.png){ width="600" }
 
-The plugin should appear on the right side. You may have to resize the window. Before an image is loaded, the `1. Deskew` and `5. Output` tabs show a red cross and the message *"At least one image must be provided"* — this is expected.
+The plugin should appear on the right side. You may have to resize the window. Before an image is loaded, the `1. Deskew` and `6. Output` tabs show a red cross and the message *"At least one image must be provided"* — this is expected.
 
 ![llsz_plugin](../images/plugin_panel.png){ width="450" }
 

@@ -33,13 +33,16 @@ def test_workflow_cli(workflow_config_cli: dict, save_func: Callable, cli_param:
     Test workflow processing via CLI
     This will apply deskewing before processing the workflow
     """
-    with tempfile.NamedTemporaryFile(mode="w") as fp:
-        save_func(workflow_config_cli, fp)
-        fp.flush()
+    # A NamedTemporaryFile cannot be reopened by name while open on Windows,
+    # so write the config to a file in a temporary directory instead.
+    with tempfile.TemporaryDirectory() as config_dir:
+        config_path = Path(config_dir) / "config"
+        with open(config_path, "w") as fp:
+            save_func(workflow_config_cli, fp)
 
         # Deskew, apply workflow and save as h5
         invoke([
-            cli_param, fp.name
+            cli_param, str(config_path)
         ])
 
     # checks if h5 file written
@@ -51,9 +54,14 @@ def test_workflow_cli(workflow_config_cli: dict, save_func: Callable, cli_param:
     import npy2bdv
     for h5_img in saved_files:
         h5_file = npy2bdv.npy2bdv.BdvEditor(str(h5_img))
-        label_img = h5_file.read_view(time=0, channel=0)
-        assert label_img.shape == (3, 14, 5)
-        assert label_img[1, 6, 2] == 1
+        try:
+            label_img = h5_file.read_view(time=0, channel=0)
+            assert label_img.shape == (3, 14, 5)
+            assert label_img[1, 6, 2] == 1
+        finally:
+            # Windows cannot delete the temp dir while the file is still open
+            # BdvEditor has no public close(); release its h5py handle directly
+            h5_file._file_object_h5.close()
 
 def test_image_workflow(lls7_t1_ch1: Path, image_workflow: Workflow):
     # Test that a regular workflow that returns an image directly works

@@ -128,7 +128,11 @@ def output_origin_zyx(
     from lls_core.utils import calculate_crop_bbox
 
     index = 0 if roi_index is None else int(roi_index)
-    roi_shape = _roi_to_shape_array(lattice.crop.roi_list[index])
+    if not lattice.crop.roi_by_time:
+        roi_shape = _roi_to_shape_array(lattice.crop.roi_list[index])
+    else:
+        #since tracking roi shape is constant with t only need to consider the first time point
+        roi_shape = _roi_to_shape_array(list(lattice.crop.roi_by_time[index].values())[0])
     z_start, z_end = lattice.crop.z_range
 
     if not lattice.coverslip_rotation:
@@ -189,7 +193,11 @@ def write_sidecar(
 
     roi = None
     if cropped:
-        corners = _roi_to_shape_array(lattice.crop.roi_list[index])
+        if not lattice.crop.roi_by_time:
+            corners = _roi_to_shape_array(lattice.crop.roi_list[index])
+        else:
+            #since tracking roi shape is constant with t only need to consider the first time point
+            corners = _roi_to_shape_array(list(lattice.crop.roi_by_time[index].values())[0])
         ys, xs = corners[:, 0], corners[:, 1]
         roi = {
             "index": index,

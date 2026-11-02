@@ -29,6 +29,7 @@ Check the [Docs website](https://bioimageanalysiscorewehi.github.io/napari_latti
 * Ability to preview deskewed image at channel or timepoint of interest
 * Crop and process only a small portion of the image 
 * Import ImageJ ROIs for cropping
+* Import TrackMate data for cropping around a tracked cell
 * Create image processing workflows using napari-workflows
 * Run deskewing, deconvolution and custom image processing workflows from the terminal
 * Files can be saved as ome zarr, h5 (BigDataViewer/BigStitcher) or tiff files

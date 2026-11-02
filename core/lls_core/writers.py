@@ -60,6 +60,7 @@ def to_output_dtype(array: np.ndarray, out_dtype: np.dtype) -> np.ndarray:
     """Cast to ``out_dtype``, rounding and clipping for integer targets.
     Deskew output is fractional: a plain ``.astype`` truncates toward zero,
     pulling magnitudes down by about half a count, so round to nearest."""
+    
     out_dtype = np.dtype(out_dtype)
     array = np.asarray(array)
     if array.dtype == out_dtype:
@@ -308,7 +309,11 @@ class TiffWriter(Writer):
         # Dtype policy matches OMEZarrWriter: fixed from the first slice.
         out_dtype = resolve_output_dtype(first_vol.dtype)
         z_len, y_len, x_len = (int(d) for d in first_vol.shape)
-        t_len = len(self.lattice.time_range)
+        if self.lattice.time_range_by_track:
+            t_len = len(self.lattice.time_range_by_track[self.roi_index])
+        else:
+            t_len = len(self.lattice.time_range)
+        
         c_len = len(self.lattice.channel_range)
 
         # One file per ROI, named like the other writers (no timepoint/channel
@@ -425,8 +430,9 @@ class OMEZarrWriter(Writer):
             # Record the store so it is reported like the other formats' outputs, and
             # so `close()` writes it a metadata sidecar.
             self.written_files.append(self._root_path)
-
+        
         self._arr[t_idx, c_idx, :, :, :] = to_output_dtype(data3d, self._arr.dtype)
+        
         return self._root_path
 
     # Optional hook if the framework ever calls it.
@@ -437,7 +443,10 @@ class OMEZarrWriter(Writer):
     def _resolve_t_c_lengths(self, slice) -> tuple[int, int]:
         if self._t_len is not None and self._c_len is not None:
             return self._t_len, self._c_len
-        t_len = len(getattr(self.params, "time_range", None) or [])
+        if self.lattice.time_range_by_track:
+            t_len = len(getattr(self.params, "time_range_by_track", None)[slice.roi_index] or [])
+        else:
+            t_len = len(getattr(self.params, "time_range", None) or [])
         c_len = len(getattr(self.params, "channel_range", None) or [])
         self._t_len, self._c_len = t_len, c_len 
         return t_len, c_len

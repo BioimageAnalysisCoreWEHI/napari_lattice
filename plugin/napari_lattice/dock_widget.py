@@ -16,6 +16,7 @@ from napari_lattice.fields import (
     DeskewFields,
     OutputFields,
     WorkflowFields,
+    TrackmateFields,
 )
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import QTabWidget, QWidget
@@ -57,6 +58,21 @@ class LLSZWidget(MagicTemplate):
         self["save"].enabled = enabled
         self["preview"].enabled = enabled
 
+    def _make_crop_model(self):
+        """
+        The crop to run, from whichever tab defines one: a fixed region from the Crop
+        tab, or a region that follows a track from the ROI Tracking tab. Only one crop
+        can apply to a run, so asking for both is refused.
+        """
+        fixed = self.LlszMenu.WidgetContainer.cropping_fields._make_model()
+        tracked = self.LlszMenu.WidgetContainer.trackmate_fields._make_model()
+        if fixed is not None and tracked is not None:
+            raise ValueError(
+                "The Crop tab and the ROI Tracking tab are both set to crop, and a run "
+                "can only use one. Disable one."
+            )
+        return tracked if tracked is not None else fixed
+
     def _make_model(self, validate: bool = True) -> LatticeData:
         from rich import print
         from sys import stdout
@@ -86,7 +102,7 @@ class LLSZWidget(MagicTemplate):
 
             workflow=self.LlszMenu.WidgetContainer.workflow_fields._make_model(),
             deconvolution=self.LlszMenu.WidgetContainer.deconv_fields._make_model(),
-            crop=self.LlszMenu.WidgetContainer.cropping_fields._make_model()
+            crop=self._make_crop_model()
         )
         # Log the lattice
         print(params, file=stdout)
@@ -99,7 +115,7 @@ class LLSZWidget(MagicTemplate):
         <div>
         Specify deskewing parameters and image layers in Tab 1.&nbsp; 
         Additional analysis parameters can be configured in the other tabs.&nbsp;
-        When you are ready to save,&nbsp;go to Tab 5.&nbsp;
+        When you are ready to save,&nbsp;go to Tab 6.&nbsp;
         Output to specify the output directory.&nbsp;
         For more information,&nbsp;<a href="https://bioimageanalysiscorewehi.github.io/napari_lattice/">please refer to the documentation here</a>.
         </div>
@@ -128,9 +144,9 @@ class LLSZWidget(MagicTemplate):
                 tab_widget: QTabWidget= self._widget._tab_widget
                 # Manually set the tab labels, because by default magicgui uses the widget names, but setting
                 # the names to human readable text makes them difficult to access via self
-                for i, label in enumerate(["1. Deskew", "2. Deconvolution", "3. Crop", "4. Workflow", "5. Output"]):
+                for i, label in enumerate(["1. Deskew", "2. Deconvolution", "3. Crop", "4. ROI Tracking", "5. Workflow", "6. Output"]):
                     tab_widget.setTabText(i, label)
-                for field in [self.deskew_fields, self.deconv_fields, self.cropping_fields, self.workflow_fields, self.output_fields]:
+                for field in [self.deskew_fields, self.deconv_fields, self.cropping_fields, self.trackmate_fields, self.workflow_fields, self.output_fields]:
                     # Connect event handlers
                     for subfield_name in dir(field):
                         subfield = getattr(field, subfield_name)
@@ -143,6 +159,7 @@ class LLSZWidget(MagicTemplate):
             deskew_fields = vfield(DeskewFields)
             deconv_fields = vfield(DeconvolutionFields)
             cropping_fields = vfield(CroppingFields)
+            trackmate_fields = vfield(TrackmateFields)
             workflow_fields = vfield(WorkflowFields)
             output_fields = vfield(OutputFields)
 

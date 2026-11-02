@@ -45,6 +45,10 @@ class OutputParams(FieldAccessModel):
         description="The range of times to process. This defaults to all time points in the image array.",
         cli_description="The range of times to process, as an array with two items: the first and last time index. This defaults to all time points in the image array."
     )
+    time_range_by_track: dict[int,range] = Field(
+        default = None,
+        description="The range of times to process for a track. This defaults to all time points in the image array."
+    )
     channel_range: range = Field(
         default=None,
         description="The range of channels to process. This defaults to all time points in the image array.",

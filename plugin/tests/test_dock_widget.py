@@ -173,6 +173,45 @@ def test_quick_deskew_toggle_restores_raw_scale(make_napari_viewer: Callable[[],
         assert np.allclose(restored, raw), "disabling Quick Deskew must restore raw scale"
 
 
+def test_quick_deskew_uses_output_coordinates(make_napari_viewer: Callable[[], Viewer]):
+    """
+    A layer under Quick Deskew must sit in the deskewed output's microns, which is the
+    space Preview, crop ROIs and TrackMate tracks are displayed in. Regression for
+    the deskew translation being applied in voxels, which offset the layer in Z.
+    """
+    import numpy as np
+
+    viewer = make_napari_viewer()
+    with as_file(resources / "RBC_tiny.czi") as image_path:
+        image_data = BioImage(image_path)
+        viewer.add_image(image_data.xarray_dask_data)
+
+        ui = LLSZWidget()
+        set_debug(ui)
+        viewer.window.add_dock_widget(ui)
+
+        fields = ui.LlszMenu.WidgetContainer.deskew_fields
+        fields.img_layer.value = list(viewer.layers)
+        fields.dimension_order.value = image_data.dims.order
+        fields.pixel_sizes_source.value = PixelSizeSource.Manual
+        fields.pixel_sizes.value = (0.15, 0.15, 0.3)  # X, Y, Z
+        fields.quick_deskew.value = True
+
+        layer = list(viewer.layers)[0]
+        lattice = fields._make_model()
+        transform = np.asarray(lattice.derived.deskew_affine_transform_zyx)
+        out_scale = np.array([lattice.new_dz, lattice.dy, lattice.dx])
+        nz_out = lattice.derived.deskew_vol_shape[0]
+
+        raw_point = np.array([1.0, 2.0, 3.0])
+        out_index = (transform @ np.array([*raw_point, 1.0]))[:3]
+        out_index[0] += nz_out - 1 - transform[0, 3]
+
+        prefix = (0.0,) * (layer.ndim - 3)
+        world = np.asarray(layer.data_to_world((*prefix, *raw_point)))[-3:]
+        assert np.allclose(world, out_index * out_scale)
+
+
 def test_check_buildable():
     ui = LLSZWidget()
     set_debug(ui)
@@ -262,3 +301,25 @@ _tasks:
     fields.workflow_path.value = workflow_path
 
     assert fields._make_model() == workflow_path
+
+
+@pytest.mark.parametrize("ticked, locked", [
+    ("cropping_fields", "trackmate_fields"),
+    ("trackmate_fields", "cropping_fields"),
+])
+def test_only_one_crop_tab_can_be_enabled(ticked: str, locked: str):
+    """
+    Only one crop can apply to a run, so ticking Enabled in one crop tab greys out
+    the other tab's box until it is unticked again.
+    """
+    ui = LLSZWidget()
+    container = ui.LlszMenu.WidgetContainer
+    ticked_box = getattr(container, ticked).fields_enabled
+    locked_box = getattr(container, locked).fields_enabled
+    assert locked_box.enabled
+
+    ticked_box.value = True
+    assert not locked_box.enabled
+
+    ticked_box.value = False
+    assert locked_box.enabled

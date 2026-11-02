@@ -537,7 +537,11 @@ def get_roi_bboxes(
 
     raw_shape_zyx, transforms, skew_dir = context if context is not None else _roi_context(lattice)
 
-    roi_shape = _roi_to_shape_array(lattice.crop.roi_list[roi_index])
+    if not lattice.crop.roi_by_time:
+        roi_shape = _roi_to_shape_array(lattice.crop.roi_list[roi_index])
+    else:
+        #since tracking roi shape is constant with t only need to consider the first time point
+        roi_shape = _roi_to_shape_array(list(lattice.crop.roi_by_time[roi_index].values())[0])
     z_start, z_end = lattice.crop.z_range
 
     # Same helper `crop_volume_deskew` uses, so the estimate cannot describe a

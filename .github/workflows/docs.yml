@@ -35,7 +35,9 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v7
         with:
-          python-version: "3.10"
+          # mkdocstrings >=1.0.8 needs Python 3.11. Older releases break against
+          # pymdown-extensions >=12.2 ("Highlight.__init__() missing ... 'md'").
+          python-version: "3.11"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v7

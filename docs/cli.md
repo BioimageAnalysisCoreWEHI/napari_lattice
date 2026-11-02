@@ -32,6 +32,26 @@ The value is case-insensitive and accepts either singular or plural (`pixel`,
     logged if any ROI falls outside the deskewed image, but the reliable check is to
     leave `--roi-units` on `Auto`.
 
+
+### TrackMate Integration (`--roi-list`,`--track-crop-size`)
+Cropping based off of TrackMate data works through `--roi-list` accepting both `xml` or `csv` files from TrackMate. When using TrackMate data for cropping only a single tracking file is supported.
+TrackMate files must follow the appropriate format to be accepted as a TrackMate file. 
+```bash
+.csv files require the headers: {"TRACK_ID", "POSITION_X", "POSITION_Y", "POSITION_Z", "FRAME"}.
+```
+```bash
+.xml files require the root tag: "Tracks".
+```
+Files that do not match these will not be correctly processed.
+
+
+`--track-crop-size` is used to define the size of the the N×N crop window. the default is 30 microns, to redefine this default for processing a single value is provided. additionally crop windows can be specified for specific tracks in the form `track_id:window_size`.
+
+for example:
+```
+--track-crop-size 40,1:35,3:60
+```
+would mean that track 1 has a 35×35 crop window, track 3 a 60×60 window and all other tracks a 40×40 window.
 ## Coverslip-frame deskew (`--no-coverslip-rotation`)
 
 By default, `lls-pipeline` performs the standard deskew (`cle.deskew_y` /

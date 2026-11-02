@@ -104,7 +104,7 @@ Both are Y-skew, 45° acquisitions with coverslip rotation **off** and scan dire
 
     ![Quick Deskew preview of the deskewed OPM volume](../images/opm/opm_quick_deskew.png)
 
-4. When the preview looks right, switch to the **5. Output** tab to save. Choose a
+4. When the preview looks right, switch to the **6. Output** tab to save. Choose a
    `Save Format` (`tiff` writes a compressed OME-TIFF), pick a `Save Directory`, and adjust
    the `Save Suffix`, channel and time ranges if needed. Click **Save** to run the deskew
    and write the result. The tab turns green once a valid output directory is set:

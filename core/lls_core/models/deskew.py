@@ -202,11 +202,32 @@ class DeskewParams(FieldAccessModel):
 
     @property
     def new_dz(self):
-        import math
-        if not self.coverslip_rotation:
-            # Coverslip output Z axis sits on the lateral-pixel grid: one zc index = d_lateral
-            return self.dy if self.skew == DeskewDirection.Y else self.dx
-        return math.sin(self.angle * math.pi / 180.0) * self.dz
+        # The deskewed output is resampled onto the lateral pixel grid, so one output Z
+        # index is one lateral pixel, whichever frame we're in and whatever dz was.
+        # dz only affects how far the data extends, not the spacing of the output planes.
+        return self.dy if self.skew == DeskewDirection.Y else self.dx
+
+    @property
+    def quick_deskew_affine(self) -> np.ndarray:
+        """
+        The affine (zyx) that makes a raw napari layer with scale `(new_dz, dy, dx)` line up
+        with the deskewed output displayed at that same scale, so that Quick Deskew, Preview,
+        crop ROIs and TrackMate tracks all share one coordinate system.
+
+        `deskew_affine_transform_zyx` maps raw voxels to deskewed voxels, but napari applies
+        the layer's affine after its scale, to coordinates that are already in microns. That
+        matrix can't be used directly: its translation would be read as microns, and its
+        shear would act on the scaled Z. So we undo the layer scale, apply the transform, and
+        then scale the result.
+        """
+        transform = np.array(self.derived.deskew_affine_transform_zyx, dtype=float)
+        if self.coverslip_rotation:
+            # The real output puts its last Z plane at the end of its rounded output
+            # shape, whereas the transform's Z translation is the unrounded bounding
+            # box height.
+            transform[0, 3] = self.derived.deskew_vol_shape[0] - 1
+        scale = np.diag([self.new_dz, self.dy, self.dx, 1.0])
+        return scale @ transform @ np.linalg.inv(scale)
 
     def apply_scan_flip(self, volume: DataArray) -> DataArray:
         """
