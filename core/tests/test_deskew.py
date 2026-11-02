@@ -102,6 +102,18 @@ def test_invert_scan_direction_display_transform():
     )
 
 
+def make_bead(bead, shape=(30, 60, 50), sigma=1.2) -> np.ndarray:
+    # A blurred point, so that it survives the deskew's interpolation
+    squared_distance = sum((axis - centre) ** 2 for axis, centre in zip(np.indices(shape), bead))
+    return np.exp(-squared_distance / (2 * sigma ** 2)).astype(np.float32)
+
+
+def find_bead(volume: np.ndarray) -> np.ndarray:
+    # The centroid of a single bead, ignoring interpolation noise far from its peak
+    peak = np.where(volume > volume.max() * 0.3, volume, 0)
+    return np.array([np.average(axis, weights=peak) for axis in np.indices(volume.shape)])
+
+
 @pytest.mark.parametrize("skew", ["Y", "X"])
 @pytest.mark.parametrize("angle,pixels,coverslip_rotation,invert", [
     (30, (0.3, 0.15, 0.15), True, False),
@@ -118,12 +130,9 @@ def test_quick_deskew_affine_matches_deskew_output(skew, angle, pixels, coversli
     # transform as it does in the real deskewed output shown at (new_dz, dy, dx).
     # That's the shared space that the tracks and crop ROIs are displayed in.
     from lls_core.models.deskew import DeskewParams
-    from scipy.ndimage import center_of_mass, gaussian_filter
 
     bead = (15, 30, 25)
-    raw_np = np.zeros((30, 60, 50), dtype=np.float32)
-    raw_np[bead] = 1
-    raw_np = gaussian_filter(raw_np, 1.2)
+    raw_np = make_bead(bead)
 
     params = DeskewParams(
         input_image=DataArray(raw_np, dims=["Z", "Y", "X"]),
@@ -140,7 +149,7 @@ def test_quick_deskew_affine_matches_deskew_output(skew, angle, pixels, coversli
         voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz,
     ))
     scale = np.array([params.new_dz, dy, dx])
-    expected = center_of_mass(np.where(deskewed > deskewed.max() * 0.3, deskewed, 0)) * scale
+    expected = find_bead(deskewed) * scale
 
     # napari applies the layer's scale, then its affine
     displayed = params.quick_deskew_affine @ np.array([*(bead * scale), 1.0])
@@ -160,7 +169,6 @@ def test_output_z_spacing_preserves_distances(skew, angle, pixels):
     # between two beads in microns must be the same in the raw data and in the output
     # at (new_dz, dy, dx). This would catch the output Z spacing being mislabelled.
     from lls_core.models.deskew import DeskewParams
-    from scipy.ndimage import center_of_mass, gaussian_filter
 
     dz, dy, dx = pixels
     theta = np.radians(angle)
@@ -175,9 +183,7 @@ def test_output_z_spacing_preserves_distances(skew, angle, pixels):
         ])
 
     def output_index(bead):
-        raw_np = np.zeros((30, 60, 50), dtype=np.float32)
-        raw_np[bead] = 1
-        raw_np = gaussian_filter(raw_np, 1.2)
+        raw_np = make_bead(bead)
         params = DeskewParams(
             input_image=DataArray(raw_np, dims=["Z", "Y", "X"]),
             physical_pixel_sizes=pixels, angle=angle, skew=skew,
@@ -186,8 +192,7 @@ def test_output_z_spacing_preserves_distances(skew, angle, pixels):
             input_image=raw_np, angle_in_degrees=angle,
             voxel_size_x=dx, voxel_size_y=dy, voxel_size_z=dz,
         ))
-        peak = np.where(deskewed > deskewed.max() * 0.3, deskewed, 0)
-        return np.array(center_of_mass(peak)), params.new_dz
+        return find_bead(deskewed), params.new_dz
 
     first, second = (8, 20, 15), (22, 45, 35)
     (first_index, new_dz), (second_index, _) = output_index(first), output_index(second)
